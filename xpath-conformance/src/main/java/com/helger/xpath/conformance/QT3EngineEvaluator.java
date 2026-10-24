@@ -29,8 +29,11 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.CompiledXPath;
 import com.helger.xpath.XPathCompiler;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.context.EXmlVersion;
+import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.context.StaticContext;
+import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmQName;
@@ -57,6 +60,11 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
   private boolean m_bXPath10Compatibility;
   private IXdmItem m_aContextItem;
   private IResourceResolver m_aResolver;
+  private EXmlVersion m_eXmlVersion;
+  private EXsdVersion m_eXsdVersion;
+  private String m_sDefaultLanguage;
+  private FormatDecimalFormat m_aDefaultDecimalFormat;
+  private final ICommonsOrderedMap <XdmQName, FormatDecimalFormat> m_aDecimalFormats = new CommonsLinkedHashMap <> ();
 
   /**
    * @param aNow
@@ -115,6 +123,41 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
   }
 
   @NonNull
+  public QT3EngineEvaluator setXmlVersion (@Nullable final EXmlVersion eXmlVersion)
+  {
+    m_eXmlVersion = eXmlVersion;
+    return this;
+  }
+
+  @NonNull
+  public QT3EngineEvaluator setXsdVersion (@Nullable final EXsdVersion eXsdVersion)
+  {
+    m_eXsdVersion = eXsdVersion;
+    return this;
+  }
+
+  @NonNull
+  public QT3EngineEvaluator setDefaultLanguage (@Nullable final String sDefaultLanguage)
+  {
+    m_sDefaultLanguage = sDefaultLanguage;
+    return this;
+  }
+
+  @NonNull
+  public QT3EngineEvaluator setDefaultDecimalFormat (@Nullable final FormatDecimalFormat aFormat)
+  {
+    m_aDefaultDecimalFormat = aFormat;
+    return this;
+  }
+
+  @NonNull
+  public QT3EngineEvaluator addDecimalFormat (@NonNull final XdmQName aName, @NonNull final FormatDecimalFormat aFormat)
+  {
+    m_aDecimalFormats.put (aName, aFormat);
+    return this;
+  }
+
+  @NonNull
   public QT3EngineEvaluator setContextItem (@Nullable final IXdmItem aItem)
   {
     m_aContextItem = aItem;
@@ -162,6 +205,14 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
     if (m_sDefaultCollation != null)
       aStatic.setDefaultCollation (m_sDefaultCollation);
     aStatic.setXPath10Compatibility (m_bXPath10Compatibility);
+    if (m_eXmlVersion != null)
+      aStatic.setXmlVersion (m_eXmlVersion);
+    if (m_eXsdVersion != null)
+      aStatic.setXsdVersion (m_eXsdVersion);
+    if (m_aDefaultDecimalFormat != null)
+      aStatic.setDefaultDecimalFormat (m_aDefaultDecimalFormat);
+    for (final Map.Entry <XdmQName, FormatDecimalFormat> aEntry : m_aDecimalFormats.entrySet ())
+      aStatic.addDecimalFormat (aEntry.getKey (), aEntry.getValue ());
     for (final XdmQName aName : m_aVars.keySet ())
       aStatic.declareVariable (aName);
     for (final XdmQName aName : aExtraVars.keySet ())
@@ -170,6 +221,8 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
     final CompiledXPath aCompiled = XPathCompiler.compile (sExpr, aStatic);
     DynamicContext aCtx = aCompiled.createDynamicContext ();
     aCtx.setCurrentDateTime (m_aNow);
+    if (m_sDefaultLanguage != null)
+      aCtx.setDefaultLanguage (m_sDefaultLanguage);
     if (m_aResolver != null)
       aCtx.setResourceResolver (m_aResolver);
     if (m_aContextItem != null)
