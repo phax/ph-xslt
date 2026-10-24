@@ -81,9 +81,10 @@ public final class FnFormat
     final String sPicture = _stringArg (aArgs, 1);
     if (aValue == null)
       return _string ("");
+    final String sLanguage = _stringArg (aArgs, 2);
     return _string (FormatInteger.format (aValue.getBigInteger (),
                                           sPicture == null ? "" : sPicture,
-                                          _stringArg (aArgs, 2)));
+                                          sLanguage != null ? sLanguage : aCtx.getDefaultLanguage ()));
   }
 
   /**
@@ -158,10 +159,11 @@ public final class FnFormat
       if (aValue == null)
         return XdmSequence.EMPTY;
       final String sPicture = _stringArg (aArgs, 1);
+      final String sLanguage = _stringArg (aArgs, 2);
       return _string (FormatDateTime.format ((XdmDateTimeValue) aValue.getValue (),
                                              eType,
                                              sPicture == null ? "" : sPicture,
-                                             _stringArg (aArgs, 2),
+                                             sLanguage != null ? sLanguage : aCtx.getDefaultLanguage (),
                                              _stringArg (aArgs, 3),
                                              _stringArg (aArgs, 4)));
     };

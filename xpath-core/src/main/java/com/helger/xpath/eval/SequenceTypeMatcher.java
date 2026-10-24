@@ -716,6 +716,63 @@ public final class SequenceTypeMatcher
     return ret;
   }
 
+  @NonNull
+  private static XdmSequence _convertNoCompat (@NonNull final XdmSequence aSeq,
+                                               @NonNull final SeqType aType,
+                                               @NonNull final DynamicContext aCtx,
+                                               @NonNull final String sErrorCode)
+  {
+    switch (aType.itemType ().kind ())
+    {
+      case ATOMIC:
+        return _convertAtomics (aSeq, aType, aCtx, sErrorCode);
+      case FUNCTION:
+        return _convertFunctions (aSeq, aType, sErrorCode);
+      default:
+        if (!matches (aSeq, aType))
+          throw XPathException.of (sErrorCode,
+                                   "Required type is " + getAsString (aType) + ", but supplied was " + _describe (aSeq));
+        return aSeq;
+    }
+  }
+
+  /**
+   * The XPath 1.0 compatibility mode conversions (XPath 3.1 section 3.1.5.2),
+   * applied to a value that is not of the expected type: the first item for a
+   * single item type, then fn:string for xs:string and fn:number for xs:double
+   * (and xs:numeric, whose members include xs:double).
+   */
+  @NonNull
+  private static XdmSequence _applyXPath10Conversions (@NonNull final XdmSequence aSeq, @NonNull final SeqType aType)
+  {
+    XdmSequence ret = aSeq;
+    if (!aType.occurrence ().allowsMany () && ret.size () > 1)
+      ret = XdmSequence.of (ret.getFirst ());
+    if (aType.itemType ().kind () == ItemType.Kind.ATOMIC)
+    {
+      final EAtomicType eTarget = aType.itemType ().atomicType ();
+      if (eTarget == EAtomicType.STRING)
+        ret = XdmSequence.of (XdmAtomic.string (ret.isEmpty () ? "" : Atomizer.getStringValue (ret.getFirst ())));
+      else
+        if (eTarget == EAtomicType.DOUBLE || eTarget == EAtomicType.NUMERIC)
+        {
+          double dValue = Double.NaN;
+          final XdmSequence aAtoms = Atomizer.atomize (ret);
+          if (aAtoms.size () == 1)
+            try
+            {
+              dValue = AtomicCaster.cast ((XdmAtomic) aAtoms.getFirst (), EAtomicType.DOUBLE, null).getAsDouble ();
+            }
+            catch (final XPathException ex)
+            {
+              // Not a number: NaN
+            }
+          ret = XdmSequence.of (XdmAtomic.dbl (dValue));
+        }
+    }
+    return ret;
+  }
+
   /**
    * Apply the function conversion rules: atomisation where an atomic type is
    * expected, xs:untypedAtomic cast to the expected type, numeric and URI
@@ -745,17 +802,15 @@ public final class SequenceTypeMatcher
         throw XPathException.of (sErrorCode, "Required type is empty-sequence(), but supplied was " + _describe (aSeq));
       return aSeq;
     }
-    switch (aType.itemType ().kind ())
+    try
     {
-      case ATOMIC:
-        return _convertAtomics (aSeq, aType, aCtx, sErrorCode);
-      case FUNCTION:
-        return _convertFunctions (aSeq, aType, sErrorCode);
-      default:
-        if (!matches (aSeq, aType))
-          throw XPathException.of (sErrorCode,
-                                   "Required type is " + getAsString (aType) + ", but supplied was " + _describe (aSeq));
-        return aSeq;
+      return _convertNoCompat (aSeq, aType, aCtx, sErrorCode);
+    }
+    catch (final XPathException ex)
+    {
+      if (!aCtx.getStaticContext ().isXPath10Compatibility () || !sErrorCode.equals (ex.getCode ()))
+        throw ex;
+      return _convertNoCompat (_applyXPath10Conversions (aSeq, aType), aType, aCtx, sErrorCode);
     }
   }
 }

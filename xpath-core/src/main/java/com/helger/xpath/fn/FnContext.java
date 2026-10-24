@@ -42,7 +42,7 @@ import com.helger.xpath.xdm.XdmConstants;
 public final class FnContext
 {
   /** The value of <code>fn:default-language()</code>. */
-  public static final String DEFAULT_LANGUAGE = "en";
+  public static final String DEFAULT_LANGUAGE = DynamicContext.DEFAULT_LANGUAGE;
 
   @PresentForCodeCoverage
   private static final FnContext INSTANCE = new FnContext ();
@@ -175,7 +175,7 @@ public final class FnContext
     aLib.register (sNS,
                    "default-language",
                    "() as xs:language",
-                   (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.of (EAtomicType.LANGUAGE, DEFAULT_LANGUAGE)));
+                   (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.of (EAtomicType.LANGUAGE, aCtx.getDefaultLanguage ())));
     aLib.register (sNS, "static-base-uri", "() as xs:anyURI?", (aCtx, aArgs) -> {
       final String sBaseUri = aCtx.getStaticContext ().getBaseUri ();
       return sBaseUri == null ? XdmSequence.EMPTY : XdmSequence.of (XdmAtomic.anyUri (sBaseUri));

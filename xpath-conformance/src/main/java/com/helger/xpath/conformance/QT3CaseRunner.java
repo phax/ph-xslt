@@ -30,6 +30,9 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.context.EXmlVersion;
+import com.helger.xpath.context.EXsdVersion;
+import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
@@ -41,11 +44,8 @@ import com.helger.xpath.xdm.XdmQName;
  * {@link XPathException} counts as a failure ("crash:" + class name) and never
  * aborts the run.
  * <p>
- * Environment parts the engine has no hook for yet are read but not applied:
- * decimal formats, collections, schemas (no
- * schema-awareness: such cases run unvalidated, as in Go they are attempted)
- * and <code>xml-version</code>/<code>xsd-version</code>/<code>default-language</code>
- * dependencies.
+ * Schema environments are read but not applied (no schema-awareness): such
+ * cases run unvalidated and are attempted, as in Go.
  * <p>
  * A case (or its test set) with the dependency <code>feature staticTyping</code>
  * opts in to the engine's narrow part of the optional Static Typing Feature,
@@ -128,6 +128,80 @@ public final class QT3CaseRunner
     return false;
   }
 
+  /**
+   * @return The value of the last satisfied dependency of the given type, or
+   *         <code>null</code> if there is none.
+   */
+  @Nullable
+  private static String _getDependencyValue (@NonNull final List <QT3Dependency> aDeps, @NonNull final String sType)
+  {
+    String ret = null;
+    for (final QT3Dependency aDep : aDeps)
+      if (sType.equals (aDep.type ()) && aDep.isSatisfied ())
+        ret = aDep.value ().trim ();
+    return ret;
+  }
+
+  /**
+   * Resolve the name of a decimal format: a prefix binds from the element's
+   * own namespace declarations first, then from the environment's ones.
+   */
+  @NonNull
+  private static XdmQName _decimalFormatName (@NonNull final String sName,
+                                              @NonNull final Map <String, String> aAttrs,
+                                              @NonNull final QT3Environment aEnv)
+  {
+    final int nColon = sName.indexOf (':');
+    if (nColon < 0)
+      return new XdmQName (sName);
+    final String sPrefix = sName.substring (0, nColon);
+    String sUri = aAttrs.get ("xmlns:" + sPrefix);
+    if (sUri == null)
+      for (final QT3Environment.Namespace aNs : aEnv.getAllNamespaces ())
+        if (aNs.prefix ().equals (sPrefix))
+          sUri = aNs.uri ();
+    return new XdmQName (sUri == null ? "" : sUri, sName.substring (nColon + 1), sPrefix);
+  }
+
+  private static int _firstCodePoint (@Nullable final String sValue, final int nDefault)
+  {
+    return sValue == null || sValue.isEmpty () ? nDefault : sValue.codePointAt (0);
+  }
+
+  /**
+   * Pass the environment's decimal formats to the evaluator: the unnamed one
+   * replaces the default format, named ones are added.
+   */
+  private static void _applyDecimalFormats (@NonNull final QT3Environment aEnv, @NonNull final QT3EngineEvaluator aEval)
+  {
+    for (final QT3Environment.DecimalFormat aDF : aEnv.getAllDecimalFormats ())
+    {
+      final Map <String, String> aAttrs = aDF.attributes ();
+      final FormatDecimalFormat aDefault = FormatDecimalFormat.DEFAULT;
+      final FormatDecimalFormat.Builder aBuilder = FormatDecimalFormat.builder ();
+      aBuilder.decimalSeparator (_firstCodePoint (aAttrs.get ("decimal-separator"), aDefault.getDecimalSeparator ()));
+      aBuilder.groupingSeparator (_firstCodePoint (aAttrs.get ("grouping-separator"), aDefault.getGroupingSeparator ()));
+      aBuilder.exponentSeparator (_firstCodePoint (aAttrs.get ("exponent-separator"), aDefault.getExponentSeparator ()));
+      aBuilder.percent (_firstCodePoint (aAttrs.get ("percent"), aDefault.getPercent ()));
+      aBuilder.perMille (_firstCodePoint (aAttrs.get ("per-mille"), aDefault.getPerMille ()));
+      aBuilder.zeroDigit (_firstCodePoint (aAttrs.get ("zero-digit"), aDefault.getZeroDigit ()));
+      aBuilder.digit (_firstCodePoint (aAttrs.get ("digit"), aDefault.getDigit ()));
+      aBuilder.patternSeparator (_firstCodePoint (aAttrs.get ("pattern-separator"), aDefault.getPatternSeparator ()));
+      aBuilder.minusSign (_firstCodePoint (aAttrs.get ("minus-sign"), aDefault.getMinusSign ()));
+      final String sInfinity = aAttrs.get ("infinity");
+      if (sInfinity != null)
+        aBuilder.infinity (sInfinity);
+      final String sNaN = aAttrs.get ("NaN");
+      if (sNaN != null)
+        aBuilder.nan (sNaN);
+      final String sName = aAttrs.get ("name");
+      if (sName == null || sName.isEmpty ())
+        aEval.setDefaultDecimalFormat (aBuilder.build ());
+      else
+        aEval.addDecimalFormat (_decimalFormatName (sName.trim (), aAttrs, aEnv), aBuilder.build ());
+    }
+  }
+
   @NonNull
   private static String _describeError (@NonNull final XPathException ex)
   {
@@ -176,6 +250,15 @@ public final class QT3CaseRunner
       if (aColl.isDefault ())
         aEval.setDefaultCollation (aColl.uri ());
     aEval.setXPath10Compatibility (_hasDependency (aAllDeps, "feature", "xpath-1.0-compatibility"));
+    _applyDecimalFormats (aEnv, aEval);
+    // The case runs under its own xml-version/xsd-version dependency (like
+    // Go); the assertions are evaluated under the same versions
+    final EXmlVersion eXmlVersion = EXmlVersion.getFromIDOrNull (_getDependencyValue (aAllDeps, "xml-version"));
+    final EXsdVersion eXsdVersion = EXsdVersion.getFromIDOrNull (_getDependencyValue (aAllDeps, "xsd-version"));
+    aEval.setXmlVersion (eXmlVersion).setXsdVersion (eXsdVersion);
+    aAssertEval.setXmlVersion (eXmlVersion).setXsdVersion (eXsdVersion);
+    // A host configuration the catalog asks for (default-language-006)
+    aEval.setDefaultLanguage (_getDependencyValue (aAllDeps, "default-language"));
 
     final QT3ResourceResolver aResolver = new QT3ResourceResolver (aEnv, aDocs);
     aEval.setResourceResolver (aResolver);

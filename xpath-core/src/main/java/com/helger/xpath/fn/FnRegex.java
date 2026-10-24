@@ -20,11 +20,13 @@ import java.util.List;
 import java.util.regex.Matcher;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.regex.XPathRegex;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
@@ -61,10 +63,21 @@ public final class FnRegex
   }
 
   @NonNull
+  private static XPathRegex _compile (@NonNull final DynamicContext aCtx,
+                                      @NonNull final String sPattern,
+                                      @Nullable final String sFlags)
+  {
+    // The character class grammar follows the XSD version in force
+    return XPathRegex.compile (sPattern,
+                               sFlags,
+                               aCtx.getStaticContext ().getXsdVersion () == EXsdVersion.V11);
+  }
+
+  @NonNull
   private static XdmSequence _matches (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
     final String sInput = _optString (aArgs.get (0));
-    final XPathRegex aRegex = XPathRegex.compile (_optString (aArgs.get (1)), _flags (aArgs, 2));
+    final XPathRegex aRegex = _compile (aCtx, _optString (aArgs.get (1)), _flags (aArgs, 2));
     return XdmSequence.of (XdmAtomic.bool (aRegex.matches (aCtx, sInput)));
   }
 
@@ -153,7 +166,7 @@ public final class FnRegex
     final String sPattern = _optString (aArgs.get (1));
     final String sReplacement = _optString (aArgs.get (2));
     final String sFlags = _flags (aArgs, 3);
-    final XPathRegex aRegex = XPathRegex.compile (sPattern, sFlags);
+    final XPathRegex aRegex = _compile (aCtx, sPattern, sFlags);
     if (!aRegex.isLiteral ())
       _checkReplacement (sReplacement);
     if (aRegex.matchesEmptyString ())
@@ -183,7 +196,7 @@ public final class FnRegex
                                         @NonNull final String sPattern,
                                         @NonNull final String sFlags)
   {
-    final XPathRegex aRegex = XPathRegex.compile (sPattern, sFlags);
+    final XPathRegex aRegex = _compile (aCtx, sPattern, sFlags);
     if (aRegex.matchesEmptyString ())
       throw XPathException.of ("FORX0003", "The regular expression '" + sPattern + "' matches a zero-length string");
     if (sInput.isEmpty ())
@@ -324,7 +337,7 @@ public final class FnRegex
   {
     final String sInput = _optString (aArgs.get (0));
     final String sPattern = _optString (aArgs.get (1));
-    final XPathRegex aRegex = XPathRegex.compile (sPattern, _flags (aArgs, 2));
+    final XPathRegex aRegex = _compile (aCtx, sPattern, _flags (aArgs, 2));
     if (aRegex.matchesEmptyString ())
       throw XPathException.of ("FORX0003", "The regular expression '" + sPattern + "' matches a zero-length string");
 

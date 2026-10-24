@@ -30,6 +30,7 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.context.EXmlVersion;
 import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
@@ -154,9 +155,11 @@ public final class FnString
     return d - dFloor >= 0.5 ? dFloor + 1 : dFloor;
   }
 
-  private static boolean _isXmlChar (final long nCP)
+  private static boolean _isXmlChar (final long nCP, @NonNull final EXmlVersion eXmlVersion)
   {
-    // XML 1.0 Char production
+    // Char production of XML 1.1 (any C0 control but NUL) or XML 1.0
+    if (eXmlVersion == EXmlVersion.V11 && nCP >= 0x1 && nCP <= 0xD7FF)
+      return true;
     return nCP == 0x9 ||
            nCP == 0xA ||
            nCP == 0xD ||
@@ -166,14 +169,16 @@ public final class FnString
   }
 
   @NonNull
-  private static XdmSequence _codepointsToString (@NonNull final List <XdmSequence> aArgs)
+  private static XdmSequence _codepointsToString (@NonNull final DynamicContext aCtx,
+                                                  @NonNull final List <XdmSequence> aArgs)
   {
+    final EXmlVersion eXmlVersion = aCtx.getStaticContext ().getXmlVersion ();
     final StringBuilder aSB = new StringBuilder ();
     for (final IXdmItem aItem : aArgs.get (0))
     {
       final BigInteger aValue = ((XdmAtomic) aItem).getBigInteger ();
       final long nCP = aValue.bitLength () < 32 ? aValue.longValue () : -1;
-      if (!_isXmlChar (nCP))
+      if (!_isXmlChar (nCP, eXmlVersion))
         throw XPathException.of ("FOCH0001", "Codepoint " + aValue + " is not a valid XML character");
       aSB.appendCodePoint ((int) nCP);
     }
@@ -475,7 +480,7 @@ public final class FnString
     aLib.register (sNS,
                    "codepoints-to-string",
                    "(xs:integer*) as xs:string",
-                   (aCtx, aArgs) -> _codepointsToString (aArgs));
+                   FnString::_codepointsToString);
     aLib.register (sNS,
                    "string-to-codepoints",
                    "(xs:string?) as xs:integer*",

@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import static com.helger.xpath.eval.ExprTestHelper.arrayType;
 import static com.helger.xpath.eval.ExprTestHelper.assertError;
@@ -42,6 +43,8 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.helger.xpath.XPathCompiler;
+import com.helger.xpath.XPathException;
 import com.helger.xpath.ast.EBinaryOp;
 import com.helger.xpath.ast.ENodeTestKind;
 import com.helger.xpath.ast.EOccurrence;
@@ -50,6 +53,7 @@ import com.helger.xpath.ast.ItemType;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.IXdmFunction;
 import com.helger.xpath.value.XdmArray;
@@ -325,5 +329,32 @@ public final class SequenceTypeMatcherTest
                   SequenceTypeMatcher.getAsString (SeqType.of (funcType (STRING, INTEGER), EOccurrence.ZERO_OR_MORE)));
     assertEquals ("element(a)", SequenceTypeMatcher.getAsString (_node (_element ("a", null, false))));
     assertEquals ("map(xs:string, xs:integer)", SequenceTypeMatcher.getAsString (SeqType.of (mapType (EAtomicType.STRING, INTEGER), EOccurrence.ONE)));
+  }
+
+  private static String _evalCompat (final String sExpr, final boolean bCompat)
+  {
+    final StaticContext aStatic = new StaticContext ().setXPath10Compatibility (bCompat);
+    final XdmSequence aRes = XPathCompiler.compile (sExpr, aStatic).evaluate (new DynamicContext (aStatic));
+    return ((XdmAtomic) aRes.getFirst ()).getLexical ();
+  }
+
+  @Test
+  public void testXPath10CompatibilityConversion ()
+  {
+    // fn:number for xs:double/xs:numeric, fn:string for xs:string, the first
+    // item for a single item type
+    assertEquals ("NaN", _evalCompat ("format-number('foo', '#')", true));
+    assertEquals ("12", _evalCompat ("format-number('12', '#')", true));
+    assertEquals ("3", _evalCompat ("string(string-length((123, 4)))", true));
+    assertEquals ("3", _evalCompat ("string(abs('-3'))", true));
+    try
+    {
+      _evalCompat ("format-number('foo', '#')", false);
+      fail ();
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("XPTY0004", ex.getCode ());
+    }
   }
 }

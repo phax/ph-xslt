@@ -31,6 +31,7 @@ v0.1.0 - work in progress
 * Added the module `xpath-core` with the XPath 3.1 engine and the F&O 3.1 function library
 * Added the module `xpath-conformance` that runs the W3C QT3 test suite
 * Added `StaticContext.setStaticTyping` to opt in to the narrow part of the optional Static Typing Feature: axis steps that provably select nothing raise XPST0005
+* Added the XML and XSD version (`StaticContext.setXmlVersion`/`setXsdVersion`) and the default language (`DynamicContext.setDefaultLanguage`) settings
 
 # Contributing
 
