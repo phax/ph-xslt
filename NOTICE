@@ -1,0 +1,23 @@
+ph-xslt
+Copyright 2026 Philip Helger (www.helger.com)
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+Origin
+
+Large parts of this library are a port to Java of go-xslt, a pure Go XSLT 3.0 /
+XPath 3.1 / XSD engine:
+
+  go-xslt, Copyright 2026 Tim Riep, licensed under the Apache License, Version 2.0
+  https://github.com/tim-riep/go-xslt
+
+The Go sources were used as the reference for architecture and behaviour. The
+port was written and changed by Philip Helger.
+
+--------------------------------------------------------------------------------
+Third-party components
+
+Runtime dependencies are resolved by Maven. The W3C conformance test suites
+(qt3tests, xslt30-test, xsdtests) are used for testing only, are cloned
+separately, and are not part of this repository or its artifacts.
