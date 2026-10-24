@@ -39,7 +39,8 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
 
 /**
- * Reads XML with the JDK parser into an {@link XdmNode} tree. The defaults are
+ * Reads XML with the JDK parser into an {@link XdmNode} tree, also when another
+ * JAXP implementation is on the class path. The defaults are
  * safe: secure processing is on and external entities and the external DTD
  * subset are not loaded.
  * <p>
@@ -191,7 +192,10 @@ public class XdmParser
     ValueEnforcer.notNull (aSource, "Source");
     try
     {
-      final SAXParserFactory aFactory = SAXParserFactory.newInstance ();
+      // Always the JDK parser: the JAXP lookup would pick up another
+      // implementation on the class path (e.g. Apache Xerces), which rejects
+      // the JDK properties set below
+      final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
       aFactory.setNamespaceAware (true);
       aFactory.setValidating (false);
       aFactory.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);

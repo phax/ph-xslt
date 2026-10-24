@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.xml.XMLConstants;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
@@ -62,7 +61,7 @@ public final class QT3SchemaCache
       aSources[i] = new StreamSource (aFiles.get (i).toUri ().toString ());
     try
     {
-      return Optional.of (SchemaFactory.newInstance (XMLConstants.W3C_XML_SCHEMA_NS_URI).newSchema (aSources));
+      return Optional.of (SchemaFactory.newDefaultInstance ().newSchema (aSources));
     }
     catch (final SAXException ex)
     {
