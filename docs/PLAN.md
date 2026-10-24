@@ -19,7 +19,9 @@ Decisions:
 | 4 | F&O 3.1 catalogue in family files | `fn_*.go` | done |
 | 5 | Regex (translation to `java.util.regex`, own matcher as fallback), collation (java.text.Collator, ICU4J undecided) | `regex_*.go`, `fn_collation.go` | done |
 | 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
-| 7+ | XSLT 3.0: compiler, runtime, serialiser, packages, JAXP and s9api facade, streaming, schema-awareness | `internal/xslt` | |
+| X1 | XSLT: XSLT30 harness (`xslt-conformance`), match patterns (`xpath-core` `pattern`), core compiler and engine with the basic instructions (`xslt-core`) | `xslt30_test.go`, `pattern*.go`, `compile.go`, `transform.go`, `modes.go`, `loader.go`, `avt.go` | in progress |
+| X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | |
+| X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | |
 
 QT3 status (2026-10-24): 22,328 of 22,478 applicable cases pass (99.3%), 150 fail, all documented in
 `xpath-conformance/docs/accepted-failures/qt3.md` (`QT3Test` fails on any undocumented failure):

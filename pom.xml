@@ -63,6 +63,7 @@
   <modules>
     <module>xpath-xdm</module>
     <module>xpath-core</module>
+    <module>xslt-core</module>
     <module>xpath-conformance</module>
   </modules>
   <dependencyManagement>
@@ -82,6 +83,11 @@
       <dependency>
         <groupId>com.helger.xpath</groupId>
         <artifactId>xpath-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.helger.xpath</groupId>
+        <artifactId>xslt-core</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>

@@ -60,6 +60,7 @@ public final class DynamicContext
     private BooleanSupplier m_aInterrupt = null;
     private final ICommonsMap <String, Object> m_aCache = new CommonsHashMap <> ();
     private int m_nCallDepth = 0;
+    private Object m_aHost = null;
     private ICommonsOrderedMap <String, String> m_aEnvironmentVariables = new CommonsLinkedHashMap <> ();
     private String m_sDefaultLanguage = DEFAULT_LANGUAGE;
   }
@@ -73,6 +74,7 @@ public final class DynamicContext
   private final StaticContext m_aStatic;
   private final RunState m_aRun;
   private final IXdmItem m_aItem;
+  private final IXdmItem m_aCurrentItem;
   private final int m_nPosition;
   private final int m_nSize;
   // Persistent linked list of bindings, innermost first
@@ -84,6 +86,7 @@ public final class DynamicContext
   private DynamicContext (@NonNull final StaticContext aStatic,
                           @NonNull final RunState aRun,
                           @Nullable final IXdmItem aItem,
+                          @Nullable final IXdmItem aCurrentItem,
                           final int nPosition,
                           final int nSize,
                           @Nullable final VarBinding aVars)
@@ -91,6 +94,7 @@ public final class DynamicContext
     m_aStatic = aStatic;
     m_aRun = aRun;
     m_aItem = aItem;
+    m_aCurrentItem = aCurrentItem;
     m_nPosition = nPosition;
     m_nSize = nSize;
     m_aVars = aVars;
@@ -104,7 +108,7 @@ public final class DynamicContext
    */
   public DynamicContext (@NonNull final StaticContext aStatic)
   {
-    this (ValueEnforcer.notNull (aStatic, "Static"), new RunState (), null, 0, 0, null);
+    this (ValueEnforcer.notNull (aStatic, "Static"), new RunState (), null, null, 0, 0, null);
   }
 
   @NonNull
@@ -136,20 +140,75 @@ public final class DynamicContext
   @NonNull
   public DynamicContext withFocus (@Nullable final IXdmItem aItem, final int nPosition, final int nSize)
   {
-    return new DynamicContext (m_aStatic, m_aRun, aItem, nPosition, nSize, m_aVars);
+    return new DynamicContext (m_aStatic, m_aRun, aItem, m_aCurrentItem, nPosition, nSize, m_aVars);
   }
 
   @NonNull
   public DynamicContext withVariable (@NonNull final XdmQName aName, @NonNull final XdmSequence aValue)
   {
-    return new DynamicContext (m_aStatic, m_aRun, m_aItem, m_nPosition, m_nSize, new VarBinding (aName, aValue, m_aVars));
+    return new DynamicContext (m_aStatic,
+                               m_aRun,
+                               m_aItem,
+                               m_aCurrentItem,
+                               m_nPosition,
+                               m_nSize,
+                               new VarBinding (aName, aValue, m_aVars));
   }
 
   /** @return A context with the same run state and static context but no focus and no variables. */
   @NonNull
   public DynamicContext withoutFocusAndVariables ()
   {
-    return new DynamicContext (m_aStatic, m_aRun, null, 0, 0, null);
+    return new DynamicContext (m_aStatic, m_aRun, null, null, 0, 0, null);
+  }
+
+  /**
+   * Derive a context that evaluates an expression compiled with another static
+   * context (XSLT: every stylesheet element has its own namespaces) while
+   * keeping focus, current item, variables and the run-wide state.
+   *
+   * @param aStatic
+   *        The other static context.
+   * @return The derived context.
+   */
+  @NonNull
+  public DynamicContext withStaticContext (@NonNull final StaticContext aStatic)
+  {
+    ValueEnforcer.notNull (aStatic, "Static");
+    return new DynamicContext (aStatic, m_aRun, m_aItem, m_aCurrentItem, m_nPosition, m_nSize, m_aVars);
+  }
+
+  /**
+   * @return The XSLT current item (<code>fn:current()</code>, XSLT 3.0 section
+   *         20.4.1), or <code>null</code> if none is set. It survives focus
+   *         changes inside the expression.
+   */
+  @Nullable
+  public IXdmItem getCurrentItem ()
+  {
+    return m_aCurrentItem;
+  }
+
+  @NonNull
+  public DynamicContext withCurrentItem (@Nullable final IXdmItem aCurrentItem)
+  {
+    return new DynamicContext (m_aStatic, m_aRun, m_aItem, aCurrentItem, m_nPosition, m_nSize, m_aVars);
+  }
+
+  /**
+   * @return The run-wide host object (the XSLT engine of the current
+   *         transformation), or <code>null</code> for plain XPath. Host
+   *         functions use it to reach their runtime state.
+   */
+  @Nullable
+  public Object getHost ()
+  {
+    return m_aRun.m_aHost;
+  }
+
+  public void setHost (@Nullable final Object aHost)
+  {
+    m_aRun.m_aHost = aHost;
   }
 
   /**
