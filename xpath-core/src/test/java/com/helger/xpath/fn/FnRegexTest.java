@@ -240,4 +240,19 @@ public final class FnRegexTest
     assertError ("FORX0003", "analyze-string('abc', 'x*')");
     assertTrue (_analyze ("analyze-string('how now', '(how)|(now)')").contains ("<group nr=2>now</group>"));
   }
+
+  @Test
+  public void testAnalyzeStringTypes ()
+  {
+    // analyzeString-020/021: the result tree carries type annotations
+    final String sLet = "let $r := analyze-string('banana', '(b)(anana)') return ";
+    assertEquals ("true", eval (sLet + "($r//@nr)[1] instance of attribute(nr, xs:positiveInteger)"));
+    assertEquals ("true", eval (sLet + "($r//@nr)[1] instance of attribute(*, xs:anyAtomicType)"));
+    assertEquals ("false", eval (sLet + "($r//@nr)[1] instance of attribute(*, xs:untypedAtomic)"));
+    assertEquals ("true", eval (sLet + "data(($r//@nr)[2]) instance of xs:positiveInteger"));
+    assertEquals ("false", eval (sLet + "$r instance of element(*, xs:untyped)"));
+    assertEquals ("true", eval (sLet + "$r instance of element(*, xs:anyType)"));
+    assertEquals ("true", eval (sLet + "data($r) instance of xs:untypedAtomic"));
+    assertEquals ("anana", eval (sLet + "string($r//*:group[@nr = 2])"));
+  }
 }

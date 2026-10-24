@@ -62,6 +62,7 @@ public final class XdmNode implements IXdmItem
   private ICommonsList <XdmNode> m_aAttributes;
   private ICommonsOrderedMap <String, String> m_aNamespaces;
   private EIDKind m_eIDKind = EIDKind.NONE;
+  private XdmQName m_aTypeAnnotation;
   private String m_sDocumentUri;
   private String m_sBaseUri;
   // 0 = not numbered yet
@@ -249,6 +250,25 @@ public final class XdmNode implements IXdmItem
   {
     ValueEnforcer.notNull (eIDKind, "IDKind");
     m_eIDKind = eIDKind;
+  }
+
+  /**
+   * @return The name of the type annotation of an element or attribute node,
+   *         or <code>null</code> for the default of an unvalidated node
+   *         (<code>xs:untyped</code> for elements,
+   *         <code>xs:untypedAtomic</code> for attributes). Only built-in
+   *         schema types are used, e.g. by the result tree of
+   *         fn:analyze-string.
+   */
+  @Nullable
+  public XdmQName getTypeAnnotation ()
+  {
+    return m_aTypeAnnotation;
+  }
+
+  public void setTypeAnnotation (@Nullable final XdmQName aTypeAnnotation)
+  {
+    m_aTypeAnnotation = aTypeAnnotation;
   }
 
   /**
