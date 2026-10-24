@@ -32,6 +32,12 @@ QT3 status (2026-10-24): 22,328 of 22,478 applicable cases pass (99.3%), 150 fai
 | Schema-validated sources | 7 | Open: needs content types and element declarations, which the JDK validator does not expose |
 | External entity in `fn:parse-xml`, network access | 2 | Accepted (same in go-xslt) |
 
+Schema-awareness: the JDK validator gives type annotations, typed values, nilled and schema IDs (`XdmParser.setSchema`).
+Apache Xerces-J was evaluated (2026-10-24): it would add content types and element declarations (6 more QT3 cases)
+but is dormant since 2022 and takes over JAXP application-wide. Deferred to the XSLT work, where
+`xsl:import-schema` needs element declarations anyway; decide then between Xerces-J (optional, without xml-apis and
+xml-resolver) and porting go-xslt's own XSD validator.
+
 Known JDK differences found so far:
 
 * JDK 25 secure processing limits the element depth to 100, JDK 21 does not. `XdmParser` sets the limit explicitly (default 10,000).
