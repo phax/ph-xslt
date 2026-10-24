@@ -55,6 +55,7 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
   private String m_sBaseUri;
   private String m_sDefaultCollation;
   private boolean m_bXPath10Compatibility;
+  private boolean m_bStaticTyping;
   private IXdmItem m_aContextItem;
   private IResourceResolver m_aResolver;
 
@@ -114,6 +115,20 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
     return this;
   }
 
+  /**
+   * @param b
+   *        <code>true</code> to compile with the engine's narrow part of the
+   *        optional Static Typing Feature (provably empty axis steps are
+   *        XPST0005).
+   * @return this for chaining
+   */
+  @NonNull
+  public QT3EngineEvaluator setStaticTyping (final boolean b)
+  {
+    m_bStaticTyping = b;
+    return this;
+  }
+
   @NonNull
   public QT3EngineEvaluator setContextItem (@Nullable final IXdmItem aItem)
   {
@@ -162,6 +177,7 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
     if (m_sDefaultCollation != null)
       aStatic.setDefaultCollation (m_sDefaultCollation);
     aStatic.setXPath10Compatibility (m_bXPath10Compatibility);
+    aStatic.setStaticTyping (m_bStaticTyping);
     for (final XdmQName aName : m_aVars.keySet ())
       aStatic.declareVariable (aName);
     for (final XdmQName aName : aExtraVars.keySet ())

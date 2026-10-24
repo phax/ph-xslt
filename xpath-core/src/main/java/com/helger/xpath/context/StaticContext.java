@@ -47,6 +47,7 @@ public final class StaticContext
   private String m_sBaseUri;
   private FunctionLibrary m_aFunctions = FunctionLibrary.getDefault ();
   private boolean m_bXPath10Compatibility = false;
+  private boolean m_bStaticTyping = false;
   private String m_sDefaultCollation = CollationRegistry.CODEPOINT_URI;
   private FormatDecimalFormat m_aDefaultDecimalFormat = FormatDecimalFormat.DEFAULT;
   private final ICommonsMap <XdmQName, FormatDecimalFormat> m_aDecimalFormats = new CommonsHashMap <> ();
@@ -155,6 +156,34 @@ public final class StaticContext
   public StaticContext setXPath10Compatibility (final boolean bXPath10Compatibility)
   {
     m_bXPath10Compatibility = bXPath10Compatibility;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if the narrow part of the optional Static Typing
+   *         Feature that this engine implements is in effect: an axis step
+   *         that provably selects nothing is the static error XPST0005.
+   *         Default <code>false</code>.
+   */
+  public boolean isStaticTyping ()
+  {
+    return m_bStaticTyping;
+  }
+
+  /**
+   * Opt in to the narrow part of XPath 3.1's optional Static Typing Feature
+   * that this engine implements: axis steps that can be proven, from the axis
+   * and node-test shape alone, to always select nothing raise XPST0005 at
+   * compile time. Off, the same expression evaluates to an empty sequence.
+   *
+   * @param bStaticTyping
+   *        <code>true</code> to enable the check.
+   * @return this for chaining
+   */
+  @NonNull
+  public StaticContext setStaticTyping (final boolean bStaticTyping)
+  {
+    m_bStaticTyping = bStaticTyping;
     return this;
   }
 

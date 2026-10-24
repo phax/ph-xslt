@@ -43,9 +43,13 @@ import com.helger.xpath.xdm.XdmQName;
  * <p>
  * Environment parts the engine has no hook for yet are read but not applied:
  * decimal formats, collections, schemas (no
- * schema-awareness: such cases run unvalidated, as in Go they are attempted),
- * <code>xml-version</code>/<code>xsd-version</code>/<code>default-language</code>
- * dependencies and the optional static typing feature.
+ * schema-awareness: such cases run unvalidated, as in Go they are attempted)
+ * and <code>xml-version</code>/<code>xsd-version</code>/<code>default-language</code>
+ * dependencies.
+ * <p>
+ * A case (or its test set) with the dependency <code>feature staticTyping</code>
+ * opts in to the engine's narrow part of the optional Static Typing Feature,
+ * for the test expression only, like Go's <code>ParseStaticTyping</code>.
  *
  * @author Philip Helger
  */
@@ -219,6 +223,9 @@ public final class QT3CaseRunner
         // Like Go: a param that fails to evaluate stays unbound
       }
     }
+
+    // Only the test expression itself, not the environment or the assertions
+    aEval.setStaticTyping (_hasDependency (aAllDeps, "feature", "staticTyping"));
 
     XdmSequence aResult = null;
     XPathException aError = null;

@@ -61,7 +61,9 @@ public final class XPathParser
    * @param sExpr
    *        The expression text.
    * @param aStaticCtx
-   *        The static context for name resolution.
+   *        The static context for name resolution. With
+   *        {@link StaticContext#isStaticTyping()} set, provably empty axis
+   *        steps are additionally rejected with XPST0005.
    * @return The AST.
    * @throws com.helger.xpath.XPathException
    *         for static errors.
@@ -71,7 +73,11 @@ public final class XPathParser
   {
     ValueEnforcer.notNull (sExpr, "Expr");
     ValueEnforcer.notNull (aStaticCtx, "StaticCtx");
-    return XPathParserImpl.runWithStackGuard ( () -> new XPathParserImpl (sExpr, aStaticCtx).parseExpression (), sExpr);
+    final IExpr ret = XPathParserImpl.runWithStackGuard ( () -> new XPathParserImpl (sExpr, aStaticCtx).parseExpression (),
+                                                          sExpr);
+    if (aStaticCtx.isStaticTyping ())
+      XPathStaticAxes.checkStaticEmptyPaths (ret);
+    return ret;
   }
 
   /**
