@@ -22,6 +22,9 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.junit.Test;
 import org.xml.sax.InputSource;
@@ -225,5 +228,37 @@ public final class XdmParserTest
     final XdmNode aDoc = _parse ("<!DOCTYPE a [<!ENTITY e SYSTEM 'file:///etc/hostname'>]><a>&e;</a>");
     // A skipped external entity must not leak file content
     assertEquals ("", aDoc.getStringValue ());
+  }
+
+  @Test
+  public void testExternalDtdAndEntityAreLoadedWhenEnabled () throws Exception
+  {
+    final Path aDir = Files.createTempDirectory ("xdmparser");
+    try
+    {
+      final Path aDtd = Files.writeString (aDir.resolve ("a.dtd"),
+                                           "<!ATTLIST a x CDATA 'def'><!ENTITY e SYSTEM 'e.txt'>",
+                                           StandardCharsets.UTF_8);
+      final Path aEnt = Files.writeString (aDir.resolve ("e.txt"), "ext", StandardCharsets.UTF_8);
+      final Path aDoc = Files.writeString (aDir.resolve ("a.xml"),
+                                           "<!DOCTYPE a SYSTEM 'a.dtd'><a>&e;</a>",
+                                           StandardCharsets.UTF_8);
+      try
+      {
+        final XdmNode aRoot = new XdmParser ().setLoadExternalEntities (true).parse (aDoc).getChildAtIndex (0);
+        assertEquals ("ext", aRoot.getStringValue ());
+        assertEquals ("def", aRoot.getAttribute ("", "x").getValue ());
+      }
+      finally
+      {
+        Files.delete (aDoc);
+        Files.delete (aEnt);
+        Files.delete (aDtd);
+      }
+    }
+    finally
+    {
+      Files.delete (aDir);
+    }
   }
 }
