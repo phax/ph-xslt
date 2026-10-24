@@ -205,6 +205,10 @@ public class XdmParser
       aFactory.setFeature ("http://apache.org/xml/features/nonvalidating/load-external-dtd",
                            m_bLoadExternalEntities);
       final XMLReader aReader = aFactory.newSAXParser ().getXMLReader ();
+      // Secure processing denies every external access by default, which
+      // would make the features above ineffective
+      if (m_bLoadExternalEntities)
+        aReader.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "all");
       final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
       if (m_aSchema != null)
       {

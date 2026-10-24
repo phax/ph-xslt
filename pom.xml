@@ -65,6 +65,7 @@
     <module>xpath-core</module>
     <module>xslt-core</module>
     <module>xpath-conformance</module>
+    <module>xslt-conformance</module>
   </modules>
   <dependencyManagement>
     <dependencies>
