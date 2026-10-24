@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import static com.helger.xpath.eval.ExprTestHelper.absPath;
 import static com.helger.xpath.eval.ExprTestHelper.anyName;
@@ -67,8 +68,13 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.junit.Test;
 
+import com.helger.xpath.CompiledXPath;
+import com.helger.xpath.XPathCompiler;
+import com.helger.xpath.XPathException;
 import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.ast.EBinaryOp;
 import com.helger.xpath.ast.EComparisonOp;
@@ -79,12 +85,14 @@ import com.helger.xpath.ast.ItemType;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.IXdmFunction;
 import com.helger.xpath.value.XdmArray;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
@@ -101,6 +109,40 @@ public final class XPathEvaluatorTest
   private static XdmNode _doc ()
   {
     return parse (XML);
+  }
+
+  @NonNull
+  private static String _adaptive (@NonNull final String sExpr,
+                                   final boolean bCompat10,
+                                   @Nullable final XdmNode aContextNode)
+  {
+    final CompiledXPath aXP = XPathCompiler.compile (sExpr, new StaticContext ().setXPath10Compatibility (bCompat10));
+    final DynamicContext aCtx = aXP.createDynamicContext ();
+    final XdmSequence aResult = aXP.evaluate (aContextNode == null ? aCtx : aCtx.withFocus (aContextNode, 1, 1));
+    final StringBuilder aSB = new StringBuilder ();
+    for (final IXdmItem aItem : aResult)
+    {
+      if (aSB.length () > 0)
+        aSB.append (' ');
+      aSB.append (aItem instanceof final XdmAtomic aAtomic ? aAtomic.getLexical () : aItem.toString ());
+    }
+    return aSB.toString ();
+  }
+
+  private static void _assertCode (@NonNull final String sCode,
+                                   @NonNull final String sExpr,
+                                   final boolean bCompat10,
+                                   @Nullable final XdmNode aContextNode)
+  {
+    try
+    {
+      _adaptive (sExpr, bCompat10, aContextNode);
+      fail ("Expected " + sCode + " for " + sExpr);
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals (sCode, ex.getCode ());
+    }
   }
 
   @Test
@@ -667,5 +709,56 @@ public final class XPathEvaluatorTest
     // partial application of a built-in
     final IExpr aPartial = call (fn ("for-each-pair"), range (lit (1), lit (2)), hole (), inline (var ("a"), "a", "b"));
     assertEquals (longs (1, 2), ints (eval (dynCall (aPartial, seq (str ("x"), str ("y"))))));
+  }
+
+  @Test
+  public void testRangeComparisonWithoutMaterialising ()
+  {
+    assumeParser ();
+    // RangeExpr-409c/d: far beyond the materialisation limit
+    assertEquals ("true", _adaptive ("1000000000000000020001 = 1000000000000000000000 to 1000000000000010000003", false, null));
+    assertEquals ("true", _adaptive ("1000000000000000020001 < 1000000000000000000000 to 1000000000000500000003", false, null));
+    assertEquals ("false", _adaptive ("0 = 1 to 100000000000", false, null));
+    assertEquals ("true", _adaptive ("1 to 100000000000 > 99999999999.5", false, null));
+    assertEquals ("false", _adaptive ("1 to 100000000000 > 100000000000", false, null));
+    assertEquals ("false", _adaptive ("2.5 = 1 to 100000000000", false, null));
+    assertEquals ("true", _adaptive ("2.0 = 1 to 100000000000", false, null));
+    assertEquals ("true", _adaptive ("(5, 6.5) != 5 to 5", false, null));
+    assertEquals ("false", _adaptive ("5 != 5 to 5", false, null));
+    assertEquals ("false", _adaptive ("xs:double('NaN') = 1 to 100000000000", false, null));
+    assertEquals ("true", _adaptive ("xs:double('NaN') != 1 to 100000000000", false, null));
+    assertEquals ("true", _adaptive ("xs:float('3') = 1 to 100000000000", false, null));
+    assertEquals ("false", _adaptive ("() = 1 to 100000000000", false, null));
+    assertEquals ("false", _adaptive ("1 = 5 to 1", false, null));
+    // a non-numeric other operand takes the ordinary path
+    assertEquals ("true", _adaptive ("'a' != (1 to 3) ! string(.)", false, null));
+    _assertCode ("XPTY0004", "'a' = 1 to 3", false, null);
+    _assertCode ("FORG0001", "('x' cast as xs:untypedAtomic) = 1 to 3", false, null);
+  }
+
+  @Test
+  public void testXPath10Compatibility ()
+  {
+    assumeParser ();
+    final XdmNode aDoc = _doc ();
+    // generate-id-018: the first item of a sequence for a single-item parameter
+    assertEquals ("true", _adaptive ("generate-id(//a) eq generate-id((//a)[1])", true, aDoc));
+    _assertCode ("XPTY0004", "generate-id(//a)", false, aDoc);
+    // xs:string? applies fn:string, xs:double applies fn:number
+    assertEquals ("1", _adaptive ("string-length(1 + 0)", true, null));
+    assertEquals ("x", _adaptive ("substring(//b, 1)", true, aDoc));
+    assertEquals ("2", _adaptive ("math:sqrt('4')", true, null));
+    assertEquals ("NaN", _adaptive ("math:sqrt(('x', 4))", true, null));
+    assertEquals ("NaN", _adaptive ("math:sqrt(//b)", true, aDoc));
+    _assertCode ("XPTY0004", "math:sqrt('4')", false, null);
+    // arithmetic: first item, empty is NaN, fn:number conversion
+    assertEquals ("2", _adaptive ("(1, 2) + 1", true, null));
+    assertEquals ("NaN", _adaptive ("() + 1", true, null));
+    assertEquals ("2", _adaptive ("true() + 1", true, null));
+    assertEquals ("NaN", _adaptive ("'x' + 1", true, null));
+    assertEquals ("1.5", _adaptive ("'1.5' * 1", true, null));
+    assertEquals ("-2", _adaptive ("-(2, 3)", true, null));
+    assertEquals ("NaN", _adaptive ("-()", true, null));
+    _assertCode ("XPTY0004", "(1, 2) + 1", false, null);
   }
 }

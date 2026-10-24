@@ -472,6 +472,7 @@ public final class FnJson
     final XdmNode aRoot = aHandler.m_aResult;
     aRoot.declareNamespace ("", NS_FN);
     aDoc.appendChild (aRoot);
+    aDoc.setBaseUri (aCtx.getStaticContext ().getBaseUri ());
     aDoc.assignDocumentOrder ();
     return XdmSequence.of (aDoc);
   }
@@ -818,12 +819,13 @@ public final class FnJson
   }
 
   @NonNull
-  private static XdmSequence _fnParseXml (@NonNull final List <XdmSequence> aArgs)
+  private static XdmSequence _fnParseXml (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
     if (aArgs.get (0).isEmpty ())
       return XdmSequence.EMPTY;
     final XdmNode aDoc = _parse (((XdmAtomic) aArgs.get (0).get (0)).getString ());
     aDoc.setDocumentUri (null);
+    aDoc.setBaseUri (aCtx.getStaticContext ().getBaseUri ());
     return XdmSequence.of (aDoc);
   }
 
@@ -870,7 +872,8 @@ public final class FnJson
   }
 
   @NonNull
-  private static XdmSequence _fnParseXmlFragment (@NonNull final List <XdmSequence> aArgs)
+  private static XdmSequence _fnParseXmlFragment (@NonNull final DynamicContext aCtx,
+                                                  @NonNull final List <XdmSequence> aArgs)
   {
     if (aArgs.get (0).isEmpty ())
       return XdmSequence.EMPTY;
@@ -893,6 +896,7 @@ public final class FnJson
     final XdmNode aWrapper = aWrapperDoc.getChildAtIndex (0);
     final XdmNode aDoc = XdmNode.createDocument ();
     _copyChildren (aWrapper, aDoc);
+    aDoc.setBaseUri (aCtx.getStaticContext ().getBaseUri ());
     aDoc.assignDocumentOrder ();
     return XdmSequence.of (aDoc);
   }
@@ -913,10 +917,10 @@ public final class FnJson
     aLib.register (sNS,
                    "parse-xml",
                    "(xs:string?) as document-node(element(*))?",
-                   (aCtx, aArgs) -> _fnParseXml (aArgs));
+                   FnJson::_fnParseXml);
     aLib.register (sNS,
                    "parse-xml-fragment",
                    "(xs:string?) as document-node()?",
-                   (aCtx, aArgs) -> _fnParseXmlFragment (aArgs));
+                   FnJson::_fnParseXmlFragment);
   }
 }

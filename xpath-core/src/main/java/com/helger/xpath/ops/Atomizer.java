@@ -33,7 +33,9 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.XdmQName;
 
 /**
  * fn:data and effective boolean value. Owner: atomic-values workstream.
@@ -137,9 +139,10 @@ public final class Atomizer
   }
 
   /**
-   * Typed value of a single node without schema information: xs:string for
-   * comments, processing instructions and namespace nodes, otherwise
-   * xs:untypedAtomic of the string value.
+   * Typed value of a single node without schema information: the value cast
+   * to the annotated type for a node annotated with a built-in atomic type,
+   * xs:string for comments, processing instructions and namespace nodes,
+   * otherwise xs:untypedAtomic of the string value.
    *
    * @param aNode
    *        The node.
@@ -148,6 +151,14 @@ public final class Atomizer
   @NonNull
   public static XdmAtomic getTypedValue (@NonNull final XdmNode aNode)
   {
+    final XdmQName aAnnotation = aNode.getTypeAnnotation ();
+    if (aAnnotation != null && XdmConstants.NS_XS.equals (aAnnotation.namespaceUri ()))
+    {
+      // A node annotated with a built-in atomic type has a typed value of it
+      final EAtomicType eType = EAtomicType.getFromLocalName (aAnnotation.localName ());
+      if (eType != null)
+        return AtomicCaster.castFromString (aNode.getStringValue (), eType, null);
+    }
     return switch (aNode.getKind ())
     {
       case COMMENT, PROCESSING_INSTRUCTION, NAMESPACE -> XdmAtomic.string (aNode.getStringValue ());

@@ -152,9 +152,23 @@ public final class DateTimeCalendar
   }
 
   /**
+   * @param nFirstOfMonth
+   *        Epoch day of the first day of a month.
+   * @return The day of the month (possibly zero or negative) of the Monday
+   *         that starts the week containing the month's first Thursday.
+   */
+  private static int _getMondayOfWeek1 (final long nFirstOfMonth)
+  {
+    final int nWeekDay = getIsoDayOfWeek (nFirstOfMonth) - 1;
+    return 1 + (3 - nWeekDay + 7) % 7 - 3;
+  }
+
+  /**
    * Week within the month the ISO way: weeks run Monday to Sunday and week 1 is
    * the week containing the month's first Thursday; the days before it belong
-   * to the last week of the previous month.
+   * to the last week of the previous month. The days after the month's last
+   * full week stay in that month, even when their week's Thursday falls into
+   * the next month (format-date-011 expects 2006-01-30 in week 5 of January).
    *
    * @param nYear
    *        Astronomical year.
@@ -166,10 +180,15 @@ public final class DateTimeCalendar
    */
   public static int getWeekOfMonth (final long nYear, final int nMonth, final int nDay)
   {
-    final long nEpochDay = getEpochDay (nYear, nMonth, nDay);
-    final long nThursday = nEpochDay + (4 - getIsoDayOfWeek (nEpochDay));
-    final long [] aThu = getCivilFromEpochDay (nThursday);
-    final long nFirstOfMonth = getEpochDay (aThu[0], (int) aThu[1], 1);
-    return (int) ((nThursday - nFirstOfMonth) / 7) + 1;
+    final long nFirstOfMonth = getEpochDay (nYear, nMonth, 1);
+    final int nMondayOfWeek1 = _getMondayOfWeek1 (nFirstOfMonth);
+    if (nDay >= nMondayOfWeek1)
+      return (nDay - nMondayOfWeek1) / 7 + 1;
+    // The last day of the previous month always lies at or after the Monday of
+    // that month's week 1
+    final long [] aPrev = getCivilFromEpochDay (nFirstOfMonth - 1);
+    final int nPrevDay = (int) aPrev[2];
+    final int nPrevMonday = _getMondayOfWeek1 (getEpochDay (aPrev[0], (int) aPrev[1], 1));
+    return (nPrevDay - nPrevMonday) / 7 + 1;
   }
 }

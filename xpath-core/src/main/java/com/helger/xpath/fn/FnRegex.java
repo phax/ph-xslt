@@ -43,6 +43,8 @@ import com.helger.xpath.xdm.XdmQName;
 public final class FnRegex
 {
   private static final String FN_PREFIX = "fn";
+  private static final XdmQName ANY_TYPE = new XdmQName (XdmConstants.NS_XS, "anyType", "xs");
+  private static final XdmQName POSITIVE_INTEGER = new XdmQName (XdmConstants.NS_XS, "positiveInteger", "xs");
 
   @PresentForCodeCoverage
   private static final FnRegex INSTANCE = new FnRegex ();
@@ -230,7 +232,11 @@ public final class FnRegex
   @NonNull
   private static XdmNode _createElement (@NonNull final String sLocalName)
   {
-    return XdmNode.createElement (new XdmQName (XdmConstants.NS_FN, sLocalName, FN_PREFIX));
+    final XdmNode ret = XdmNode.createElement (new XdmQName (XdmConstants.NS_FN, sLocalName, FN_PREFIX));
+    // The result elements are typed by the schema of F&O 3.1 section 5.6.5;
+    // their complex types are approximated by xs:anyType
+    ret.setTypeAnnotation (ANY_TYPE);
+    return ret;
   }
 
   /**
@@ -287,7 +293,9 @@ public final class FnRegex
       if (nStart > nPos)
         aParent.appendChild (XdmNode.createText (sInput.substring (nPos, nStart)));
       final XdmNode aGroup = _createElement ("group");
-      aGroup.addAttribute (XdmNode.createAttribute (new XdmQName ("", "nr"), Integer.toString (nGroup)));
+      final XdmNode aNr = XdmNode.createAttribute (new XdmQName ("", "nr"), Integer.toString (nGroup));
+      aNr.setTypeAnnotation (POSITIVE_INTEGER);
+      aGroup.addAttribute (aNr);
       nNext = _fillGroups (aGroup, sInput, aMatcher, aRegex, nNext + 1, nGroup, nStart, nEnd);
       aParent.appendChild (aGroup);
       nPos = nEnd;

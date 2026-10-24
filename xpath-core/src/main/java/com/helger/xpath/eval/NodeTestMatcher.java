@@ -31,9 +31,11 @@ import com.helger.xpath.xdm.XdmQName;
 
 /**
  * Node tests of axis steps and the node kind tests of sequence types (XPath
- * 3.1 sections 3.3.2.1 and 2.5.5). This processor is not schema-aware: every
- * element is annotated <code>xs:untyped</code>, every attribute
- * <code>xs:untypedAtomic</code>, and nothing is nilled.
+ * 3.1 sections 3.3.2.1 and 2.5.5). This processor is not schema-aware: unless
+ * a node carries an explicit annotation with a built-in type (see
+ * {@link XdmNode#getTypeAnnotation()}), every element is annotated
+ * <code>xs:untyped</code>, every attribute <code>xs:untypedAtomic</code>, and
+ * nothing is nilled.
  *
  * @author Philip Helger
  */
@@ -67,6 +69,16 @@ public final class NodeTestMatcher
            "anyAtomicType".equals (sLocal) ||
            "anySimpleType".equals (sLocal) ||
            "anyType".equals (sLocal);
+  }
+
+  private static boolean _isAnnotationOf (@NonNull final XdmNode aNode,
+                                          @NonNull final XdmQName aTypeName,
+                                          final boolean bElement)
+  {
+    final XdmQName aAnnotation = aNode.getTypeAnnotation ();
+    if (aAnnotation == null)
+      return _isUntypedAnnotationOf (aTypeName, bElement);
+    return isSchemaTypeDerivedFrom (resolveSchemaType (aAnnotation), resolveSchemaType (aTypeName));
   }
 
   private static boolean _matchesKindName (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
@@ -172,11 +184,11 @@ public final class NodeTestMatcher
       case ELEMENT:
         if (eKind != ENodeKind.ELEMENT || !_matchesKindName (aTest, aNode))
           return false;
-        return aTest.typeName () == null || _isUntypedAnnotationOf (aTest.typeName (), true);
+        return aTest.typeName () == null || _isAnnotationOf (aNode, aTest.typeName (), true);
       case ATTRIBUTE:
         if (eKind != ENodeKind.ATTRIBUTE || !_matchesKindName (aTest, aNode))
           return false;
-        return aTest.typeName () == null || _isUntypedAnnotationOf (aTest.typeName (), false);
+        return aTest.typeName () == null || _isAnnotationOf (aNode, aTest.typeName (), false);
       case DOCUMENT:
         if (eKind != ENodeKind.DOCUMENT)
           return false;
