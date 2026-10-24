@@ -1,6 +1,6 @@
 # QT3 (`qt3tests`, XPath 3.1 / F&O 3.1): failing cases
 
-22,307 of 22,478 applicable cases pass, 171 fail. Measured offline, on JDK 21 and 25.
+22,328 of 22,478 applicable cases pass, 150 fail. Measured offline, on JDK 21 and 25.
 
 Every failing case is named here in backticks under a heading with its status and reason. `QT3Test` fails on any
 failing case that is not named here, so a regression is loud and a newly accepted failure needs a written reason.
@@ -57,17 +57,16 @@ narrow static axis-step analysis (`ST-Axes*`, XPST0005) is implemented, behind `
 go-xslt accepts the same 20 cases.
 
 ### Schema-validated sources
-`K2-DataFunc-6`, `fn-element-with-id-1`, `fn-element-with-id-2`, `fn-element-with-id-3`, `fn-element-with-id-4`,
-`fn-element-with-id-5`, `fn-nilled-33`, `fn-nilled-35`, `fn-nilled-37`, `fn-nilled-38`, `fn-nilled-39`,
-`fn-nilled-42`, `fn-nilled-43`, `fn-nilled-46`, `fn-nilled-47`, `fn-nilled-50`, `fn-nilled-51`,
-`fn-normalize-space-23`, `fn-normalize-space-24`, `fn-string-22`, `fn-string-length-22`, `fn-string-length-23`,
-`json-to-xml-016`, `json-to-xml-017`, `json-to-xml-037`, `json-to-xml-038`, `xs-numeric-021`, `xs-numeric-022`
+`K2-DataFunc-6`, `fn-normalize-space-24`, `fn-string-length-23`, `json-to-xml-016`, `json-to-xml-017`,
+`json-to-xml-037`, `json-to-xml-038`
 
-**Status:** Open (needs schema-awareness).
-Each uses a source validated against a schema (`validation="strict"`), a schema import, or `json-to-xml` with
-`validate=true`: ID-typed elements, `xsi:nil`, element-only and list types, `element(*, xs:numeric)`,
-`schema-element(j:...)`. The engine has no schema-awareness; XSD validation is left to the JDK, which exposes no
-type annotations. go-xslt is schema-aware and passes them.
+**Status:** Open (needs more schema information than the JDK validator exposes).
+Sources with `validation="strict"` are validated with the JDK validator, which provides type annotations, nilled,
+schema IDs and typed values (`XdmParser.setSchema`). What it does not provide: whether a complex type has element-only
+or mixed content, so atomizing an element with element-only content yields its string value instead of FOTY0012
+(`K2-DataFunc-6`, `fn-normalize-space-24`, `fn-string-length-23`); and element declarations, so there are no in-scope
+schema types for `schema-element(j:...)` and no validation for `json-to-xml` with `validate=true` (`json-to-xml-016`,
+`json-to-xml-017`, `json-to-xml-037`, `json-to-xml-038`). go-xslt has its own XSD processor and passes them.
 
 ### External entity in fn:parse-xml
 `parse-xml-010`

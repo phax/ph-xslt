@@ -23,10 +23,16 @@ import java.nio.file.Path;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
+import javax.xml.validation.Schema;
+import javax.xml.validation.ValidatorHandler;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXParseException;
 import org.xml.sax.XMLReader;
 
 import com.helger.annotation.Nonnegative;
@@ -34,9 +40,14 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
 
 /**
- * Reads XML with the JDK parser into an {@link XdmNode} tree. The defaults are
+ * Reads XML with the JDK parser into an {@link XdmNode} tree, also when another
+ * JAXP implementation is on the class path. The defaults are
  * safe: secure processing is on and external entities and the external DTD
  * subset are not loaded.
+ * <p>
+ * With a {@link #setSchema(Schema) schema} the document is validated (strict)
+ * while the tree is built and the nodes carry the schema information (see
+ * {@link XdmTreeBuilder}).
  *
  * @author Philip Helger
  */
@@ -63,8 +74,38 @@ public class XdmParser
                                                       { "maxParameterEntitySizeLimit", "1000000" },
                                                       { "entityReplacementLimit", "3000000" } };
 
+  /**
+   * Marks an error reported by the validator, as opposed to a parse error.
+   */
+  private static final class ValidationError extends SAXException
+  {
+    ValidationError (@NonNull final SAXParseException aCause)
+    {
+      super (aCause.getMessage (), aCause);
+    }
+  }
+
+  private static final ErrorHandler VALIDATION_ERROR_HANDLER = new ErrorHandler ()
+  {
+    public void warning (final SAXParseException ex)
+    {
+      // ignore
+    }
+
+    public void error (final SAXParseException ex) throws SAXException
+    {
+      throw new ValidationError (ex);
+    }
+
+    public void fatalError (final SAXParseException ex) throws SAXException
+    {
+      throw new ValidationError (ex);
+    }
+  };
+
   private boolean m_bLoadExternalEntities = DEFAULT_LOAD_EXTERNAL_ENTITIES;
   private int m_nMaxElementDepth = DEFAULT_MAX_ELEMENT_DEPTH;
+  private Schema m_aSchema;
 
   public final boolean isLoadExternalEntities ()
   {
@@ -108,13 +149,54 @@ public class XdmParser
     return this;
   }
 
+  @Nullable
+  public final Schema getSchema ()
+  {
+    return m_aSchema;
+  }
+
+  /**
+   * Validate documents against an XML schema while they are read. Validation
+   * is strict: the document element must be declared, and an invalid document
+   * is rejected with an {@link XdmValidationException}. The tree is built from
+   * the validation result: elements and attributes carry their
+   * {@link XdmSchemaType}, <code>xsi:nil</code> sets the nilled property,
+   * schema IDs and IDREFs are recognised, and whitespace in element-only
+   * content is dropped. With the JDK validator, schema location hints in the
+   * document are only followed if
+   * {@link #setLoadExternalEntities(boolean) external entities} are allowed.
+   *
+   * @param aSchema
+   *        The compiled schema (thread-safe, may be shared);
+   *        <code>null</code> to read without validation.
+   * @return this for chaining
+   */
+  @NonNull
+  public final XdmParser setSchema (@Nullable final Schema aSchema)
+  {
+    m_aSchema = aSchema;
+    return this;
+  }
+
+  /**
+   * @param aSource
+   *        The source to read. May not be <code>null</code>.
+   * @return The document node.
+   * @throws XdmValidationException
+   *         if a schema is set and the document is not valid against it
+   * @throws XdmParseException
+   *         if the document cannot be read
+   */
   @NonNull
   public XdmNode parse (@NonNull final InputSource aSource) throws XdmParseException
   {
     ValueEnforcer.notNull (aSource, "Source");
     try
     {
-      final SAXParserFactory aFactory = SAXParserFactory.newInstance ();
+      // Always the JDK parser: the JAXP lookup would pick up another
+      // implementation on the class path (e.g. Apache Xerces), which rejects
+      // the JDK properties set below
+      final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
       aFactory.setNamespaceAware (true);
       aFactory.setValidating (false);
       aFactory.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
@@ -124,7 +206,31 @@ public class XdmParser
                            m_bLoadExternalEntities);
       final XMLReader aReader = aFactory.newSAXParser ().getXMLReader ();
       final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
-      aReader.setContentHandler (aBuilder);
+      if (m_aSchema != null)
+      {
+        // XMLReader -> ValidatorHandler -> builder; lexical and DTD events go
+        // to the builder directly
+        final ValidatorHandler aValidator = m_aSchema.newValidatorHandler ();
+        aValidator.setErrorHandler (VALIDATION_ERROR_HANDLER);
+        if (!m_bLoadExternalEntities)
+          try
+          {
+            aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "");
+          }
+          catch (final SAXNotRecognizedException ex)
+          {
+            // A validator other than the JDK's (e.g. Apache Xerces) does not
+            // know the JAXP 1.5 properties; whether it follows schema location
+            // hints is then up to its schema (Xerces ignores them for a schema
+            // compiled from sources)
+          }
+        aValidator.setContentHandler (aBuilder);
+        aBuilder.setTypeInfoProvider (aValidator.getTypeInfoProvider ());
+        aReader.setContentHandler (aValidator);
+      }
+      else
+        aReader.setContentHandler (aBuilder);
       aReader.setErrorHandler (aBuilder);
       aReader.setDTDHandler (aBuilder);
       aReader.setEntityResolver (aBuilder);
@@ -136,6 +242,10 @@ public class XdmParser
                            Integer.toString (m_nMaxElementDepth));
       aReader.parse (aSource);
       return aBuilder.getDocument ();
+    }
+    catch (final ValidationError ex)
+    {
+      throw new XdmValidationException ("Document is not valid: " + ex.getMessage (), ex.getCause ());
     }
     catch (final ParserConfigurationException | SAXException | IOException ex)
     {

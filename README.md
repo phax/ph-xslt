@@ -6,8 +6,8 @@
 A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 licensed alternative to Saxon.
 XML parsing and XSD validation are left to the JDK (Xerces); everything on top of it is implemented here.
 
-Status: work in progress. The XPath 3.1 engine runs and passes 99.2% of the applicable W3C QT3 test cases
-(22,307 of 22,478); XSLT has not been started.
+Status: work in progress. The XPath 3.1 engine runs and passes 99.3% of the applicable W3C QT3 test cases
+(22,328 of 22,478); XSLT has not been started.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Modules
@@ -36,6 +36,8 @@ v0.1.0 - work in progress
   reason in `xpath-conformance/docs/accepted-failures/qt3.md`, and an undocumented failure fails the build
 * Added `StaticContext.setStaticTyping` to opt in to the narrow part of the optional Static Typing Feature: axis steps that provably select nothing raise XPST0005
 * Added the XML and XSD version (`StaticContext.setXmlVersion`/`setXsdVersion`) and the default language (`DynamicContext.setDefaultLanguage`) settings
+* Added schema-validated input with the JDK validator: `XdmParser.setSchema` annotates the tree (`XdmSchemaType`, nilled, schema IDs), which gives typed values, `fn:nilled`, schema-based `fn:id`/`fn:element-with-id`/`fn:idref` and `element(N, T)`/`attribute(N, T)` tests; invalid documents raise `XdmValidationException`
+* `XdmParser` always uses the JDK parser, also when another JAXP implementation such as Apache Xerces is on the class path
 
 # Contributing
 

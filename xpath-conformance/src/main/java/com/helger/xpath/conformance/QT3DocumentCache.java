@@ -19,6 +19,8 @@ package com.helger.xpath.conformance;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import javax.xml.validation.Schema;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -36,7 +38,8 @@ import com.helger.xpath.xdm.XdmParser;
  * same file yields the same node: a source document and the result of
  * <code>fn:doc</code> on its URI are identical, which is what
  * <code>fn:doc</code>'s stability rule asks for. A file that cannot be parsed
- * is remembered as unavailable. One instance per test set; not thread-safe.
+ * is remembered as unavailable. Documents validated against a schema are
+ * cached separately, per schema. One instance per test set; not thread-safe.
  *
  * @author Philip Helger
  */
@@ -45,6 +48,8 @@ public final class QT3DocumentCache
 {
   private final ICommonsMap <Path, XdmNode> m_aDocs = new CommonsHashMap <> ();
   private final ICommonsSet <Path> m_aFailed = new CommonsHashSet <> ();
+  private final ICommonsMap <String, XdmNode> m_aValidatedDocs = new CommonsHashMap <> ();
+  private final ICommonsSet <String> m_aValidationFailed = new CommonsHashSet <> ();
 
   /**
    * @param aFile
@@ -74,6 +79,45 @@ public final class QT3DocumentCache
     catch (final XdmParseException ex)
     {
       m_aFailed.add (aFile);
+      return null;
+    }
+  }
+
+  /**
+   * @param aFile
+   *        Absolute, normalised path.
+   * @param aSchema
+   *        The schema to validate against.
+   * @param sSchemaKey
+   *        A key that identifies the schema within this cache.
+   * @return The parsed and validated document or <code>null</code> if the file
+   *         does not exist, is not well-formed or not valid.
+   */
+  @Nullable
+  public XdmNode getValidatedDocument (@NonNull final Path aFile,
+                                       @NonNull final Schema aSchema,
+                                       @NonNull final String sSchemaKey)
+  {
+    final String sKey = aFile.toString () + '\n' + sSchemaKey;
+    final XdmNode aCached = m_aValidatedDocs.get (sKey);
+    if (aCached != null)
+      return aCached;
+    if (m_aValidationFailed.contains (sKey))
+      return null;
+    if (!Files.isRegularFile (aFile))
+    {
+      m_aValidationFailed.add (sKey);
+      return null;
+    }
+    try
+    {
+      final XdmNode aDoc = new XdmParser ().setSchema (aSchema).parse (aFile);
+      m_aValidatedDocs.put (sKey, aDoc);
+      return aDoc;
+    }
+    catch (final XdmParseException ex)
+    {
+      m_aValidationFailed.add (sKey);
       return null;
     }
   }

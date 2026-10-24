@@ -21,7 +21,7 @@ Decisions:
 | 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
 | 7+ | XSLT 3.0: compiler, runtime, serialiser, packages, JAXP and s9api facade, streaming, schema-awareness | `internal/xslt` | |
 
-QT3 status (2026-10-24): 22,307 of 22,478 applicable cases pass (99.2%), 171 fail, all documented in
+QT3 status (2026-10-24): 22,328 of 22,478 applicable cases pass (99.3%), 150 fail, all documented in
 `xpath-conformance/docs/accepted-failures/qt3.md` (`QT3Test` fails on any undocumented failure):
 
 | Group | Fails | Status |
@@ -29,7 +29,7 @@ QT3 status (2026-10-24): 22,307 of 22,478 applicable cases pass (99.2%), 171 fai
 | `fn:transform` | 87 | Open: needs the XSLT engine |
 | XQuery modules | 34 | Accepted: no XQuery (same in go-xslt) |
 | Static typing (type inference) | 20 | Accepted: same 20 cases as go-xslt |
-| Schema-validated sources | 28 | Open: needs schema-awareness |
+| Schema-validated sources | 7 | Open: needs content types and element declarations, which the JDK validator does not expose |
 | External entity in `fn:parse-xml`, network access | 2 | Accepted (same in go-xslt) |
 
 Known JDK differences found so far:

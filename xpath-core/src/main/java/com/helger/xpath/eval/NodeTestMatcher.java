@@ -28,14 +28,17 @@ import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmSchemaType;
 
 /**
  * Node tests of axis steps and the node kind tests of sequence types (XPath
- * 3.1 sections 3.3.2.1 and 2.5.5). This processor is not schema-aware: unless
- * a node carries an explicit annotation with a built-in type (see
- * {@link XdmNode#getTypeAnnotation()}), every element is annotated
- * <code>xs:untyped</code>, every attribute <code>xs:untypedAtomic</code>, and
- * nothing is nilled.
+ * 3.1 sections 3.3.2.1 and 2.5.5). Nodes of a schema-validated tree carry their
+ * {@link XdmSchemaType}, which answers the derivation questions; only
+ * built-in type names can occur in a kind test, as there are no in-scope
+ * schema types. Otherwise, unless a node carries an explicit annotation with a
+ * built-in type (see {@link XdmNode#getTypeAnnotation()}), every element is
+ * annotated <code>xs:untyped</code>, every attribute
+ * <code>xs:untypedAtomic</code>, and nothing is nilled.
  *
  * @author Philip Helger
  */
@@ -71,10 +74,52 @@ public final class NodeTestMatcher
            "anyType".equals (sLocal);
   }
 
+  /**
+   * @return <code>true</code> if the schema type of a validated node is or
+   *         derives from the type of a kind test (XPath 3.1 section 2.5.6.1).
+   */
+  private static boolean _isSchemaTypeOf (@NonNull final XdmSchemaType aSchemaType, @NonNull final XdmQName aTypeName)
+  {
+    final String sNamespace = aTypeName.namespaceUri ();
+    final String sLocal = aTypeName.localName ();
+    if (!XdmConstants.NS_XS.equals (sNamespace))
+      return aSchemaType.isDerivedFrom (sNamespace, sLocal);
+    switch (sLocal)
+    {
+      case "anyType":
+        return true;
+      case "anySimpleType":
+        return aSchemaType.isSimple ();
+      case "untyped":
+      case "untypedAtomic":
+        return false;
+      case "anyAtomicType":
+      {
+        // Atomic: a simple type derived by restriction from a primitive type,
+        // so neither a list nor a union
+        final XdmQName aBase = aSchemaType.getAtomicBase ();
+        return aSchemaType.isSimple () &&
+               !aSchemaType.isList () &&
+               aBase != null &&
+               aSchemaType.isDerivedFrom (XdmConstants.NS_XS, aBase.localName ());
+      }
+      case "numeric":
+        // The union of its member types
+        return aSchemaType.isDerivedFrom (XdmConstants.NS_XS, "double") ||
+               aSchemaType.isDerivedFrom (XdmConstants.NS_XS, "float") ||
+               aSchemaType.isDerivedFrom (XdmConstants.NS_XS, "decimal");
+      default:
+        return aSchemaType.isDerivedFrom (XdmConstants.NS_XS, sLocal);
+    }
+  }
+
   private static boolean _isAnnotationOf (@NonNull final XdmNode aNode,
                                           @NonNull final XdmQName aTypeName,
                                           final boolean bElement)
   {
+    final XdmSchemaType aSchemaType = aNode.getSchemaType ();
+    if (aSchemaType != null)
+      return _isSchemaTypeOf (aSchemaType, aTypeName);
     final XdmQName aAnnotation = aNode.getTypeAnnotation ();
     if (aAnnotation == null)
       return _isUntypedAnnotationOf (aTypeName, bElement);
@@ -184,7 +229,12 @@ public final class NodeTestMatcher
       case ELEMENT:
         if (eKind != ENodeKind.ELEMENT || !_matchesKindName (aTest, aNode))
           return false;
-        return aTest.typeName () == null || _isAnnotationOf (aNode, aTest.typeName (), true);
+        if (aTest.typeName () == null)
+          return true;
+        // A nilled element only matches a type followed by '?'
+        if (aNode.isNilled () && !aTest.nillable ())
+          return false;
+        return _isAnnotationOf (aNode, aTest.typeName (), true);
       case ATTRIBUTE:
         if (eKind != ENodeKind.ATTRIBUTE || !_matchesKindName (aTest, aNode))
           return false;

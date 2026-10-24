@@ -20,12 +20,14 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.Iterator;
+import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.IXdmFunction;
 import com.helger.xpath.value.XdmArray;
@@ -36,6 +38,7 @@ import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmSchemaType;
 
 /**
  * fn:data and effective boolean value. Owner: atomic-values workstream.
@@ -63,13 +66,90 @@ public final class Atomizer
     return aItem.getClass ().getSimpleName ();
   }
 
+  /**
+   * The namespaces of a node, for typed values of type xs:QName and
+   * xs:NOTATION.
+   */
+  @NonNull
+  private static StaticContext _getNamespaceContext (@NonNull final XdmNode aNode)
+  {
+    final XdmNode aElement = aNode.isElement () ? aNode : aNode.getParent ();
+    final StaticContext ret = new StaticContext ();
+    if (aElement != null)
+      for (final Map.Entry <String, String> aEntry : aElement.getInScopeNamespaces ().entrySet ())
+        if (aEntry.getKey ().isEmpty ())
+          ret.setDefaultElementNamespace (aEntry.getValue ());
+        else
+          ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
+    return ret;
+  }
+
+  /**
+   * Typed value of a node of a schema-validated tree (XDM 3.1 sections 6.2.4
+   * and 6.3.4).
+   */
+  private static void _addSchemaTypedValue (@NonNull final XdmNode aNode,
+                                            @NonNull final XdmSchemaType aSchemaType,
+                                            final XdmSequence.@NonNull Builder aBuilder)
+  {
+    if (aNode.isNilled ())
+      return;
+    final XdmQName aBase = aSchemaType.getAtomicBase ();
+    final EAtomicType eType = aBase == null ? null : EAtomicType.getFromLocalName (aBase.localName ());
+    if (eType == null)
+    {
+      // Complex content (mixed or element-only cannot be told apart), or a
+      // simple type whose built-in base is unknown
+      aBuilder.add (XdmAtomic.untyped (aNode.getStringValue ()));
+      return;
+    }
+    final StaticContext aNamespaces = eType == EAtomicType.QNAME || eType == EAtomicType.NOTATION
+                                                                                                  ? _getNamespaceContext (aNode)
+                                                                                                  : null;
+    final String sValue = aNode.getStringValue ();
+    if (aSchemaType.isList ())
+    {
+      for (final String sToken : XsdLexical.collapseWhitespace (sValue).split (" "))
+        if (!sToken.isEmpty ())
+          aBuilder.add (AtomicCaster.castFromString (sToken, eType, aNamespaces));
+    }
+    else
+      aBuilder.add (AtomicCaster.castFromString (sValue, eType, aNamespaces));
+  }
+
+  private static void _addTypedValue (@NonNull final XdmNode aNode, final XdmSequence.@NonNull Builder aBuilder)
+  {
+    final XdmSchemaType aSchemaType = aNode.getSchemaType ();
+    if (aSchemaType != null)
+    {
+      _addSchemaTypedValue (aNode, aSchemaType, aBuilder);
+      return;
+    }
+    final XdmQName aAnnotation = aNode.getTypeAnnotation ();
+    if (aAnnotation != null && XdmConstants.NS_XS.equals (aAnnotation.namespaceUri ()))
+    {
+      // A node annotated with a built-in atomic type has a typed value of it
+      final EAtomicType eType = EAtomicType.getFromLocalName (aAnnotation.localName ());
+      if (eType != null)
+      {
+        aBuilder.add (AtomicCaster.castFromString (aNode.getStringValue (), eType, null));
+        return;
+      }
+    }
+    aBuilder.add (switch (aNode.getKind ())
+    {
+      case COMMENT, PROCESSING_INSTRUCTION, NAMESPACE -> XdmAtomic.string (aNode.getStringValue ());
+      default -> XdmAtomic.untyped (aNode.getStringValue ());
+    });
+  }
+
   private static void _atomizeNonArray (@NonNull final IXdmItem aItem, final XdmSequence.@NonNull Builder aBuilder)
   {
     if (aItem instanceof final XdmAtomic aAtomic)
       aBuilder.add (aAtomic);
     else
       if (aItem instanceof final XdmNode aNode)
-        aBuilder.add (getTypedValue (aNode));
+        _addTypedValue (aNode, aBuilder);
       else
         throw XPathException.of ("FOTY0013", "Cannot atomize " + _describe (aItem));
   }
@@ -139,31 +219,48 @@ public final class Atomizer
   }
 
   /**
-   * Typed value of a single node without schema information: the value cast
-   * to the annotated type for a node annotated with a built-in atomic type,
-   * xs:string for comments, processing instructions and namespace nodes,
-   * otherwise xs:untypedAtomic of the string value.
+   * The typed value of a node: for a node of a schema-validated tree the
+   * value cast to the built-in base of its schema type (a sequence for list
+   * types, empty for nilled elements, the untyped string value for complex
+   * content); the value cast to the annotated type for a node annotated with
+   * a built-in atomic type; xs:string for comments, processing instructions
+   * and namespace nodes; otherwise xs:untypedAtomic of the string value.
+   * <p>
+   * The JDK validator does not tell element-only from mixed content, so an
+   * element with element-only content has the untyped string value instead of
+   * raising FOTY0012.
+   *
+   * @param aNode
+   *        The node.
+   * @return The typed value, zero or more atomic values.
+   */
+  @NonNull
+  public static XdmSequence getTypedValues (@NonNull final XdmNode aNode)
+  {
+    final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
+    _addTypedValue (aNode, aBuilder);
+    return aBuilder.build ();
+  }
+
+  /**
+   * The typed value of a node whose typed value is a single atomic value, see
+   * {@link #getTypedValues(XdmNode)}.
    *
    * @param aNode
    *        The node.
    * @return The typed value.
+   * @throws com.helger.xpath.XPathException
+   *         XPTY0004 if the typed value is not exactly one atomic value
+   *         (nilled elements, list types).
    */
   @NonNull
   public static XdmAtomic getTypedValue (@NonNull final XdmNode aNode)
   {
-    final XdmQName aAnnotation = aNode.getTypeAnnotation ();
-    if (aAnnotation != null && XdmConstants.NS_XS.equals (aAnnotation.namespaceUri ()))
-    {
-      // A node annotated with a built-in atomic type has a typed value of it
-      final EAtomicType eType = EAtomicType.getFromLocalName (aAnnotation.localName ());
-      if (eType != null)
-        return AtomicCaster.castFromString (aNode.getStringValue (), eType, null);
-    }
-    return switch (aNode.getKind ())
-    {
-      case COMMENT, PROCESSING_INSTRUCTION, NAMESPACE -> XdmAtomic.string (aNode.getStringValue ());
-      default -> XdmAtomic.untyped (aNode.getStringValue ());
-    };
+    final XdmSequence aValues = getTypedValues (aNode);
+    if (aValues.size () != 1)
+      throw XPathException.of ("XPTY0004",
+                               "The typed value of the node consists of " + aValues.size () + " atomic values");
+    return (XdmAtomic) aValues.get (0);
   }
 
   /**
