@@ -1,5 +1,8 @@
 # ph-xslt
 
+> **Experimental.** This project is at an early stage. APIs, module layout and behaviour may change without notice,
+> and no release has been published yet. Do not use it in production.
+
 A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 licensed alternative to Saxon.
 XML parsing and XSD validation are left to the JDK (Xerces); everything on top of it is implemented here.
 
