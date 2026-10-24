@@ -162,4 +162,12 @@ public final class FnHigherOrderTest
     final IExpr aPos = call (fn ("function-lookup"), _qname (fn ("position")), lit (0));
     assertEquals (longs (3), ints (eval (dynCall (aPos), ctx ().withFocus (XdmAtomic.integer (1), 3, 4))));
   }
+
+  @Test
+  public void testLoadXQueryModule ()
+  {
+    // fn-function-lookup-759/762: the function exists, but there is no XQuery
+    assertEquals (1, eval (call (fn ("function-lookup"), _qname (fn ("load-xquery-module")), lit (2))).size ());
+    assertEvalError ("FOQM0006", call (fn ("load-xquery-module"), str ("http://example.org/module")));
+  }
 }

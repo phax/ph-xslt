@@ -293,6 +293,16 @@ public final class FnHigherOrder
     return XPathEvaluator.callFunction (aCtx, aFunc, aArray.getAllMembers ());
   }
 
+  /**
+   * fn:load-xquery-module (F&amp;O 3.1 section 16.3.1): this processor has no
+   * XQuery implementation, which the function reports as FOQM0006.
+   */
+  @NonNull
+  private static XdmSequence _loadXQueryModule ()
+  {
+    throw XPathException.of ("FOQM0006", "No XQuery processor is available to load a library module");
+  }
+
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;
@@ -324,5 +334,10 @@ public final class FnHigherOrder
                    "(item()*, xs:string?, function(item()) as xs:anyAtomicType*) as item()*",
                    FnHigherOrder::_sort);
     aLib.register (sNS, "apply", "(function(*), array(*)) as item()*", FnHigherOrder::_apply);
+    aLib.register (sNS, "load-xquery-module", "(xs:string) as map(*)", (aCtx, aArgs) -> _loadXQueryModule ());
+    aLib.register (sNS,
+                   "load-xquery-module",
+                   "(xs:string, map(*)) as map(*)",
+                   (aCtx, aArgs) -> _loadXQueryModule ());
   }
 }
