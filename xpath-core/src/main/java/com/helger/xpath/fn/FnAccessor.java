@@ -344,8 +344,10 @@ public final class FnAccessor
     });
     _register01 (aLib, "nilled", "node()?", "xs:boolean?", (aCtx, aArgs) -> {
       final XdmNode aNode = _getNode (aCtx, aArgs);
-      // Without schema validation no element is nilled
-      return aNode == null || !aNode.isElement () ? XdmSequence.EMPTY : XdmSequence.of (XdmAtomic.FALSE);
+      // Only elements of a schema-validated tree can be nilled
+      if (aNode == null || !aNode.isElement ())
+        return XdmSequence.EMPTY;
+      return XdmSequence.of (aNode.isNilled () ? XdmAtomic.TRUE : XdmAtomic.FALSE);
     });
     _register01 (aLib, "base-uri", "node()?", "xs:anyURI?", (aCtx, aArgs) -> {
       final XdmNode aNode = _getNode (aCtx, aArgs);
