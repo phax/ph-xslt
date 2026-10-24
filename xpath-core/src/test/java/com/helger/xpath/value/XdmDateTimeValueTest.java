@@ -273,5 +273,10 @@ public final class XdmDateTimeValueTest
     assertEquals (2, DateTimeCalendar.getWeekOfMonth (2005, 12, 7));
     // 2006-01-01 is a Sunday: still in the last week of December 2005
     assertEquals (5, DateTimeCalendar.getWeekOfMonth (2006, 1, 1));
+    // 2006-01-30 is a Monday whose Thursday is in February: still week 5 of
+    // January (format-date-011)
+    assertEquals (5, DateTimeCalendar.getWeekOfMonth (2006, 1, 30));
+    assertEquals (1, DateTimeCalendar.getWeekOfMonth (2006, 2, 2));
+    assertEquals (5, DateTimeCalendar.getWeekOfMonth (2006, 3, 31));
   }
 }
