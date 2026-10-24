@@ -1,0 +1,255 @@
+/*
+ * Copyright (C) 2026 Philip Helger (www.helger.com)
+ * philip[at]helger[dot]com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.helger.xslt.conformance;
+
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+
+import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.CommonsHashMap;
+import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsMap;
+import com.helger.xpath.XPathException;
+import com.helger.xpath.conformance.QT3ResourceResolver;
+import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.xdm.XdmNode;
+
+/**
+ * Resolves what a stylesheet reads at run time (<code>document()</code>,
+ * <code>fn:doc</code>, <code>fn:collection</code>,
+ * <code>fn:unparsed-text</code>) for one test case. Sources, resources and
+ * collection members declared by the environment are found under their
+ * declared URI, that URI resolved against the test-set directory, and their
+ * file URI. Any other <code>file:</code> URI of an existing file is read
+ * directly, the way the Go engine reads a relative reference resolved against
+ * the stylesheet. Network URIs are never fetched (the Go harness is offline by
+ * default too).
+ *
+ * @author Philip Helger
+ */
+@NotThreadSafe
+public final class XSLT30ResourceResolver implements IResourceResolver
+{
+  private final XSLT30DocumentCache m_aDocs;
+  private final ICommonsMap <String, Path> m_aByUri = new CommonsHashMap <> ();
+  private final ICommonsMap <String, String> m_aEncodingByUri = new CommonsHashMap <> ();
+  private final ICommonsMap <String, ICommonsList <Path>> m_aCollections = new CommonsHashMap <> ();
+
+  /**
+   * @param aEnv
+   *        The resolved environment (not a reference), may be
+   *        <code>null</code>.
+   * @param aTestSetDir
+   *        The directory of the test set.
+   * @param aDocs
+   *        The document cache of the test set.
+   */
+  public XSLT30ResourceResolver (@Nullable final XSLT30Environment aEnv,
+                                 @NonNull final Path aTestSetDir,
+                                 @NonNull final XSLT30DocumentCache aDocs)
+  {
+    m_aDocs = aDocs;
+    if (aEnv == null)
+      return;
+    final Path aBaseDir = aEnv.baseDir ().toAbsolutePath ().normalize ();
+    final Path aSetDir = aTestSetDir.toAbsolutePath ().normalize ();
+    for (final XSLT30Environment.Resource aRes : aEnv.resources ())
+    {
+      if (aRes.uri ().isEmpty () || aRes.file ().isEmpty ())
+        continue;
+      final Path aPath = getAbsolutePath (aBaseDir, aRes.file ());
+      for (final String sUri : _getUriForms (aRes.uri (), aSetDir))
+      {
+        m_aByUri.putIfAbsent (sUri, aPath);
+        if (!aRes.encoding ().isEmpty ())
+          m_aEncodingByUri.putIfAbsent (sUri, aRes.encoding ());
+      }
+    }
+    for (final XSLT30Environment.Source aSrc : aEnv.sources ())
+    {
+      if (aSrc.file ().isEmpty ())
+        continue;
+      final Path aPath = getAbsolutePath (aBaseDir, aSrc.file ());
+      if (!aSrc.uri ().isEmpty ())
+        for (final String sUri : _getUriForms (aSrc.uri (), aSetDir))
+          m_aByUri.putIfAbsent (sUri, aPath);
+      m_aByUri.putIfAbsent (getFileUri (aPath), aPath);
+    }
+    for (final XSLT30Environment.Collection aCol : aEnv.collections ())
+    {
+      final ICommonsList <Path> aPaths = new CommonsArrayList <> ();
+      for (final XSLT30Environment.Source aSrc : aCol.sources ())
+      {
+        // The content lives in @file; @uri is what the stylesheet sees
+        String sFile = aSrc.file ();
+        if (sFile.isEmpty ())
+          sFile = aSrc.uri ();
+        if (sFile.isEmpty () || sFile.indexOf (':') >= 0)
+          continue;
+        final int nHash = sFile.indexOf ('#');
+        if (nHash >= 0)
+          sFile = sFile.substring (0, nHash);
+        final Path aPath = getAbsolutePath (aBaseDir, sFile);
+        aPaths.add (aPath);
+        m_aByUri.putIfAbsent (getFileUri (aPath), aPath);
+      }
+      for (final String sUri : _getUriForms (aCol.uri (), aSetDir))
+        m_aCollections.putIfAbsent (sUri, aPaths);
+    }
+  }
+
+  /** The URI as declared and, if relative, resolved against the directory. */
+  @NonNull
+  private static ICommonsList <String> _getUriForms (@NonNull final String sUri, @NonNull final Path aDir)
+  {
+    final ICommonsList <String> ret = new CommonsArrayList <> (sUri);
+    if (!sUri.isEmpty () && sUri.indexOf (':') < 0)
+      try
+      {
+        ret.add (getFileUri (aDir.resolve (sUri).normalize ()));
+      }
+      catch (final InvalidPathException ex)
+      {
+        // not a usable relative path
+      }
+    return ret;
+  }
+
+  @Nullable
+  private static Path _fileUriToPath (@NonNull final String sUri)
+  {
+    if (!sUri.startsWith ("file:"))
+      return null;
+    try
+    {
+      final String sNoFragment = sUri.indexOf ('#') >= 0 ? sUri.substring (0, sUri.indexOf ('#')) : sUri;
+      return Path.of (new URI (sNoFragment)).toAbsolutePath ().normalize ();
+    }
+    catch (final Exception ex)
+    {
+      // URISyntaxException, IllegalArgumentException, FileSystemNotFoundException
+      return null;
+    }
+  }
+
+  @Nullable
+  private Path _getPath (@NonNull final String sAbsoluteUri)
+  {
+    final Path aDeclared = m_aByUri.get (sAbsoluteUri);
+    if (aDeclared != null)
+      return aDeclared;
+    final Path aCandidate = _fileUriToPath (sAbsoluteUri);
+    if (aCandidate == null)
+      return null;
+    // file:/x and file:///x name the same file
+    final Path aDeclaredByPath = m_aByUri.get (getFileUri (aCandidate));
+    if (aDeclaredByPath != null)
+      return aDeclaredByPath;
+    return Files.isRegularFile (aCandidate) ? aCandidate : null;
+  }
+
+  /**
+   * @param aBaseDir
+   *        Base directory.
+   * @param sRelative
+   *        Relative file name from the catalog.
+   * @return The absolute normalised path.
+   */
+  @NonNull
+  public static Path getAbsolutePath (@NonNull final Path aBaseDir, @NonNull final String sRelative)
+  {
+    return aBaseDir.resolve (sRelative).toAbsolutePath ().normalize ();
+  }
+
+  /**
+   * @param aPath
+   *        An absolute path.
+   * @return Its <code>file:</code> URI, the same form the XDM parser reports as
+   *         document URI.
+   */
+  @NonNull
+  public static String getFileUri (@NonNull final Path aPath)
+  {
+    return QT3ResourceResolver.getFileUri (aPath);
+  }
+
+  @Nullable
+  public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  {
+    final Path aPath = _getPath (sAbsoluteUri);
+    return aPath == null ? null : m_aDocs.getDocument (aPath);
+  }
+
+  @Nullable
+  public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+  {
+    final Path aPath = _getPath (sAbsoluteUri);
+    if (aPath == null)
+      return null;
+    final byte [] aBytes;
+    try
+    {
+      aBytes = Files.readAllBytes (aPath);
+    }
+    catch (final IOException ex)
+    {
+      return null;
+    }
+    final String ret = QT3ResourceResolver.decodeText (aBytes, m_aEncodingByUri.get (sAbsoluteUri), sEncoding);
+    if (ret == null)
+      throw XPathException.of ("FOUT1190", "The resource '" + sAbsoluteUri + "' cannot be decoded");
+    return ret;
+  }
+
+  @Nullable
+  @ReturnsMutableCopy
+  public ICommonsList <XdmNode> resolveCollection (@NonNull final String sUri)
+  {
+    final ICommonsList <Path> aPaths = m_aCollections.get (sUri);
+    if (aPaths == null)
+      return null;
+    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    for (final Path aPath : aPaths)
+    {
+      final XdmNode aDoc = m_aDocs.getDocument (aPath);
+      if (aDoc != null)
+        ret.add (aDoc);
+    }
+    return ret;
+  }
+
+  @Nullable
+  @ReturnsMutableCopy
+  public ICommonsList <String> resolveUriCollection (@NonNull final String sUri)
+  {
+    final ICommonsList <Path> aPaths = m_aCollections.get (sUri);
+    if (aPaths == null)
+      return null;
+    final ICommonsList <String> ret = new CommonsArrayList <> ();
+    for (final Path aPath : aPaths)
+      ret.add (getFileUri (aPath));
+    return ret;
+  }
+}

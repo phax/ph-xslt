@@ -34,6 +34,8 @@ v0.1.0 - work in progress
 * Added the module `xpath-core` with the XPath 3.1 engine and the F&O 3.1 function library
 * Added the module `xpath-conformance` that runs the W3C QT3 test suite; every failing case is documented with its
   reason in `xpath-conformance/docs/accepted-failures/qt3.md`, and an undocumented failure fails the build
+* Added the module `xslt-conformance` that runs the W3C xslt30-test suite as a basic XSLT 3.0 processor (no streaming,
+  schema-awareness or backwards compatibility), with the same applicable cases as go-xslt's default run
 * Added `StaticContext.setStaticTyping` to opt in to the narrow part of the optional Static Typing Feature: axis steps that provably select nothing raise XPST0005
 * Added the XML and XSD version (`StaticContext.setXmlVersion`/`setXsdVersion`) and the default language (`DynamicContext.setDefaultLanguage`) settings
 * Added schema-validated input with the JDK validator: `XdmParser.setSchema` annotates the tree (`XdmSchemaType`, nilled, schema IDs), which gives typed values, `fn:nilled`, schema-based `fn:id`/`fn:element-with-id`/`fn:idref` and `element(N, T)`/`attribute(N, T)` tests; invalid documents raise `XdmValidationException`
