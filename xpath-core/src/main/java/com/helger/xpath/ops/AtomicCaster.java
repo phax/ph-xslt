@@ -27,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.DateTimeOps;
 import com.helger.xpath.value.EAtomicType;
@@ -43,7 +44,10 @@ import com.helger.xpath.xdm.XdmQName;
  * delegate to the date/time workstream's classes.
  * <p>
  * The lexical spaces are those of XML Schema 1.1 (so <code>+INF</code> is a
- * valid xs:double).
+ * valid xs:double), unless the static context asks for XSD 1.0: then
+ * <code>+INF</code> and the year <code>0000</code> of xs:gYear and
+ * xs:gYearMonth are rejected. Without a static context the XSD 1.1 rules
+ * apply.
  *
  * @author Philip Helger
  */
@@ -174,6 +178,25 @@ public final class AtomicCaster
     return XdmAtomic.qname (new XdmQName (sNS, s.substring (nColon + 1), sPrefix));
   }
 
+  private static boolean _isXsd10 (@Nullable final StaticContext aStaticCtx)
+  {
+    return aStaticCtx != null && aStaticCtx.getXsdVersion () == EXsdVersion.V10;
+  }
+
+  private static boolean _hasYearZero (@NonNull final String s)
+  {
+    // The year of a gYear/gYearMonth lexical: optional '-', then digits
+    int i = s.startsWith ("-") ? 1 : 0;
+    final int nStart = i;
+    while (i < s.length () && s.charAt (i) >= '0' && s.charAt (i) <= '9')
+    {
+      if (s.charAt (i) != '0')
+        return false;
+      i++;
+    }
+    return i > nStart;
+  }
+
   /**
    * Cast from a string-like value (string family or untypedAtomic) to a target
    * that is not xs:string/xs:untypedAtomic or a type derived from xs:string.
@@ -200,6 +223,11 @@ public final class AtomicCaster
     }
     if (eTarget.isDateTimeFamily ())
     {
+      // XSD 1.0 prohibits the year 0000; XSD 1.1 reads it as 1 BCE
+      if ((eTarget == EAtomicType.G_YEAR || eTarget == EAtomicType.G_YEAR_MONTH) &&
+          _isXsd10 (aStaticCtx) &&
+          _hasYearZero (s))
+        throw XPathException.invalidValue ("The year 0000 is not allowed in XSD 1.0: '" + sValue + "'");
       final XdmDateTimeValue aDT = XdmDateTimeValue.parse (eTarget, s);
       if (eTarget == EAtomicType.DATE_TIME_STAMP && !aDT.hasTimezone ())
         throw XPathException.invalidValue ("An xs:dateTimeStamp requires a timezone: '" + sValue + "'");
@@ -231,11 +259,13 @@ public final class AtomicCaster
           throw _invalid (sValue, eTarget);
         return XdmAtomic.decimal (new BigDecimal (s));
       case DOUBLE:
-        if (!XsdLexical.isDoubleLexical (s))
+        // "+INF" was added in XSD 1.1
+        if (!XsdLexical.isDoubleLexical (s) || (_isXsd10 (aStaticCtx) && s.equals ("+INF")))
           throw _invalid (sValue, eTarget);
         return XdmAtomic.dbl (_parseDouble (s));
       case FLOAT:
-        if (!XsdLexical.isDoubleLexical (s))
+        // "+INF" was added in XSD 1.1
+        if (!XsdLexical.isDoubleLexical (s) || (_isXsd10 (aStaticCtx) && s.equals ("+INF")))
           throw _invalid (sValue, eTarget);
         return XdmAtomic.flt (_parseFloat (s));
       case HEX_BINARY:

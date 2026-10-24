@@ -41,6 +41,11 @@ import com.helger.xpath.xdm.XdmQName;
 @NotThreadSafe
 public final class StaticContext
 {
+  /** The XML version used unless set otherwise. */
+  public static final EXmlVersion DEFAULT_XML_VERSION = EXmlVersion.V10;
+  /** The XSD version used unless set otherwise. */
+  public static final EXsdVersion DEFAULT_XSD_VERSION = EXsdVersion.V10;
+
   private final ICommonsMap <String, String> m_aNamespaces = new CommonsHashMap <> ();
   private String m_sDefaultElementNamespace = "";
   private String m_sDefaultFunctionNamespace = XdmConstants.NS_FN;
@@ -51,6 +56,8 @@ public final class StaticContext
   private FormatDecimalFormat m_aDefaultDecimalFormat = FormatDecimalFormat.DEFAULT;
   private final ICommonsMap <XdmQName, FormatDecimalFormat> m_aDecimalFormats = new CommonsHashMap <> ();
   private final ICommonsSet <XdmQName> m_aDeclaredVariables = new CommonsHashSet <> ();
+  private EXmlVersion m_eXmlVersion = DEFAULT_XML_VERSION;
+  private EXsdVersion m_eXsdVersion = DEFAULT_XSD_VERSION;
 
   public StaticContext ()
   {
@@ -240,6 +247,40 @@ public final class StaticContext
     ValueEnforcer.notNull (aName, "Name");
     ValueEnforcer.notNull (aFormat, "Format");
     m_aDecimalFormats.put (aName, aFormat);
+    return this;
+  }
+
+  /**
+   * @return The XML version whose rules apply where XML 1.0 and 1.1 differ.
+   *         Default is {@link #DEFAULT_XML_VERSION}.
+   */
+  @NonNull
+  public EXmlVersion getXmlVersion ()
+  {
+    return m_eXmlVersion;
+  }
+
+  @NonNull
+  public StaticContext setXmlVersion (@NonNull final EXmlVersion eXmlVersion)
+  {
+    m_eXmlVersion = ValueEnforcer.notNull (eXmlVersion, "XmlVersion");
+    return this;
+  }
+
+  /**
+   * @return The XSD datatype version whose rules apply where XSD 1.0 and 1.1
+   *         differ. Default is {@link #DEFAULT_XSD_VERSION}.
+   */
+  @NonNull
+  public EXsdVersion getXsdVersion ()
+  {
+    return m_eXsdVersion;
+  }
+
+  @NonNull
+  public StaticContext setXsdVersion (@NonNull final EXsdVersion eXsdVersion)
+  {
+    m_eXsdVersion = ValueEnforcer.notNull (eXsdVersion, "XsdVersion");
     return this;
   }
 }

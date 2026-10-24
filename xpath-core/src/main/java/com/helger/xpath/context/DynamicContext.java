@@ -61,7 +61,11 @@ public final class DynamicContext
     private final ICommonsMap <String, Object> m_aCache = new CommonsHashMap <> ();
     private int m_nCallDepth = 0;
     private ICommonsOrderedMap <String, String> m_aEnvironmentVariables = new CommonsLinkedHashMap <> ();
+    private String m_sDefaultLanguage = DEFAULT_LANGUAGE;
   }
+
+  /** The default language unless set otherwise. */
+  public static final String DEFAULT_LANGUAGE = "en";
 
   /** Maximum depth of nested function calls before XPDY0130 is raised. */
   public static final int MAX_CALL_DEPTH = 10_000;
@@ -265,6 +269,28 @@ public final class DynamicContext
   {
     m_aRun.m_aEnvironmentVariables = aVariables == null ? new CommonsLinkedHashMap <> ()
                                                         : new CommonsLinkedHashMap <> (aVariables);
+  }
+
+  /**
+   * @return The default language of the dynamic context (an xs:language
+   *         value), returned by <code>fn:default-language</code> and used by
+   *         the formatting functions when no language is given. Default is
+   *         {@link #DEFAULT_LANGUAGE}.
+   */
+  @NonNull
+  public String getDefaultLanguage ()
+  {
+    return m_aRun.m_sDefaultLanguage;
+  }
+
+  /**
+   * @param sLanguage
+   *        The default language, e.g. <code>fr-CA</code>. May neither be
+   *        <code>null</code> nor empty.
+   */
+  public void setDefaultLanguage (@NonNull final String sLanguage)
+  {
+    m_aRun.m_sDefaultLanguage = ValueEnforcer.notEmpty (sLanguage, "Language");
   }
 
   /** @return A per-run cache for functions (e.g. documents by URI) that must be stable within a run. */
