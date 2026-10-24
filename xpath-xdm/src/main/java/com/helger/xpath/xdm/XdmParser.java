@@ -31,6 +31,7 @@ import org.jspecify.annotations.Nullable;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXParseException;
 import org.xml.sax.XMLReader;
 
@@ -161,9 +162,9 @@ public class XdmParser
    * the validation result: elements and attributes carry their
    * {@link XdmSchemaType}, <code>xsi:nil</code> sets the nilled property,
    * schema IDs and IDREFs are recognised, and whitespace in element-only
-   * content is dropped. Schema location hints in the document are only
-   * followed if {@link #setLoadExternalEntities(boolean) external entities}
-   * are allowed.
+   * content is dropped. With the JDK validator, schema location hints in the
+   * document are only followed if
+   * {@link #setLoadExternalEntities(boolean) external entities} are allowed.
    *
    * @param aSchema
    *        The compiled schema (thread-safe, may be shared);
@@ -212,10 +213,18 @@ public class XdmParser
         final ValidatorHandler aValidator = m_aSchema.newValidatorHandler ();
         aValidator.setErrorHandler (VALIDATION_ERROR_HANDLER);
         if (!m_bLoadExternalEntities)
-        {
-          aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-          aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        }
+          try
+          {
+            aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "");
+          }
+          catch (final SAXNotRecognizedException ex)
+          {
+            // A validator other than the JDK's (e.g. Apache Xerces) does not
+            // know the JAXP 1.5 properties; whether it follows schema location
+            // hints is then up to its schema (Xerces ignores them for a schema
+            // compiled from sources)
+          }
         aValidator.setContentHandler (aBuilder);
         aBuilder.setTypeInfoProvider (aValidator.getTypeInfoProvider ());
         aReader.setContentHandler (aValidator);
