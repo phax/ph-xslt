@@ -30,6 +30,8 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Locale;
 
+import javax.xml.validation.Schema;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -61,6 +63,9 @@ public final class QT3ResourceResolver implements IResourceResolver
   private final ICommonsMap <String, Path> m_aByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, String> m_aEncodingByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, ICommonsList <Path>> m_aCollections = new CommonsHashMap <> ();
+  private final ICommonsList <Path> m_aSchemaFiles = new CommonsArrayList <> ();
+  // Sources of this environment that were validated, by file
+  private final ICommonsMap <Path, XdmNode> m_aValidated = new CommonsHashMap <> ();
 
   /**
    * @param aEnv
@@ -116,6 +121,9 @@ public final class QT3ResourceResolver implements IResourceResolver
       }
       m_aCollections.put (aCol.uri (), aPaths);
     }
+    for (final QT3Environment.Schema aSchema : aEnv.getAllSchemas ())
+      if (!aSchema.file ().isEmpty ())
+        m_aSchemaFiles.add (getAbsolutePath (m_aBaseDir, aSchema.file ()));
   }
 
   @Nullable
@@ -264,24 +272,46 @@ public final class QT3ResourceResolver implements IResourceResolver
    * @param aSource
    *        A source of the environment.
    * @return The parsed source document or <code>null</code> if it cannot be
-   *         loaded (a deliberately malformed source is left to the engine).
+   *         loaded (a deliberately malformed source is left to the engine). A
+   *         source with a <code>validation</code> attribute is validated
+   *         against the environment's schemas, if it has any.
    */
   @Nullable
   public XdmNode getSourceDocument (final QT3Environment.@NonNull Source aSource)
   {
     if (aSource.file ().isEmpty ())
       return null;
-    return m_aDocs.getDocument (getAbsolutePath (m_aBaseDir, aSource.file ()));
+    final Path aPath = getAbsolutePath (m_aBaseDir, aSource.file ());
+    if (!aSource.validation ().isEmpty () && m_aSchemaFiles.isNotEmpty ())
+    {
+      // validation="strict" or "lax": both are run strict. A schema that does
+      // not compile or a source that is not valid leaves the source
+      // unvalidated, like Go
+      final Schema aSchema = QT3SchemaCache.getSchema (m_aSchemaFiles);
+      if (aSchema != null)
+      {
+        final XdmNode aDoc = m_aDocs.getValidatedDocument (aPath, aSchema, m_aSchemaFiles.toString ());
+        if (aDoc != null)
+        {
+          m_aValidated.put (aPath, aDoc);
+          return aDoc;
+        }
+      }
+    }
+    return m_aDocs.getDocument (aPath);
   }
 
   @Nullable
   public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
-    final Path aDeclared = m_aByUri.get (sAbsoluteUri);
-    if (aDeclared != null)
-      return m_aDocs.getDocument (aDeclared);
-    final Path aFile = _fileUriToPath (sAbsoluteUri);
-    return aFile == null ? null : m_aDocs.getDocument (aFile);
+    Path aFile = m_aByUri.get (sAbsoluteUri);
+    if (aFile == null)
+      aFile = _fileUriToPath (sAbsoluteUri);
+    if (aFile == null)
+      return null;
+    // fn:doc on the URI of a validated source returns that same document
+    final XdmNode aValidated = m_aValidated.get (aFile);
+    return aValidated != null ? aValidated : m_aDocs.getDocument (aFile);
   }
 
   @Nullable

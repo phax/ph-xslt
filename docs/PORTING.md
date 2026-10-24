@@ -14,7 +14,7 @@ Read this fully before writing code. It applies to every workstream.
 
 ## Architecture (the contract)
 
-Module `xpath-xdm` (`com.helger.xpath.xdm`): `XdmNode` (node tree, document order), `XdmQName` (record, prefix not part
+Module `xpath-xdm` (`com.helger.xpath.xdm`): `XdmNode` (node tree, document order; `XdmSchemaType` for schema-validated trees), `XdmQName` (record, prefix not part
 of equality), `XdmParser`/`XdmTreeBuilder` (JDK SAX to tree), `IXdmItem` (marker for all items).
 
 Module `xpath-core` (`com.helger.xpath`):

@@ -44,8 +44,10 @@ import com.helger.xpath.xdm.XdmQName;
  * {@link XPathException} counts as a failure ("crash:" + class name) and never
  * aborts the run.
  * <p>
- * Schema environments are read but not applied (no schema-awareness): such
- * cases run unvalidated and are attempted, as in Go.
+ * A source with <code>validation="strict"</code> (or <code>lax</code>, run
+ * strict) is validated against the environment's schemas with the JDK
+ * validator (see {@link QT3ResourceResolver#getSourceDocument}); there are no
+ * in-scope schema types, so schema imports are not applied.
  * <p>
  * A case (or its test set) with the dependency <code>feature staticTyping</code>
  * opts in to the engine's narrow part of the optional Static Typing Feature,
