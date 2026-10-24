@@ -17,7 +17,8 @@
 package com.helger.xpath.xdm;
 
 /**
- * The DTD attribute type of an attribute node, as far as it matters for
+ * The DTD attribute type of an attribute node, or the schema type of a
+ * validated attribute or element, as far as it matters for
  * <code>fn:id</code>, <code>fn:idref</code> and the XDM <code>is-id</code> /
  * <code>is-idrefs</code> accessors.
  *

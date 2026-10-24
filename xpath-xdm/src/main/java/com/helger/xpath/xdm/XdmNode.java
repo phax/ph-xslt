@@ -63,6 +63,9 @@ public final class XdmNode implements IXdmItem
   private ICommonsOrderedMap <String, String> m_aNamespaces;
   private EIDKind m_eIDKind = EIDKind.NONE;
   private XdmQName m_aTypeAnnotation;
+  // Only set on nodes of a schema-validated tree; shared between nodes
+  private XdmSchemaType m_aSchemaType;
+  private boolean m_bNilled;
   private String m_sDocumentUri;
   private String m_sBaseUri;
   // 0 = not numbered yet
@@ -237,8 +240,9 @@ public final class XdmNode implements IXdmItem
   }
 
   /**
-   * @return The DTD type of an attribute node; {@link EIDKind#NONE} for all
-   *         other nodes.
+   * @return The ID kind of an attribute (from its DTD or schema type) or of
+   *         an element of a schema-validated tree (from its schema type);
+   *         {@link EIDKind#NONE} for all other nodes.
    */
   @NonNull
   public EIDKind getIDKind ()
@@ -256,19 +260,59 @@ public final class XdmNode implements IXdmItem
    * @return The name of the type annotation of an element or attribute node,
    *         or <code>null</code> for the default of an unvalidated node
    *         (<code>xs:untyped</code> for elements,
-   *         <code>xs:untypedAtomic</code> for attributes). Only built-in
+   *         <code>xs:untypedAtomic</code> for attributes). For a node of a
+   *         schema-validated tree it is the name of its
+   *         {@link #getSchemaType() schema type} (anonymous types have a
+   *         local name starting with <code>#</code>); otherwise only built-in
    *         schema types are used, e.g. by the result tree of
    *         fn:analyze-string.
    */
   @Nullable
   public XdmQName getTypeAnnotation ()
   {
-    return m_aTypeAnnotation;
+    return m_aSchemaType != null ? m_aSchemaType.getName () : m_aTypeAnnotation;
   }
 
+  /**
+   * Annotate the node with a built-in schema type, without schema
+   * information. Ignored while a {@link #getSchemaType() schema type} is set.
+   *
+   * @param aTypeAnnotation
+   *        The type name, <code>null</code> for the default.
+   */
   public void setTypeAnnotation (@Nullable final XdmQName aTypeAnnotation)
   {
     m_aTypeAnnotation = aTypeAnnotation;
+  }
+
+  /**
+   * @return The schema type an element or attribute node was validated
+   *         against, or <code>null</code> if the node was not validated.
+   */
+  @Nullable
+  public XdmSchemaType getSchemaType ()
+  {
+    return m_aSchemaType;
+  }
+
+  public void setSchemaType (@Nullable final XdmSchemaType aSchemaType)
+  {
+    m_aSchemaType = aSchemaType;
+  }
+
+  /**
+   * @return The XDM <code>nilled</code> property: <code>true</code> for a
+   *         validated element with <code>xsi:nil="true"</code>. Always
+   *         <code>false</code> for other nodes.
+   */
+  public boolean isNilled ()
+  {
+    return m_bNilled;
+  }
+
+  public void setNilled (final boolean bNilled)
+  {
+    m_bNilled = bNilled;
   }
 
   /**
