@@ -21,6 +21,7 @@ import java.math.BigInteger;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -102,6 +103,12 @@ final class XPathParserImpl
                                                                                        "namespace-node",
                                                                                        "schema-element",
                                                                                        "schema-attribute");
+  /** The functions a rooted pattern may start with (XSLT 3.0 OuterFunctionName). */
+  private static final ICommonsSet <String> PATTERN_FUNCTION_NAMES = new CommonsHashSet <> ("doc",
+                                                                                             "id",
+                                                                                             "element-with-id",
+                                                                                             "key",
+                                                                                             "root");
   /** Built-in schema types in the xs namespace that are not atomic. */
   private static final ICommonsSet <String> NON_ATOMIC_XS_TYPES = new CommonsHashSet <> ("anyType",
                                                                                            "untyped",
@@ -192,6 +199,8 @@ final class XPathParserImpl
   private final ICommonsList <XdmQName> m_aScope = new CommonsArrayList <> ();
   private int m_nPos;
   private int m_nDepth;
+  /** Source text of the union operands of a pattern; only set while parsing a pattern. */
+  private Map <IExpr, String> m_aPatternSources;
 
   XPathParserImpl (@NonNull final String sSrc, @NonNull final StaticContext aCtx)
   {
@@ -1638,6 +1647,273 @@ final class XPathParserImpl
     return new IExpr.SequenceExpr (aItems);
   }
 
+  /** Remember the source text of a pattern operand from a start token to the current position. */
+  private void _rememberPatternSource (@NonNull final IExpr aExpr, @NonNull final XPathToken aStartTok)
+  {
+    if (m_aPatternSources != null)
+    {
+      final int nEnd = _is (ETokenKind.EOF) ? m_sSrc.length () : _cur ().pos ();
+      m_aPatternSources.put (aExpr, m_sSrc.substring (aStartTok.pos (), Math.max (aStartTok.pos (), nEnd)).trim ());
+    }
+  }
+
+  /**
+   * A step of a pattern (StepExprP): a parenthesised pattern with predicates,
+   * or an axis step on one of the forward axes XSLT 3.0 allows in patterns.
+   */
+  @NonNull
+  private StepExpr _parsePatternStep ()
+  {
+    final XPathToken aTok = _cur ();
+    switch (aTok.kind ())
+    {
+      case LPAREN:
+      {
+        _next ();
+        final IExpr aInner = _parsePatternUnion ();
+        _expect (ETokenKind.RPAREN, "')'");
+        return new StepExpr (null, false, null, _parsePredicates (), aInner);
+      }
+      case AT:
+      {
+        _next ();
+        final NodeTest aTest = _parseNodeTest (EAxis.ATTRIBUTE);
+        return new StepExpr (EAxis.ATTRIBUTE, true, aTest, _parsePredicates (), null);
+      }
+      case NAME:
+      case BRACED_NAME:
+      case STAR:
+      case PREFIX_WILDCARD:
+      case LOCAL_WILDCARD:
+      case BRACED_WILDCARD:
+        break;
+      default:
+        throw _unexpected ("a pattern step");
+    }
+    if (aTok.kind () == ETokenKind.NAME && _peekKind (1) == ETokenKind.COLONCOLON)
+    {
+      final EAxis eAxis = aTok.text ().indexOf (':') < 0 ? EAxis.getFromName (aTok.text ()) : null;
+      if (eAxis == null)
+        throw _syntax ("Unknown axis '" + aTok.text () + "'", aTok);
+      switch (eAxis)
+      {
+        case CHILD:
+        case DESCENDANT:
+        case ATTRIBUTE:
+        case SELF:
+        case DESCENDANT_OR_SELF:
+        case NAMESPACE:
+          break;
+        default:
+          throw _syntax ("The axis '" + aTok.text () + "' is not allowed in a pattern", aTok);
+      }
+      _next ();
+      _next ();
+      final NodeTest aTest = _parseNodeTest (eAxis);
+      return new StepExpr (eAxis, true, aTest, _parsePredicates (), null);
+    }
+    if (aTok.isEQName () &&
+        _peekKind (1) == ETokenKind.LPAREN &&
+        !(aTok.isUnprefixedName () && KIND_TEST_NAMES.contains (aTok.text ())))
+      throw _syntax ("A function call is only allowed at the start of a pattern", aTok);
+    final NodeTest aTest = _parseNodeTest (EAxis.CHILD);
+    EAxis eAxis = EAxis.CHILD;
+    if (aTest.kind () == ENodeTestKind.ATTRIBUTE || aTest.kind () == ENodeTestKind.SCHEMA_ATTRIBUTE)
+      eAxis = EAxis.ATTRIBUTE;
+    else
+      if (aTest.kind () == ENodeTestKind.NAMESPACE_NODE)
+        eAxis = EAxis.NAMESPACE;
+    return new StepExpr (eAxis, false, aTest, _parsePredicates (), null);
+  }
+
+  /** RelativePathExprP continuation: ("/" | "//") StepExprP, repeated. */
+  private void _parsePatternRelativeSteps (@NonNull final ICommonsList <StepExpr> aSteps)
+  {
+    while (true)
+    {
+      final ETokenKind eKind = _cur ().kind ();
+      if (eKind == ETokenKind.SLASH)
+      {
+        _next ();
+        aSteps.add (_parsePatternStep ());
+      }
+      else
+        if (eKind == ETokenKind.SLASHSLASH)
+        {
+          _next ();
+          aSteps.add (_descendantOrSelfStep ());
+          aSteps.add (_parsePatternStep ());
+        }
+        else
+          return;
+    }
+  }
+
+  private boolean _startsPatternStep ()
+  {
+    switch (_cur ().kind ())
+    {
+      case NAME:
+      case BRACED_NAME:
+      case STAR:
+      case PREFIX_WILDCARD:
+      case LOCAL_WILDCARD:
+      case BRACED_WILDCARD:
+      case AT:
+      case LPAREN:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * The argument of a FunctionCallP: a variable reference or a literal. The
+   * context item is accepted for <code>root(.)</code>, which the XSLT 3.0
+   * Recommendation uses in its own examples.
+   */
+  @NonNull
+  private IExpr _parsePatternArgument (final boolean bAllowContextItem)
+  {
+    switch (_cur ().kind ())
+    {
+      case DOLLAR:
+        return _parseVarRef ();
+      case STRING:
+      case INTEGER:
+      case DECIMAL:
+      case DOUBLE:
+        return _parsePrimary ();
+      case DOT:
+        if (bAllowContextItem)
+        {
+          _next ();
+          return new IExpr.ContextItemExpr ();
+        }
+        throw _unexpected ("a variable reference or a literal");
+      default:
+        throw _unexpected ("a variable reference or a literal");
+    }
+  }
+
+  /** FunctionCallP: one of doc, id, element-with-id, key, root in the fn namespace. */
+  @NonNull
+  private IExpr _parsePatternFunctionCall ()
+  {
+    final XPathToken aTok = _next ();
+    final XdmQName aName = _resolveFunctionName (aTok);
+    final String sLocal = aName.localName ();
+    if (!XdmConstants.NS_FN.equals (aName.namespaceUri ()) || !PATTERN_FUNCTION_NAMES.contains (sLocal))
+      throw _syntax ("The function " + aName.getEQName () + " is not allowed at the start of a pattern", aTok);
+    final boolean bRoot = sLocal.equals ("root");
+    _expect (ETokenKind.LPAREN, "'('");
+    final ICommonsList <IExpr> aArgs = new CommonsArrayList <> ();
+    if (!_is (ETokenKind.RPAREN))
+      while (true)
+      {
+        aArgs.add (_parsePatternArgument (bRoot));
+        if (!_is (ETokenKind.COMMA))
+          break;
+        _next ();
+      }
+    _expect (ETokenKind.RPAREN, "')' or ','");
+    if (bRoot && !aArgs.isEmpty () && !(aArgs.size () == 1 && aArgs.get (0) instanceof IExpr.ContextItemExpr))
+      throw _syntax ("Only root() without arguments is allowed at the start of a pattern", aTok);
+    _checkFunction (aName, aArgs.size (), aTok);
+    return new IExpr.FunctionCallExpr (aName, aArgs);
+  }
+
+  /** PathExprP: a rooted, absolute or relative path pattern. */
+  @NonNull
+  private IExpr _parsePatternPath ()
+  {
+    final XPathToken aTok = _cur ();
+    final ICommonsList <StepExpr> aSteps = new CommonsArrayList <> ();
+    if (aTok.kind () == ETokenKind.SLASH)
+    {
+      _next ();
+      // A lone "/" unless a step follows (as in XPath, "/ union /*" is a path)
+      if (_startsPatternStep ())
+      {
+        aSteps.add (_parsePatternStep ());
+        _parsePatternRelativeSteps (aSteps);
+      }
+      return new IExpr.PathExpr (null, true, aSteps);
+    }
+    if (aTok.kind () == ETokenKind.SLASHSLASH)
+    {
+      _next ();
+      aSteps.add (_descendantOrSelfStep ());
+      aSteps.add (_parsePatternStep ());
+      _parsePatternRelativeSteps (aSteps);
+      return new IExpr.PathExpr (null, true, aSteps);
+    }
+    final boolean bVarRef = aTok.kind () == ETokenKind.DOLLAR;
+    final boolean bCall = aTok.isEQName () &&
+                          _peekKind (1) == ETokenKind.LPAREN &&
+                          !(aTok.isUnprefixedName () && KIND_TEST_NAMES.contains (aTok.text ()));
+    if (bVarRef || bCall)
+    {
+      IExpr aStart = bVarRef ? _parseVarRef () : _parsePatternFunctionCall ();
+      final ICommonsList <IExpr> aPreds = _parsePredicates ();
+      if (aPreds.isNotEmpty ())
+        aStart = new IExpr.FilterExpr (aStart, aPreds);
+      _parsePatternRelativeSteps (aSteps);
+      return new IExpr.PathExpr (aStart, false, aSteps);
+    }
+    aSteps.add (_parsePatternStep ());
+    _parsePatternRelativeSteps (aSteps);
+    return new IExpr.PathExpr (null, false, aSteps);
+  }
+
+  /** IntersectExceptExprP */
+  @NonNull
+  private IExpr _parsePatternIntersectExcept ()
+  {
+    final XPathToken aStartTok = _cur ();
+    IExpr ret = _parsePatternPath ();
+    final int nDepthBefore = m_nDepth;
+    try
+    {
+      while (_cur ().isNCName ("intersect") || _cur ().isNCName ("except"))
+      {
+        final IExpr.SetExpr.ESetOp eOp = _next ().text ().equals ("intersect") ? IExpr.SetExpr.ESetOp.INTERSECT
+                                                                                : IExpr.SetExpr.ESetOp.EXCEPT;
+        _enterDepth ();
+        ret = new IExpr.SetExpr (eOp, ret, _parsePatternPath ());
+      }
+    }
+    finally
+    {
+      m_nDepth = nDepthBefore;
+    }
+    _rememberPatternSource (ret, aStartTok);
+    return ret;
+  }
+
+  /** UnionExprP */
+  @NonNull
+  private IExpr _parsePatternUnion ()
+  {
+    _enterDepth ();
+    final int nDepthBefore = m_nDepth;
+    try
+    {
+      IExpr ret = _parsePatternIntersectExcept ();
+      while (_is (ETokenKind.PIPE) || _cur ().isNCName ("union"))
+      {
+        _next ();
+        _enterDepth ();
+        ret = new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, ret, _parsePatternIntersectExcept ());
+      }
+      return ret;
+    }
+    finally
+    {
+      m_nDepth = nDepthBefore - 1;
+    }
+  }
+
   private void _expectEOF ()
   {
     if (!_is (ETokenKind.EOF))
@@ -1681,6 +1957,38 @@ final class XPathParserImpl
     final SeqType aReturn = _parseSequenceType ();
     _expectEOF ();
     return new FunctionSignature (aParams, aReturn);
+  }
+
+  /**
+   * Parse an XSLT 3.0 pattern (production Pattern30). A predicate pattern is
+   * returned as {@link IExpr.ContextItemExpr} or a {@link IExpr.FilterExpr} on
+   * it; every other pattern consists of {@link IExpr.SetExpr} nodes over
+   * {@link IExpr.PathExpr} nodes. A parenthesised pattern is a step with a
+   * postfix, the "//" abbreviation a descendant-or-self::node() step.
+   *
+   * @param aSources
+   *        Receives the source text of every union operand (identity map).
+   * @return The parsed pattern; the whole input must be consumed.
+   */
+  @NonNull
+  IExpr parsePattern (@NonNull final Map <IExpr, String> aSources)
+  {
+    m_aPatternSources = aSources;
+    final IExpr ret;
+    if (_is (ETokenKind.DOT))
+    {
+      final XPathToken aStartTok = _next ();
+      final ICommonsList <IExpr> aPreds = _parsePredicates ();
+      ret = aPreds.isEmpty () ? new IExpr.ContextItemExpr () : new IExpr.FilterExpr (new IExpr.ContextItemExpr (), aPreds);
+      _expectEOF ();
+      _rememberPatternSource (ret, aStartTok);
+    }
+    else
+    {
+      ret = _parsePatternUnion ();
+      _expectEOF ();
+    }
+    return ret;
   }
 
   /**

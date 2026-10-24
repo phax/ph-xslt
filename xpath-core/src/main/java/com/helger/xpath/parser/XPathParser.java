@@ -16,7 +16,9 @@
  */
 package com.helger.xpath.parser;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
 
@@ -51,6 +53,18 @@ public final class XPathParser
   public record FunctionSignature (@NonNull List <SeqType> paramTypes, @NonNull SeqType returnType)
   {}
 
+  /**
+   * Result of {@link #parsePattern(String, StaticContext)}.
+   *
+   * @param pattern
+   *        The pattern AST.
+   * @param sources
+   *        The source text of every union operand of the pattern, keyed by
+   *        identity (an {@link IdentityHashMap}).
+   */
+  public record PatternParseResult (@NonNull IExpr pattern, @NonNull Map <IExpr, String> sources)
+  {}
+
   @PresentForCodeCoverage
   private static final XPathParser INSTANCE = new XPathParser ();
 
@@ -78,6 +92,33 @@ public final class XPathParser
     if (aStaticCtx.isStaticTyping ())
       XPathStaticAxes.checkStaticEmptyPaths (ret);
     return ret;
+  }
+
+  /**
+   * Parse an XSLT 3.0 pattern (production Pattern30 of XSLT 3.0 section
+   * 5.5.2). Syntax errors are reported as XPST0003 like in expressions; the
+   * caller maps them to XTSE0340. See <code>XsltPatternParser</code> for the
+   * shape of the AST.
+   *
+   * @param sPattern
+   *        The pattern text.
+   * @param aStaticCtx
+   *        The static context for name resolution.
+   * @return The AST and the source text of the union operands.
+   * @throws com.helger.xpath.XPathException
+   *         for static errors.
+   */
+  @NonNull
+  public static PatternParseResult parsePattern (@NonNull final String sPattern, @NonNull final StaticContext aStaticCtx)
+  {
+    ValueEnforcer.notNull (sPattern, "Pattern");
+    ValueEnforcer.notNull (aStaticCtx, "StaticCtx");
+    final Map <IExpr, String> aSources = new IdentityHashMap <> ();
+    final IExpr ret = XPathParserImpl.runWithStackGuard ( () -> {
+      aSources.clear ();
+      return new XPathParserImpl (sPattern, aStaticCtx).parsePattern (aSources);
+    }, sPattern);
+    return new PatternParseResult (ret, aSources);
   }
 
   /**
