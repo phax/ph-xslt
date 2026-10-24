@@ -35,6 +35,7 @@ v0.1.0 - work in progress
 * Added the module `xpath-conformance` that runs the W3C QT3 test suite; every failing case is documented with its
   reason in `xpath-conformance/docs/accepted-failures/qt3.md`, and an undocumented failure fails the build
 * Added `StaticContext.setStaticTyping` to opt in to the narrow part of the optional Static Typing Feature: axis steps that provably select nothing raise XPST0005
+* Added XSLT 3.0 patterns (`XsltPatternParser`, `CompiledXsltPattern`): predicate and selection patterns, rooted patterns, union/intersect/except, default priorities and union alternatives
 * Added the XML and XSD version (`StaticContext.setXmlVersion`/`setXsdVersion`) and the default language (`DynamicContext.setDefaultLanguage`) settings
 * Added schema-validated input with the JDK validator: `XdmParser.setSchema` annotates the tree (`XdmSchemaType`, nilled, schema IDs), which gives typed values, `fn:nilled`, schema-based `fn:id`/`fn:element-with-id`/`fn:idref` and `element(N, T)`/`attribute(N, T)` tests; invalid documents raise `XdmValidationException`
 * `XdmParser` always uses the JDK parser, also when another JAXP implementation such as Apache Xerces is on the class path

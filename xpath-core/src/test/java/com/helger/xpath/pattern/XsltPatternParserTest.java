@@ -564,6 +564,26 @@ public final class XsltPatternParserTest
   }
 
   @Test
+  public void testDeepTree ()
+  {
+    final StringBuilder aSB = new StringBuilder ();
+    final int nDepth = 2000;
+    for (int i = 0; i < nDepth; ++i)
+      aSB.append ("<a>");
+    aSB.append ("<c/>");
+    for (int i = 0; i < nDepth; ++i)
+      aSB.append ("</a>");
+    final XdmNode aDoc = _parse (aSB.toString ());
+    final XdmNode aLeaf = _select (aDoc, "//c").getFirstOrNull ();
+    final DynamicContext aCtx = _ctx (XdmSequence.EMPTY);
+    // Without the memo this is cubic in the depth
+    assertFalse (_pattern ("b//a//a//c").matches (aLeaf, aCtx));
+    assertTrue (_pattern ("a//a//a//c").matches (aLeaf, aCtx));
+    assertTrue (_pattern ("/a//a//a//c").matches (aLeaf, aCtx));
+    assertFalse (_pattern ("(a//a//b//c) except c").matches (aLeaf, aCtx));
+  }
+
+  @Test
   public void testSources ()
   {
     final XsltPattern aPattern = _pattern ("  a | b  ");

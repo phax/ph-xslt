@@ -58,6 +58,12 @@ import com.helger.xpath.xdm.XdmNode;
  * axis. Intersections and differences work on the anchor sets, so
  * <code>descendant::a except child::a</code> means what the formal
  * definition says.
+ * <p>
+ * One deliberate reading of the formal definition: the child axis of a step
+ * still selects the children of a parentless element. Taken literally,
+ * child-or-top would select only the parentless element itself, and a pattern
+ * like <code>item</code> would not match the children of a parentless
+ * element (a common case for temporary trees).
  *
  * @author Philip Helger
  */
@@ -290,12 +296,32 @@ final class PatternMatcher
     private AnchorSet m_aMergedResult;
     private ICommonsSet <XdmNode> m_aStartNodes;
     private boolean m_bFound;
+    /**
+     * Per step the nodes already searched, so that paths with several
+     * descendant steps do not explore the same (step, node) pair twice;
+     * <code>null</code> if the path cannot reach a pair twice.
+     */
+    private final ICommonsList <ICommonsSet <XdmNode>> m_aVisited;
 
     PathSearch (final IExpr.@NonNull PathExpr aPath, final boolean bFirstOnly)
     {
       m_aPath = aPath;
       m_eMode = aPath.start () != null ? EPathMode.ROOTED : aPath.absolute () ? EPathMode.ABSOLUTE : EPathMode.RELATIVE;
       m_bFirstOnly = bFirstOnly;
+      int nBranching = 0;
+      for (final StepExpr aStep : aPath.steps ())
+        if (aStep.postfix () != null ||
+            aStep.axis () == EAxis.DESCENDANT ||
+            aStep.axis () == EAxis.DESCENDANT_OR_SELF)
+          nBranching++;
+      if (nBranching > 1)
+      {
+        m_aVisited = new CommonsArrayList <> ();
+        for (int i = 0; i < aPath.steps ().size (); ++i)
+          m_aVisited.add (new CommonsHashSet <> ());
+      }
+      else
+        m_aVisited = null;
     }
 
     private boolean _isDone ()
@@ -438,6 +464,9 @@ final class PatternMatcher
         _accept (aNode);
         return;
       }
+      // The outcome only depends on the pair, and the search state only grows
+      if (m_aVisited != null && !m_aVisited.get (nStep).add (aNode))
+        return;
       final StepExpr aStep = aSteps.get (nStep);
       final boolean bFirstRelative = nStep == 0 && m_eMode == EPathMode.RELATIVE;
       if (aStep.postfix () != null)
