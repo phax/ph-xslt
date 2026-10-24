@@ -23,6 +23,11 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import com.helger.xpath.CompiledXPath;
+import com.helger.xpath.XPathCompiler;
+import com.helger.xpath.context.StaticContext;
+import com.helger.xpath.value.XdmAtomic;
+
 /**
  * Test class for class {@link FnJson}.
  *
@@ -104,5 +109,16 @@ public final class FnJsonTest
     assertError ("FODC0006", "parse-xml-fragment('<?xml version=\"1.0\"?><a/>')");
     assertError ("FODC0006", "parse-xml-fragment('<!DOCTYPE a><a/>')");
     assertEquals ("", evalString ("serialize(parse-xml-fragment(''))"));
+  }
+
+  @Test
+  public void testResultBaseUri ()
+  {
+    final StaticContext aStatic = new StaticContext ().setBaseUri ("http://example.org/base/");
+    for (final String sCall : new String [] { "parse-xml('<a/>')", "parse-xml-fragment('<a/>')", "json-to-xml('1')" })
+    {
+      final CompiledXPath aXP = XPathCompiler.compile ("string(base-uri(" + sCall + "))", aStatic);
+      assertEquals (sCall, "http://example.org/base/", ((XdmAtomic) aXP.evaluate (aXP.createDynamicContext ()).get (0)).getString ());
+    }
   }
 }
