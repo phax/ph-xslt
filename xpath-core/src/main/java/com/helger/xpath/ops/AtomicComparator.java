@@ -957,4 +957,18 @@ public final class AtomicComparator
     }
     return true;
   }
+
+  /**
+   * The fn:number conversion of XPath 1.0 compatibility mode: numbers as
+   * double, booleans as 0 or 1, strings and untyped values by their double
+   * lexical form, everything else (and every invalid string) NaN.
+   *
+   * @param aValue
+   *        The atomic value.
+   * @return The value as double.
+   */
+  public static double toNumber (@NonNull final XdmAtomic aValue)
+  {
+    return _toNumber (aValue);
+  }
 }

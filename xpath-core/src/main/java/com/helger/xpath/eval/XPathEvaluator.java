@@ -35,7 +35,9 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.ast.EBinaryOp;
+import com.helger.xpath.ast.EComparisonOp;
 import com.helger.xpath.ast.IExpr;
+import com.helger.xpath.ast.ItemType;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
@@ -428,6 +430,35 @@ public final class XPathEvaluator
     return ret;
   }
 
+  /**
+   * The extra function conversion rules of XPath 1.0 compatibility mode
+   * (XPath 3.1 section 3.1.5.2) for an argument of a static function call that
+   * is not of the expected type: a single-item expected type takes the first
+   * item, xs:string(?) applies fn:string and xs:double(?) applies fn:number.
+   */
+  @NonNull
+  private static XdmSequence _convertArgument10 (@NonNull final XdmSequence aValue, @NonNull final SeqType aType)
+  {
+    if (aType.empty () ||
+        aType.itemType () == null ||
+        aType.occurrence ().allowsMany () ||
+        SequenceTypeMatcher.matches (aValue, aType))
+      return aValue;
+    final XdmSequence aFirst = aValue.size () > 1 ? XdmSequence.of (aValue.get (0)) : aValue;
+    final ItemType aItemType = aType.itemType ();
+    if (aItemType.kind () != ItemType.Kind.ATOMIC)
+      return aFirst;
+    if (aItemType.atomicType () == EAtomicType.STRING)
+      return XdmSequence.of (XdmAtomic.string (aFirst.isEmpty () ? "" : Atomizer.getStringValue (aFirst.get (0))));
+    if (aItemType.atomicType () == EAtomicType.DOUBLE)
+    {
+      final XdmSequence aAtoms = _atomize (aFirst);
+      return XdmSequence.of (XdmAtomic.dbl (aAtoms.isEmpty () ? Double.NaN
+                                                              : AtomicComparator.toNumber ((XdmAtomic) aAtoms.get (0))));
+    }
+    return aFirst;
+  }
+
   @NonNull
   private static XdmSequence _evalFunctionCall (final IExpr.@NonNull FunctionCallExpr aExpr,
                                                 @NonNull final DynamicContext aCtx)
@@ -438,12 +469,15 @@ public final class XPathEvaluator
       return _partialApply (new BuiltInFunctionItem (aDef, aCtx), aArgExprs, aCtx);
 
     final List <SeqType> aParamTypes = aDef.getParamTypes ();
+    final boolean bCompat10 = aCtx.getStaticContext ().isXPath10Compatibility ();
     final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> (aArgExprs.size ());
     for (int i = 0; i < aArgExprs.size (); ++i)
-      aArgs.add (SequenceTypeMatcher.convert (evaluateInternal (aArgExprs.get (i), aCtx),
-                                              aParamTypes.get (i),
-                                              aCtx,
-                                              "XPTY0004"));
+    {
+      XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
+      if (bCompat10)
+        aValue = _convertArgument10 (aValue, aParamTypes.get (i));
+      aArgs.add (SequenceTypeMatcher.convert (aValue, aParamTypes.get (i), aCtx, "XPTY0004"));
+    }
     return _invokeBuiltIn (aDef, aCtx, aArgs);
   }
 
@@ -483,10 +517,173 @@ public final class XPathEvaluator
     return CollationRegistry.CODEPOINT_URI.equals (sUri) ? null : CollationRegistry.getCollationOrThrow (sUri);
   }
 
+  @Nullable
+  private static BigInteger _getRangeOperand (@NonNull final XdmSequence aSeq, @NonNull final DynamicContext aCtx)
+  {
+    XdmAtomic aValue = _atomizeOptional (aSeq, "operand of 'to'");
+    if (aValue == null)
+      return null;
+    if (aValue.getType () == EAtomicType.UNTYPED_ATOMIC)
+      aValue = AtomicCaster.castFromString (aValue.getString (), EAtomicType.INTEGER, aCtx.getStaticContext ());
+    if (!aValue.getType ().isIntegerFamily ())
+      throw XPathException.type ("The operands of 'to' must be integers, not " + aValue.getType ().getQualifiedName ());
+    return aValue.getBigInteger ();
+  }
+
+  @NonNull
+  private static EComparisonOp _swapGeneralOp (@NonNull final EComparisonOp eOp)
+  {
+    return switch (eOp)
+    {
+      case GENERAL_LT -> EComparisonOp.GENERAL_GT;
+      case GENERAL_GT -> EComparisonOp.GENERAL_LT;
+      case GENERAL_LE -> EComparisonOp.GENERAL_GE;
+      case GENERAL_GE -> EComparisonOp.GENERAL_LE;
+      default -> eOp;
+    };
+  }
+
+  /**
+   * @return <code>true</code> if the xs:integer or xs:decimal value compares
+   *         true under the operator with some integer of the range. Both are
+   *         compared exactly, at any magnitude.
+   */
+  private static boolean _isRangeHitExact (@NonNull final EComparisonOp eOp,
+                                           @NonNull final XdmAtomic aValue,
+                                           @NonNull final BigInteger aFrom,
+                                           @NonNull final BigInteger aTo)
+  {
+    final BigDecimal aV = aValue.getValue () instanceof final BigInteger aBigInt ? new BigDecimal (aBigInt)
+                                                                                 : aValue.getBigDecimal ();
+    final BigDecimal aLo = new BigDecimal (aFrom);
+    final BigDecimal aHi = new BigDecimal (aTo);
+    return switch (eOp)
+    {
+      case GENERAL_EQ -> (aV.signum () == 0 || aV.stripTrailingZeros ().scale () <= 0) &&
+                         aV.compareTo (aLo) >= 0 &&
+                         aV.compareTo (aHi) <= 0;
+      case GENERAL_NE -> aFrom.compareTo (aTo) != 0 || aV.compareTo (aLo) != 0;
+      case GENERAL_LT -> aV.compareTo (aHi) < 0;
+      case GENERAL_LE -> aV.compareTo (aHi) <= 0;
+      case GENERAL_GT -> aV.compareTo (aLo) > 0;
+      default -> aV.compareTo (aLo) >= 0;
+    };
+  }
+
+  /**
+   * {@link #_isRangeHitExact(EComparisonOp, XdmAtomic, BigInteger, BigInteger)}
+   * for an xs:double or xs:float value, to whose type every range member is
+   * promoted first. Promotion is monotonic, so the promoted bounds settle each
+   * operator; for "!=" some member differs from the value unless both promoted
+   * bounds (and so every member between them) equal it.
+   */
+  private static boolean _isRangeHitFloat (@NonNull final EComparisonOp eOp,
+                                           @NonNull final XdmAtomic aValue,
+                                           @NonNull final BigInteger aFrom,
+                                           @NonNull final BigInteger aTo)
+  {
+    final double d = aValue.getAsDouble ();
+    if (Double.isNaN (d))
+      return eOp == EComparisonOp.GENERAL_NE;
+    final boolean bFloat = aValue.getType () == EAtomicType.FLOAT;
+    final double dLo = bFloat ? aFrom.floatValue () : aFrom.doubleValue ();
+    final double dHi = bFloat ? aTo.floatValue () : aTo.doubleValue ();
+    return switch (eOp)
+    {
+      case GENERAL_EQ -> d >= dLo && d <= dHi && d == Math.rint (d);
+      case GENERAL_NE -> dLo != d || dHi != d;
+      case GENERAL_LT -> d < dHi;
+      case GENERAL_LE -> d <= dHi;
+      case GENERAL_GT -> d > dLo;
+      default -> d >= dLo;
+    };
+  }
+
+  /**
+   * A general comparison one of whose operands is a range expression, without
+   * materialising the range (<code>$c = (32 to 55295)</code> is a bounds test;
+   * RangeExpr-409c compares against a range of 10^13 integers). The
+   * existential semantics are exact: for a numeric v and the integers
+   * from..to, "v = range" holds iff v is an integer in [from, to], "v != range"
+   * iff some member differs from v, and the orderings compare v against the
+   * nearest bound. An empty range makes every comparison false.
+   *
+   * @param eOp
+   *        The operator, oriented so that the other operand is on the left.
+   * @param aOtherAtoms
+   *        The atomised other operand.
+   * @return <code>null</code> if the fast path does not apply (the other
+   *         operand holds anything but numeric or untyped atomic values); the
+   *         caller then takes the ordinary path.
+   */
+  @Nullable
+  private static XdmSequence _evalRangeComparison (@NonNull final EComparisonOp eOp,
+                                                   final IExpr.@NonNull RangeExpr aRange,
+                                                   @NonNull final XdmSequence aOtherAtoms,
+                                                   @NonNull final DynamicContext aCtx)
+  {
+    final ICommonsList <XdmAtomic> aValues = new CommonsArrayList <> (aOtherAtoms.size ());
+    for (final IXdmItem aItem : aOtherAtoms)
+    {
+      final XdmAtomic aAtomic = (XdmAtomic) aItem;
+      if (aAtomic.isNumeric ())
+        aValues.add (aAtomic);
+      else
+        if (aAtomic.getType () == EAtomicType.UNTYPED_ATOMIC)
+          aValues.add (_untypedToDouble (aAtomic, aCtx));
+        else
+          return null;
+    }
+    final BigInteger aFrom = _getRangeOperand (evaluateInternal (aRange.from (), aCtx), aCtx);
+    final BigInteger aTo = _getRangeOperand (evaluateInternal (aRange.to (), aCtx), aCtx);
+    if (aFrom == null || aTo == null || aFrom.compareTo (aTo) > 0 || aValues.isEmpty ())
+      return FALSE_SEQ;
+    for (final XdmAtomic aValue : aValues)
+    {
+      final Object aPayload = aValue.getValue ();
+      final boolean bHit;
+      if (aPayload instanceof BigInteger || aPayload instanceof BigDecimal)
+        bHit = _isRangeHitExact (eOp, aValue, aFrom, aTo);
+      else
+        bHit = _isRangeHitFloat (eOp, aValue, aFrom, aTo);
+      if (bHit)
+        return TRUE_SEQ;
+    }
+    return FALSE_SEQ;
+  }
+
   @NonNull
   private static XdmSequence _evalComparison (final IExpr.@NonNull ComparisonExpr aExpr,
                                               @NonNull final DynamicContext aCtx)
   {
+    // XPath 1.0 compatibility mode has its own general comparison rules
+    if (aExpr.op ().isGeneral () && !aCtx.getStaticContext ().isXPath10Compatibility ())
+    {
+      if (aExpr.right () instanceof final IExpr.RangeExpr aRange)
+      {
+        final XdmSequence aLeft = _atomize (evaluateInternal (aExpr.left (), aCtx));
+        final XdmSequence aFast = _evalRangeComparison (aExpr.op (), aRange, aLeft, aCtx);
+        if (aFast != null)
+          return aFast;
+        return _bool (AtomicComparator.generalCompare (aExpr.op (),
+                                                       aLeft,
+                                                       _atomize (evaluateInternal (aRange, aCtx)),
+                                                       _getDefaultCollation (aCtx),
+                                                       aCtx));
+      }
+      if (aExpr.left () instanceof final IExpr.RangeExpr aRange)
+      {
+        final XdmSequence aRight = _atomize (evaluateInternal (aExpr.right (), aCtx));
+        final XdmSequence aFast = _evalRangeComparison (_swapGeneralOp (aExpr.op ()), aRange, aRight, aCtx);
+        if (aFast != null)
+          return aFast;
+        return _bool (AtomicComparator.generalCompare (aExpr.op (),
+                                                       _atomize (evaluateInternal (aRange, aCtx)),
+                                                       aRight,
+                                                       _getDefaultCollation (aCtx),
+                                                       aCtx));
+      }
+    }
     final XdmSequence aLeft = evaluateInternal (aExpr.left (), aCtx);
     final XdmSequence aRight = evaluateInternal (aExpr.right (), aCtx);
     if (aExpr.op ().isGeneral ())
@@ -530,6 +727,28 @@ public final class XPathEvaluator
     }
   }
 
+  /**
+   * An arithmetic operand in XPath 1.0 compatibility mode (XPath 3.1 section
+   * 3.5): only the first atomised item counts, an empty operand is NaN, and
+   * booleans, strings, untyped and numeric values are converted with
+   * fn:number.
+   */
+  @NonNull
+  private static XdmAtomic _arithmeticOperand10 (@NonNull final XdmSequence aSeq)
+  {
+    final XdmSequence aAtoms = _atomize (aSeq);
+    if (aAtoms.isEmpty ())
+      return XdmAtomic.dbl (Double.NaN);
+    final XdmAtomic aValue = (XdmAtomic) aAtoms.get (0);
+    final EAtomicType eType = aValue.getType ();
+    if (aValue.isNumeric () ||
+        eType == EAtomicType.BOOLEAN ||
+        eType.isStringFamily () ||
+        eType == EAtomicType.UNTYPED_ATOMIC)
+      return XdmAtomic.dbl (AtomicComparator.toNumber (aValue));
+    return aValue;
+  }
+
   @NonNull
   private static XdmSequence _evalBinary (final IExpr.@NonNull BinaryExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -541,6 +760,11 @@ public final class XPathEvaluator
 
     final XdmSequence aLeftSeq = evaluateInternal (aExpr.left (), aCtx);
     final XdmSequence aRightSeq = evaluateInternal (aExpr.right (), aCtx);
+    if (aCtx.getStaticContext ().isXPath10Compatibility ())
+      return XdmSequence.of (AtomicArithmetic.arithmetic (eOp,
+                                                          _arithmeticOperand10 (aLeftSeq),
+                                                          _arithmeticOperand10 (aRightSeq),
+                                                          aCtx));
     final XdmAtomic aLeft = _atomizeOptional (aLeftSeq, "left operand of an arithmetic expression");
     if (aLeft == null)
       return XdmSequence.EMPTY;
@@ -556,10 +780,17 @@ public final class XPathEvaluator
   @NonNull
   private static XdmSequence _evalUnary (final IExpr.@NonNull UnaryExpr aExpr, @NonNull final DynamicContext aCtx)
   {
-    final XdmAtomic aValue = _atomizeOptional (evaluateInternal (aExpr.operand (), aCtx), "operand of a unary operator");
-    if (aValue == null)
-      return XdmSequence.EMPTY;
-    final XdmAtomic aNum = _untypedToDouble (aValue, aCtx);
+    final XdmSequence aOperand = evaluateInternal (aExpr.operand (), aCtx);
+    final XdmAtomic aNum;
+    if (aCtx.getStaticContext ().isXPath10Compatibility ())
+      aNum = _arithmeticOperand10 (aOperand);
+    else
+    {
+      final XdmAtomic aValue = _atomizeOptional (aOperand, "operand of a unary operator");
+      if (aValue == null)
+        return XdmSequence.EMPTY;
+      aNum = _untypedToDouble (aValue, aCtx);
+    }
     if (aExpr.negate ())
       return XdmSequence.of (AtomicArithmetic.negate (aNum));
     if (!aNum.isNumeric ())
@@ -609,19 +840,6 @@ public final class XPathEvaluator
       if (aRightSet.contains (aItem) == bIntersect)
         aBuilder.add (aItem);
     return NodeSorter.sortAndDeduplicate (aBuilder.build ());
-  }
-
-  @Nullable
-  private static BigInteger _getRangeOperand (@NonNull final XdmSequence aSeq, @NonNull final DynamicContext aCtx)
-  {
-    XdmAtomic aValue = _atomizeOptional (aSeq, "operand of 'to'");
-    if (aValue == null)
-      return null;
-    if (aValue.getType () == EAtomicType.UNTYPED_ATOMIC)
-      aValue = AtomicCaster.castFromString (aValue.getString (), EAtomicType.INTEGER, aCtx.getStaticContext ());
-    if (!aValue.getType ().isIntegerFamily ())
-      throw XPathException.type ("The operands of 'to' must be integers, not " + aValue.getType ().getQualifiedName ());
-    return aValue.getBigInteger ();
   }
 
   @NonNull
