@@ -802,15 +802,10 @@ public final class SequenceTypeMatcher
         throw XPathException.of (sErrorCode, "Required type is empty-sequence(), but supplied was " + _describe (aSeq));
       return aSeq;
     }
-    try
-    {
-      return _convertNoCompat (aSeq, aType, aCtx, sErrorCode);
-    }
-    catch (final XPathException ex)
-    {
-      if (!aCtx.getStaticContext ().isXPath10Compatibility () || !sErrorCode.equals (ex.getCode ()))
-        throw ex;
+    // XPath 3.1 section 3.1.5.2: in XPath 1.0 compatibility mode the extra
+    // conversions come first, for every value not of the expected type
+    if (aCtx.getStaticContext ().isXPath10Compatibility () && !matches (aSeq, aType))
       return _convertNoCompat (_applyXPath10Conversions (aSeq, aType), aType, aCtx, sErrorCode);
-    }
+    return _convertNoCompat (aSeq, aType, aCtx, sErrorCode);
   }
 }

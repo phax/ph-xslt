@@ -430,35 +430,6 @@ public final class XPathEvaluator
     return ret;
   }
 
-  /**
-   * The extra function conversion rules of XPath 1.0 compatibility mode
-   * (XPath 3.1 section 3.1.5.2) for an argument of a static function call that
-   * is not of the expected type: a single-item expected type takes the first
-   * item, xs:string(?) applies fn:string and xs:double(?) applies fn:number.
-   */
-  @NonNull
-  private static XdmSequence _convertArgument10 (@NonNull final XdmSequence aValue, @NonNull final SeqType aType)
-  {
-    if (aType.empty () ||
-        aType.itemType () == null ||
-        aType.occurrence ().allowsMany () ||
-        SequenceTypeMatcher.matches (aValue, aType))
-      return aValue;
-    final XdmSequence aFirst = aValue.size () > 1 ? XdmSequence.of (aValue.get (0)) : aValue;
-    final ItemType aItemType = aType.itemType ();
-    if (aItemType.kind () != ItemType.Kind.ATOMIC)
-      return aFirst;
-    if (aItemType.atomicType () == EAtomicType.STRING)
-      return XdmSequence.of (XdmAtomic.string (aFirst.isEmpty () ? "" : Atomizer.getStringValue (aFirst.get (0))));
-    if (aItemType.atomicType () == EAtomicType.DOUBLE)
-    {
-      final XdmSequence aAtoms = _atomize (aFirst);
-      return XdmSequence.of (XdmAtomic.dbl (aAtoms.isEmpty () ? Double.NaN
-                                                              : AtomicComparator.toNumber ((XdmAtomic) aAtoms.get (0))));
-    }
-    return aFirst;
-  }
-
   @NonNull
   private static XdmSequence _evalFunctionCall (final IExpr.@NonNull FunctionCallExpr aExpr,
                                                 @NonNull final DynamicContext aCtx)
@@ -469,13 +440,11 @@ public final class XPathEvaluator
       return _partialApply (new BuiltInFunctionItem (aDef, aCtx), aArgExprs, aCtx);
 
     final List <SeqType> aParamTypes = aDef.getParamTypes ();
-    final boolean bCompat10 = aCtx.getStaticContext ().isXPath10Compatibility ();
     final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> (aArgExprs.size ());
     for (int i = 0; i < aArgExprs.size (); ++i)
     {
-      XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
-      if (bCompat10)
-        aValue = _convertArgument10 (aValue, aParamTypes.get (i));
+      // XPath 1.0 compatibility rules are applied inside convert
+      final XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
       aArgs.add (SequenceTypeMatcher.convert (aValue, aParamTypes.get (i), aCtx, "XPTY0004"));
     }
     return _invokeBuiltIn (aDef, aCtx, aArgs);
