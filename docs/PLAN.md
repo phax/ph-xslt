@@ -18,20 +18,19 @@ Decisions:
 | 3 | Evaluator: axes, comparison, arithmetic, casting, FLWOR, inline functions, cancellation | `eval.go`, `axes.go`, `compare.go`, `cast.go`, `arith.go` | done |
 | 4 | F&O 3.1 catalogue in family files | `fn_*.go` | done |
 | 5 | Regex (translation to `java.util.regex`, own matcher as fallback), collation (java.text.Collator, ICU4J undecided) | `regex_*.go`, `fn_collation.go` | done |
-| 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | harness done, triage open |
+| 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
 | 7+ | XSLT 3.0: compiler, runtime, serialiser, packages, JAXP and s9api facade, streaming, schema-awareness | `internal/xslt` | |
 
-QT3 status (2026-10-24): 22,227 of 22,478 applicable cases pass (98.9%), 251 fail:
+QT3 status (2026-10-24): 22,307 of 22,478 applicable cases pass (99.2%), 171 fail, all documented in
+`xpath-conformance/docs/accepted-failures/qt3.md` (`QT3Test` fails on any undocumented failure):
 
-| Group | Fails | Cause |
-|-------|-------|-------|
-| `fn-transform*` | 85 | needs the XSLT engine (go-xslt passes them) |
-| `fn-load-xquery-module` | 33 | no XQuery; permanent, also in go-xslt |
-| `numberformat*`, `*format-number*` | 36 | the harness does not yet pass the environment's decimal formats to `StaticContext` |
-| `ST-Axes*` and other `staticTyping` cases | ~25 | go-xslt implements the narrow static axis analysis behind a parse flag |
-| schema-dependent (`fn-nilled`, typed values, FOTY0012) | ~20 | no schema-awareness |
-| `xsd-version`/`xml-version` 1.0 vs 1.1 variants | ~12 | the harness does not apply these dependencies yet |
-| the rest | ~40 | individual triage pending |
+| Group | Fails | Status |
+|-------|-------|--------|
+| `fn:transform` | 87 | Open: needs the XSLT engine |
+| XQuery modules | 34 | Accepted: no XQuery (same in go-xslt) |
+| Static typing (type inference) | 20 | Accepted: same 20 cases as go-xslt |
+| Schema-validated sources | 28 | Open: needs schema-awareness |
+| External entity in `fn:parse-xml`, network access | 2 | Accepted (same in go-xslt) |
 
 Known JDK differences found so far:
 

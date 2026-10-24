@@ -9,3 +9,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Never read Saxon sources (MPL); work from the W3C specs and the Go code.
 - Traversals over input-controlled structure are iterative or depth-limited, never unbounded recursion.
 - Nodes are `XdmNode` (own model, built from JDK SAX). Do not switch to DOM or IMicroDom as the model.
+- QT3: `mvn test -pl xpath-conformance -am` (`-Dqt3.only=<set>` for one test set). Every failing case must be named in
+  `xpath-conformance/docs/accepted-failures/qt3.md` with a reason, or `QT3Test` fails. Compare fail lists
+  (`xpath-conformance/target/qt3-fails.txt`) by name, never by count, and run JDK 21 and 25.
+- When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
+  does not catch it); it happened with the XPath 1.0 compatibility conversions.
+

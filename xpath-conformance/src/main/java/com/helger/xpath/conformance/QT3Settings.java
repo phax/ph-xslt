@@ -30,8 +30,8 @@ import org.jspecify.annotations.NonNull;
  * <li><code>qt3.faildump=true</code> - print a line per failing case (implied
  * by <code>qt3.only</code>)</li>
  * <li><code>qt3.seq=true</code> - run the test sets sequentially</li>
- * <li><code>qt3.checkAccepted=true</code> - fail on failing cases not named in
- * the accepted-failures file</li>
+ * <li><code>qt3.checkAccepted=false</code> - do not fail on failing cases not
+ * named in the accepted-failures file (the check is on by default)</li>
  * <li><code>qt3.out</code> - output directory (default <code>target</code>)</li>
  * <li><code>qt3.accepted</code> - accepted-failures file (default
  * {@value #DEFAULT_ACCEPTED_FILE})</li>
@@ -89,7 +89,7 @@ public record QT3Settings (@NonNull Path suiteDir,
                             Boolean.getBoolean ("qt3.progress"),
                             Boolean.getBoolean ("qt3.faildump"),
                             Boolean.getBoolean ("qt3.seq"),
-                            Boolean.getBoolean ("qt3.checkAccepted"),
+                            !"false".equals (System.getProperty ("qt3.checkAccepted")),
                             Path.of (System.getProperty ("qt3.out", "target")),
                             Path.of (System.getProperty ("qt3.accepted", DEFAULT_ACCEPTED_FILE)));
   }

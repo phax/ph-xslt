@@ -24,7 +24,7 @@ import com.helger.collection.commons.ICommonsSortedSet;
 /**
  * Command line runner for the QT3 suite; configured with the same system
  * properties as {@link QT3Settings}. Exits with 1 if the suite is missing or,
- * with <code>qt3.checkAccepted=true</code>, if a failing case is not
+ * unless <code>qt3.checkAccepted=false</code>, if a failing case is not
  * documented.
  *
  * @author Philip Helger

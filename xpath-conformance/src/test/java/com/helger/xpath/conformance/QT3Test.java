@@ -28,10 +28,10 @@ import com.helger.collection.commons.ICommonsSortedSet;
 
 /**
  * Runs the W3C QT3 (FOTS) suite against the engine and prints the summary.
- * Skipped when the suite is absent (<code>-Dqt3.dir=...</code>). It does not
- * fail the build on failing cases; only with
- * <code>-Dqt3.checkAccepted=true</code> does a failing case not named in the
- * accepted-failures file fail it.
+ * Skipped when the suite is absent (<code>-Dqt3.dir=...</code>). A failing
+ * case that is not named in the accepted-failures file
+ * (<code>docs/accepted-failures/qt3.md</code>) fails the build; switch that
+ * off with <code>-Dqt3.checkAccepted=false</code>.
  *
  * @author Philip Helger
  */
