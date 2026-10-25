@@ -6,9 +6,9 @@
 A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 licensed alternative to Saxon.
 XML parsing and XSD validation are left to the JDK (Xerces); everything on top of it is implemented here.
 
-Status: work in progress. The XPath 3.1 engine runs and passes 99.3% of the applicable W3C QT3 test cases
-(22,328 of 22,478). The XSLT 3.0 engine passes 97.8% of the applicable W3C xslt30-test cases as a basic
-processor (8,455 of 8,647); packages, `fn:transform`, streaming and schema-awareness are not done yet.
+Status: work in progress. The XPath 3.1 engine runs and passes 99.7% of the applicable W3C QT3 test cases
+(22,412 of 22,478). The XSLT 3.0 engine passes 99.9% of the applicable W3C xslt30-test cases as a basic
+processor (8,637 of 8,647); streaming, schema-awareness and backwards compatibility are not done yet.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Modules
@@ -55,6 +55,13 @@ v0.1.0 - work in progress
 * `FunctionLibrary` can register a separate implementation for dynamic function calls (`current-group#0` raises XTDE1061, `regex-group#1` returns a zero-length string)
 * Added accumulators (`xsl:accumulator`, `accumulator-before()`, `accumulator-after()`) with `use-accumulators` on `xsl:mode`, `xsl:source-document` and `xsl:merge-source`; values survive `copy-of()`, `snapshot()` and `copy-accumulators="yes"`
 * Added `xsl:try`/`xsl:catch` (err:* variables, `errors` name tests, `rollback-output`), `xsl:assert`, `xsl:evaluate` (the processor reports `supports-dynamic-evaluation`), `xsl:map`/`xsl:map-entry` and `xsl:source-document` (not streamed)
+* Added XSLT 3.0 packages: `xsl:use-package` with package-version ranges (library packages via `XsltCompileOptions.addPackage`), `xsl:accept`, `xsl:override` with `xsl:original`, `xsl:expose`, visibility and abstract components, and package-local keys, decimal formats, accumulators, namespace aliases, outputs and character maps
+* Added `fn:transform`, backed by the XSLT engine: xpath-core finds it through the `ITransformHandler` service-loader hook, so it is available exactly when xslt-core is on the class path; nested transformations share the caller's budget, resolver and packages
+* Added `XsltTransformRequest.setRawDelivery` and `setSharedBudget`; function items of stylesheet functions stay callable after their transformation ended
+* Added `fn:stream-available`; `xsl:context-item` in template rules; typed modes raise XTTE3100/XTTE3110; a named initial mode must be declared (XTDE0045)
+* Whitespace in DTD element-only content is no longer kept in the tree (XDM 3.1 section 6.7.3); serializing a C0 control character as XML 1.0 raises SERE0006
+* Whitespace stripping applies to all trees of the global context item and the initial match selection; shallow copies keep the base URI
+* The XSLT 3.0 conformance harness fails on any failing case not documented in `xslt-conformance/docs/accepted-failures/xslt30.md`
 * `XdmParser.setLoadExternalEntities(true)` now really reads the external DTD subset and external entities; secure processing had blocked every external access
 
 # Contributing
