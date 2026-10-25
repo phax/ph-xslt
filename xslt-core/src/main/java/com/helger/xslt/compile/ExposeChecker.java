@@ -163,6 +163,8 @@ public final class ExposeChecker
                 if (aExact == null)
                   throw XsltException.at (aEl, "XTSE0020", "'" + sToken + "' is not a valid component name");
               }
+        if ("*".equals (sComponent) && !bWildcard)
+          throw XsltException.at (aEl, "XTSE3022", "xsl:expose with component='*' requires a wildcard name, not '" + sToken + "'");
         if ("function".equals (sComponent) && !bWildcard && nArity < 0)
           throw XsltException.at (aEl, "XTSE3020", "A function name in xsl:expose needs an arity");
         boolean bFound = false;

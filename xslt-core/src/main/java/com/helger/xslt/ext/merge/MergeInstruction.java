@@ -34,9 +34,11 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.CompileContext;
 import com.helger.xslt.compile.XPathExpr;
+import com.helger.xslt.ext.accumulator.AccumulatorExtension;
 import com.helger.xslt.instr.CompiledInstruction;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
@@ -63,7 +65,8 @@ public final class MergeInstruction
                          @Nullable XPathExpr forEachItem,
                          @Nullable XPathExpr forEachSource,
                          boolean sortBeforeMerge,
-                         @NonNull ICommonsList <SortKeyDef> keys)
+                         @NonNull ICommonsList <SortKeyDef> keys,
+                         @NonNull ICommonsList <XdmQName> accumulators)
   {}
 
   /** One item of an input sequence with its merge key values. */
@@ -153,6 +156,8 @@ public final class MergeInstruction
           final XdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, sUri);
           if (aDoc == null)
             throw new XPathException ("FODC0002", "Cannot retrieve the document '" + sUri + "'");
+          // Only the accumulators named in use-accumulators apply to the document
+          AccumulatorExtension.restrictTree (aCtx.getEngine (), aDoc.getRoot (), aSource.accumulators (), false);
           ret.add (aCtx.withFocus (aDoc, i + 1, nSize));
         }
       }
@@ -279,7 +284,8 @@ public final class MergeInstruction
                        aCtx.compileOptionalExpression (aEl, "for-each-item"),
                        aCtx.compileOptionalExpression (aEl, "for-each-source"),
                        sSortBefore != null && XsltNames.isXsltTrue (sSortBefore),
-                       aKeys);
+                       aKeys,
+                       AccumulatorExtension.registerUseAccumulators (aCtx, aEl));
   }
 
   /**
