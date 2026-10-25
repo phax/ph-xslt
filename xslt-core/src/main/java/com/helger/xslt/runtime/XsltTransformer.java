@@ -73,6 +73,20 @@ public final class XsltTransformer
     return ret;
   }
 
+  /**
+   * In an xsl:package only public or final named templates can be the initial
+   * template.
+   */
+  private boolean _isPublic (@NonNull final Template aTemplate)
+  {
+    if (!m_aSheet.isPackage ())
+      return true;
+    final String sVis = aTemplate.getElement ().getAttr ("visibility");
+    if (sVis != null)
+      return "public".equals (sVis.trim ()) || "final".equals (sVis.trim ());
+    return m_aSheet.exposedTemplates ().contains (null) || m_aSheet.exposedTemplates ().contains (aTemplate.getName ());
+  }
+
   @NonNull
   private static String _detectMethod (@Nullable final XdmNode aTree)
   {
@@ -163,7 +177,7 @@ public final class XsltTransformer
       if (m_aRequest.getInitialTemplate () != null)
       {
         final Template aTemplate = m_aSheet.getNamedTemplate (m_aRequest.getInitialTemplate ());
-        if (aTemplate == null)
+        if (aTemplate == null || !_isPublic (aTemplate))
           throw new XsltException ("XTDE0040",
                                    "There is no template named " + m_aRequest.getInitialTemplate ().getEQName (),
                                    null,
@@ -178,6 +192,8 @@ public final class XsltTransformer
         if (aMatchSelection == null)
         {
           final Template aInitial = m_aSheet.getNamedTemplate (INITIAL_TEMPLATE);
+          if (aInitial != null && !_isPublic (aInitial))
+            throw new XsltException ("XTDE0040", "The template xsl:initial-template is not public", null, 0, 0);
           if (aInitial == null)
             throw new XsltException ("XTDE0044", "There is no initial match selection and no xsl:initial-template", null, 0, 0);
           aEngine.callTemplate (aCtx, aInitial, _getTemplateParams (m_aRequest), aBuffer);
@@ -198,7 +214,12 @@ public final class XsltTransformer
           if (aMode == null)
             throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " does not exist", null, 0, 0);
           final String sVis = aMode.getVisibility ();
-          if (bExplicitMode && !aMode.isUnnamed () && ("private".equals (sVis) || "abstract".equals (sVis)))
+          if (bExplicitMode &&
+              !aMode.isUnnamed () &&
+              !aModeName.equals (m_aSheet.getDefaultModeName ()) &&
+              ("private".equals (sVis) ||
+               "abstract".equals (sVis) ||
+               sVis == null && m_aSheet.isPackage () && aMode.getDeclaration () != null))
             throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not public", null, 0, 0);
           aEngine.applyTemplates (aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)),
                                   aMatchSelection,

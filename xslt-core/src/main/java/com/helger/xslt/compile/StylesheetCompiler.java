@@ -849,6 +849,21 @@ public final class StylesheetCompiler
       {
         // handled before
       }
+      case "expose" ->
+      {
+        if (!aEl.getParent ().isXsl ("package"))
+          throw XsltException.at (aEl, "XTSE0010", "xsl:expose is only allowed in xsl:package");
+        // Only the visibility of named templates is used (initial template)
+        final String sComponent = aEl.getAttr ("component").trim ();
+        final String sVisibility = aEl.getAttr ("visibility").trim ();
+        if ("template".equals (sComponent) && ("public".equals (sVisibility) || "final".equals (sVisibility)))
+          for (final String sToken : XsltNames.tokenize (aEl.getAttr ("names")))
+            if ("*".equals (sToken))
+              m_aStylesheet.exposedTemplates ().add (null);
+            else
+              if (!sToken.contains ("*"))
+                m_aStylesheet.exposedTemplates ().add (createGlobalContext ().resolveQName (aEl, sToken, false));
+      }
       case "import-schema" -> throw XsltException.at (aEl, "XTSE1650", "xsl:import-schema requires a schema-aware processor");
       case "use-package" -> throw XsltException.at (aEl, "XTSE3000", "xsl:use-package is not supported");
       default ->
@@ -864,6 +879,69 @@ public final class StylesheetCompiler
                                                                                               : "xsl:" + sLocal + " is not allowed at the top level");
       }
     }
+  }
+
+  private static boolean _isPackageVersion (@NonNull final String s)
+  {
+    if (s.isEmpty ())
+      return false;
+    final String [] aParts = s.split ("-", -1);
+    for (final String sNum : aParts[0].split ("\\.", -1))
+      if (sNum.isEmpty () || !sNum.chars ().allMatch (c -> c >= '0' && c <= '9'))
+        return false;
+    for (int i = 1; i < aParts.length; ++i)
+      if (!XsltNames.isNCName (aParts[i]))
+        return false;
+    return true;
+  }
+
+  private void _checkDeclaredModesRecursive (@NonNull final XslElement aEl)
+  {
+    final boolean bTemplateRule = aEl.isXsl ("template") && aEl.hasAttr ("match");
+    if (bTemplateRule || aEl.isXsl ("apply-templates"))
+    {
+      final ICommonsList <XdmQName> aRefs = new CommonsArrayList <> ();
+      final String sMode = aEl.getAttr ("mode");
+      if (sMode == null)
+        aRefs.add (getDefaultMode (aEl));
+      else
+        for (final String sToken : XsltNames.tokenize (sMode))
+          switch (sToken)
+          {
+            case "#all", "#current" ->
+            {
+              // no particular mode
+            }
+            case "#unnamed" -> aRefs.add (Mode.UNNAMED);
+            case "#default" -> aRefs.add (getDefaultMode (aEl));
+            default -> aRefs.add (createGlobalContext ().resolveQName (aEl, sToken, false));
+          }
+      for (final XdmQName aRef : aRefs)
+      {
+        final Mode aMode = m_aStylesheet.getMode (aRef);
+        if (aMode == null || aMode.getDeclaration () == null)
+          throw XsltException.at (aEl,
+                                  "XTSE3085",
+                                  "The mode " + (Mode.UNNAMED.equals (aRef) ? "#unnamed" : aRef.getEQName ()) + " is not declared by an xsl:mode declaration");
+      }
+    }
+    for (final XslElement aChild : aEl.getElementChildren ())
+      _checkDeclaredModesRecursive (aChild);
+  }
+
+  /** Checks that apply only when the principal module is an xsl:package. */
+  private void _checkPackage (@NonNull final XslElement aRoot, @NonNull final ICommonsList <XslModule> aModules)
+  {
+    final String sVersion = aRoot.getAttr ("package-version");
+    if (sVersion != null && !_isPackageVersion (sVersion))
+      throw XsltException.at (aRoot, "XTSE0020", "package-version='" + sVersion + "' is not a valid package version");
+    final String sDeclared = aRoot.getAttr ("declared-modes");
+    if (sDeclared != null && !XsltNames.isXsltBooleanLexical (sDeclared))
+      throw XsltException.at (aRoot, "XTSE0020", "declared-modes='" + sDeclared + "' is not a boolean");
+    if (sDeclared == null || XsltNames.isXsltTrue (sDeclared))
+      for (final XslModule aModule : aModules)
+        if (aModule.getRoot () != null)
+          _checkDeclaredModesRecursive (aModule.getRoot ());
   }
 
   private void _buildModes ()
@@ -1037,6 +1115,11 @@ public final class StylesheetCompiler
       // nothing to do: xsl:initial-template is optional
     }
     _buildModes ();
+    if (aPrincipal.getRoot ().isXsl ("package"))
+    {
+      m_aStylesheet.setPackage (true);
+      _checkPackage (aPrincipal.getRoot (), aLoader.getAllModules ());
+    }
     _checkReferences ();
     final CompileContext aGlobal = createGlobalContext ();
     for (final ICompileFinisher aFinisher : m_aRegistry.getAllCompileFinishers ())

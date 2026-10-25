@@ -22,10 +22,12 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
+import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
+import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.value.XdmSequence;
@@ -65,6 +67,8 @@ public final class CompiledStylesheet implements XsltExecutable
   private GlobalContextItem m_aGlobalContextItem;
   private final ICommonsMap <Object, Object> m_aExtensionData = new CommonsHashMap <> ();
   private final ICommonsList <XslModule> m_aModules = new CommonsArrayList <> ();
+  private boolean m_bPackage;
+  private final ICommonsSet <XdmQName> m_aExposedTemplates = new CommonsHashSet <> ();
 
   public CompiledStylesheet (@NonNull final FunctionLibrary aFunctions, @NonNull final XslModule aPrincipalModule)
   {
@@ -83,6 +87,30 @@ public final class CompiledStylesheet implements XsltExecutable
   public XslModule getPrincipalModule ()
   {
     return m_aPrincipalModule;
+  }
+
+  /**
+   * @return <code>true</code> if the principal module is an xsl:package (named
+   *         templates and modes are then private unless declared otherwise).
+   */
+  public boolean isPackage ()
+  {
+    return m_bPackage;
+  }
+
+  public void setPackage (final boolean bPackage)
+  {
+    m_bPackage = bPackage;
+  }
+
+  /**
+   * @return The names of the named templates an xsl:expose makes public
+   *         (<code>null</code> stands for all).
+   */
+  @NonNull
+  public ICommonsSet <XdmQName> exposedTemplates ()
+  {
+    return m_aExposedTemplates;
   }
 
   /** @return All stylesheet modules (for document('')). */

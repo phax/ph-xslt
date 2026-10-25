@@ -96,7 +96,8 @@ public final class ElementValidator
                                                                                            "strip-space",
                                                                                            "template",
                                                                                            "variable",
-                                                                                           "use-package");
+                                                                                           "use-package",
+                                                                                           "expose");
   private static final ICommonsMap <String, ICommonsSet <String>> ALLOWED_PARENTS = new CommonsHashMap <> ();
   private static final ICommonsSet <String> ONE_CHAR_ATTRS = new CommonsHashSet <> ("decimal-separator",
                                                                                     "grouping-separator",

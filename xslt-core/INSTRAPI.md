@@ -231,8 +231,7 @@ aRegistry.registerFunctions (aLib -> aLib.register (XdmConstants.NS_FN, "current
 
 The arguments arrive converted to the declared types. Pass `true` as last argument of `register` for focus-dependent
 functions. The core already provides: system-property, function-available, element-available, type-available,
-available-system-properties, current, key, document, regex-group, current-output-uri, unparsed-entity-uri/-public-id
-(always empty: the tree model keeps no unparsed entities), copy-of, snapshot (same as copy-of).
+available-system-properties, current, key, document, regex-group, current-output-uri, unparsed-entity-uri/-public-id, copy-of, snapshot.
 
 ## Tests
 
