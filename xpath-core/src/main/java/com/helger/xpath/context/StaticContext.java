@@ -30,6 +30,7 @@ import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * The static context of an expression: in-scope namespaces, default
@@ -61,6 +62,7 @@ public final class StaticContext
   private EXmlVersion m_eXmlVersion = DEFAULT_XML_VERSION;
   private EXsdVersion m_eXsdVersion = DEFAULT_XSD_VERSION;
   private boolean m_bXsdVersionSet = false;
+  private IXdmSchemaSet m_aSchemaSet;
 
   public StaticContext ()
   {
@@ -232,6 +234,34 @@ public final class StaticContext
   public StaticContext setStaticTyping (final boolean bStaticTyping)
   {
     m_bStaticTyping = bStaticTyping;
+    return this;
+  }
+
+  /**
+   * @return The in-scope schema definitions beyond the built-in types (the
+   *         components of a schema-aware host), or <code>null</code> if there
+   *         are none.
+   */
+  @Nullable
+  public IXdmSchemaSet getSchemaSet ()
+  {
+    return m_aSchemaSet;
+  }
+
+  /**
+   * Set the in-scope schema definitions: type names, element and attribute
+   * declarations that <code>element(N, T)</code>,
+   * <code>schema-element(N)</code>, <code>schema-attribute(N)</code>, casts
+   * and constructor functions may refer to.
+   *
+   * @param aSchemaSet
+   *        The schema set, or <code>null</code> for the built-in types only.
+   * @return this for chaining
+   */
+  @NonNull
+  public StaticContext setSchemaSet (@Nullable final IXdmSchemaSet aSchemaSet)
+  {
+    m_aSchemaSet = aSchemaSet;
     return this;
   }
 

@@ -39,6 +39,7 @@ import com.helger.xslt.runtime.NamespaceFixup;
 import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 import com.helger.xslt.tree.XslText;
@@ -202,6 +203,7 @@ public final class NodeInstructions
     final ICommonsList <XdmQName> aSets = CoreInstructions.getUseAttributeSets (aCtx, aEl, false);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final boolean bNoInherit = aEl.hasAttr ("inherit-namespaces") && !XsltNames.isXsltTrue (aEl.getAttr ("inherit-namespaces"));
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.ELEMENT);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmQName aQName = _computeName (aRtCtx, aEl, aName, aNamespace, true);
       final XdmNode aElement = XdmNode.createElement (aQName);
@@ -211,6 +213,8 @@ public final class NodeInstructions
       aBody.execute (aRtCtx, aContent);
       if (bNoInherit)
         NamespaceFixup.applyNoInherit (aContent.getParent ());
+      if (aValidation != null)
+        aValidation.apply (aContent.getParent ());
       aRtOut.appendNew (aContent.getParent ());
     });
   }
@@ -223,10 +227,14 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.ATTRIBUTE);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmQName aQName = _computeName (aRtCtx, aEl, aName, aNamespace, false);
       final String sValue = _evaluateValue (aRtCtx, aSelect, aBody, aSep, false);
-      aRtOut.appendNew (XdmNode.createAttribute (aQName, sValue));
+      final XdmNode aAttr = XdmNode.createAttribute (aQName, sValue);
+      if (aValidation != null && !aValidation.isStrip ())
+        aValidation.apply (aAttr);
+      aRtOut.appendNew (aAttr);
     });
   }
 
@@ -292,11 +300,14 @@ public final class NodeInstructions
   {
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final String sBase = aEl.getStaticBaseUri ();
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.DOCUMENT);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmNode aDoc = XdmNode.createDocument ();
       if (sBase != null)
         aDoc.setBaseUri (sBase);
       aBody.execute (aRtCtx, new ContentOutput (aDoc));
+      if (aValidation != null)
+        aValidation.apply (aDoc);
       aRtOut.appendNew (aDoc);
     });
   }
@@ -309,6 +320,7 @@ public final class NodeInstructions
     final ICommonsList <XdmQName> aSets = CoreInstructions.getUseAttributeSets (aCtx, aEl, false);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final boolean bNoInherit = aEl.hasAttr ("inherit-namespaces") && !XsltNames.isXsltTrue (aEl.getAttr ("inherit-namespaces"));
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.COPY);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       XsltContext aCtx2 = aRtCtx;
       final IXdmItem aItem;
@@ -349,6 +361,8 @@ public final class NodeInstructions
             if (sDocBase != null)
               aDoc.setBaseUri (sDocBase);
             aBody.execute (aCtx2, new ContentOutput (aDoc));
+            if (aValidation != null)
+              aValidation.apply (aDoc);
             aRtOut.appendNew (aDoc);
           }
           break;
@@ -365,12 +379,25 @@ public final class NodeInstructions
           aBody.execute (aCtx2, aContent);
           if (bNoInherit)
             NamespaceFixup.applyNoInherit (aContent.getParent ());
+          if (aValidation != null)
+            aValidation.apply (aContent.getParent ());
           aRtOut.appendNew (aContent.getParent ());
           break;
         }
         default:
-          aRtOut.appendNew (NodeCopier.copyShallow (aNode));
+        {
+          final XdmNode aCopy = NodeCopier.copyShallow (aNode);
+          if (aValidation != null && !aValidation.isStrip ())
+          {
+            if (aValidation.isPreserve ())
+              ValidationRequest.checkPreserveCopy (aNode, bCopyNamespaces);
+            if (aNode.isAttribute ())
+              NodeCopier.copyAnnotation (aNode, aCopy);
+            aValidation.apply (aCopy);
+          }
+          aRtOut.appendNew (aCopy);
           break;
+        }
       }
     });
   }
@@ -381,13 +408,21 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
     final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") || XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
     final String sStaticBase = aEl.getStaticBaseUri ();
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.COPY_OF);
+    // Schema-aware: copies keep their annotations (and schema ID properties)
+    // until the request is applied; strip keeps the ID properties
+    final boolean bKeepAnnotations = aValidation != null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
         if (aItem instanceof final XdmNode aNode)
         {
-          final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces);
+          if (bKeepAnnotations && aValidation.isPreserve ())
+            ValidationRequest.checkPreserveCopy (aNode, bCopyNamespaces);
+          final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces, bKeepAnnotations);
           if (aCopy.isElement () && aCopy.getBaseUri () == null)
             aCopy.setBaseUri (sStaticBase);
+          if (bKeepAnnotations)
+            aValidation.apply (aCopy);
           aRtOut.appendNew (aCopy);
         }
         else

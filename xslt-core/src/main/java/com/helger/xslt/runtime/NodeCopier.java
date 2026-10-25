@@ -146,10 +146,52 @@ public final class NodeCopier
    *        fixup.
    * @return The new parentless node.
    */
+  /**
+   * Copy the schema-related properties (type annotation, nilled, ID kind) of an
+   * element or attribute.
+   *
+   * @param aSource
+   *        The original.
+   * @param aTarget
+   *        The copy.
+   */
+  public static void copyAnnotation (@NonNull final XdmNode aSource, @NonNull final XdmNode aTarget)
+  {
+    aTarget.setSchemaType (aSource.getSchemaType ());
+    if (aSource.getSchemaType () == null)
+      aTarget.setTypeAnnotation (aSource.getTypeAnnotation ());
+    aTarget.setNilled (aSource.isNilled ());
+    // The is-id and is-idrefs properties go with the copy (also under
+    // validation="strip")
+    if (aSource.getIDKind () != EIDKind.NONE)
+      aTarget.setIDKind (aSource.getIDKind ());
+  }
+
   @NonNull
   public static XdmNode copyDeep (@NonNull final XdmNode aNode, final boolean bCopyNamespaces)
   {
+    return copyDeep (aNode, bCopyNamespaces, false);
+  }
+
+  /**
+   * @param aNode
+   *        The node to copy.
+   * @param bCopyNamespaces
+   *        <code>true</code> to copy the namespaces of elements.
+   * @param bCopyAnnotations
+   *        <code>true</code> to keep the type annotations (validation
+   *        "preserve" of a schema-aware processor), <code>false</code> for
+   *        untyped copies.
+   * @return The new parentless node.
+   */
+  @NonNull
+  public static XdmNode copyDeep (@NonNull final XdmNode aNode,
+                                  final boolean bCopyNamespaces,
+                                  final boolean bCopyAnnotations)
+  {
     final XdmNode ret = copyShallow (aNode);
+    if (bCopyAnnotations && (aNode.isElement () || aNode.isAttribute ()))
+      copyAnnotation (aNode, ret);
     // The copy keeps the base URI of the original, unless it has an xml:base
     // attribute of its own
     if (aNode.isDocument () || aNode.isElement () && aNode.getAttribute (XdmConstants.NS_XML, "base") == null)
@@ -174,7 +216,10 @@ public final class NodeCopier
       for (int i = 0; i < nAttrs; ++i)
       {
         final XdmNode aAttr = aSrc.getAttributeAtIndex (i);
-        aDst.addAttribute (createAttribute (aAttr.getName (), aAttr.getValue ()));
+        final XdmNode aAttrCopy = createAttribute (aAttr.getName (), aAttr.getValue ());
+        if (bCopyAnnotations)
+          copyAnnotation (aAttr, aAttrCopy);
+        aDst.addAttribute (aAttrCopy);
       }
       final int nChildren = aSrc.getChildCount ();
       for (int i = 0; i < nChildren; ++i)
@@ -184,6 +229,8 @@ public final class NodeCopier
         aDst.appendChild (aChildCopy);
         if (aChild.isElement ())
         {
+          if (bCopyAnnotations)
+            copyAnnotation (aChild, aChildCopy);
           if (bCopyNamespaces)
             copyNamespaces (aChild, aChildCopy, false);
           aStack.push (new Job (aChild, aChildCopy));

@@ -84,10 +84,13 @@ public record XSLT30Settings (@NonNull Path suiteDir,
                               boolean strictErrorCodes,
                               boolean runUnicodeExcluded,
                               @NonNull Path outDir,
-                              @NonNull Path acceptedFile)
+                              @NonNull Path acceptedFile,
+                              boolean schemaAware)
 {
   public static final String DEFAULT_SUITE_DIR = "/Users/philip/dev/git-thirdparty/xslt30-test";
   public static final String DEFAULT_ACCEPTED_FILE = "docs/accepted-failures/xslt30.md";
+  /** The accepted failures of a run that claims schema-awareness. */
+  public static final String DEFAULT_ACCEPTED_FILE_SCHEMA_AWARE = "docs/accepted-failures/xslt30-schema-aware.md";
 
   /** @return The catalog file. */
   @NonNull
@@ -122,6 +125,8 @@ public record XSLT30Settings (@NonNull Path suiteDir,
   @NonNull
   public static XSLT30Settings fromSystemProperties ()
   {
+    // -Dxslt30.schemaAware=true claims schema-awareness (needs Xerces-J)
+    final boolean bSchemaAware = Boolean.getBoolean ("xslt30.schemaAware");
     final ICommonsList <String> aSkipSets = new CommonsArrayList <> ();
     for (final String sPart : System.getProperty ("xslt30.skip", "").split (","))
       if (!sPart.isBlank ())
@@ -135,7 +140,9 @@ public record XSLT30Settings (@NonNull Path suiteDir,
                                !"false".equals (System.getProperty ("xslt30.checkAccepted")),
                                Boolean.getBoolean ("xslt30.strictCode"),
                                Boolean.getBoolean ("xslt30.u90"),
-                               Path.of (System.getProperty ("xslt30.out", "target")),
-                               Path.of (System.getProperty ("xslt30.accepted", DEFAULT_ACCEPTED_FILE)));
+                               Path.of (System.getProperty ("xslt30.out", bSchemaAware ? "target/schema-aware" : "target")),
+                               Path.of (System.getProperty ("xslt30.accepted",
+                                                            bSchemaAware ? DEFAULT_ACCEPTED_FILE_SCHEMA_AWARE : DEFAULT_ACCEPTED_FILE)),
+                               bSchemaAware);
   }
 }

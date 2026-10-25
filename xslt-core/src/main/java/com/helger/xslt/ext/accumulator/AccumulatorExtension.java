@@ -62,6 +62,7 @@ import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.runtime.XsltState;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 import com.helger.xslt.tree.XslText;
@@ -530,13 +531,20 @@ public final class AccumulatorExtension implements IXsltExtension
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
     final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") || XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
     final String sStaticBase = aEl.getStaticBaseUri ();
+    // Schema-aware: validation as in the core xsl:copy-of
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.COPY_OF);
+    final boolean bKeepAnnotations = aValidation != null && !aValidation.isStrip ();
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
         if (aItem instanceof final XdmNode aNode)
         {
-          final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces);
+          if (bKeepAnnotations && aValidation.isPreserve ())
+            ValidationRequest.checkPreserveCopy (aNode, bCopyNamespaces);
+          final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces, bKeepAnnotations);
           if (aCopy.isElement () && aCopy.getBaseUri () == null)
             aCopy.setBaseUri (sStaticBase);
+          if (bKeepAnnotations)
+            aValidation.apply (aCopy);
           _recordCopy (aRtCtx.getEngine (), aCopy, aNode);
           aRtOut.appendNew (aCopy);
         }

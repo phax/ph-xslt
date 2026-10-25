@@ -49,6 +49,7 @@ import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.model.VariableDef;
 import com.helger.xslt.runtime.ContentOutput;
 import com.helger.xslt.runtime.NamespaceFixup;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 import com.helger.xslt.tree.XslText;
@@ -422,6 +423,7 @@ public final class CoreInstructions
     final String sBase = aEl.getStaticBaseUri ();
     final String sInherit = aEl.getAttribute (XsltNames.NS_XSL, "inherit-namespaces");
     final boolean bNoInherit = sInherit != null && !XsltNames.isXsltTrue (sInherit);
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.ELEMENT);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmNode aElement = XdmNode.createElement (aName);
       for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
@@ -437,6 +439,8 @@ public final class CoreInstructions
       aBody.execute (aRtCtx, aContent);
       if (bNoInherit)
         NamespaceFixup.applyNoInherit (aContent.getParent ());
+      if (aValidation != null)
+        aValidation.apply (aContent.getParent ());
       aRtOut.appendNew (aContent.getParent ());
     });
   }

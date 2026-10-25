@@ -48,6 +48,7 @@ import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.fn.XsltFunctions;
@@ -123,7 +124,13 @@ public final class StylesheetLoader
   @NonNull
   private StaticContext _createStaticContext (@NonNull final XslElement aEl)
   {
-    return StaticContexts.create (aEl, m_aStaticFunctions, m_aStaticValues.keySet (), null, null);
+    final StaticContext ret = StaticContexts.create (aEl, m_aStaticFunctions, m_aStaticValues.keySet (), null, null);
+    // Static expressions of a schema-aware stylesheet see the built-in types
+    // (the imported schemas are not known yet); this also makes
+    // system-property('xsl:is-schema-aware') report "yes"
+    if (m_aOptions.isSchemaAware () && XdmSchemaSupport.isAvailable ())
+      ret.setSchemaSet (XdmSchemaSupport.getBuiltinSchemaSet ());
+    return ret;
   }
 
   @NonNull

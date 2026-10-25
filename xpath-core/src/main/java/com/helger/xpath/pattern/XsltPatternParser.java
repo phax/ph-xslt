@@ -28,11 +28,14 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.ast.ENodeTestKind;
 import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.parser.XPathParser;
+import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * Parser for XSLT 3.0 patterns (a port of go-xslt's
@@ -218,5 +221,111 @@ public final class XsltPatternParser
       }
     }
     return new CompiledXsltPattern (sPattern, aExpr, dMax, aAlternatives);
+  }
+
+  /**
+   * The first step of a path pattern, when it is an element name test, names
+   * an element declaration in a typed mode.
+   */
+  @NonNull
+  private static IExpr _rewriteTypedAlternative (@NonNull final IExpr aAlt,
+                                                 @NonNull final IXdmSchemaSet aSchemaSet,
+                                                 final boolean bStrict)
+  {
+    if (!(aAlt instanceof final IExpr.PathExpr aPath) || aPath.start () != null || aPath.steps ().isEmpty ())
+      return aAlt;
+    int nIndex = 0;
+    final IExpr.StepExpr aFirst = aPath.steps ().get (0);
+    if (aPath.steps ().size () > 1 &&
+        aFirst.axis () == EAxis.DESCENDANT_OR_SELF &&
+        aFirst.test () != null &&
+        aFirst.test ().kind () == ENodeTestKind.ANY_NODE)
+      nIndex = 1;
+    final IExpr.StepExpr aStep = aPath.steps ().get (nIndex);
+    final NodeTest aTest = aStep.test ();
+    if (aStep.axis () == EAxis.ATTRIBUTE ||
+        aStep.axis () == EAxis.NAMESPACE ||
+        aTest == null ||
+        aTest.kind () != ENodeTestKind.NAME ||
+        aTest.anyName () ||
+        aTest.anyNamespace () ||
+        aTest.anyLocalName () ||
+        aTest.name () == null)
+      return aAlt;
+    final IXdmElementDeclaration aDecl = aSchemaSet.getElementDeclaration (aTest.name ());
+    if (aDecl == null)
+    {
+      if (bStrict)
+        throw new XPathException ("XTSE3105",
+                                  aTest.name ().getEQName () +
+                                              " is not the name of a global element declaration, but the template rule applies to a mode with typed='strict'");
+      return aAlt;
+    }
+    final NodeTest aNew = new NodeTest (ENodeTestKind.SCHEMA_ELEMENT,
+                                        false,
+                                        false,
+                                        false,
+                                        aTest.name (),
+                                        null,
+                                        false,
+                                        null,
+                                        aDecl,
+                                        null,
+                                        null);
+    final ICommonsList <IExpr.StepExpr> aSteps = new CommonsArrayList <> (aPath.steps ());
+    aSteps.set (nIndex, new IExpr.StepExpr (aStep.axis (), aStep.axisExplicit (), aNew, aStep.predicates (), aStep.postfix ()));
+    return new IExpr.PathExpr (aPath.start (), aPath.absolute (), aSteps);
+  }
+
+  /**
+   * Apply the rule of a mode with <code>typed="strict"</code> or
+   * <code>typed="lax"</code> (XSLT 3.0 section 6.7.2): an element name test in
+   * the first step of a pattern matches like <code>schema-element(N)</code>;
+   * in a strict mode the name must be declared (XTSE3105).
+   *
+   * @param aPattern
+   *        A pattern created by {@link #parse(String, StaticContext)}.
+   * @param aSchemaSet
+   *        The in-scope schema definitions.
+   * @param bStrict
+   *        <code>true</code> for typed="strict", <code>false</code> for lax.
+   * @return The pattern to use.
+   * @throws XPathException
+   *         XTSE3105
+   */
+  @NonNull
+  public static XsltPattern rewriteForTypedMode (@NonNull final XsltPattern aPattern,
+                                                 @NonNull final IXdmSchemaSet aSchemaSet,
+                                                 final boolean bStrict)
+  {
+    if (!(aPattern instanceof final CompiledXsltPattern aCompiled))
+      return aPattern;
+    final ICommonsList <XsltPattern> aAlternatives = aCompiled.getAlternatives ();
+    if (aAlternatives.isEmpty ())
+    {
+      final IExpr aExpr = _rewriteTypedAlternative (aCompiled.getPatternExpr (), aSchemaSet, bStrict);
+      return aExpr == aCompiled.getPatternExpr () ? aPattern
+                                                  : new CompiledXsltPattern (aCompiled.getSource (),
+                                                                             aExpr,
+                                                                             aCompiled.getDefaultPriority (),
+                                                                             new CommonsArrayList <> ());
+    }
+    final ICommonsList <CompiledXsltPattern> aNewAlternatives = new CommonsArrayList <> ();
+    IExpr aUnion = null;
+    boolean bChanged = false;
+    for (final XsltPattern aAlt : aAlternatives)
+    {
+      final CompiledXsltPattern aCompiledAlt = (CompiledXsltPattern) aAlt;
+      final IExpr aExpr = _rewriteTypedAlternative (aCompiledAlt.getPatternExpr (), aSchemaSet, bStrict);
+      bChanged |= aExpr != aCompiledAlt.getPatternExpr ();
+      aNewAlternatives.add (new CompiledXsltPattern (aCompiledAlt.getSource (),
+                                                     aExpr,
+                                                     aCompiledAlt.getDefaultPriority (),
+                                                     new CommonsArrayList <> ()));
+      aUnion = aUnion == null ? aExpr : new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, aUnion, aExpr);
+    }
+    if (!bChanged)
+      return aPattern;
+    return new CompiledXsltPattern (aCompiled.getSource (), aUnion, aCompiled.getDefaultPriority (), aNewAlternatives);
   }
 }

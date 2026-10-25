@@ -36,6 +36,7 @@ import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * Runs one test case against the engine, a port of Go's <code>runCase</code>
@@ -264,6 +265,11 @@ public final class QT3CaseRunner
 
     final QT3ResourceResolver aResolver = new QT3ResourceResolver (aEnv, aDocs);
     aEval.setResourceResolver (aResolver);
+    // With Xerces-J, the schemas of the environment are the in-scope schema
+    // definitions of the test and its assertions
+    final IXdmSchemaSet aSchemaSet = aResolver.getSchemaSet ();
+    aEval.setSchemaSet (aSchemaSet);
+    aAssertEval.setSchemaSet (aSchemaSet);
 
     for (final QT3Environment.Source aSrc : aEnv.getAllSources ())
     {

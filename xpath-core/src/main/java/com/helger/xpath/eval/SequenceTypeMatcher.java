@@ -33,6 +33,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.ops.AtomicCaster;
 import com.helger.xpath.ops.Atomizer;
+import com.helger.xpath.ops.SchemaTypeOps;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.IXdmFunction;
 import com.helger.xpath.value.XdmArray;
@@ -42,6 +43,7 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * SequenceType matching (XPath 3.1 section 2.5.5), the subtype judgements
@@ -167,6 +169,8 @@ public final class SequenceTypeMatcher
       case ITEM:
         return "item()";
       case ATOMIC:
+        if (aType.schemaType () != null)
+          return aType.schemaType ().getName () != null ? aType.schemaType ().getName ().getEQName () : "(anonymous type)";
         return aType.atomicType ().getQualifiedName ();
       case NODE:
         return _getNodeTestAsString (aType.nodeTest ());
@@ -335,6 +339,8 @@ public final class SequenceTypeMatcher
       {
         if (!(aItem instanceof final XdmAtomic aAtomic))
           return false;
+        if (aType.schemaType () != null)
+          return SchemaTypeOps.isInstance (aAtomic, aType.schemaType ());
         final EAtomicType eType = aType.atomicType ();
         if (eType == EAtomicType.ERROR)
           return false;
@@ -487,6 +493,8 @@ public final class SequenceTypeMatcher
       {
         if (aA.kind () != ItemType.Kind.ATOMIC)
           return false;
+        if (aB.schemaType () != null)
+          return aA.schemaType () != null && aA.schemaType ().isDerivedFrom (aB.schemaType ());
         final EAtomicType eA = aA.atomicType ();
         final EAtomicType eB = aB.atomicType ();
         if (eA == EAtomicType.ERROR)
@@ -691,12 +699,25 @@ public final class SequenceTypeMatcher
                                               @NonNull final String sErrorCode)
   {
     final EAtomicType eTarget = aType.itemType ().atomicType ();
+    final IXdmTypeDefinition aSchemaTarget = aType.itemType ().schemaType ();
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     boolean bChanged = false;
     for (final IXdmItem aItem : aSeq)
     {
       if (aItem instanceof final XdmAtomic aAtomic)
       {
+        if (aSchemaTarget != null)
+        {
+          // xs:untypedAtomic is cast to the user-defined type
+          if (aAtomic.getType () == EAtomicType.UNTYPED_ATOMIC)
+          {
+            bChanged = true;
+            aBuilder.addAll (SchemaTypeOps.cast (aAtomic, aSchemaTarget, aCtx.getStaticContext ()));
+          }
+          else
+            aBuilder.add (aAtomic);
+          continue;
+        }
         final XdmAtomic aConv = _convertAtomic (aAtomic, eTarget, aCtx);
         bChanged |= aConv != aAtomic;
         aBuilder.add (aConv);
@@ -706,7 +727,18 @@ public final class SequenceTypeMatcher
         // Atomisation
         bChanged = true;
         for (final IXdmItem aAtom : Atomizer.atomize (XdmSequence.of (aItem)))
-          aBuilder.add (_convertAtomic ((XdmAtomic) aAtom, eTarget, aCtx));
+        {
+          final XdmAtomic aAtomic = (XdmAtomic) aAtom;
+          if (aSchemaTarget != null)
+          {
+            if (aAtomic.getType () == EAtomicType.UNTYPED_ATOMIC)
+              aBuilder.addAll (SchemaTypeOps.cast (aAtomic, aSchemaTarget, aCtx.getStaticContext ()));
+            else
+              aBuilder.add (aAtomic);
+          }
+          else
+            aBuilder.add (_convertAtomic (aAtomic, eTarget, aCtx));
+        }
       }
     }
     final XdmSequence ret = bChanged ? aBuilder.build () : aSeq;

@@ -51,15 +51,21 @@ public final class XSLT30Dependencies
    * configuration, not a capability.
    */
   private static final ICommonsSet <String> UNSUPPORTED_FEATURES = new CommonsHashSet <> ("streaming",
-                                                                                         "schema_aware",
-                                                                                         "schemaImport",
-                                                                                         "schemaValidation",
-                                                                                         "schemaAware",
                                                                                          "static_typing",
                                                                                          "staticTyping",
                                                                                          "backwards_compatibility",
                                                                                          "advanced_uca_fallback",
                                                                                          "streaming-fallback");
+
+  /**
+   * The four spellings of the schema-awareness feature: unsupported, unless
+   * the run claims schema-awareness; then they are supported in both
+   * directions (a case for a processor without it does not apply).
+   */
+  private static final ICommonsSet <String> SCHEMA_AWARE_FEATURES = new CommonsHashSet <> ("schema_aware",
+                                                                                          "schemaImport",
+                                                                                          "schemaValidation",
+                                                                                          "schemaAware");
 
   /**
    * Optional features this processor claims: a test written for a processor
@@ -93,7 +99,7 @@ public final class XSLT30Dependencies
   }
 
   @Nullable
-  private static String _getSkipReason (@NonNull final List <XSLT30Dependency> aDeps)
+  private static String _getSkipReason (@NonNull final List <XSLT30Dependency> aDeps, final boolean bSchemaAware)
   {
     for (final XSLT30Dependency aDep : aDeps)
       if ("spec".equals (aDep.type ()) && !aDep.isNotSatisfied () && !_isSpecApplicable (aDep.value ()))
@@ -102,6 +108,12 @@ public final class XSLT30Dependencies
     for (final XSLT30Dependency aDep : aDeps)
       if ("feature".equals (aDep.type ()))
       {
+        if (SCHEMA_AWARE_FEATURES.contains (aDep.value ()))
+        {
+          if (aDep.isNotSatisfied () == bSchemaAware)
+            return (bSchemaAware ? "feat-not:" : "feat:") + aDep.value ();
+          continue;
+        }
         if (!aDep.isNotSatisfied () && UNSUPPORTED_FEATURES.contains (aDep.value ()))
           return "feat:" + aDep.value ();
         if (aDep.isNotSatisfied () && SUPPORTED_FEATURES.contains (aDep.value ()))
@@ -188,7 +200,25 @@ public final class XSLT30Dependencies
   public static String getSkipReason (@NonNull final List <XSLT30Dependency> aSetDeps,
                                       @NonNull final List <XSLT30Dependency> aCaseDeps)
   {
-    final String ret = _getSkipReason (aSetDeps);
-    return ret != null ? ret : _getSkipReason (aCaseDeps);
+    return getSkipReason (aSetDeps, aCaseDeps, false);
+  }
+
+  /**
+   * @param aSetDeps
+   *        The dependencies of the test set.
+   * @param aCaseDeps
+   *        The dependencies of the test case.
+   * @param bSchemaAware
+   *        <code>true</code> if the run claims schema-awareness.
+   * @return <code>null</code> if the case applies, otherwise a short skip
+   *         reason.
+   */
+  @Nullable
+  public static String getSkipReason (@NonNull final List <XSLT30Dependency> aSetDeps,
+                                      @NonNull final List <XSLT30Dependency> aCaseDeps,
+                                      final boolean bSchemaAware)
+  {
+    final String ret = _getSkipReason (aSetDeps, bSchemaAware);
+    return ret != null ? ret : _getSkipReason (aCaseDeps, bSchemaAware);
   }
 }

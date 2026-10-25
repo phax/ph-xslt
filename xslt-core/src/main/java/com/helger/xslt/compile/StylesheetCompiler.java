@@ -42,11 +42,13 @@ import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.pattern.CompiledXsltPattern;
 import com.helger.xpath.pattern.XsltPattern;
+import com.helger.xpath.pattern.XsltPatternParser;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.instr.IInstruction;
@@ -66,6 +68,7 @@ import com.helger.xslt.pkg.PackageChecks;
 import com.helger.xslt.pkg.PackageComponent;
 import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.pkg.PackageUnit;
+import com.helger.xslt.schema.SchemaImportCompiler;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 import com.helger.xslt.tree.XslNode;
@@ -654,6 +657,15 @@ public final class StylesheetCompiler
                                                  aParams,
                                                  aAs,
                                                  sVisibility == null ? null : sVisibility.trim ());
+    // A constructor function of an imported simple type has the same name
+    if (aParams.size () == 1 &&
+        m_aStylesheet.isSchemaAware () &&
+        !XdmConstants.NS_XS.equals (aName.namespaceUri ()) &&
+        m_aStylesheet.getSchemaSet ().getTypeDefinition (aName) != null &&
+        !m_aStylesheet.getSchemaSet ().getTypeDefinition (aName).isComplex ())
+      throw XsltException.at (aEl,
+                              "XTSE0770",
+                              "The function " + aName.getEQName () + "#1 clashes with the constructor function of a schema type");
     final String sKey = aName.getEQName () + "#" + aParams.size ();
     final FunctionEntry aPrev = m_aFunctionsByKey.get (sKey);
     if (aPrev != null && aPrev.precedence () == aEl.getPrecedence ())
@@ -781,6 +793,33 @@ public final class StylesheetCompiler
         }
     for (final XdmQName aMode : aModes)
       m_aStylesheet.getOrCreateMode (aMode);
+    if (aPattern != null && m_aStylesheet.isSchemaAware ())
+    {
+      // Schema-aware: in a mode with typed="strict" or "lax", an element name
+      // in the first step of the pattern names an element declaration
+      Boolean aStrict = null;
+      for (final XdmQName aMode : aModes)
+      {
+        final String sTyped = m_aStylesheet.getMode (aMode).getTyped ();
+        if ("strict".equals (sTyped))
+          aStrict = Boolean.TRUE;
+        else
+          if ("lax".equals (sTyped) && aStrict == null)
+            aStrict = Boolean.FALSE;
+      }
+      if (aStrict != null)
+        try
+        {
+          aPattern = new CompiledPattern (XsltPatternParser.rewriteForTypedMode (aPattern.pattern (),
+                                                                                 m_aStylesheet.getSchemaSet (),
+                                                                                 aStrict.booleanValue ()),
+                                          aPattern.staticContext ());
+        }
+        catch (final XPathException ex)
+        {
+          throw XsltException.at (aEl, ex.getCode (), ex.getMessage ());
+        }
+    }
     Double aPriority = null;
     final String sPriority = aEl.getAttr ("priority");
     if (sPriority != null)
@@ -1245,7 +1284,12 @@ public final class StylesheetCompiler
         if (m_aPackages.isInPrincipal (aEl))
           m_aExposes.add (aEl);
       }
-      case "import-schema" -> throw XsltException.at (aEl, "XTSE1650", "xsl:import-schema requires a schema-aware processor");
+      case "import-schema" ->
+      {
+        // Compiled before all other declarations by a schema-aware processor
+        if (!m_aStylesheet.isSchemaAware ())
+          throw XsltException.at (aEl, "XTSE1650", "xsl:import-schema requires a schema-aware processor");
+      }
       default ->
       {
         final IDeclarationCompiler aCompiler = m_aRegistry.getDeclarationCompiler (sLocal);
@@ -1437,7 +1481,7 @@ public final class StylesheetCompiler
     for (final XslModule aModule : aLoader.getAllModules ())
       if (aModule.getRoot () != null)
       {
-        ElementValidator.validateTree (aModule.getRoot ());
+        ElementValidator.validateTree (aModule.getRoot (), m_aOptions.isSchemaAware ());
         final String s = aModule.getRoot ().getAttr ("input-type-annotations");
         if (s != null && aModule.getRoot ().isXsl () && !"unspecified".equals (s.trim ()))
         {
@@ -1463,6 +1507,13 @@ public final class StylesheetCompiler
     final ICommonsList <XslElement> aAll = new CommonsArrayList <> ();
     for (final StylesheetLoader.Level aLevel : aLevels)
       aAll.addAll (aLevel.declarations ());
+    if (m_aOptions.isSchemaAware ())
+    {
+      // The in-scope schema definitions must exist before any expression is
+      // compiled
+      m_aStylesheet.setSchemaSet (SchemaImportCompiler.compile (aAll, m_aPackages, m_aOptions));
+      m_aStylesheet.setStripInputTypeAnnotations ("strip".equals (sInputTypeAnnotations));
+    }
     final ICommonsList <XslElement> aDecimalFormats = new CommonsArrayList <> ();
     final ICommonsMap <Mode, ICommonsMap <String, Object []>> aModeAttrs = new CommonsHashMap <> ();
     for (final XslElement aEl : aAll)
@@ -1558,6 +1609,8 @@ public final class StylesheetCompiler
   @NonNull
   public static CompiledStylesheet compile (@NonNull final XdmNode aSource, @NonNull final XsltCompileOptions aOptions)
   {
+    if (aOptions.isSchemaAware () && !XdmSchemaSupport.isAvailable ())
+      throw new IllegalStateException ("A schema-aware stylesheet needs Apache Xerces-J (xerces:xercesImpl) on the class path");
     return new StylesheetCompiler (aOptions)._compile (aSource);
   }
 }

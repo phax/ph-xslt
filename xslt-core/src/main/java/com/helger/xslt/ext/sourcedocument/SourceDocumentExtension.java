@@ -33,6 +33,8 @@ import com.helger.xslt.instr.CompiledInstruction;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.runtime.Engine;
+import com.helger.xslt.runtime.NodeCopier;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -55,16 +57,20 @@ public final class SourceDocumentExtension implements IXsltExtension
       throw XsltException.at (aEl, "XTSE0020", "streamable='" + sStreamable + "' is not an XSLT boolean");
     final boolean bStreamable = XsltNames.isXsltTrue (sStreamable);
     final String sValidation = aEl.getAttr ("validation");
+    final boolean bSchemaAware = aCtx.getStylesheet ().isSchemaAware ();
     if (sValidation != null)
     {
       final String s = sValidation.trim ();
-      if ("strict".equals (s) || "lax".equals (s))
+      if (("strict".equals (s) || "lax".equals (s)) && !bSchemaAware)
         throw XsltException.at (aEl, "XTSE1660", "validation='" + s + "' requires a schema-aware processor");
-      if (!"preserve".equals (s) && !"strip".equals (s))
+      if (!"preserve".equals (s) && !"strip".equals (s) && !"strict".equals (s) && !"lax".equals (s))
         throw XsltException.at (aEl, "XTSE0020", "validation='" + sValidation + "' is not a valid value");
     }
-    if (aEl.hasAttr ("type"))
+    if (aEl.hasAttr ("type") && !bSchemaAware)
       throw XsltException.at (aEl, "XTSE1660", "The type attribute requires a schema-aware processor");
+    // Schema-aware: the document is validated (as a copy, the document itself
+    // is shared by all retrievals of its URI)
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.SOURCE_DOCUMENT);
     final ICommonsList <XdmQName> aAccumulators = AccumulatorExtension.registerUseAccumulators (aCtx, aEl);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final String sBase = aEl.getStaticBaseUri ();
@@ -80,9 +86,16 @@ public final class SourceDocumentExtension implements IXsltExtension
         throw new XPathException ("FODC0005", "Invalid URI '" + sHref + "' in xsl:source-document");
       }
       final Engine aEngine = aRtCtx.getEngine ();
-      final XdmNode aNode = aEngine.getDocument (aRtCtx, sUri);
+      XdmNode aNode = aEngine.getDocument (aRtCtx, sUri);
       if (aNode == null)
         throw new XPathException ("FODC0002", "The document '" + sUri + "' has no element with the given ID");
+      if (aValidation != null && !aValidation.isPreserve ())
+      {
+        final XdmNode aCopy = NodeCopier.copyDeep (aNode.getRoot (), true, !aValidation.isStrip ());
+        aCopy.setDocumentUri (aNode.getRoot ().getDocumentUri ());
+        aValidation.apply (aCopy);
+        aNode = aCopy;
+      }
       final XdmNode aRoot = aNode.getRoot ();
       // Without use-accumulators no accumulator applies to the document
       final Object aPrevious = AccumulatorExtension.restrictTree (aEngine, aRoot, aAccumulators, bStreamable);

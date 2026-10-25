@@ -41,10 +41,42 @@
       <groupId>com.helger.commons</groupId>
       <artifactId>ph-collection</artifactId>
     </dependency>
+    <!-- Schema-awareness tests; xpath-xdm declares Xerces-J optional -->
+    <dependency>
+      <groupId>xerces</groupId>
+      <artifactId>xercesImpl</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <executions>
+          <!-- The basic processor with Xerces-J removed from the class path -->
+          <execution>
+            <id>no-xerces</id>
+            <goals>
+              <goal>test</goal>
+            </goals>
+            <configuration>
+              <classpathDependencyExcludes>
+                <classpathDependencyExclude>xerces:xercesImpl</classpathDependencyExclude>
+              </classpathDependencyExcludes>
+              <includes>
+                <include>**/NoXercesTest.java</include>
+              </includes>
+              <reportsDirectory>${project.build.directory}/surefire-reports-no-xerces</reportsDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

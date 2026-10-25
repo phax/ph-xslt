@@ -43,9 +43,11 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * Resolves the URIs an environment declares (sources with a <code>uri</code>,
@@ -126,6 +128,25 @@ public final class QT3ResourceResolver implements IResourceResolver
     for (final QT3Environment.Schema aSchema : aEnv.getAllSchemas ())
       if (!aSchema.file ().isEmpty ())
         m_aSchemaFiles.add (getAbsolutePath (m_aBaseDir, aSchema.file ()));
+      else
+        if (XdmConstants.NS_FN.equals (aSchema.uri ()) && QT3SchemaCache.isXerces ())
+        {
+          // The schema of the XML representation of JSON, which the test
+          // driver is expected to know by its namespace; the suite has a copy
+          final Path aJsonSchema = aEnv.getBaseDir ().resolve ("json-to-xml/schema-for-json.xsd").toAbsolutePath ().normalize ();
+          if (Files.isRegularFile (aJsonSchema))
+            m_aSchemaFiles.add (aJsonSchema);
+        }
+  }
+
+  /**
+   * @return The in-scope schema definitions of the environment (Xerces-J
+   *         only), or <code>null</code>.
+   */
+  @Nullable
+  public IXdmSchemaSet getSchemaSet ()
+  {
+    return m_aSchemaFiles.isEmpty () ? null : QT3SchemaCache.getSchemaSet (m_aSchemaFiles);
   }
 
   @Nullable

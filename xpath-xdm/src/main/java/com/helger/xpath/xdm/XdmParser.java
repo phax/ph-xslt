@@ -28,6 +28,7 @@ import javax.xml.validation.ValidatorHandler;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.xml.sax.DTDHandler;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -210,6 +211,7 @@ public class XdmParser
       if (m_bLoadExternalEntities)
         aReader.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "all");
       final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+      DTDHandler aValidatorDTDHandler = null;
       if (m_aSchema != null)
       {
         // XMLReader -> ValidatorHandler -> builder; lexical and DTD events go
@@ -231,12 +233,37 @@ public class XdmParser
           }
         aValidator.setContentHandler (aBuilder);
         aBuilder.setTypeInfoProvider (aValidator.getTypeInfoProvider ());
+        aBuilder.setValidator (aValidator);
+        if (aValidator instanceof final DTDHandler aDTDHandler)
+          aValidatorDTDHandler = aDTDHandler;
         aReader.setContentHandler (aValidator);
       }
       else
         aReader.setContentHandler (aBuilder);
       aReader.setErrorHandler (aBuilder);
       aReader.setDTDHandler (aBuilder);
+      if (aValidatorDTDHandler != null)
+      {
+        // The validator needs the unparsed entities too (xs:ENTITY values)
+        final DTDHandler aOtherDTDHandler = aValidatorDTDHandler;
+        aReader.setDTDHandler (new DTDHandler ()
+        {
+          public void notationDecl (final String sName, final String sPublicId, final String sSystemId) throws SAXException
+          {
+            aBuilder.notationDecl (sName, sPublicId, sSystemId);
+            aOtherDTDHandler.notationDecl (sName, sPublicId, sSystemId);
+          }
+
+          public void unparsedEntityDecl (final String sName,
+                                          final String sPublicId,
+                                          final String sSystemId,
+                                          final String sNotationName) throws SAXException
+          {
+            aBuilder.unparsedEntityDecl (sName, sPublicId, sSystemId, sNotationName);
+            aOtherDTDHandler.unparsedEntityDecl (sName, sPublicId, sSystemId, sNotationName);
+          }
+        });
+      }
       aReader.setEntityResolver (aBuilder);
       aReader.setProperty ("http://xml.org/sax/properties/lexical-handler", aBuilder);
       aReader.setProperty ("http://xml.org/sax/properties/declaration-handler", aBuilder);

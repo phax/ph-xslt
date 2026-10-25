@@ -20,11 +20,13 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * An immutable typed atomic value. The Java class of the payload is fixed per
@@ -53,11 +55,22 @@ public final class XdmAtomic implements IXdmItem
 
   private final EAtomicType m_eType;
   private final Object m_aValue;
+  // The user-defined schema type the value was validated against; null for
+  // values of built-in types
+  private final IXdmTypeDefinition m_aSchemaType;
 
-  private XdmAtomic (@NonNull final EAtomicType eType, @NonNull final Object aValue)
+  private XdmAtomic (@NonNull final EAtomicType eType,
+                     @NonNull final Object aValue,
+                     @Nullable final IXdmTypeDefinition aSchemaType)
   {
     m_eType = eType;
     m_aValue = aValue;
+    m_aSchemaType = aSchemaType;
+  }
+
+  private XdmAtomic (@NonNull final EAtomicType eType, @NonNull final Object aValue)
+  {
+    this (eType, aValue, null);
   }
 
   /**
@@ -141,6 +154,31 @@ public final class XdmAtomic implements IXdmItem
   }
 
   @NonNull
+  /**
+   * @return The user-defined schema type this value was validated against (by
+   *         atomising a validated node, by a cast to or a constructor function
+   *         of a user-defined type), or <code>null</code>. {@link #getType()}
+   *         is its built-in base type then.
+   */
+  @Nullable
+  public IXdmTypeDefinition getSchemaType ()
+  {
+    return m_aSchemaType;
+  }
+
+  /**
+   * @param aSchemaType
+   *        The user-defined schema type, or <code>null</code> for none.
+   * @return The same value annotated with a user-defined schema type.
+   */
+  @NonNull
+  public XdmAtomic withSchemaType (@Nullable final IXdmTypeDefinition aSchemaType)
+  {
+    if (aSchemaType == m_aSchemaType)
+      return this;
+    return new XdmAtomic (m_eType, m_aValue, aSchemaType);
+  }
+
   public EAtomicType getType ()
   {
     return m_eType;

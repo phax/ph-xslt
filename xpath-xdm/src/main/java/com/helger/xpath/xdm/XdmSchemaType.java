@@ -22,6 +22,8 @@ import org.w3c.dom.TypeInfo;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
+import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 
 /**
  * The schema type of a node that was validated against an XML schema while
@@ -97,6 +99,7 @@ public final class XdmSchemaType
                                                           "NOTATION" };
 
   private final TypeInfo m_aTypeInfo;
+  private final TypeInfo m_aValueTypeInfo;
   private final XdmQName m_aName;
   private final boolean m_bSimple;
   private final boolean m_bList;
@@ -114,6 +117,7 @@ public final class XdmSchemaType
     ValueEnforcer.notNull (aTypeInfo, "TypeInfo");
     ValueEnforcer.notNull (aValueTypeInfo, "ValueTypeInfo");
     m_aTypeInfo = aTypeInfo;
+    m_aValueTypeInfo = aValueTypeInfo;
     final String sNamespace = aTypeInfo.getTypeNamespace ();
     final String sLocal = aTypeInfo.getTypeName ();
     m_aName = new XdmQName (sNamespace == null ? "" : sNamespace, sLocal == null || sLocal.isEmpty () ? "#anonymous"
@@ -128,8 +132,17 @@ public final class XdmSchemaType
                                          @NonNull final String sLocalName,
                                          final int nMethods)
   {
-    if (sNamespace.equals (aTypeInfo.getTypeNamespace ()) && sLocalName.equals (aTypeInfo.getTypeName ()))
+    final String sTypeNamespace = aTypeInfo.getTypeNamespace ();
+    if (sNamespace.equals (sTypeNamespace == null ? "" : sTypeNamespace) && sLocalName.equals (aTypeInfo.getTypeName ()))
       return true;
+    if (nMethods == DERIVATION_RESTRICTION_EXTENSION)
+    {
+      // With the schema component model (Apache Xerces-J); its DOM TypeInfo
+      // view is not reliable for types in no namespace
+      final IXdmTypeDefinition aDefinition = XdmSchemaSupport.getDefinition (aTypeInfo);
+      if (aDefinition != null)
+        return aDefinition.isDerivedFrom (new XdmQName (sNamespace, sLocalName));
+    }
     return aTypeInfo.isDerivedFrom (sNamespace, sLocalName, nMethods);
   }
 
@@ -144,6 +157,45 @@ public final class XdmSchemaType
       if (_isDerivedFrom (aValueTypeInfo, XdmConstants.NS_XS, sBuiltin, nMethods))
         return new XdmQName (XdmConstants.NS_XS, sBuiltin, "xs");
     return null;
+  }
+
+  /**
+   * Create the annotation for a type of the schema component model.
+   *
+   * @param aType
+   *        The type definition of the node. May not be <code>null</code>.
+   * @param aValueType
+   *        The type the value was validated against: for a union type the
+   *        member type that matched, otherwise the same as aType. May not be
+   *        <code>null</code>.
+   * @return A new schema type.
+   */
+  @NonNull
+  public static XdmSchemaType of (@NonNull final IXdmTypeDefinition aType, @NonNull final IXdmTypeDefinition aValueType)
+  {
+    return new XdmSchemaType (aType.getTypeInfo (), aValueType.getTypeInfo ());
+  }
+
+  /**
+   * @return The schema component model of the type, if the validator provides
+   *         one (Apache Xerces-J, see {@link XdmSchemaSupport}), otherwise
+   *         <code>null</code> (the JDK validator).
+   */
+  @Nullable
+  public IXdmTypeDefinition getDefinition ()
+  {
+    return XdmSchemaSupport.getDefinition (m_aTypeInfo);
+  }
+
+  /**
+   * @return The schema component model of the type the value was validated
+   *         against (for a union the matching member type), or
+   *         <code>null</code> like {@link #getDefinition()}.
+   */
+  @Nullable
+  public IXdmTypeDefinition getValueDefinition ()
+  {
+    return XdmSchemaSupport.getDefinition (m_aValueTypeInfo);
   }
 
   /**

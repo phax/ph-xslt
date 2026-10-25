@@ -48,6 +48,7 @@ import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.NamespaceFixup;
 import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XsltNames;
 
 /**
@@ -153,7 +154,11 @@ public final class XsltFunctions
     final XdmQName aName = _resolveName (aCtx.getStaticContext (), sName, "");
     if (aName == null)
       throw new XPathException ("XTDE1390", "'" + sName + "' is not a valid QName with a bound prefix");
-    final String sValue = XsltNames.NS_XSL.equals (aName.namespaceUri ()) ? getSystemProperty (aName.localName ()) : "";
+    String sValue = XsltNames.NS_XSL.equals (aName.namespaceUri ()) ? getSystemProperty (aName.localName ()) : "";
+    // Schema-awareness is a property of the stylesheet: its static contexts
+    // carry the in-scope schema definitions
+    if (XsltNames.NS_XSL.equals (aName.namespaceUri ()) && "is-schema-aware".equals (aName.localName ()))
+      sValue = aCtx.getStaticContext ().getSchemaSet () != null ? "yes" : "no";
     return XdmSequence.of (XdmAtomic.string (sValue));
   }
 
@@ -191,8 +196,9 @@ public final class XsltFunctions
     // the suite, xsl:transform and xsl:when included), except
     // xsl:import-schema, as this processor is not schema-aware
     final String sLocal = aName.localName ();
+    final boolean bSchemaAware = aSC.getSchemaSet () != null;
     final boolean bRet = XsltNames.NS_XSL.equals (aName.namespaceUri ()) &&
-                         (XsltElementSpecs.isKnown (sLocal) && !"import-schema".equals (sLocal) ||
+                         (XsltElementSpecs.isKnown (sLocal) && (bSchemaAware || !"import-schema".equals (sLocal)) ||
                           XsltExtensionRegistry.getInstance ().isImplemented (sLocal));
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }
@@ -216,6 +222,12 @@ public final class XsltFunctions
           final EAtomicType eType = EAtomicType.getFromLocalName (aName.localName ());
           bRet = eType != null && eType != EAtomicType.NUMERIC && eType != EAtomicType.ERROR;
           break;
+      }
+    else
+      if (aSC.getSchemaSet () != null)
+      {
+        // A type of the imported schemas
+        bRet = aSC.getSchemaSet ().getTypeDefinition (aName) != null;
       }
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }
@@ -403,7 +415,9 @@ public final class XsltFunctions
     for (final IXdmItem aItem : aInput)
       if (aItem instanceof final XdmNode aNode)
       {
-        final XdmNode aCopy = NodeCopier.copyDeep (aNode, true);
+        if (aNode.isAttribute ())
+          ValidationRequest.checkPreserveCopy (aNode, true);
+        final XdmNode aCopy = NodeCopier.copyDeep (aNode, true, true);
         NamespaceFixup.finish (aCopy);
         ret.add (aCopy);
       }
@@ -422,7 +436,7 @@ public final class XsltFunctions
                                                                                                              : aNode;
     if (aStart == null)
     {
-      final XdmNode ret = NodeCopier.copyDeep (aNode, true);
+      final XdmNode ret = NodeCopier.copyDeep (aNode, true, true);
       NamespaceFixup.finish (ret);
       return ret;
     }
@@ -447,7 +461,7 @@ public final class XsltFunctions
     }
     final XdmNode aStartCopy;
     if (aStart == aNode)
-      aStartCopy = NodeCopier.copyDeep (aStart, true);
+      aStartCopy = NodeCopier.copyDeep (aStart, true, true);
     else
     {
       // An attribute or namespace node is grafted to a copy of its parent

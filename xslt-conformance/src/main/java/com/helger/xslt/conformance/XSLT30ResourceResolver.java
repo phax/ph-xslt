@@ -57,6 +57,7 @@ import com.helger.xpath.xdm.XdmNode;
 public final class XSLT30ResourceResolver implements IResourceResolver
 {
   private final XSLT30DocumentCache m_aDocs;
+  private final ICommonsMap <Path, XdmNode> m_aPrepared = new CommonsHashMap <> ();
   private final ICommonsMap <String, Path> m_aByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, String> m_aEncodingByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, ICommonsList <Path>> m_aCollections = new CommonsHashMap <> ();
@@ -211,11 +212,27 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     return QT3ResourceResolver.getFileUri (aPath);
   }
 
+  /**
+   * Use a prepared document (a validated secondary source) for a file.
+   *
+   * @param aPath
+   *        The absolute normalised path.
+   * @param aDoc
+   *        The document.
+   */
+  public void putDocument (@NonNull final Path aPath, @NonNull final XdmNode aDoc)
+  {
+    m_aPrepared.put (aPath, aDoc);
+  }
+
   @Nullable
   public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
     final Path aPath = _getPath (sAbsoluteUri);
-    return aPath == null ? null : m_aDocs.getDocument (aPath);
+    if (aPath == null)
+      return null;
+    final XdmNode aPrepared = m_aPrepared.get (aPath);
+    return aPrepared != null ? aPrepared : m_aDocs.getDocument (aPath);
   }
 
   @Nullable

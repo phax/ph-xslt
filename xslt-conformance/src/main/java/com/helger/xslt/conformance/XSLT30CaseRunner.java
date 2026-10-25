@@ -33,6 +33,7 @@ import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.CommonsTreeMap;
@@ -50,6 +51,7 @@ import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltExecutable;
 import com.helger.xslt.XsltTransformRequest;
@@ -111,6 +113,7 @@ public final class XSLT30CaseRunner
   private final OffsetDateTime m_aNow;
   private final boolean m_bStrictErrorCodes;
   private final boolean m_bRunUnicodeExcluded;
+  private final boolean m_bSchemaAware;
 
   /**
    * @param aCatalog
@@ -134,6 +137,36 @@ public final class XSLT30CaseRunner
                            final boolean bStrictErrorCodes,
                            final boolean bRunUnicodeExcluded)
   {
+    this (aCatalog, aCompiler, aCache, aNow, bStrictErrorCodes, bRunUnicodeExcluded, false);
+  }
+
+  /**
+   * @param aCatalog
+   *        The catalog (for catalog level environments).
+   * @param aCompiler
+   *        The stylesheet compiler, normally {@link IXSLT30Compiler#ENGINE}.
+   * @param aCache
+   *        The compile cache of the run.
+   * @param aNow
+   *        The current date/time of the run.
+   * @param bStrictErrorCodes
+   *        <code>true</code> to require matching error codes.
+   * @param bRunUnicodeExcluded
+   *        <code>true</code> to run the cases excluded for their Unicode
+   *        version.
+   * @param bSchemaAware
+   *        <code>true</code> to claim schema-awareness: stylesheets are
+   *        compiled schema-aware, the environment schemas are offered to
+   *        xsl:import-schema and sources are validated as the catalog asks.
+   */
+  public XSLT30CaseRunner (@NonNull final XSLT30Catalog aCatalog,
+                           @NonNull final IXSLT30Compiler aCompiler,
+                           @NonNull final XSLT30StylesheetCache aCache,
+                           @NonNull final OffsetDateTime aNow,
+                           final boolean bStrictErrorCodes,
+                           final boolean bRunUnicodeExcluded,
+                           final boolean bSchemaAware)
+  {
     ValueEnforcer.notNull (aCatalog, "Catalog");
     ValueEnforcer.notNull (aCompiler, "Compiler");
     ValueEnforcer.notNull (aCache, "Cache");
@@ -144,6 +177,7 @@ public final class XSLT30CaseRunner
     m_aNow = aNow;
     m_bStrictErrorCodes = bStrictErrorCodes;
     m_bRunUnicodeExcluded = bRunUnicodeExcluded;
+    m_bSchemaAware = bSchemaAware;
   }
 
   @NonNull
@@ -294,9 +328,10 @@ public final class XSLT30CaseRunner
   @NonNull
   private QT3Outcome _check (@NonNull final XSLT30TestSet aSet,
                              @NonNull final XSLT30TestCase aCase,
-                             @NonNull final XSLT30Actual aActual)
+                             @NonNull final XSLT30Actual aActual,
+                             @Nullable final IXdmSchemaSet aSchemaSet)
   {
-    return new XSLT30AssertionChecker (aSet.dir (), m_aNow, m_bStrictErrorCodes).check (aCase.result (), aActual);
+    return new XSLT30AssertionChecker (aSet.dir (), m_aNow, m_bStrictErrorCodes, aSchemaSet).check (aCase.result (), aActual);
   }
 
   private static void _addPackage (@NonNull final ICommonsList <XsltCompileOptions.PackageSource> aPackages,
@@ -319,7 +354,8 @@ public final class XSLT30CaseRunner
                                    @Nullable final XSLT30Environment aEnv,
                                    @NonNull final Path aStylesheet,
                                    final boolean bEmbedded,
-                                   @NonNull final XSLT30DocumentCache aDocs)
+                                   @NonNull final XSLT30DocumentCache aDocs,
+                                   @NonNull final Wrapper <IXdmSchemaSet> aSchemaSetOut)
   {
     final Path aDir = aSet.dir ().toAbsolutePath ().normalize ();
     final XSLT30Invocation aTest = aCase.test ();
@@ -356,10 +392,25 @@ public final class XSLT30CaseRunner
     final ICommonsSortedMap <String, String> aStaticKey = new CommonsTreeMap <> ();
     for (final XSLT30Param aParam : aStaticParams.values ())
       aStaticKey.put (aParam.name ().toString (), aParam.as () + "\u0001" + aParam.select ());
-    final String sKey = aStylesheet.toString () + (bEmbedded ? "\u0003embedded" : "") + "\u0000" + aStaticKey + aPackageKey;
+    // Schema-aware: the schemas of the environment are offered to
+    // xsl:import-schema
+    final ICommonsList <XsltCompileOptions.HostSchema> aHostSchemas = m_bSchemaAware ? XSLT30SchemaSupport.getHostSchemas (aEnv,
+                                                                                                                         m_aCatalog.rootDir ())
+                                                                                     : new CommonsArrayList <> ();
+    final String sKey = aStylesheet.toString () +
+                        (bEmbedded ? "\u0003embedded" : "") +
+                        "\u0000" +
+                        aStaticKey +
+                        aPackageKey +
+                        (m_bSchemaAware ? "\u0004" + aHostSchemas : "");
     final XsltExecutable aExecutable = m_aCache.getOrCompile (sKey, () -> {
       final XsltCompileOptions aOptions = new XsltCompileOptions ().setLoadExternalEntities (true);
       aOptions.packages ().addAll (aPackages);
+      if (m_bSchemaAware)
+      {
+        aOptions.setSchemaAware (true);
+        aOptions.hostSchemas ().addAll (aHostSchemas);
+      }
       for (final XSLT30Param aParam : aStaticParams.values ())
         aOptions.setStaticParam (aParam.name (), _evaluateParam (aParam, null, aResolver, sBaseUri));
       if (bEmbedded)
@@ -406,6 +457,7 @@ public final class XSLT30CaseRunner
           continue;
         try
         {
+          final String sValidation = m_bSchemaAware ? XSLT30SchemaSupport.getValidationMode (aEnv, aSrc) : null;
           if (aSrc.content () != null && !aSrc.content ().isBlank ())
           {
             // Inline content has the base URI of the file it is written in
@@ -414,6 +466,8 @@ public final class XSLT30CaseRunner
               aIS.setSystemId (XSLT30ResourceResolver.getFileUri (aSet.file ()));
             aSource = new XdmParser ().setLoadExternalEntities (true).parse (aIS);
             sSourceSelect = aSrc.select ().strip ();
+            if (sValidation != null)
+              XSLT30SchemaSupport.validateSource (aSource, sValidation, aExecutable, aEnv);
           }
           else
             if (!aSrc.file ().isEmpty ())
@@ -421,7 +475,14 @@ public final class XSLT30CaseRunner
               final Path aPath = XSLT30ResourceResolver.getAbsolutePath (aEnv.baseDir (), aSrc.file ());
               if (Files.isRegularFile (aPath))
               {
-                aSource = aDocs.getDocumentOrThrow (aPath);
+                if (sValidation != null)
+                {
+                  // A fresh tree, as validation annotates it in place
+                  aSource = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
+                  XSLT30SchemaSupport.validateSource (aSource, sValidation, aExecutable, aEnv);
+                }
+                else
+                  aSource = aDocs.getDocumentOrThrow (aPath);
                 sSourceSelect = aSrc.select ().strip ();
               }
             }
@@ -445,6 +506,31 @@ public final class XSLT30CaseRunner
         }
       }
     }
+
+    // Secondary sources the catalog wants validated (read by document()/doc())
+    if (m_bSchemaAware && aEnv != null)
+      for (final XSLT30Environment.Source aSrc : aEnv.sources ())
+      {
+        if (".".equals (aSrc.role ()) || aSrc.file ().isEmpty ())
+          continue;
+        final String sMode = aSrc.validation ().strip ();
+        if (!"strict".equals (sMode) && !"lax".equals (sMode))
+          continue;
+        final Path aPath = XSLT30ResourceResolver.getAbsolutePath (aEnv.baseDir (), aSrc.file ());
+        try
+        {
+          final XdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
+          XSLT30SchemaSupport.validateSource (aDoc, sMode, aExecutable, aEnv);
+          aResolver.putDocument (aPath, aDoc);
+        }
+        catch (final XdmParseException ex)
+        {
+          // left to the engine
+        }
+      }
+
+    // Assertions may name schema components of the stylesheet
+    aSchemaSetOut.set (aExecutable.getSchemaSet ());
 
     final XsltTransformRequest aRequest = new XsltTransformRequest ();
     aRequest.setResolver (aResolver);
@@ -545,7 +631,7 @@ public final class XSLT30CaseRunner
                          @NonNull final XSLT30TestCase aCase,
                          @NonNull final XSLT30DocumentCache aDocs)
   {
-    final String sSkip = XSLT30Dependencies.getSkipReason (aSet.dependencies (), aCase.dependencies ());
+    final String sSkip = XSLT30Dependencies.getSkipReason (aSet.dependencies (), aCase.dependencies (), m_bSchemaAware);
     if (sSkip != null)
       return CaseResult.skip (sSkip);
     if (!m_bRunUnicodeExcluded)
@@ -586,9 +672,10 @@ public final class XSLT30CaseRunner
 
     XSLT30Actual aActual;
     String sDetail = "";
+    final Wrapper <IXdmSchemaSet> aSchemaSet = new Wrapper <> ();
     try
     {
-      aActual = _transform (aSet, aCase, aEnv, aStylesheet, bEmbedded, aDocs);
+      aActual = _transform (aSet, aCase, aEnv, aStylesheet, bEmbedded, aDocs, aSchemaSet);
     }
     catch (final XPathException ex)
     {
@@ -606,7 +693,7 @@ public final class XSLT30CaseRunner
 
     try
     {
-      final QT3Outcome aOutcome = _check (aSet, aCase, aActual);
+      final QT3Outcome aOutcome = _check (aSet, aCase, aActual, aSchemaSet.get ());
       if (aOutcome.isFail () && sDetail.isEmpty () && aActual.error () == null)
         sDetail = "got: " + _cut (aActual.output ());
       return new CaseResult (aOutcome, aOutcome.isFail () ? sDetail : "");

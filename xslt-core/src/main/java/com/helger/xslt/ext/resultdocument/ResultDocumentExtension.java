@@ -57,6 +57,7 @@ import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.SerializationChecks;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.runtime.XsltStateKey;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -112,6 +113,7 @@ public final class ResultDocumentExtension implements IXsltExtension
     private final ICommonsOrderedMap <String, Avt> m_aOutputAttrs;
     private final String m_sUseCharacterMaps;
     private final SequenceConstructor m_aBody;
+    private final ValidationRequest m_aValidation;
 
     ResultDocumentInstruction (@NonNull final XslElement aElement,
                                @Nullable final Avt aHref,
@@ -119,7 +121,8 @@ public final class ResultDocumentExtension implements IXsltExtension
                                @Nullable final Avt aParameterDocument,
                                @NonNull final ICommonsOrderedMap <String, Avt> aOutputAttrs,
                                @Nullable final String sUseCharacterMaps,
-                               @NonNull final SequenceConstructor aBody)
+                               @NonNull final SequenceConstructor aBody,
+                               @Nullable final ValidationRequest aValidation)
     {
       super (aElement);
       m_aHref = aHref;
@@ -128,6 +131,7 @@ public final class ResultDocumentExtension implements IXsltExtension
       m_aOutputAttrs = aOutputAttrs;
       m_sUseCharacterMaps = sUseCharacterMaps;
       m_aBody = aBody;
+      m_aValidation = aValidation;
     }
 
     @NonNull
@@ -287,7 +291,29 @@ public final class ResultDocumentExtension implements IXsltExtension
       if (!bAtTop || !bEmpty || aEngine.getPrincipalSealedSize () >= 0)
         throw new XPathException ("XTDE1490", "xsl:result-document without href writes a second principal result");
       aEngine.setPrincipalOutputDefinition (aDef);
-      m_aBody.execute (aCtx.with (SECONDARY_OUTPUT, null), aTarget);
+      if (m_aValidation != null && m_aValidation.isValidating ())
+      {
+        // Schema-aware: the principal result tree is validated as requested;
+        // a copy of the content is built for that
+        final BufferedOutput aContentBuffer = new BufferedOutput ();
+        m_aBody.execute (aCtx.with (SECONDARY_OUTPUT, null), aContentBuffer);
+        final XdmNode aTree = XdmNode.createDocument ();
+        final ContentOutput aContent = new ContentOutput (aTree);
+        // Sequence normalisation puts the item separator into the tree as
+        // text (Serialization 3.1 section 2), where validation sees it
+        final String sSeparator = aDef.getValue ("item-separator");
+        for (int i = 0; i < aContentBuffer.size (); ++i)
+        {
+          if (i > 0 && sSeparator != null && !"#absent".equals (sSeparator))
+            aContent.appendNew (XdmNode.createText (sSeparator));
+          aContent.append (aContentBuffer.get (i));
+        }
+        aContent.finishTree ();
+        m_aValidation.apply (aTree);
+        aContentBuffer.replayAll (aTarget);
+      }
+      else
+        m_aBody.execute (aCtx.with (SECONDARY_OUTPUT, null), aTarget);
       aEngine.sealPrincipalOutput (aTarget instanceof final BufferedOutput aBuffer ? aBuffer.size () : 0);
     }
 
@@ -363,6 +389,9 @@ public final class ResultDocumentExtension implements IXsltExtension
         final ContentOutput aContent = new ContentOutput (aTree);
         aBuffer.replayAll (aContent);
         aContent.finishTree ();
+        // Schema-aware: the result tree is validated as requested
+        if (m_aValidation != null)
+          m_aValidation.apply (aTree);
         aRaw = XdmSequence.of (aItems);
       }
       else
@@ -417,7 +446,8 @@ public final class ResultDocumentExtension implements IXsltExtension
                                           aCtx.compileOptionalAvt (aEl, "parameter-document"),
                                           aOutputAttrs,
                                           sUseCharacterMaps,
-                                          aCtx.compileContent (aEl));
+                                          aCtx.compileContent (aEl),
+                                          ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.DOCUMENT));
   }
 
   public void register (@NonNull final XsltExtensionRegistry aRegistry)

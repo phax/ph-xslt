@@ -17,6 +17,9 @@
 package com.helger.xslt;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * A compiled stylesheet. Immutable and usable from several threads at once.
@@ -34,4 +37,25 @@ public interface XsltExecutable
    */
   @NonNull
   XsltTransformResult transform (@NonNull XsltTransformRequest aRequest);
+
+  /**
+   * @return The in-scope schema definitions of a schema-aware stylesheet (to
+   *         validate source documents against the same components the
+   *         stylesheet refers to), <code>null</code> for a basic processor.
+   */
+  @Nullable
+  default IXdmSchemaSet getSchemaSet ()
+  {
+    return null;
+  }
+
+  /**
+   * @return <code>true</code> if the stylesheet says
+   *         <code>input-type-annotations="strip"</code>: type annotations of
+   *         source documents are to be removed.
+   */
+  default boolean isStripInputTypeAnnotations ()
+  {
+    return false;
+  }
 }

@@ -1,6 +1,7 @@
 # QT3 (`qt3tests`, XPath 3.1 / F&O 3.1): failing cases
 
-22,412 of 22,478 applicable cases pass, 66 fail. Measured offline, on JDK 21 and 25.
+22,419 of 22,478 applicable cases pass, 59 fail. Measured offline, on JDK 21 and 25, with Apache Xerces-J as the
+schema processor (the default of the harness, see below).
 
 Every failing case is named here in backticks under a heading with its status and reason. `QT3Test` fails on any
 failing case that is not named here, so a regression is loud and a newly accepted failure needs a written reason.
@@ -42,17 +43,19 @@ branch unions or inline function bodies. A processor that checks types at run ti
 narrow static axis-step analysis (`ST-Axes*`, XPST0005) is implemented, behind `StaticContext.setStaticTyping`.
 go-xslt accepts the same 20 cases.
 
-### Schema-validated sources
+### Schema-validated sources with the JDK validator
 `K2-DataFunc-6`, `fn-normalize-space-24`, `fn-string-length-23`, `json-to-xml-016`, `json-to-xml-017`,
 `json-to-xml-037`, `json-to-xml-038`
 
-**Status:** Open (needs more schema information than the JDK validator exposes).
-Sources with `validation="strict"` are validated with the JDK validator, which provides type annotations, nilled,
-schema IDs and typed values (`XdmParser.setSchema`). What it does not provide: whether a complex type has element-only
-or mixed content, so atomizing an element with element-only content yields its string value instead of FOTY0012
-(`K2-DataFunc-6`, `fn-normalize-space-24`, `fn-string-length-23`); and element declarations, so there are no in-scope
-schema types for `schema-element(j:...)` and no validation for `json-to-xml` with `validate=true` (`json-to-xml-016`,
-`json-to-xml-017`, `json-to-xml-037`, `json-to-xml-038`). go-xslt has its own XSD processor and passes them.
+**Status:** Accepted (only in a run with `-Dqt3.schemaProcessor=jdk`; they pass in the default run).
+The harness validates sources with Apache Xerces-J, which is on its test class path, and makes the schemas of the
+environment the in-scope schema definitions of the test (`QT3SchemaCache`); the schema of the XML representation of
+JSON (environment `json-ns`, which names only the namespace) is taken from the suite's copy. With
+`-Dqt3.schemaProcessor=jdk` the JDK validator is used instead, as before: it gives type annotations, nilled, schema
+IDs and typed values, but neither content types (element-only content atomizes to its string value instead of
+FOTY0012: `K2-DataFunc-6`, `fn-normalize-space-24`, `fn-string-length-23`) nor element declarations (no
+`schema-element(j:...)` and no `json-to-xml` with `validate=true`: `json-to-xml-016`, `json-to-xml-017`,
+`json-to-xml-037`, `json-to-xml-038`). Both runs are otherwise identical by name.
 
 ### External entity in fn:parse-xml
 `parse-xml-010`

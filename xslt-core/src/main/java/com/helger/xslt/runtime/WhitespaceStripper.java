@@ -24,6 +24,9 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.XdmSchemaType;
+import com.helger.xpath.xdm.schema.EXdmContentType;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 import com.helger.xslt.model.SpaceRules;
 import com.helger.xslt.tree.XsltNames;
 
@@ -60,6 +63,22 @@ public final class WhitespaceStripper
     return bInherited;
   }
 
+  /**
+   * @return <code>true</code> if the element is annotated with a simple type
+   *         or a complex type with simple content: its whitespace text is
+   *         never stripped (XSLT 3.0 section 4.3).
+   */
+  private static boolean _hasSimpleContentType (@NonNull final XdmNode aElement)
+  {
+    final XdmSchemaType aSchemaType = aElement.getSchemaType ();
+    if (aSchemaType == null)
+      return aElement.getTypeAnnotation () != null && !aElement.getTypeAnnotation ().isSameName (XdmConstants.NS_XS, "anyType");
+    final IXdmTypeDefinition aDef = aSchemaType.getDefinition ();
+    if (aDef != null)
+      return aDef.getContentType () == EXdmContentType.SIMPLE;
+    return aSchemaType.isSimple () || aSchemaType.getAtomicBase () != null;
+  }
+
   private static boolean _isStripped (@NonNull final XdmNode aText, final boolean bPreserve, @NonNull final SpaceRules aRules)
   {
     final XdmNode aParent = aText.getParent ();
@@ -67,7 +86,7 @@ public final class WhitespaceStripper
            aParent != null &&
            aParent.isElement () &&
            XsltNames.isWhitespaceOnly (aText.getValue ()) &&
-           aParent.getTypeAnnotation () == null &&
+           !_hasSimpleContentType (aParent) &&
            aRules.isStripped (aParent.getName ());
   }
 
