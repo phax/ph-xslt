@@ -425,10 +425,11 @@ public final class ControlInstructions
         if (aErrorCode != null)
         {
           final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (aRtCtx));
+          // XSLT 3.0 section 23.1: an effective value that is not a valid
+          // EQName gives the default code XTMM9000
           final XdmQName aResolved = aEl.resolveQName (s, false);
-          if (aResolved == null)
-            throw new XPathException ("XTDE1390", "'" + s + "' is not aFnArgs valid error code");
-          aCode = aResolved;
+          if (aResolved != null)
+            aCode = aResolved;
         }
         throw new XPathException (aCode, sMessage, aValue);
       }
