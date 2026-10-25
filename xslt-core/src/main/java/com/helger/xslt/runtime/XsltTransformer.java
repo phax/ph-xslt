@@ -150,6 +150,7 @@ public final class XsltTransformer
     if (aGlobalItem != null)
       aCtx = aCtx.withFocus (aGlobalItem, 1, 1);
     final BufferedOutput aBuffer = new BufferedOutput ();
+    aEngine.setPrincipalOutput (aBuffer);
     if (m_aRequest.getInitialFunction () != null)
     {
       final XdmQName aName = m_aRequest.getInitialFunction ();
@@ -230,8 +231,16 @@ public final class XsltTransformer
         }
       }
 
-    // The principal result
-    final OutputDefinition aOutputDef = m_aSheet.getOutput ();
+    // The principal result; an xsl:result-document without href may have
+    // written it with its own output definition
+    if (aEngine.getPrincipalSealedSize () >= 0 && aBuffer.size () > aEngine.getPrincipalSealedSize ())
+      throw new XsltException ("XTDE1490",
+                               "Content was written to the principal result after an xsl:result-document had produced it",
+                               null,
+                               0,
+                               0);
+    final OutputDefinition aOutputDef = aEngine.getPrincipalOutputDefinition () != null ? aEngine.getPrincipalOutputDefinition ()
+                                                                                         : m_aSheet.getOutput ();
     final String sDeclaredMethod = aOutputDef.getMethod ();
     final boolean bBuildTree = aOutputDef.isBuildTree (sDeclaredMethod != null ? sDeclaredMethod : SerializationParams.METHOD_XML);
     final XdmSequence aRaw;

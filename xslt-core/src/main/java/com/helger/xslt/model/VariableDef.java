@@ -29,6 +29,7 @@ import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.compile.XPathExpr;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.runtime.ContentOutput;
+import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.tree.XslElement;
@@ -190,10 +191,12 @@ public final class VariableDef
     else
       if (m_aBody != null && !m_aBody.isEmpty ())
       {
+        // A sequence constructor body is evaluated in temporary output state
+        final XsltContext aBodyCtx = Engine.withTemporaryOutputState (aCtx);
         if (m_aAs != null)
         {
           final SequenceOutput aOut = new SequenceOutput ();
-          m_aBody.execute (aCtx, aOut);
+          m_aBody.execute (aBodyCtx, aOut);
           aValue = aOut.getSequence ();
         }
         else
@@ -204,7 +207,7 @@ public final class VariableDef
           if (sBase != null)
             aDoc.setBaseUri (sBase);
           final ContentOutput aOut = new ContentOutput (aDoc);
-          m_aBody.execute (aCtx, aOut);
+          m_aBody.execute (aBodyCtx, aOut);
           aOut.finishTree ();
           aValue = XdmSequence.of (aDoc);
         }

@@ -86,6 +86,23 @@ public final class OutputDefinition
     m_aName = aName;
   }
 
+  /**
+   * @return A copy of this definition (xsl:result-document starts from an
+   *         output definition and merges its own attributes).
+   */
+  @NonNull
+  public OutputDefinition getClone ()
+  {
+    final OutputDefinition ret = new OutputDefinition (m_aName);
+    ret.m_aValues.putAll (m_aValues);
+    ret.m_aPrecedences.putAll (m_aPrecedences);
+    ret.m_aCdataSectionElements.addAll (m_aCdataSectionElements);
+    ret.m_aSuppressIndentation.addAll (m_aSuppressIndentation);
+    ret.m_aUseCharacterMaps.addAll (m_aUseCharacterMaps);
+    ret.m_aInlineCharacterMap.putAll (m_aInlineCharacterMap);
+    return ret;
+  }
+
   @Nullable
   public XdmQName getName ()
   {
