@@ -23,6 +23,8 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.serialize.SerializationParams;
+import com.helger.xpath.serialize.XdmSerializer;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xslt.XsltTransformResult;
 
@@ -48,6 +50,15 @@ import com.helger.xslt.XsltTransformResult;
  *        <code>assert</code> expressions; empty to bind none.
  * @param baseUri
  *        Base URI given to a reparsed output, <code>null</code> for none.
+ * @param indentedMethod
+ *        The output method when the output was serialized with
+ *        <code>indent="yes"</code> (whitespace the serializer may add is then
+ *        ignored by <code>assert-serialization</code>), else
+ *        <code>null</code>.
+ * @param message
+ *        <code>true</code> if the output is an <code>xsl:message</code>: then
+ *        <code>assert</code> is evaluated on the message as a document node,
+ *        which may have several element children or none.
  * @author Philip Helger
  */
 public record XSLT30Actual (@NonNull String output,
@@ -56,10 +67,41 @@ public record XSLT30Actual (@NonNull String output,
                             @NonNull ICommonsList <String> messages,
                             @Nullable XdmSequence rawValue,
                             @NonNull String resultVar,
-                            @Nullable String baseUri)
+                            @Nullable String baseUri,
+                            @Nullable String indentedMethod,
+                            boolean message)
 {
   /** The default name of the result variable. */
   public static final String DEFAULT_RESULT_VAR = "result";
+
+  /**
+   * Constructor for an output that is neither indented nor a message.
+   *
+   * @param output
+   *        The serialised result.
+   * @param error
+   *        The error or <code>null</code>.
+   * @param secondaries
+   *        The secondary results.
+   * @param messages
+   *        The messages.
+   * @param rawValue
+   *        The raw result or <code>null</code>.
+   * @param resultVar
+   *        The result variable name.
+   * @param baseUri
+   *        The base URI or <code>null</code>.
+   */
+  public XSLT30Actual (@NonNull final String output,
+                       @Nullable final XPathException error,
+                       @NonNull final ICommonsList <XsltTransformResult.SecondaryResult> secondaries,
+                       @NonNull final ICommonsList <String> messages,
+                       @Nullable final XdmSequence rawValue,
+                       @NonNull final String resultVar,
+                       @Nullable final String baseUri)
+  {
+    this (output, error, secondaries, messages, rawValue, resultVar, baseUri, null, false);
+  }
 
   /**
    * @param aError
@@ -97,16 +139,50 @@ public record XSLT30Actual (@NonNull String output,
                                        final boolean bInitialFunction,
                                        @NonNull final String sResultVar)
   {
+    return ofResult (aResult, bInitialFunction, sResultVar, true);
+  }
+
+  /**
+   * @param aResult
+   *        The transformation result.
+   * @param bInitialFunction
+   *        <code>true</code> if the stylesheet was invoked through an initial
+   *        function.
+   * @param sResultVar
+   *        The result variable name.
+   * @param bSerialize
+   *        <code>true</code> if the test asks for the serialized result
+   *        (<code>&lt;output serialize="yes"/&gt;</code>). Otherwise a result
+   *        of the json or adaptive method that has a tree is checked as that
+   *        tree serialized as XML, as the reference runner's tree assertions
+   *        see it.
+   * @return The actual outcome.
+   */
+  @NonNull
+  public static XSLT30Actual ofResult (@NonNull final XsltTransformResult aResult,
+                                       final boolean bInitialFunction,
+                                       @NonNull final String sResultVar,
+                                       final boolean bSerialize)
+  {
     ValueEnforcer.notNull (aResult, "Result");
     XdmSequence aRaw = aResult.principalRaw ();
     if (!bInitialFunction && aResult.principalTree () != null)
       aRaw = XdmSequence.of (aResult.principalTree ());
-    return new XSLT30Actual (aResult.principalSerialized (),
+    String sOutput = aResult.principalSerialized ();
+    final String sMethod = aResult.principalMethod ();
+    if (!bSerialize &&
+        aResult.principalTree () != null &&
+        (SerializationParams.METHOD_JSON.equals (sMethod) || SerializationParams.METHOD_ADAPTIVE.equals (sMethod)))
+      sOutput = XdmSerializer.serialize (XdmSequence.of (aResult.principalTree ()),
+                                         new SerializationParams ().setMethod (SerializationParams.METHOD_XML));
+    return new XSLT30Actual (sOutput,
                              null,
                              aResult.secondaryResults (),
                              aResult.messages (),
                              aRaw,
                              sResultVar,
-                             null);
+                             null,
+                             aResult.principalIndent () ? sMethod : null,
+                             false);
   }
 }
