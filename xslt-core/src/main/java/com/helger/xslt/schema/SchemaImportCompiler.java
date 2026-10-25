@@ -20,6 +20,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -243,6 +244,64 @@ public final class SchemaImportCompiler
   }
 
   /**
+   * Of several schema documents for the same target namespace a schema
+   * processor reads only the first (the namespace is then known). Inline
+   * schemas of the same target namespace (e.g. no-namespace schemas of
+   * different packages) are therefore merged into one document.
+   */
+  private static void _mergeInlineSchemas (@NonNull final ICommonsList <XdmSchemaSource> aSources)
+  {
+    final ICommonsOrderedMap <String, ICommonsList <XdmSchemaSource>> aByNamespace = new CommonsLinkedHashMap <> ();
+    for (final XdmSchemaSource aSource : aSources)
+      if (aSource.text () != null)
+      {
+        final String sTns = _getTargetNamespace (aSource);
+        if (sTns != null)
+          aByNamespace.computeIfAbsent (sTns, k -> new CommonsArrayList <> ()).add (aSource);
+      }
+    for (final ICommonsList <XdmSchemaSource> aGroup : aByNamespace.values ())
+      if (aGroup.size () > 1)
+        try
+        {
+          XdmNode aMerged = null;
+          for (final XdmSchemaSource aSource : aGroup)
+          {
+            XdmNode aRoot = null;
+            for (final XdmNode aChild : new XdmParser ().parse (aSource.text ()).getAllChildren ())
+              if (aChild.isElement ())
+                aRoot = aChild;
+            if (aRoot == null)
+              return;
+            if (aMerged == null)
+            {
+              aMerged = NodeCopier.copyShallow (aRoot);
+              NodeCopier.copyNamespaces (aRoot, aMerged, true);
+              for (final XdmNode aAttr : aRoot.getAllAttributes ())
+                aMerged.addAttribute (NodeCopier.createAttribute (aAttr.getName (), aAttr.getValue ()));
+            }
+            else
+              for (final Map.Entry <String, String> aNs : aRoot.getInScopeNamespaces ().entrySet ())
+                if (aMerged.getDeclaredNamespaces ().get (aNs.getKey ()) == null && !"xml".equals (aNs.getKey ()))
+                  aMerged.declareNamespace (aNs.getKey (), aNs.getValue ());
+            for (final XdmNode aChild : aRoot.getAllChildren ())
+              if (aChild.isElement ())
+                aMerged.appendChild (NodeCopier.copyDeep (aChild, true));
+          }
+          final SerializationParams aParams = new SerializationParams ();
+          aParams.setOmitXmlDeclaration (true);
+          final XdmSchemaSource aNew = new XdmSchemaSource (aGroup.getFirstOrNull ().systemId (),
+                                                            XdmSerializer.serialize (XdmSequence.of (aMerged), aParams));
+          final int nIndex = aSources.indexOf (aGroup.getFirstOrNull ());
+          aSources.removeAll (aGroup);
+          aSources.add (Math.min (nIndex, aSources.size ()), aNew);
+        }
+        catch (final XdmParseException ex)
+        {
+          // Leave it to the schema processor to report
+        }
+  }
+
+  /**
    * Compile the schema of a schema-aware stylesheet.
    *
    * @param aDeclarations
@@ -298,6 +357,7 @@ public final class SchemaImportCompiler
     }
     if (aSources.isEmpty ())
       return XdmSchemaSupport.getBuiltinSchemaSet ();
+    _mergeInlineSchemas (aSources);
     try
     {
       return XdmSchemaSupport.compile (aSources);

@@ -25,11 +25,13 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.xdm.EIDKind;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.XdmValidationException;
+import com.helger.xpath.xdm.schema.EXdmSimpleVariety;
 import com.helger.xpath.xdm.schema.IXdmAttributeDeclaration;
 import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
@@ -254,6 +256,67 @@ public final class ValidationRequest
     }
   }
 
+  /**
+   * @param aNode
+   *        An element or attribute.
+   * @return <code>true</code> if its typed value is namespace-sensitive (of
+   *         type xs:QName or xs:NOTATION or derived from them).
+   */
+  public static boolean isNamespaceSensitive (@NonNull final XdmNode aNode)
+  {
+    final XdmSchemaType aSchemaType = aNode.getSchemaType ();
+    if (aSchemaType == null)
+      return false;
+    final IXdmTypeDefinition aDef = aSchemaType.getDefinition ();
+    if (aDef != null)
+      return aDef.isNamespaceSensitive ();
+    final XdmQName aBase = aSchemaType.getAtomicBase ();
+    return aBase != null && ("QName".equals (aBase.localName ()) || "NOTATION".equals (aBase.localName ()));
+  }
+
+  /**
+   * @param aNode
+   *        A node.
+   * @return <code>true</code> if the node or a node of its subtree (attributes
+   *         included) has namespace-sensitive content.
+   */
+  public static boolean hasNamespaceSensitiveContent (@NonNull final XdmNode aNode)
+  {
+    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    aStack.push (aNode);
+    while (!aStack.isEmpty ())
+    {
+      final XdmNode aCur = aStack.pop ();
+      if ((aCur.isElement () || aCur.isAttribute ()) && isNamespaceSensitive (aCur))
+        return true;
+      for (final XdmNode aAttr : aCur.getAllAttributes ())
+        if (isNamespaceSensitive (aAttr))
+          return true;
+      for (int i = aCur.getChildCount () - 1; i >= 0; --i)
+        aStack.push (aCur.getChildAtIndex (i));
+    }
+    return false;
+  }
+
+  /**
+   * XTTE0950: copying with validation="preserve" must not separate
+   * namespace-sensitive content from its namespaces.
+   *
+   * @param aNode
+   *        The node to copy.
+   * @param bCopyNamespaces
+   *        The copy-namespaces value.
+   * @throws XPathException
+   *         XTTE0950
+   */
+  public static void checkPreserveCopy (@NonNull final XdmNode aNode, final boolean bCopyNamespaces)
+  {
+    if (aNode.isAttribute () ? isNamespaceSensitive (aNode) : !bCopyNamespaces && hasNamespaceSensitiveContent (aNode))
+      throw new XPathException ("XTTE0950",
+                                "A node with namespace-sensitive content cannot be copied with validation='preserve' " +
+                                            (aNode.isAttribute () ? "without its parent element" : "and copy-namespaces='no'"));
+  }
+
   private static void _setAnyType (@NonNull final XdmNode aNode)
   {
     if (!aNode.isElement ())
@@ -335,6 +398,23 @@ public final class ValidationRequest
                                                                                                         : aType;
     aAttr.setTypeAnnotation (null);
     aAttr.setSchemaType (XdmSchemaType.of (aType, aValueType));
+    // The is-id and is-idrefs properties follow the type
+    EIDKind eIDKind = EIDKind.NONE;
+    for (final XdmTypedToken aToken : aTokens)
+      switch (aToken.builtinType ().localName ())
+      {
+        case "ID":
+          if (aTokens.size () == 1)
+            eIDKind = EIDKind.ID;
+          break;
+        case "IDREF":
+          eIDKind = aTokens.size () == 1 && aType.getVariety () != EXdmSimpleVariety.LIST ? EIDKind.IDREF : EIDKind.IDREFS;
+          break;
+        default:
+          break;
+      }
+    if (eIDKind != EIDKind.NONE)
+      aAttr.setIDKind (eIDKind);
   }
 
   @NonNull

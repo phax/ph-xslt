@@ -161,6 +161,8 @@ public final class NodeCopier
     if (aSource.getSchemaType () == null)
       aTarget.setTypeAnnotation (aSource.getTypeAnnotation ());
     aTarget.setNilled (aSource.isNilled ());
+    // The is-id and is-idrefs properties go with the copy (also under
+    // validation="strip")
     if (aSource.getIDKind () != EIDKind.NONE)
       aTarget.setIDKind (aSource.getIDKind ());
   }

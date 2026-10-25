@@ -56,8 +56,8 @@ import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.SerializationChecks;
 import com.helger.xslt.runtime.XsltContext;
-import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.runtime.XsltStateKey;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -291,7 +291,29 @@ public final class ResultDocumentExtension implements IXsltExtension
       if (!bAtTop || !bEmpty || aEngine.getPrincipalSealedSize () >= 0)
         throw new XPathException ("XTDE1490", "xsl:result-document without href writes a second principal result");
       aEngine.setPrincipalOutputDefinition (aDef);
-      m_aBody.execute (aCtx.with (SECONDARY_OUTPUT, null), aTarget);
+      if (m_aValidation != null && m_aValidation.isValidating ())
+      {
+        // Schema-aware: the principal result tree is validated as requested;
+        // a copy of the content is built for that
+        final BufferedOutput aContentBuffer = new BufferedOutput ();
+        m_aBody.execute (aCtx.with (SECONDARY_OUTPUT, null), aContentBuffer);
+        final XdmNode aTree = XdmNode.createDocument ();
+        final ContentOutput aContent = new ContentOutput (aTree);
+        // Sequence normalisation puts the item separator into the tree as
+        // text (Serialization 3.1 section 2), where validation sees it
+        final String sSeparator = aDef.getValue ("item-separator");
+        for (int i = 0; i < aContentBuffer.size (); ++i)
+        {
+          if (i > 0 && sSeparator != null && !"#absent".equals (sSeparator))
+            aContent.appendNew (XdmNode.createText (sSeparator));
+          aContent.append (aContentBuffer.get (i));
+        }
+        aContent.finishTree ();
+        m_aValidation.apply (aTree);
+        aContentBuffer.replayAll (aTarget);
+      }
+      else
+        m_aBody.execute (aCtx.with (SECONDARY_OUTPUT, null), aTarget);
       aEngine.sealPrincipalOutput (aTarget instanceof final BufferedOutput aBuffer ? aBuffer.size () : 0);
     }
 

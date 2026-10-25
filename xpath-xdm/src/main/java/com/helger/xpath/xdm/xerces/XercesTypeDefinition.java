@@ -208,6 +208,19 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
     return m_aType.derivedFromType (aOther.m_aType, DERIVATION_RESTRICTION_EXTENSION);
   }
 
+  public boolean isDerivedFrom (@NonNull final XdmQName aBase)
+  {
+    final String sNamespace = aBase.namespaceUri ();
+    if (!m_aType.getAnonymous () &&
+        sNamespace.equals (m_aType.getNamespace () == null ? "" : m_aType.getNamespace ()) &&
+        aBase.localName ().equals (m_aType.getName ()))
+      return true;
+    // Xerces-J represents "no namespace" as null
+    return m_aType.derivedFrom (sNamespace.isEmpty () ? null : sNamespace,
+                                aBase.localName (),
+                                DERIVATION_RESTRICTION_EXTENSION);
+  }
+
   private static boolean _isSameNamed (@NonNull final XSTypeDefinition aLeft, @NonNull final XSTypeDefinition aRight)
   {
     if (aLeft.getAnonymous () || aRight.getAnonymous ())

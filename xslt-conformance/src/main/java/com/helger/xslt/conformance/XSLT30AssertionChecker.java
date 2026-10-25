@@ -49,6 +49,7 @@ import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xslt.XsltTransformResult;
 import com.helger.xslt.runtime.NodeCopier;
 
@@ -103,6 +104,7 @@ public final class XSLT30AssertionChecker
   private final Path m_aDir;
   private final OffsetDateTime m_aNow;
   private final boolean m_bStrictErrorCodes;
+  private final IXdmSchemaSet m_aSchemaSet;
 
   /**
    * @param aDir
@@ -118,11 +120,33 @@ public final class XSLT30AssertionChecker
                                  @NonNull final OffsetDateTime aNow,
                                  final boolean bStrictErrorCodes)
   {
+    this (aDir, aNow, bStrictErrorCodes, null);
+  }
+
+  /**
+   * @param aDir
+   *        Directory of the test set.
+   * @param aNow
+   *        The current date/time of the run.
+   * @param bStrictErrorCodes
+   *        <code>true</code> to require the error code of an
+   *        <code>error</code> assertion to match.
+   * @param aSchemaSet
+   *        The in-scope schema definitions of the stylesheet (schema-aware
+   *        run), for assertions that name schema components; may be
+   *        <code>null</code>.
+   */
+  public XSLT30AssertionChecker (@NonNull final Path aDir,
+                                 @NonNull final OffsetDateTime aNow,
+                                 final boolean bStrictErrorCodes,
+                                 @Nullable final IXdmSchemaSet aSchemaSet)
+  {
     ValueEnforcer.notNull (aDir, "Dir");
     ValueEnforcer.notNull (aNow, "Now");
     m_aDir = aDir;
     m_aNow = aNow;
     m_bStrictErrorCodes = bStrictErrorCodes;
+    m_aSchemaSet = aSchemaSet;
   }
 
   @NonNull
@@ -240,6 +264,7 @@ public final class XSLT30AssertionChecker
       if (!"xml".equals (aEntry.getKey ()))
         ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     ret.setContextItem (aContextItem);
+    ret.setSchemaSet (m_aSchemaSet);
     return ret;
   }
 

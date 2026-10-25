@@ -48,6 +48,7 @@ import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.NamespaceFixup;
 import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XsltNames;
 
 /**
@@ -414,6 +415,8 @@ public final class XsltFunctions
     for (final IXdmItem aItem : aInput)
       if (aItem instanceof final XdmNode aNode)
       {
+        if (aNode.isAttribute ())
+          ValidationRequest.checkPreserveCopy (aNode, true);
         final XdmNode aCopy = NodeCopier.copyDeep (aNode, true, true);
         NamespaceFixup.finish (aCopy);
         ret.add (aCopy);

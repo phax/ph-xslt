@@ -29,6 +29,7 @@ import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
+import com.helger.xpath.xdm.schema.EXdmSimpleVariety;
 import com.helger.xpath.xdm.schema.IXdmAttributeDeclaration;
 import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
@@ -130,6 +131,36 @@ public final class NodeTestMatcher
   }
 
   /**
+   * @return <code>true</code> for a pure union type: a union whose members are
+   *         atomic types or pure union types.
+   */
+  private static boolean _isPureUnion (@NonNull final IXdmTypeDefinition aType)
+  {
+    if (aType.getVariety () != EXdmSimpleVariety.UNION)
+      return false;
+    for (final IXdmTypeDefinition aMember : aType.getMemberTypes ())
+      if (aMember.getVariety () != EXdmSimpleVariety.ATOMIC && !_isPureUnion (aMember))
+        return false;
+    return true;
+  }
+
+  /**
+   * derives-from(AT, ET) of XPath 3.1 section 2.5.6.1: derivation by
+   * restriction or extension, or membership in a pure union type
+   * (transitively).
+   */
+  private static boolean _derivesFrom (@NonNull final IXdmTypeDefinition aType, @NonNull final IXdmTypeDefinition aTarget)
+  {
+    if (aType.isDerivedFrom (aTarget))
+      return true;
+    if (_isPureUnion (aTarget))
+      for (final IXdmTypeDefinition aMember : aTarget.getMemberTypes ())
+        if (_derivesFrom (aType, aMember))
+          return true;
+    return false;
+  }
+
+  /**
    * @return <code>true</code> if the type annotation of the node is or derives
    *         from the type definition (of a schema declaration).
    */
@@ -143,7 +174,7 @@ public final class NodeTestMatcher
     {
       final IXdmTypeDefinition aNodeType = aSchemaType.getDefinition ();
       if (aNodeType != null)
-        return aNodeType.isDerivedFrom (aType);
+        return _derivesFrom (aNodeType, aType);
       return aTypeName != null && aSchemaType.isDerivedFrom (aTypeName.namespaceUri (), aTypeName.localName ());
     }
     return aTypeName != null && _isAnnotationOf (aNode, aTypeName, bElement);
@@ -284,10 +315,14 @@ public final class NodeTestMatcher
         // A nilled element only matches a type followed by '?'
         if (aNode.isNilled () && !aTest.nillable ())
           return false;
+        if (aTest.typeDefinition () != null)
+          return _isAnnotationDerivedFrom (aNode, aTest.typeDefinition (), true);
         return _isAnnotationOf (aNode, aTest.typeName (), true);
       case ATTRIBUTE:
         if (eKind != ENodeKind.ATTRIBUTE || !_matchesKindName (aTest, aNode))
           return false;
+        if (aTest.typeDefinition () != null)
+          return _isAnnotationDerivedFrom (aNode, aTest.typeDefinition (), false);
         return aTest.typeName () == null || _isAnnotationOf (aNode, aTest.typeName (), false);
       case DOCUMENT:
         if (eKind != ENodeKind.DOCUMENT)

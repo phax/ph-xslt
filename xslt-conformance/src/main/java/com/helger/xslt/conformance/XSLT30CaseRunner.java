@@ -33,6 +33,7 @@ import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.CommonsTreeMap;
@@ -50,6 +51,7 @@ import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltExecutable;
 import com.helger.xslt.XsltTransformRequest;
@@ -326,9 +328,10 @@ public final class XSLT30CaseRunner
   @NonNull
   private QT3Outcome _check (@NonNull final XSLT30TestSet aSet,
                              @NonNull final XSLT30TestCase aCase,
-                             @NonNull final XSLT30Actual aActual)
+                             @NonNull final XSLT30Actual aActual,
+                             @Nullable final IXdmSchemaSet aSchemaSet)
   {
-    return new XSLT30AssertionChecker (aSet.dir (), m_aNow, m_bStrictErrorCodes).check (aCase.result (), aActual);
+    return new XSLT30AssertionChecker (aSet.dir (), m_aNow, m_bStrictErrorCodes, aSchemaSet).check (aCase.result (), aActual);
   }
 
   private static void _addPackage (@NonNull final ICommonsList <XsltCompileOptions.PackageSource> aPackages,
@@ -351,7 +354,8 @@ public final class XSLT30CaseRunner
                                    @Nullable final XSLT30Environment aEnv,
                                    @NonNull final Path aStylesheet,
                                    final boolean bEmbedded,
-                                   @NonNull final XSLT30DocumentCache aDocs)
+                                   @NonNull final XSLT30DocumentCache aDocs,
+                                   @NonNull final Wrapper <IXdmSchemaSet> aSchemaSetOut)
   {
     final Path aDir = aSet.dir ().toAbsolutePath ().normalize ();
     final XSLT30Invocation aTest = aCase.test ();
@@ -525,6 +529,9 @@ public final class XSLT30CaseRunner
         }
       }
 
+    // Assertions may name schema components of the stylesheet
+    aSchemaSetOut.set (aExecutable.getSchemaSet ());
+
     final XsltTransformRequest aRequest = new XsltTransformRequest ();
     aRequest.setResolver (aResolver);
     aRequest.setCurrentDateTime (m_aNow);
@@ -665,9 +672,10 @@ public final class XSLT30CaseRunner
 
     XSLT30Actual aActual;
     String sDetail = "";
+    final Wrapper <IXdmSchemaSet> aSchemaSet = new Wrapper <> ();
     try
     {
-      aActual = _transform (aSet, aCase, aEnv, aStylesheet, bEmbedded, aDocs);
+      aActual = _transform (aSet, aCase, aEnv, aStylesheet, bEmbedded, aDocs, aSchemaSet);
     }
     catch (final XPathException ex)
     {
@@ -685,7 +693,7 @@ public final class XSLT30CaseRunner
 
     try
     {
-      final QT3Outcome aOutcome = _check (aSet, aCase, aActual);
+      final QT3Outcome aOutcome = _check (aSet, aCase, aActual, aSchemaSet.get ());
       if (aOutcome.isFail () && sDetail.isEmpty () && aActual.error () == null)
         sDetail = "got: " + _cut (aActual.output ());
       return new CaseResult (aOutcome, aOutcome.isFail () ? sDetail : "");

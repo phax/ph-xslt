@@ -17,6 +17,7 @@
 package com.helger.xpath.xdm.schema;
 
 import java.util.List;
+import java.util.function.IntFunction;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -142,5 +143,19 @@ public final class XdmSchemaSupport
     if (aTypeInfo == null || PROVIDER == null)
       return null;
     return PROVIDER.getDefinition (aTypeInfo);
+  }
+
+  /**
+   * @param aValidatorHandler
+   *        A validator handler.
+   * @return For the validator of {@link IXdmSchemaSet#getJaxpSchema()}: a
+   *         function from the attribute index of the current start tag to the
+   *         declared type of the attribute (for a union type the union, not
+   *         the member that matched); otherwise <code>null</code>.
+   */
+  @Nullable
+  public static IntFunction <TypeInfo> getAttributeTypeDefinitionAccess (@NonNull final Object aValidatorHandler)
+  {
+    return PROVIDER == null ? null : PROVIDER.getAttributeTypeDefinitionAccess (aValidatorHandler);
   }
 }

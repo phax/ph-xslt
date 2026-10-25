@@ -552,6 +552,11 @@ final class XPathParserImpl
         }
       }
     }
+    final IXdmSchemaSet aSchemaSet = m_aCtx.getSchemaSet ();
+    final IXdmTypeDefinition aTypeDef = aTypeName != null &&
+                                        aSchemaSet != null &&
+                                        !XdmConstants.NS_XS.equals (aTypeName.namespaceUri ()) ? aSchemaSet.getTypeDefinition (aTypeName)
+                                                                                               : null;
     return new NodeTest (bElement ? ENodeTestKind.ELEMENT : ENodeTestKind.ATTRIBUTE,
                          bAnyName,
                          false,
@@ -559,7 +564,10 @@ final class XPathParserImpl
                          aName,
                          aTypeName,
                          bNillable,
-                         null);
+                         null,
+                         null,
+                         null,
+                         aTypeDef);
   }
 
   /** Parse a KindTest; the current token is the kind keyword, the next one '('. */
@@ -642,7 +650,8 @@ final class XPathParserImpl
                             false,
                             null,
                             aElementDecl,
-                            aAttrDecl);
+                            aAttrDecl,
+                            null);
         break;
       }
       case "document-node":
@@ -1068,6 +1077,23 @@ final class XPathParserImpl
     if (aArity.bitLength () > 31)
       throw _error ("FOAR0002", "Function arity " + aArityTok.text () + " is out of range", aArityTok);
     final XdmQName aName = _resolveFunctionName (aNameTok);
+    if (aArity.intValue () == 1 && m_aCtx.getSchemaSet () != null && m_aCtx.getFunctionLibrary ().getFunction (aName, 1) == null)
+    {
+      // The constructor function of a user-defined simple type
+      final IXdmTypeDefinition aUserType = _getUserSimpleType (aName);
+      if (aUserType != null)
+      {
+        final XdmQName aParam = new XdmQName ("http://www.w3.org/2005/xqt-errors/ph-xslt/constructor", "arg");
+        final SeqType aResult = new SeqType (false, _schemaAtomicItemType (aUserType), EOccurrence.ZERO_OR_ONE, false);
+        return new IExpr.InlineFunctionExpr (new CommonsArrayList <> (new IExpr.Param (aParam,
+                                                                                       new SeqType (false,
+                                                                                                    ItemType.atomic (EAtomicType.ANY_ATOMIC_TYPE),
+                                                                                                    EOccurrence.ZERO_OR_ONE,
+                                                                                                    false))),
+                                             aUserType.getVariety () == EXdmSimpleVariety.LIST ? null : aResult,
+                                             new IExpr.CastExpr (new IExpr.VarRefExpr (aParam), aResult, false));
+      }
+    }
     _checkFunction (aName, aArity.intValue (), aNameTok);
     return new IExpr.NamedFunctionRefExpr (aName, aArity.intValue ());
   }

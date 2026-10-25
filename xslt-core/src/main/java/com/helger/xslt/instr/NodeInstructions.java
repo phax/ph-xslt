@@ -389,6 +389,8 @@ public final class NodeInstructions
           final XdmNode aCopy = NodeCopier.copyShallow (aNode);
           if (aValidation != null && !aValidation.isStrip ())
           {
+            if (aValidation.isPreserve ())
+              ValidationRequest.checkPreserveCopy (aNode, bCopyNamespaces);
             if (aNode.isAttribute ())
               NodeCopier.copyAnnotation (aNode, aCopy);
             aValidation.apply (aCopy);
@@ -407,11 +409,15 @@ public final class NodeInstructions
     final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") || XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
     final String sStaticBase = aEl.getStaticBaseUri ();
     final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.COPY_OF);
-    final boolean bKeepAnnotations = aValidation != null && !aValidation.isStrip ();
+    // Schema-aware: copies keep their annotations (and schema ID properties)
+    // until the request is applied; strip keeps the ID properties
+    final boolean bKeepAnnotations = aValidation != null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
         if (aItem instanceof final XdmNode aNode)
         {
+          if (bKeepAnnotations && aValidation.isPreserve ())
+            ValidationRequest.checkPreserveCopy (aNode, bCopyNamespaces);
           final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces, bKeepAnnotations);
           if (aCopy.isElement () && aCopy.getBaseUri () == null)
             aCopy.setBaseUri (sStaticBase);

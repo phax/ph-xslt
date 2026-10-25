@@ -22,6 +22,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmAttributeDeclaration;
 import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * A node test of a step and the node-kind part of an ItemType. Names are
@@ -55,6 +56,10 @@ import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
  * @param attributeDeclaration
  *        The declaration named by schema-attribute(N), else
  *        <code>null</code>.
+ * @param typeDefinition
+ *        The user-defined type named by element(N, T) / attribute(N, T),
+ *        resolved at parse time against the in-scope schema definitions, else
+ *        <code>null</code>.
  * @author Philip Helger
  */
 public record NodeTest (@NonNull ENodeTestKind kind,
@@ -66,7 +71,8 @@ public record NodeTest (@NonNull ENodeTestKind kind,
                         boolean nillable,
                         @Nullable NodeTest inner,
                         @Nullable IXdmElementDeclaration elementDeclaration,
-                        @Nullable IXdmAttributeDeclaration attributeDeclaration)
+                        @Nullable IXdmAttributeDeclaration attributeDeclaration,
+                        @Nullable IXdmTypeDefinition typeDefinition)
 {
   /**
    * A node test without schema declarations.
@@ -97,7 +103,7 @@ public record NodeTest (@NonNull ENodeTestKind kind,
                    final boolean nillable,
                    @Nullable final NodeTest inner)
   {
-    this (kind, anyName, anyNamespace, anyLocalName, name, typeName, nillable, inner, null, null);
+    this (kind, anyName, anyNamespace, anyLocalName, name, typeName, nillable, inner, null, null, null);
   }
 
   public static final NodeTest ANY_NODE = new NodeTest (ENodeTestKind.ANY_NODE,

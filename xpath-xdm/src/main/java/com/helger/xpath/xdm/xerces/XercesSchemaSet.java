@@ -17,6 +17,7 @@
 package com.helger.xpath.xdm.xerces;
 
 import java.util.ArrayDeque;
+import java.util.Map;
 
 import javax.xml.namespace.QName;
 import javax.xml.validation.Schema;
@@ -35,6 +36,7 @@ import org.xml.sax.SAXParseException;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
@@ -136,6 +138,34 @@ final class XercesSchemaSet implements IXdmSchemaSet
   }
 
   /**
+   * A default attribute in a namespace needs a prefix bound to it on the
+   * element: an existing one, or a new declaration (namespace fixup as in XSD
+   * 1.1 section 3.4.5.1).
+   */
+  @NonNull
+  private static XdmQName _fixupAttributeName (@NonNull final XdmNode aElement, @NonNull final XdmQName aName)
+  {
+    final String sUri = aName.namespaceUri ();
+    if (sUri.isEmpty ())
+      return aName;
+    final ICommonsOrderedMap <String, String> aInScope = aElement.getInScopeNamespaces ();
+    for (final Map.Entry <String, String> aEntry : aInScope.entrySet ())
+      if (!aEntry.getKey ().isEmpty () && sUri.equals (aEntry.getValue ()))
+        return new XdmQName (sUri, aName.localName (), aEntry.getKey ());
+    String sPrefix = aName.prefix ();
+    if (sPrefix == null || sPrefix.isEmpty () || aInScope.containsKey (sPrefix))
+    {
+      int n = 0;
+      do
+      {
+        sPrefix = "ns" + n++;
+      } while (aInScope.containsKey (sPrefix));
+    }
+    aElement.declareNamespace (sPrefix, sUri);
+    return new XdmQName (sUri, aName.localName (), sPrefix);
+  }
+
+  /**
    * Copy the outcome of the validation from the validated copy to the
    * original element. The copy has the same elements in the same order; it
    * may lack whitespace text nodes of element-only content and may have
@@ -165,7 +195,7 @@ final class XercesSchemaSet implements IXdmSchemaSet
         if (aOrigAttr == null)
         {
           // A default attribute added by the schema
-          aOrigAttr = XdmNode.createAttribute (aName, aCopyAttr.getValue ());
+          aOrigAttr = XdmNode.createAttribute (_fixupAttributeName (aOrig, aName), aCopyAttr.getValue ());
           aOrig.addAttribute (aOrigAttr);
           bChanged = true;
         }
@@ -213,6 +243,7 @@ final class XercesSchemaSet implements IXdmSchemaSet
       }
       final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
       aBuilder.setTypeInfoProvider (aValidator.getTypeInfoProvider ());
+      aBuilder.setValidator (aValidator);
       aValidator.setContentHandler (aBuilder);
       XdmSaxEmitter.emitElement (aElement, aValidator, aBuilder);
       XdmNode aTyped = null;

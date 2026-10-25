@@ -114,6 +114,16 @@ public interface IXdmTypeDefinition
   boolean isDerivedFrom (@NonNull IXdmTypeDefinition aBase);
 
   /**
+   * The derivation check by name: is this type the named type, or derived
+   * from it by restriction or extension?
+   *
+   * @param aBase
+   *        The name of the candidate base type.
+   * @return <code>true</code> if derived.
+   */
+  boolean isDerivedFrom (@NonNull XdmQName aBase);
+
+  /**
    * @return <code>true</code> if the type is <code>xs:QName</code> or
    *         <code>xs:NOTATION</code> or derived from one of them, or a list or
    *         union with such an item or member type.

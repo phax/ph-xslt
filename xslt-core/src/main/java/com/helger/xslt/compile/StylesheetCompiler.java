@@ -42,6 +42,7 @@ import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.pattern.CompiledXsltPattern;
 import com.helger.xpath.pattern.XsltPattern;
+import com.helger.xpath.pattern.XsltPatternParser;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmConstants;
@@ -656,6 +657,15 @@ public final class StylesheetCompiler
                                                  aParams,
                                                  aAs,
                                                  sVisibility == null ? null : sVisibility.trim ());
+    // A constructor function of an imported simple type has the same name
+    if (aParams.size () == 1 &&
+        m_aStylesheet.isSchemaAware () &&
+        !XdmConstants.NS_XS.equals (aName.namespaceUri ()) &&
+        m_aStylesheet.getSchemaSet ().getTypeDefinition (aName) != null &&
+        !m_aStylesheet.getSchemaSet ().getTypeDefinition (aName).isComplex ())
+      throw XsltException.at (aEl,
+                              "XTSE0770",
+                              "The function " + aName.getEQName () + "#1 clashes with the constructor function of a schema type");
     final String sKey = aName.getEQName () + "#" + aParams.size ();
     final FunctionEntry aPrev = m_aFunctionsByKey.get (sKey);
     if (aPrev != null && aPrev.precedence () == aEl.getPrecedence ())
@@ -783,6 +793,33 @@ public final class StylesheetCompiler
         }
     for (final XdmQName aMode : aModes)
       m_aStylesheet.getOrCreateMode (aMode);
+    if (aPattern != null && m_aStylesheet.isSchemaAware ())
+    {
+      // Schema-aware: in a mode with typed="strict" or "lax", an element name
+      // in the first step of the pattern names an element declaration
+      Boolean aStrict = null;
+      for (final XdmQName aMode : aModes)
+      {
+        final String sTyped = m_aStylesheet.getMode (aMode).getTyped ();
+        if ("strict".equals (sTyped))
+          aStrict = Boolean.TRUE;
+        else
+          if ("lax".equals (sTyped) && aStrict == null)
+            aStrict = Boolean.FALSE;
+      }
+      if (aStrict != null)
+        try
+        {
+          aPattern = new CompiledPattern (XsltPatternParser.rewriteForTypedMode (aPattern.pattern (),
+                                                                                 m_aStylesheet.getSchemaSet (),
+                                                                                 aStrict.booleanValue ()),
+                                          aPattern.staticContext ());
+        }
+        catch (final XPathException ex)
+        {
+          throw XsltException.at (aEl, ex.getCode (), ex.getMessage ());
+        }
+    }
     Double aPriority = null;
     final String sPriority = aEl.getAttr ("priority");
     if (sPriority != null)

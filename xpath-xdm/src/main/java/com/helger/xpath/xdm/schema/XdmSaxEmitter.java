@@ -22,6 +22,7 @@ import java.util.Map;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.xml.sax.ContentHandler;
+import org.xml.sax.DTDHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.ext.LexicalHandler;
 import org.xml.sax.helpers.AttributesImpl;
@@ -99,6 +100,19 @@ public final class XdmSaxEmitter
     if (!aElement.isElement ())
       throw new IllegalArgumentException ("Not an element: " + aElement);
     aHandler.startDocument ();
+    // The unparsed entities of the document, for values of type xs:ENTITY
+    final XdmNode aRoot = aElement.getRoot ();
+    if (aHandler instanceof final DTDHandler aDTDHandler && aRoot.isDocument ())
+      for (final String sName : aRoot.getAllUnparsedEntityNames ())
+      {
+        final String [] aIDs = aRoot.getUnparsedEntity (sName);
+        aDTDHandler.unparsedEntityDecl (sName, aIDs[1], aIDs[0], "");
+      }
+    // Leniently, an xs:ENTITY value may also name a parsed entity of the DTD
+    // (as go-xslt does)
+    if (aHandler instanceof final DTDHandler aDTDHandler && aRoot.isDocument ())
+      for (final String sName : aRoot.getAllParsedEntityNames ())
+        aDTDHandler.unparsedEntityDecl (sName, null, sName, "");
     // Stack entries: a node to open, or (with bClose) an element to close
     record Entry (@NonNull XdmNode node, boolean close, @Nullable Map <String, String> namespaces)
     {}

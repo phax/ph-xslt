@@ -82,6 +82,8 @@ public final class XdmNode implements IXdmItem
   private boolean m_bDisableOutputEscaping;
   // Unparsed entities of a document node: name to {system ID, public ID}
   private ICommonsOrderedMap <String, String []> m_aUnparsedEntities;
+  // Names of the parsed general entities declared in the DTD of a document
+  private ICommonsList <String> m_aParsedEntityNames;
 
   private XdmNode (@NonNull final ENodeKind eKind, @Nullable final XdmQName aName, @Nullable final String sValue)
   {
@@ -408,6 +410,30 @@ public final class XdmNode implements IXdmItem
       return null;
     final String [] ret = m_aUnparsedEntities.get (sName);
     return ret == null ? null : ret.clone ();
+  }
+
+  /**
+   * Record a parsed general entity declared in the DTD of a document.
+   *
+   * @param sName
+   *        Entity name.
+   */
+  public void addParsedEntityName (@NonNull final String sName)
+  {
+    ValueEnforcer.notNull (sName, "Name");
+    if (m_eKind != ENodeKind.DOCUMENT)
+      throw new IllegalStateException ("Only a document node has entities");
+    if (m_aParsedEntityNames == null)
+      m_aParsedEntityNames = new CommonsArrayList <> ();
+    m_aParsedEntityNames.add (sName);
+  }
+
+  /** @return The names of the parsed general entities of this document node. */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <String> getAllParsedEntityNames ()
+  {
+    return m_aParsedEntityNames == null ? new CommonsArrayList <> () : m_aParsedEntityNames.getClone ();
   }
 
   /** @return The names of the unparsed entities of this document node. */

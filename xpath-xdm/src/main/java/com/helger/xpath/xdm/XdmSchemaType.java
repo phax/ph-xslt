@@ -132,8 +132,17 @@ public final class XdmSchemaType
                                          @NonNull final String sLocalName,
                                          final int nMethods)
   {
-    if (sNamespace.equals (aTypeInfo.getTypeNamespace ()) && sLocalName.equals (aTypeInfo.getTypeName ()))
+    final String sTypeNamespace = aTypeInfo.getTypeNamespace ();
+    if (sNamespace.equals (sTypeNamespace == null ? "" : sTypeNamespace) && sLocalName.equals (aTypeInfo.getTypeName ()))
       return true;
+    if (nMethods == DERIVATION_RESTRICTION_EXTENSION)
+    {
+      // With the schema component model (Apache Xerces-J); its DOM TypeInfo
+      // view is not reliable for types in no namespace
+      final IXdmTypeDefinition aDefinition = XdmSchemaSupport.getDefinition (aTypeInfo);
+      if (aDefinition != null)
+        return aDefinition.isDerivedFrom (new XdmQName (sNamespace, sLocalName));
+    }
     return aTypeInfo.isDerivedFrom (sNamespace, sLocalName, nMethods);
   }
 

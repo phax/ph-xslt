@@ -18,6 +18,7 @@ package com.helger.xpath.xdm.xerces;
 
 import java.io.StringReader;
 import java.util.List;
+import java.util.function.IntFunction;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
@@ -29,6 +30,8 @@ import org.apache.xerces.jaxp.validation.XMLSchemaFactory;
 import org.apache.xerces.jaxp.validation.XSGrammarPoolContainer;
 import org.apache.xerces.xni.grammars.Grammar;
 import org.apache.xerces.xni.grammars.XMLGrammarDescription;
+import org.apache.xerces.xs.AttributePSVI;
+import org.apache.xerces.xs.PSVIProvider;
 import org.apache.xerces.xs.XSTypeDefinition;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -137,5 +140,16 @@ public final class XercesSchemaProvider implements IXdmSchemaProvider
   public IXdmTypeDefinition getDefinition (@NonNull final TypeInfo aTypeInfo)
   {
     return aTypeInfo instanceof final XSTypeDefinition aType ? new XercesTypeDefinition (aType) : null;
+  }
+
+  @Nullable
+  public IntFunction <TypeInfo> getAttributeTypeDefinitionAccess (@NonNull final Object aValidatorHandler)
+  {
+    if (!(aValidatorHandler instanceof final PSVIProvider aPSVI))
+      return null;
+    return nIndex -> {
+      final AttributePSVI aAttr = aPSVI.getAttributePSVI (nIndex);
+      return aAttr != null && aAttr.getTypeDefinition () instanceof final TypeInfo aTypeInfo ? aTypeInfo : null;
+    };
   }
 }

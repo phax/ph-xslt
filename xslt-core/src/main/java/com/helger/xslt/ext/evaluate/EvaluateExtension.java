@@ -164,11 +164,13 @@ public final class EvaluateExtension implements IXsltExtension
     aCtx.getStylesheet ().putExtensionData (KEY_LIBRARY, Boolean.TRUE);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final String sExpr = aXPath.evaluateString (aRtCtx, " ");
+      boolean bSchemaAware = false;
       if (aSchemaAware != null)
       {
         final String s = aSchemaAware.evaluate (aRtCtx);
         if (!XsltNames.isXsltBooleanLexical (s))
           throw new XPathException ("XTDE0030", "schema-aware='" + s + "' is not yes or no");
+        bSchemaAware = XsltNames.isXsltTrue (s);
       }
       // The variables of the target expression; with-params wins
       final ICommonsOrderedMap <XdmQName, XdmSequence> aVars = new CommonsLinkedHashMap <> ();
@@ -205,6 +207,10 @@ public final class EvaluateExtension implements IXsltExtension
       }
       // Compile the target expression
       final StaticContext aSC = _createStaticContext (aRtCtx, aEl, aNamespaceNode, sBaseUri, aVars.keySet ());
+      // schema-aware="yes": the schema components of the stylesheet are in
+      // scope (XSLT 3.0 section 10.4.1)
+      if (bSchemaAware)
+        aSC.setSchemaSet (aRtCtx.getEngine ().getStylesheet ().getSchemaSet ());
       final IExpr aExpr;
       try
       {

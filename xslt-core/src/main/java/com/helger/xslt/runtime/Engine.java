@@ -703,7 +703,8 @@ public final class Engine
           _applyToChildren (aNode, true, aMode, aCtx, aParams, aOut);
         break;
       case DEEP_COPY:
-        aOut.appendNew (NodeCopier.copyDeep (aNode, true));
+        // As xsl:copy-of with validation="preserve": annotations are kept
+        aOut.appendNew (NodeCopier.copyDeep (aNode, true, true));
         break;
       case SHALLOW_COPY:
         if (eKind == ENodeKind.ELEMENT)

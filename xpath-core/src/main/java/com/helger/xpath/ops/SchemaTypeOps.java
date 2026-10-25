@@ -83,10 +83,19 @@ public final class SchemaTypeOps
       EAtomicType eType = EAtomicType.getFromLocalName (aToken.builtinType ().localName ());
       if (eType == null)
         eType = EAtomicType.UNTYPED_ATOMIC;
-      final XdmAtomic aValue = eType == EAtomicType.UNTYPED_ATOMIC ? XdmAtomic.untyped (aToken.lexical ())
-                                                                    : AtomicCaster.castFromString (aToken.lexical (),
-                                                                                                   eType,
-                                                                                                   aSC);
+      final XdmAtomic aValue;
+      if (eType == EAtomicType.UNTYPED_ATOMIC)
+        aValue = XdmAtomic.untyped (aToken.lexical ());
+      else
+        if (eType == EAtomicType.NOTATION)
+        {
+          // xs:NOTATION is abstract, but a value of a type derived from it
+          // has the same value space as xs:QName
+          aValue = XdmAtomic.of (EAtomicType.NOTATION,
+                                 AtomicCaster.castFromString (aToken.lexical (), EAtomicType.QNAME, aSC).getValue ());
+        }
+        else
+          aValue = AtomicCaster.castFromString (aToken.lexical (), eType, aSC);
       aBuilder.add (isBuiltin (aToken.type ()) ? aValue : aValue.withSchemaType (aToken.type ()));
     }
     return aBuilder.build ();
@@ -120,7 +129,8 @@ public final class SchemaTypeOps
       if (eBuiltin == null)
         throw XPathException.type ("Cannot cast to " + _describe (aType));
       if ((eBuiltin.isDerivedFrom (EAtomicType.QNAME) || eBuiltin.isDerivedFrom (EAtomicType.NOTATION)) &&
-          !aValue.isStringLike () &&
+          !aValue.getType ().isStringFamily () &&
+          aValue.getType () != EAtomicType.UNTYPED_ATOMIC &&
           aValue.getType () != EAtomicType.QNAME &&
           aValue.getType () != EAtomicType.NOTATION)
         throw XPathException.type ("Cannot cast " + aValue.getType ().getQualifiedName () + " to " + _describe (aType));
@@ -135,6 +145,29 @@ public final class SchemaTypeOps
     }
     else
     {
+      if (aType.getVariety () == EXdmSimpleVariety.UNION && !aValue.isStringLike ())
+      {
+        // A value that is not a string is cast to the member types in turn
+        // (F&O 3.1 section 19.3.5)
+        XPathException aLast = null;
+        for (final IXdmTypeDefinition aMember : aType.getMemberTypes ())
+          try
+          {
+            if (isBuiltin (aMember))
+            {
+              final EAtomicType eMember = EAtomicType.getFromLocalName (aMember.getName ().localName ());
+              if (eMember != null)
+                return XdmSequence.of (AtomicCaster.cast (aValue, eMember, aSC));
+            }
+            else
+              return cast (aValue, aMember, aSC);
+          }
+          catch (final XPathException ex)
+          {
+            aLast = ex;
+          }
+        throw aLast != null ? aLast : XPathException.type ("Cannot cast to " + _describe (aType));
+      }
       if (aType.getVariety () == EXdmSimpleVariety.LIST && !aValue.isStringLike ())
         throw XPathException.type ("Cannot cast " + aValue.getType ().getQualifiedName () + " to the list type " + _describe (aType));
       sLexical = aValue.getLexical ();

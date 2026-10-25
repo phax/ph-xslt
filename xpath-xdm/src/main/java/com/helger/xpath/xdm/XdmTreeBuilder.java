@@ -17,6 +17,7 @@
 package com.helger.xpath.xdm;
 
 import java.util.ArrayDeque;
+import java.util.function.IntFunction;
 
 import javax.xml.validation.TypeInfoProvider;
 
@@ -35,6 +36,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.xdm.schema.EXdmContentType;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
+import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 
 /**
  * SAX2 handler that builds an {@link XdmNode} tree. Adjacent character events
@@ -74,6 +76,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   private TypeInfoProvider m_aTypeInfoProvider;
+  private IntFunction <TypeInfo> m_aAttributeTypeDefinitions;
   private final ICommonsMap <TypeKey, XdmSchemaType> m_aSchemaTypes = new CommonsHashMap <> ();
   // The type reported at the start of each open element; may contain null
   private final ICommonsList <TypeInfo> m_aStartTypes = new CommonsArrayList <> ();
@@ -252,6 +255,21 @@ public final class XdmTreeBuilder extends DefaultHandler2
   public XdmTreeBuilder setTypeInfoProvider (@Nullable final TypeInfoProvider aTypeInfoProvider)
   {
     m_aTypeInfoProvider = aTypeInfoProvider;
+    m_aAttributeTypeDefinitions = null;
+    return this;
+  }
+
+  /**
+   * @param aValidatorHandler
+   *        The validator whose type info provider was set. With Apache
+   *        Xerces-J, attributes of a union type are then annotated with the
+   *        union rather than the member type.
+   * @return this for chaining
+   */
+  @NonNull
+  public XdmTreeBuilder setValidator (@NonNull final Object aValidatorHandler)
+  {
+    m_aAttributeTypeDefinitions = XdmSchemaSupport.getAttributeTypeDefinitionAccess (aValidatorHandler);
     return this;
   }
 
@@ -328,7 +346,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
         final TypeInfo aTypeInfo = m_aTypeInfoProvider.getAttributeTypeInfo (i);
         if (aTypeInfo != null)
         {
-          aAttrType = _getSchemaType (aTypeInfo, aTypeInfo);
+          // The validator reports the member type of a union; the annotation
+          // is the declared type
+          final TypeInfo aDeclared = m_aAttributeTypeDefinitions != null ? m_aAttributeTypeDefinitions.apply (i) : null;
+          aAttrType = _getSchemaType (aDeclared != null ? aDeclared : aTypeInfo, aTypeInfo);
           final EIDKind eSchemaIDKind = m_aTypeInfoProvider.isIdAttribute (i) ? EIDKind.ID
                                                                               : _getSchemaIDKind (aAttrType, sValue);
           if (eSchemaIDKind != EIDKind.NONE)
@@ -401,6 +422,20 @@ public final class XdmTreeBuilder extends DefaultHandler2
   {
     if (m_aDocument != null && sName != null && sSystemId != null)
       m_aDocument.addUnparsedEntity (sName, sSystemId, sPublicId);
+  }
+
+  @Override
+  public void internalEntityDecl (final String sName, final String sValue)
+  {
+    if (m_aDocument != null && sName != null && !sName.startsWith ("%"))
+      m_aDocument.addParsedEntityName (sName);
+  }
+
+  @Override
+  public void externalEntityDecl (final String sName, final String sPublicId, final String sSystemId)
+  {
+    if (m_aDocument != null && sName != null && !sName.startsWith ("%"))
+      m_aDocument.addParsedEntityName (sName);
   }
 
   @Override
