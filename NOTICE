@@ -21,3 +21,9 @@ Third-party components
 Runtime dependencies are resolved by Maven. The W3C conformance test suites
 (qt3tests, xslt30-test, xsdtests) are used for testing only, are cloned
 separately, and are not part of this repository or its artifacts.
+
+The file xpath-core/src/main/resources/com/helger/xpath/regex/unicode-15-categories.txt
+is derived from the Unicode Character Database 15.0 (UnicodeData.txt):
+
+  Copyright (C) 1991-2023 Unicode, Inc.
+  Licensed under the Unicode License v3, https://www.unicode.org/license.txt

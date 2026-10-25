@@ -45,6 +45,14 @@ v0.1.0 - work in progress
 * Added schema-validated input with the JDK validator: `XdmParser.setSchema` annotates the tree (`XdmSchemaType`, nilled, schema IDs), which gives typed values, `fn:nilled`, schema-based `fn:id`/`fn:element-with-id`/`fn:idref` and `element(N, T)`/`attribute(N, T)` tests; invalid documents raise `XdmValidationException`
 * `XdmParser` always uses the JDK parser, also when another JAXP implementation such as Apache Xerces is on the class path
 * Added the module `xslt-core` with the XSLT 3.0 compiler and engine (`XsltCompiler`, `XsltExecutable`): include/import, static processing (use-when, static parameters, shadow attributes), template rules and modes, all basic instructions, stylesheet functions, keys, attribute sets, the XSLT functions, step and depth budgets, and an extension API for instruction families (`xslt-core/INSTRAPI.md`)
+* Added `xsl:number`: `level` single/multiple/any, `count`/`from` patterns, `value`, `select`, `start-at`; format tokens for any Unicode decimal digit family, alphabetic, Roman, Greek and Unicode numbering sequences, and words (English, German, French, Italian) with ordinals and grouping
+* Added `xsl:for-each-group` (group-by, group-adjacent, group-starting-with, group-ending-with, composite keys, collations, sorted groups) with `current-group()` and `current-grouping-key()`
+* Added `xsl:merge` with `current-merge-group()` and `current-merge-key()`, `xsl:iterate` with `xsl:break`, `xsl:next-iteration` and `xsl:on-completion`, and `xsl:fork` (not streamed)
+* Added `xsl:result-document` (all serialization attributes as attribute value templates, `format`, `parameter-document`, `current-output-uri()`, XTDE1480/1490/1500) and `xsl:character-map` with `use-character-maps`
+* Serializer: empty XHTML 5 elements get an end tag, `xmlns=""` is written on prefixed elements, top-level disable-output-escaping text is kept, and the generated Content-Type meta uses the character map
+* Regular-expression category escapes (`\p{..}`, `\d`, `\w`) and the `i` flag are pinned to Unicode 15.0, so results are identical on JDK 21 and 25
+* Regular expressions use the XSD 1.1 character-class grammar unless XSD 1.0 is set explicitly
+* `FunctionLibrary` can register a separate implementation for dynamic function calls (`current-group#0` raises XTDE1061, `regex-group#1` returns a zero-length string)
 * `XdmParser.setLoadExternalEntities(true)` now really reads the external DTD subset and external entities; secure processing had blocked every external access
 
 # Contributing
