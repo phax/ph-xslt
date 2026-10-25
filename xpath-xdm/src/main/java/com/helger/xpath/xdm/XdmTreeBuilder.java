@@ -370,6 +370,13 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   @Override
+  public void unparsedEntityDecl (final String sName, final String sPublicId, final String sSystemId, final String sNotationName)
+  {
+    if (m_aDocument != null && sName != null && sSystemId != null)
+      m_aDocument.addUnparsedEntity (sName, sSystemId, sPublicId);
+  }
+
+  @Override
   public void processingInstruction (final String sTarget, final String sData)
   {
     _flushText ();
