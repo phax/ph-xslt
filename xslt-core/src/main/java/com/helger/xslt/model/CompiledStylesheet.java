@@ -35,6 +35,7 @@ import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltExecutable;
 import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
+import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.runtime.XsltTransformer;
 import com.helger.xslt.tree.XslModule;
 
@@ -70,6 +71,7 @@ public final class CompiledStylesheet implements XsltExecutable
   private boolean m_bPackage;
   private final ICommonsSet <XdmQName> m_aExposedTemplates = new CommonsHashSet <> ();
   private final ICommonsSet <XdmQName> m_aPrivateModes = new CommonsHashSet <> ();
+  private PackageModel m_aPackages;
 
   public CompiledStylesheet (@NonNull final FunctionLibrary aFunctions, @NonNull final XslModule aPrincipalModule)
   {
@@ -108,6 +110,24 @@ public final class CompiledStylesheet implements XsltExecutable
    * @return The names of the named templates an xsl:expose makes public
    *         (<code>null</code> stands for all).
    */
+  /** @return The packages of the stylesheet, <code>null</code> before compilation finished. */
+  @Nullable
+  public PackageModel getPackages ()
+  {
+    return m_aPackages;
+  }
+
+  public void setPackages (@Nullable final PackageModel aPackages)
+  {
+    m_aPackages = aPackages;
+  }
+
+  /** @return <code>true</code> if more than one package takes part. */
+  public boolean isMultiPackage ()
+  {
+    return m_aPackages != null && m_aPackages.isMultiPackage ();
+  }
+
   @NonNull
   public ICommonsSet <XdmQName> exposedTemplates ()
   {

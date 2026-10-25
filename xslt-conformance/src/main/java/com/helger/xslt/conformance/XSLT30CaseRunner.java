@@ -299,6 +299,20 @@ public final class XSLT30CaseRunner
     return new XSLT30AssertionChecker (aSet.dir (), m_aNow, m_bStrictErrorCodes).check (aCase.result (), aActual);
   }
 
+  private static void _addPackage (@NonNull final ICommonsList <XsltCompileOptions.PackageSource> aPackages,
+                                   @NonNull final Path aPath,
+                                   final XSLT30Environment.@NonNull Module aModule)
+  {
+    final String sUri = XSLT30ResourceResolver.getFileUri (aPath);
+    if (!aModule.uri ().isEmpty ())
+      aPackages.add (new XsltCompileOptions.PackageSource (null,
+                                                           null,
+                                                           sUri,
+                                                           aModule.uri ().strip (),
+                                                           aModule.packageVersion ().isBlank () ? null : aModule.packageVersion ().strip ()));
+    aPackages.add (new XsltCompileOptions.PackageSource (null, null, sUri));
+  }
+
   @NonNull
   private XSLT30Actual _transform (@NonNull final XSLT30TestSet aSet,
                                    @NonNull final XSLT30TestCase aCase,
@@ -322,13 +336,30 @@ public final class XSLT30CaseRunner
     for (final XSLT30Param aParam : aAllParams)
       (aParam.isStatic () ? aStaticParams : aParams).put (_requireName (aParam), aParam);
 
+    // Library packages for xsl:use-package: those of the environment and the
+    // secondary <package> elements of the test. The catalogue's uri and
+    // package-version are only a hint, so each file is also registered with
+    // the identity its own xsl:package declares.
+    final ICommonsList <XsltCompileOptions.PackageSource> aPackages = new CommonsArrayList <> ();
+    if (aEnv != null)
+      for (final XSLT30Environment.Module aModule : aEnv.packages ())
+        if (!aModule.file ().isEmpty ())
+          _addPackage (aPackages, XSLT30ResourceResolver.getAbsolutePath (aEnv.baseDir (), aModule.file ()), aModule);
+    for (final XSLT30Environment.Module aModule : aTest.packages ())
+      if (aModule.isSecondary () && !aModule.file ().isEmpty ())
+        _addPackage (aPackages, XSLT30ResourceResolver.getAbsolutePath (aDir, aModule.file ()), aModule);
+    final StringBuilder aPackageKey = new StringBuilder ();
+    for (final XsltCompileOptions.PackageSource aPackage : aPackages)
+      aPackageKey.append ('\u0001').append (aPackage.name ()).append ('@').append (aPackage.version ()).append ('=').append (aPackage.baseUri ());
+
     // Compile
     final ICommonsSortedMap <String, String> aStaticKey = new CommonsTreeMap <> ();
     for (final XSLT30Param aParam : aStaticParams.values ())
       aStaticKey.put (aParam.name ().toString (), aParam.as () + "\u0001" + aParam.select ());
-    final String sKey = aStylesheet.toString () + (bEmbedded ? "\u0003embedded" : "") + "\u0000" + aStaticKey;
+    final String sKey = aStylesheet.toString () + (bEmbedded ? "\u0003embedded" : "") + "\u0000" + aStaticKey + aPackageKey;
     final XsltExecutable aExecutable = m_aCache.getOrCompile (sKey, () -> {
       final XsltCompileOptions aOptions = new XsltCompileOptions ().setLoadExternalEntities (true);
+      aOptions.packages ().addAll (aPackages);
       for (final XSLT30Param aParam : aStaticParams.values ())
         aOptions.setStaticParam (aParam.name (), _evaluateParam (aParam, null, aResolver, sBaseUri));
       if (bEmbedded)

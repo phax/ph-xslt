@@ -51,6 +51,9 @@ import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.fn.XsltFunctions;
+import com.helger.xslt.pkg.PackageModel;
+import com.helger.xslt.pkg.PackageRegistry;
+import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 import com.helger.xslt.tree.XslText;
@@ -81,6 +84,11 @@ public final class StylesheetLoader
   // the stack holds the groups of the modules being loaded (import ancestors)
   private final ICommonsList <Object> m_aGroupStack = new CommonsArrayList <> ();
   private final ICommonsMap <XdmQName, Object> m_aStaticGroups = new CommonsHashMap <> ();
+  private final PackageModel m_aPackages = new PackageModel ();
+  private final ICommonsMap <XslElement, XslModule> m_aUsedPackages = new CommonsHashMap <> ();
+  // The packages being loaded, innermost last
+  private final ICommonsList <PackageUnit> m_aPackageStack = new CommonsArrayList <> ();
+  private PackageRegistry m_aRegistry;
 
   public StylesheetLoader (@NonNull final XsltCompileOptions aOptions)
   {
@@ -94,6 +102,13 @@ public final class StylesheetLoader
   public ICommonsOrderedMap <XdmQName, XdmSequence> getStaticValues ()
   {
     return m_aStaticValues;
+  }
+
+  /** @return The packages taking part, the principal one first. */
+  @NonNull
+  public PackageModel getPackages ()
+  {
+    return m_aPackages;
   }
 
   /** @return All loaded modules (a module imported twice appears twice). */
@@ -389,6 +404,32 @@ public final class StylesheetLoader
     }
   }
 
+  @NonNull
+  private XslModule _loadUsedPackage (@NonNull final XslElement aUseEl)
+  {
+    if (m_aRegistry == null)
+      m_aRegistry = new PackageRegistry (m_aOptions);
+    final PackageRegistry.ResolvedPackage aResolved = m_aRegistry.resolve (aUseEl);
+    for (final PackageUnit aActive : m_aPackageStack)
+      if (aActive.getKey ().equals (aResolved.key ()))
+        throw XsltException.at (aUseEl, "XTSE3005", "The package '" + aResolved.name () + "' is used recursively");
+    final PackageUnit aUsing = m_aPackageStack.getLast ();
+    final PackageUnit aUnit = m_aPackages.createUnit (aResolved.key (), false);
+    m_aPackageStack.add (aUnit);
+    m_aGroupStack.add (new Object ());
+    try
+    {
+      final XslModule ret = loadModule (aResolved.root (), aResolved.baseUri (), false);
+      aUsing.uses ().add (new PackageUnit.Use (aUseEl, aUnit));
+      return ret;
+    }
+    finally
+    {
+      m_aPackageStack.removeLast ();
+      m_aGroupStack.removeLast ();
+    }
+  }
+
   /**
    * Build the processed element for a source element; <code>null</code> if
    * use-when excludes it.
@@ -422,6 +463,9 @@ public final class StylesheetLoader
       else
         if (aEl.isXsl ("include") || aEl.isXsl ("import"))
           m_aLoadedModules.put (aEl, _loadReferencedModule (aEl));
+        else
+          if (aEl.isXsl ("use-package"))
+            m_aUsedPackages.put (aEl, _loadUsedPackage (aEl));
     }
     _buildChildren (aModule, aSrc, aEl);
     return aEl;
@@ -479,7 +523,11 @@ public final class StylesheetLoader
     final XslModule aModule = new XslModule (sUri, aRootSrc.getRoot ());
     m_aAllModules.add (aModule);
     if (bPrincipal)
+    {
       m_aGroupStack.add (new Object ());
+      m_aPackageStack.add (m_aPackages.createUnit (sUri != null ? sUri : "#principal", true));
+    }
+    m_aPackages.addModule (m_aPackageStack.getLast (), aModule);
     final XdmQName aRootName = aRootSrc.getName ();
     if (!XsltNames.NS_XSL.equals (aRootName.namespaceUri ()))
     {
@@ -514,6 +562,21 @@ public final class StylesheetLoader
     return aModule;
   }
 
+  private boolean _containsUsePackage (@NonNull final XslModule aModule)
+  {
+    if (aModule.getRoot () == null || aModule.isSimplified ())
+      return false;
+    for (final XslElement aChild : aModule.getRoot ().getElementChildren ())
+    {
+      if (aChild.isXsl ("use-package"))
+        return true;
+      final XslModule aSub = m_aLoadedModules.get (aChild);
+      if (aSub != null && aChild.isXsl ("include") && _containsUsePackage (aSub))
+        return true;
+    }
+    return false;
+  }
+
   @NonNull
   private ICommonsList <Level> _gather (@NonNull final XslModule aModule)
   {
@@ -524,6 +587,18 @@ public final class StylesheetLoader
     else
       for (final XslElement aChild : aModule.getRoot ().getElementChildren ())
       {
+        final XslModule aUsed = m_aUsedPackages.get (aChild);
+        if (aUsed != null)
+        {
+          // A used package sits below the using package, like an imported
+          // module; the declarations of xsl:override join the using package
+          final int nBase = ret.size ();
+          for (final Level aLevel : _gather (aUsed))
+            ret.add (new Level (aLevel.declarations (), aLevel.importLo () + nBase));
+          for (final XslElement aOverride : aChild.getXslChildren ("override"))
+            aOwn.addAll (aOverride.getElementChildren ());
+          continue;
+        }
         final XslModule aSub = m_aLoadedModules.get (aChild);
         if (aSub == null)
         {
@@ -536,7 +611,13 @@ public final class StylesheetLoader
         for (final Level aLevel : aSubLevels)
           aRebased.add (new Level (aLevel.declarations (), aLevel.importLo () + nBase));
         if (aChild.isXsl ("import"))
+        {
+          if (_containsUsePackage (aSub))
+            throw XsltException.at (aChild,
+                                    "XTSE3008",
+                                    "The module imported here contains an xsl:use-package; use xsl:include to bring one in");
           ret.addAll (aRebased);
+        }
         else
         {
           ret.addAll (aRebased.subList (0, aRebased.size () - 1));
@@ -562,7 +643,16 @@ public final class StylesheetLoader
     final ICommonsList <Level> ret = _gather (aPrincipal);
     for (int i = 0; i < ret.size (); ++i)
       for (final XslElement aDecl : ret.get (i).declarations ())
+      {
         aDecl.setPrecedence (i, ret.get (i).importLo ());
+        if (PackageModel.isOverride (aDecl))
+        {
+          // xsl:override and xsl:use-package take the precedence of the
+          // overriding declarations
+          aDecl.getParent ().setPrecedence (i, ret.get (i).importLo ());
+          aDecl.getParent ().getParent ().setPrecedence (i, ret.get (i).importLo ());
+        }
+      }
     return ret;
   }
 }

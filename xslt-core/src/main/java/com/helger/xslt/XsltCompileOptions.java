@@ -40,19 +40,45 @@ public final class XsltCompileOptions
 {
   /**
    * A library package made available to xsl:use-package (XSLT 3.0 section
-   * 3.5): either its text or its parsed root, with the URI it was read from.
-   * Packages are not implemented yet; the options only carry them.
+   * 3.5): its text, its parsed root or only the URI it is read from. The name
+   * and version are taken from the xsl:package element unless given here.
    *
    * @param text
-   *        The package source text, or <code>null</code> if a node is given.
+   *        The package source text, or <code>null</code>.
    * @param node
    *        The parsed package (document or xsl:package element), or
-   *        <code>null</code> if the text is given.
+   *        <code>null</code>.
    * @param baseUri
-   *        The URI of the package module, or <code>null</code>.
+   *        The URI of the package module, or <code>null</code>. If neither
+   *        text nor node is given, the package is read from it.
+   * @param name
+   *        The package name, or <code>null</code> to use
+   *        xsl:package/@name.
+   * @param version
+   *        The package version, or <code>null</code> to use
+   *        xsl:package/@package-version.
    */
-  public record PackageSource (@Nullable String text, @Nullable XdmNode node, @Nullable String baseUri)
-  {}
+  public record PackageSource (@Nullable String text,
+                               @Nullable XdmNode node,
+                               @Nullable String baseUri,
+                               @Nullable String name,
+                               @Nullable String version)
+  {
+    /**
+     * A package whose name and version are those its xsl:package declares.
+     *
+     * @param text
+     *        The package source text, or <code>null</code>.
+     * @param node
+     *        The parsed package, or <code>null</code>.
+     * @param baseUri
+     *        The URI of the package module, or <code>null</code>.
+     */
+    public PackageSource (@Nullable final String text, @Nullable final XdmNode node, @Nullable final String baseUri)
+    {
+      this (text, node, baseUri, null, null);
+    }
+  }
 
   private String m_sBaseUri;
   private IResourceResolver m_aResolver;

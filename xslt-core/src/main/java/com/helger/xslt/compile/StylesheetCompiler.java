@@ -62,6 +62,10 @@ import com.helger.xslt.model.Template;
 import com.helger.xslt.model.TemplateRule;
 import com.helger.xslt.model.UserFunction;
 import com.helger.xslt.model.VariableDef;
+import com.helger.xslt.pkg.PackageChecks;
+import com.helger.xslt.pkg.PackageComponent;
+import com.helger.xslt.pkg.PackageModel;
+import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 import com.helger.xslt.tree.XslNode;
@@ -113,6 +117,7 @@ public final class StylesheetCompiler
   private final ICommonsSet <XslModule> m_aGlobalContextItemModules = new CommonsHashSet <> ();
   private final ICommonsList <XslElement> m_aExposes = new CommonsArrayList <> ();
   private String m_sGlobalContextItemAs;
+  private PackageModel m_aPackages;
 
   private StylesheetCompiler (@NonNull final XsltCompileOptions aOptions)
   {
@@ -124,6 +129,13 @@ public final class StylesheetCompiler
   public CompiledStylesheet getStylesheet ()
   {
     return m_aStylesheet;
+  }
+
+  /** @return The packages taking part, <code>null</code> before loading. */
+  @Nullable
+  public PackageModel getPackages ()
+  {
+    return m_aPackages;
   }
 
   @NonNull
@@ -855,10 +867,11 @@ public final class StylesheetCompiler
       {
         if (!aEl.getParent ().isXsl ("package"))
           throw XsltException.at (aEl, "XTSE0010", "xsl:expose is only allowed in xsl:package");
-        m_aExposes.add (aEl);
+        // The xsl:expose of a used package is applied by the package model
+        if (m_aPackages.isInPrincipal (aEl))
+          m_aExposes.add (aEl);
       }
       case "import-schema" -> throw XsltException.at (aEl, "XTSE1650", "xsl:import-schema requires a schema-aware processor");
-      case "use-package" -> throw XsltException.at (aEl, "XTSE3000", "xsl:use-package is not supported");
       default ->
       {
         final IDeclarationCompiler aCompiler = m_aRegistry.getDeclarationCompiler (sLocal);
@@ -994,7 +1007,7 @@ public final class StylesheetCompiler
     for (final CallTemplateRef aRef : m_aCallTemplateRefs)
     {
       final Template aTemplate = m_aStylesheet.getNamedTemplate (aRef.name ());
-      if (aTemplate == null)
+      if (aTemplate == null || m_aPackages.isHidden (aRef.element (), PackageComponent.getSymbolicName ("template", aRef.name (), 0)))
         throw XsltException.at (aRef.element (), "XTSE0650", "No template named " + aRef.name ().getEQName ());
       for (final XdmQName aParamName : aRef.nonTunnelParams ())
       {
@@ -1014,7 +1027,8 @@ public final class StylesheetCompiler
                                   "The required parameter $" + aParam.getName ().getEQName () + " is not supplied");
     }
     for (final AttributeSetRef aRef : m_aAttributeSetRefs)
-      if (m_aStylesheet.getAttributeSet (aRef.name ()) == null)
+      if (m_aStylesheet.getAttributeSet (aRef.name ()) == null ||
+          m_aPackages.isHidden (aRef.element (), PackageComponent.getSymbolicName ("attribute-set", aRef.name (), 0)))
         throw XsltException.at (aRef.element (), "XTSE0710", "No attribute set named " + aRef.name ().getEQName ());
     // Circular attribute sets (XTSE0720)
     for (final AttributeSet aSet : m_aStylesheet.attributeSets ().values ())
@@ -1058,10 +1072,13 @@ public final class StylesheetCompiler
           sInputTypeAnnotations = s.trim ();
         }
       }
+    m_aPackages = aLoader.getPackages ();
+    m_aPackages.analyse ();
 
     final FunctionLibrary aLib = FunctionLibrary.createDefault ();
     m_aRegistry.contributeFunctions (aLib);
     m_aStylesheet = new CompiledStylesheet (aLib, aPrincipal);
+    m_aStylesheet.setPackages (m_aPackages);
     m_aStylesheet.modules ().addAll (aLoader.getAllModules ());
     for (final Map.Entry <XdmQName, XdmSequence> aEntry : aLoader.getStaticValues ().entrySet ())
       m_aStylesheet.staticValues ().put (aEntry.getKey (), aEntry.getValue ());
@@ -1108,10 +1125,17 @@ public final class StylesheetCompiler
       // nothing to do: xsl:initial-template is optional
     }
     _buildModes ();
+    for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      if (aUnit.getRoot () != null && aUnit.getRoot ().isXsl ("package"))
+        _checkPackage (aUnit.getRoot (), aUnit.modules ());
     if (aPrincipal.getRoot ().isXsl ("package"))
     {
       m_aStylesheet.setPackage (true);
-      _checkPackage (aPrincipal.getRoot (), aLoader.getAllModules ());
+      final ICommonsList <XslElement> aRoots = new CommonsArrayList <> ();
+      for (final XslModule aModule : m_aPackages.getPrincipal ().modules ())
+        if (aModule.getRoot () != null && !aModule.isSimplified ())
+          aRoots.add (aModule.getRoot ());
+      PackageChecks.checkOwnAbstract (aRoots);
       ExposeChecker.check (createGlobalContext (), m_aExposes);
     }
     _checkReferences ();
