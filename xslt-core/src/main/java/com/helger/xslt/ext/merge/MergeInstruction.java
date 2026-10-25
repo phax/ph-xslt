@@ -27,6 +27,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.fn.FnUri;
 import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.XdmAtomic;
@@ -282,6 +283,35 @@ public final class MergeInstruction
   }
 
   /**
+   * The static part of XTDE2210: corresponding merge keys must agree in the
+   * presence of lang, order, collation, case-order and data-type, and in the
+   * values of those written without attribute value templates.
+   */
+  private static void _checkCorrespondingKeys (@NonNull final XslElement aFirst, @NonNull final XslElement aOther)
+  {
+    for (final String sAttr : new String [] { "lang", "order", "collation", "case-order", "data-type" })
+    {
+      String s1 = aFirst.getAttr (sAttr);
+      String s2 = aOther.getAttr (sAttr);
+      if (s1 == null && s2 == null)
+        continue;
+      if (s1 == null || s2 == null)
+        throw XsltException.at (aOther, "XTDE2210", "Corresponding xsl:merge-key elements differ in the presence of " + sAttr);
+      if (s1.indexOf ('{') >= 0 || s2.indexOf ('{') >= 0)
+        continue;
+      s1 = s1.trim ();
+      s2 = s2.trim ();
+      if ("collation".equals (sAttr))
+      {
+        s1 = CollationRegistry.resolveUri (s1, aFirst.getStaticBaseUri ());
+        s2 = CollationRegistry.resolveUri (s2, aOther.getStaticBaseUri ());
+      }
+      if (!s1.equals (s2))
+        throw XsltException.at (aOther, "XTDE2210", "Corresponding xsl:merge-key elements have different values for " + sAttr);
+    }
+  }
+
+  /**
    * Compile an xsl:merge element.
    *
    * @param aCtx
@@ -329,6 +359,9 @@ public final class MergeInstruction
       throw XsltException.at (aEl, "XTSE0010", "xsl:merge requires at least one xsl:merge-source");
     if (aAction == null)
       throw XsltException.at (aEl, "XTSE0010", "xsl:merge requires an xsl:merge-action");
+    for (int s = 1; s < aSources.size (); ++s)
+      for (int k = 0; k < aSources.get (s).keys ().size (); ++k)
+        _checkCorrespondingKeys (aSources.getFirstOrNull ().keys ().get (k).getElement (), aSources.get (s).keys ().get (k).getElement ());
     final MergeInstruction aInstr = new MergeInstruction (aSources, aAction);
     return new CompiledInstruction (aEl, aInstr::_execute);
   }
