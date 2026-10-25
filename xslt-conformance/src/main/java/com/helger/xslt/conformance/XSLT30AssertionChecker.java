@@ -369,6 +369,12 @@ public final class XSLT30AssertionChecker
     final String sOutput = aActual.output ();
     XdmNode aDoc = _tryParse (_stripDecl (sOutput));
     if (aDoc == null)
+    {
+      // Several top-level elements (or top-level text): a document node with
+      // these children, as the result tree has
+      aDoc = _parseMessageDocument (_stripDecl (sOutput));
+    }
+    if (aDoc == null)
       aDoc = _tryParse (_wrapFragment (sOutput));
     if (aDoc == null)
     {
@@ -495,7 +501,8 @@ public final class XSLT30AssertionChecker
                                                           "",
                                                           aActual.baseUri (),
                                                           null,
-                                                          true);
+                                                          true,
+                                                          null);
           if (check (aAssertion.children ().getFirstOrNull (), aMessage).isPass ())
             return QT3Outcome.pass ();
         }
@@ -534,7 +541,15 @@ public final class XSLT30AssertionChecker
     switch (sKind)
     {
       case "assert-xml":
-        return QT3Outcome.of (XSLT30XmlCompare.isXmlEqual (_getExpected (aAssertion), sOutput, bNormalizeSpace), sKind);
+      {
+        final String sExpected = _getExpected (aAssertion);
+        if (XSLT30XmlCompare.isXmlEqual (sExpected, sOutput, bNormalizeSpace))
+          return QT3Outcome.pass ();
+        // The result tree, without what the html/xhtml serializer adds
+        return QT3Outcome.of (aActual.treeXml () != null &&
+                              XSLT30XmlCompare.isXmlEqual (sExpected, aActual.treeXml (), bNormalizeSpace),
+                              sKind);
+      }
       case "assert-serialization":
       {
         final String sExpected = _getExpected (aAssertion);

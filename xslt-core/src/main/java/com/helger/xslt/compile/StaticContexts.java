@@ -24,6 +24,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.collation.CollationRegistry;
+import com.helger.xpath.context.EXmlVersion;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
@@ -95,12 +96,18 @@ public final class StaticContexts
     final StaticContext ret = new StaticContext ();
     ret.removeAllNamespacesExceptXml ();
     for (final Map.Entry <String, String> aEntry : aEl.getInScopeNamespaces ().entrySet ())
-      if (!aEntry.getKey ().isEmpty () && !"xml".equals (aEntry.getKey ()))
-        ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
+      if (aEntry.getKey ().isEmpty ())
+        ret.setInScopeDefaultNamespace (aEntry.getValue ());
+      else
+        if (!"xml".equals (aEntry.getKey ()))
+          ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     final String sXpathDefault = aEl.getInheritedStandardAttr ("xpath-default-namespace");
     if (sXpathDefault != null)
       ret.setDefaultElementNamespace (sXpathDefault.trim ());
     ret.setBaseUri (aEl.getStaticBaseUri ());
+    // The processor supports XML 1.1, so its characters are allowed (only
+    // fn:codepoints-to-string asks; xml-to-json-D015/017/018), as in go-xslt
+    ret.setXmlVersion (EXmlVersion.V11);
     ret.setFunctionLibrary (aFunctions);
     ret.setDefaultCollation (getDefaultCollation (aEl));
     for (final XdmQName aName : aVariables)

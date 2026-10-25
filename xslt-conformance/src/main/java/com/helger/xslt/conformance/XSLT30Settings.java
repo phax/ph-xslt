@@ -38,9 +38,8 @@ import com.helger.collection.commons.ICommonsList;
  * <li><code>xslt30.faildump=true</code> - print a line per failing case
  * (implied by <code>xslt30.only</code>)</li>
  * <li><code>xslt30.seq=true</code> - run the test sets sequentially</li>
- * <li><code>xslt30.checkAccepted=true</code> - fail on failing cases not named
- * in the accepted-failures file (off by default while the engine is being
- * written)</li>
+ * <li><code>xslt30.checkAccepted=false</code> - do not fail on failing cases
+ * not named in the accepted-failures file</li>
  * <li><code>xslt30.strictCode=true</code> - an <code>error</code> assertion
  * must match the expected error code, not just any error</li>
  * <li><code>xslt30.u90=true</code> - also run the Unicode-version cases that
@@ -133,7 +132,7 @@ public record XSLT30Settings (@NonNull Path suiteDir,
                                Boolean.getBoolean ("xslt30.progress"),
                                Boolean.getBoolean ("xslt30.faildump"),
                                Boolean.getBoolean ("xslt30.seq"),
-                               Boolean.getBoolean ("xslt30.checkAccepted"),
+                               !"false".equals (System.getProperty ("xslt30.checkAccepted")),
                                Boolean.getBoolean ("xslt30.strictCode"),
                                Boolean.getBoolean ("xslt30.u90"),
                                Path.of (System.getProperty ("xslt30.out", "target")),

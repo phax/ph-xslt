@@ -344,6 +344,10 @@ public final class NodeInstructions
           {
             final XdmNode aDoc = XdmNode.createDocument ();
             NodeCopier.copyUnparsedEntities (aNode, aDoc);
+            // The copy keeps the base URI of the original (base-uri-053)
+            final String sDocBase = FnAccessor.getBaseUri (aNode);
+            if (sDocBase != null)
+              aDoc.setBaseUri (sDocBase);
             aBody.execute (aCtx2, new ContentOutput (aDoc));
             aRtOut.appendNew (aDoc);
           }

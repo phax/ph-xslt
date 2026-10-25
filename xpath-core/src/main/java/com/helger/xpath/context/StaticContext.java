@@ -48,6 +48,7 @@ public final class StaticContext
 
   private final ICommonsMap <String, String> m_aNamespaces = new CommonsHashMap <> ();
   private String m_sDefaultElementNamespace = "";
+  private String m_sInScopeDefaultNamespace = "";
   private String m_sDefaultFunctionNamespace = XdmConstants.NS_FN;
   private String m_sBaseUri;
   private FunctionLibrary m_aFunctions = FunctionLibrary.getDefault ();
@@ -127,6 +128,31 @@ public final class StaticContext
   public StaticContext setDefaultElementNamespace (@NonNull final String sNamespaceUri)
   {
     m_sDefaultElementNamespace = ValueEnforcer.notNull (sNamespaceUri, "NamespaceUri");
+    return this;
+  }
+
+  /**
+   * @return The default namespace declared in scope of the expression
+   *         (<code>xmlns="..."</code> in a host language such as XSLT), which
+   *         is not the default element namespace of XPath. Empty if none.
+   */
+  @NonNull
+  public String getInScopeDefaultNamespace ()
+  {
+    return m_sInScopeDefaultNamespace;
+  }
+
+  /**
+   * @param sNamespaceUri
+   *        The default namespace declared in scope of the expression, empty
+   *        for none.
+   * @return this for chaining
+   */
+  @NonNull
+  public StaticContext setInScopeDefaultNamespace (@NonNull final String sNamespaceUri)
+  {
+    ValueEnforcer.notNull (sNamespaceUri, "NamespaceUri");
+    m_sInScopeDefaultNamespace = sNamespaceUri;
     return this;
   }
 

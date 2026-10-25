@@ -29,10 +29,10 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
 
 /**
  * Runs the W3C xslt30-test suite against the engine and prints the summary.
- * Skipped when the suite is absent (<code>-Dxslt30.dir=...</code>). While the
- * engine is being written this never fails the build; with
- * <code>-Dxslt30.checkAccepted=true</code> a failing case that is not named in
- * <code>docs/accepted-failures/xslt30.md</code> fails it.
+ * Skipped when the suite is absent (<code>-Dxslt30.dir=...</code>). A failing
+ * case that is not named in <code>docs/accepted-failures/xslt30.md</code>
+ * fails the build; switch that off with
+ * <code>-Dxslt30.checkAccepted=false</code>.
  * <p>
  * Named after the Go test <code>TestXSLT30</code>, not after a class.
  *

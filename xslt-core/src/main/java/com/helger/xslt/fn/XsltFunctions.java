@@ -42,6 +42,7 @@ import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xslt.compile.XsltElementSpecs;
 import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.NamespaceFixup;
@@ -54,7 +55,7 @@ import com.helger.xslt.tree.XsltNames;
  * functions.go): system-property, function-available, element-available,
  * type-available, available-system-properties (also in static expressions),
  * and at run time current, key, document, regex-group, current-output-uri,
- * unparsed-entity-uri/-public-id, copy-of and snapshot.
+ * unparsed-entity-uri/-public-id, copy-of, snapshot and stream-available.
  *
  * @author Philip Helger
  */
@@ -181,11 +182,18 @@ public final class XsltFunctions
   {
     final String sName = _getString (aArgs.get (0));
     final StaticContext aSC = aCtx.getStaticContext ();
-    final XdmQName aName = _resolveName (aSC, sName, aSC.getDefaultElementNamespace ());
+    // XSLT 3.0 section 24.2.2: an unprefixed name is in the default namespace
+    // in scope (xmlns), not in the default element namespace
+    final XdmQName aName = _resolveName (aSC, sName, aSC.getInScopeDefaultNamespace ());
     if (aName == null)
       throw new XPathException ("XTDE1440", "'" + sName + "' is not a valid QName with a bound prefix");
+    // Every XSLT element is available (catalog-006 checks all names used in
+    // the suite, xsl:transform and xsl:when included), except
+    // xsl:import-schema, as this processor is not schema-aware
+    final String sLocal = aName.localName ();
     final boolean bRet = XsltNames.NS_XSL.equals (aName.namespaceUri ()) &&
-                         XsltExtensionRegistry.getInstance ().isImplemented (aName.localName ());
+                         (XsltElementSpecs.isKnown (sLocal) && !"import-schema".equals (sLocal) ||
+                          XsltExtensionRegistry.getInstance ().isImplemented (sLocal));
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }
 
@@ -437,7 +445,21 @@ public final class XsltFunctions
         aRoot = aCopy;
       aParentCopy = aCopy;
     }
-    final XdmNode aStartCopy = NodeCopier.copyDeep (aStart, true);
+    final XdmNode aStartCopy;
+    if (aStart == aNode)
+      aStartCopy = NodeCopier.copyDeep (aStart, true);
+    else
+    {
+      // An attribute or namespace node is grafted to a copy of its parent
+      // that has the parent's attributes and namespaces, but no children
+      aStartCopy = NodeCopier.copyShallow (aStart);
+      NodeCopier.copyNamespaces (aStart, aStartCopy, aParentCopy == null);
+      for (int i = 0; i < aStart.getAttributeCount (); ++i)
+        aStartCopy.addAttribute (NodeCopier.copyShallow (aStart.getAttributeAtIndex (i)));
+      final String sBase = FnAccessor.getBaseUri (aStart);
+      if (sBase != null)
+        aStartCopy.setBaseUri (sBase);
+    }
     if (aParentCopy != null)
       aParentCopy.appendChild (aStartCopy);
     else
@@ -472,6 +494,118 @@ public final class XsltFunctions
   }
 
   /**
+   * @return the index just past the DOCTYPE declaration beginning at nStart,
+   *         including any bracketed internal subset, or -1 if it is
+   *         unterminated.
+   */
+  private static int _skipDoctype (@NonNull final String s, final int nStart)
+  {
+    int nDepth = 0;
+    for (int i = nStart; i < s.length (); ++i)
+      switch (s.charAt (i))
+      {
+        case '[':
+          nDepth++;
+          break;
+        case ']':
+          nDepth--;
+          break;
+        case '>':
+          if (nDepth <= 0)
+            return i + 1;
+          break;
+        default:
+          break;
+      }
+    return -1;
+  }
+
+  /**
+   * Whether the text, after its XML prolog (BOM, whitespace, XML declaration,
+   * processing instructions, comments and a DOCTYPE declaration with any
+   * internal subset), begins with an element start tag. Only the prolog is
+   * inspected: whether the rest of the document is well-formed is exactly what
+   * a streaming processor cannot know up front.
+   */
+  private static boolean _startsWithXmlElement (@NonNull final String sText)
+  {
+    final String s = sText.startsWith ("﻿") ? sText.substring (1) : sText;
+    int i = 0;
+    while (true)
+    {
+      while (i < s.length () && (s.charAt (i) == ' ' || s.charAt (i) == '\t' || s.charAt (i) == '\n' || s.charAt (i) == '\r'))
+        i++;
+      if (i >= s.length () || s.charAt (i) != '<')
+        return false;
+      if (s.startsWith ("<?", i))
+      {
+        final int j = s.indexOf ("?>", i);
+        if (j < 0)
+          return false;
+        i = j + 2;
+      }
+      else
+        if (s.startsWith ("<!--", i))
+        {
+          final int j = s.indexOf ("-->", i + 4);
+          if (j < 0)
+            return false;
+          i = j + 3;
+        }
+        else
+          if (s.startsWith ("<!DOCTYPE", i))
+          {
+            i = _skipDoctype (s, i);
+            if (i < 0)
+              return false;
+          }
+          else
+          {
+            if (i + 1 >= s.length ())
+              return false;
+            final char c = s.charAt (i + 1);
+            return c == '_' || c == ':' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c >= 0x80;
+          }
+    }
+  }
+
+  /**
+   * fn:stream-available (XSLT 3.0 section 18.1.3): true when the resource can
+   * be retrieved and begins as well-formed XML. A truncated document or one
+   * with two top-level elements still starts streamably; a missing file, a
+   * non-XML file or one that is nothing but a DTD does not.
+   */
+  @NonNull
+  private static XdmSequence _streamAvailable (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
+  {
+    if (aArgs.get (0).isEmpty ())
+      return XdmSequence.of (XdmAtomic.bool (false));
+    final String sHref = Atomizer.getStringValue (aArgs.get (0).get (0));
+    if (sHref.isEmpty () || !FnUri.isValidUriReference (sHref))
+      return XdmSequence.of (XdmAtomic.bool (false));
+    final String sUri;
+    if (FnUri.isAbsoluteUri (sHref))
+      sUri = sHref;
+    else
+    {
+      final String sBase = aCtx.getStaticContext ().getBaseUri ();
+      if (sBase == null || !FnUri.isAbsoluteUri (sBase))
+        return XdmSequence.of (XdmAtomic.bool (false));
+      sUri = FnUri.resolveUri (sHref, sBase);
+    }
+    String sText;
+    try
+    {
+      sText = aCtx.getResourceResolver ().resolveText (sUri, null);
+    }
+    catch (final XPathException ex)
+    {
+      sText = null;
+    }
+    return XdmSequence.of (XdmAtomic.bool (sText != null && _startsWithXmlElement (sText)));
+  }
+
+  /**
    * Register the XSLT functions available during a transformation (including
    * the static ones).
    *
@@ -503,5 +637,6 @@ public final class XsltFunctions
     aLib.register (NS, "copy-of", "(item()*) as item()*", XsltFunctions::_copyOf);
     aLib.register (NS, "snapshot", "() as item()*", XsltFunctions::_snapshot, true);
     aLib.register (NS, "snapshot", "(item()*) as item()*", XsltFunctions::_snapshot);
+    aLib.register (NS, "stream-available", "(xs:string?) as xs:boolean", XsltFunctions::_streamAvailable);
   }
 }
