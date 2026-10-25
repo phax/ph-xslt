@@ -114,13 +114,20 @@ public final class ContentOutput implements IXsltOutput
     {
       // A later attribute of the same name replaces the earlier one
       aExisting.setValue (aAttr.getValue ());
+      NodeCopier.copyAnnotation (aAttr, aExisting);
       return;
     }
     final XdmQName aFixed = NamespaceFixup.getAttributeNameFor (m_aParent, aName);
     if (bNew && aFixed == aName && aAttr.getParent () == null && !aName.isSameName (XdmConstants.NS_XML, "id"))
       m_aParent.addAttribute (aAttr);
     else
-      m_aParent.addAttribute (NodeCopier.createAttribute (aFixed, aAttr.getValue ()));
+    {
+      // A copy keeps the type annotation; the validation of the constructing
+      // instruction decides about it (schema-awareness)
+      final XdmNode aCopy = NodeCopier.createAttribute (aFixed, aAttr.getValue ());
+      NodeCopier.copyAnnotation (aAttr, aCopy);
+      m_aParent.addAttribute (aCopy);
+    }
   }
 
   /**
@@ -211,7 +218,7 @@ public final class ContentOutput implements IXsltOutput
         break;
       default:
       {
-        final XdmNode aChild = bNew && aNode.getParent () == null ? aNode : NodeCopier.copyDeep (aNode, true);
+        final XdmNode aChild = bNew && aNode.getParent () == null ? aNode : NodeCopier.copyDeep (aNode, true, true);
         // As content its base URI follows from its new position
         if (aChild.isElement ())
           aChild.setBaseUri (null);

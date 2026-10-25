@@ -156,7 +156,8 @@ public final class CompileContext
                                   m_aCompiler.getFunctionLibraryFor (aEl),
                                   aVariables,
                                   m_aCompiler.getDefaultDecimalFormat (aEl),
-                                  m_aCompiler.getDecimalFormats (aEl));
+                                  m_aCompiler.getDecimalFormats (aEl))
+                         .setSchemaSet (m_aCompiler.getStylesheet ().getSchemaSet ());
   }
 
   /**

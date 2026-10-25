@@ -56,6 +56,7 @@ import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.SerializationChecks;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.runtime.XsltStateKey;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
@@ -112,6 +113,7 @@ public final class ResultDocumentExtension implements IXsltExtension
     private final ICommonsOrderedMap <String, Avt> m_aOutputAttrs;
     private final String m_sUseCharacterMaps;
     private final SequenceConstructor m_aBody;
+    private final ValidationRequest m_aValidation;
 
     ResultDocumentInstruction (@NonNull final XslElement aElement,
                                @Nullable final Avt aHref,
@@ -119,7 +121,8 @@ public final class ResultDocumentExtension implements IXsltExtension
                                @Nullable final Avt aParameterDocument,
                                @NonNull final ICommonsOrderedMap <String, Avt> aOutputAttrs,
                                @Nullable final String sUseCharacterMaps,
-                               @NonNull final SequenceConstructor aBody)
+                               @NonNull final SequenceConstructor aBody,
+                               @Nullable final ValidationRequest aValidation)
     {
       super (aElement);
       m_aHref = aHref;
@@ -128,6 +131,7 @@ public final class ResultDocumentExtension implements IXsltExtension
       m_aOutputAttrs = aOutputAttrs;
       m_sUseCharacterMaps = sUseCharacterMaps;
       m_aBody = aBody;
+      m_aValidation = aValidation;
     }
 
     @NonNull
@@ -363,6 +367,9 @@ public final class ResultDocumentExtension implements IXsltExtension
         final ContentOutput aContent = new ContentOutput (aTree);
         aBuffer.replayAll (aContent);
         aContent.finishTree ();
+        // Schema-aware: the result tree is validated as requested
+        if (m_aValidation != null)
+          m_aValidation.apply (aTree);
         aRaw = XdmSequence.of (aItems);
       }
       else
@@ -417,7 +424,8 @@ public final class ResultDocumentExtension implements IXsltExtension
                                           aCtx.compileOptionalAvt (aEl, "parameter-document"),
                                           aOutputAttrs,
                                           sUseCharacterMaps,
-                                          aCtx.compileContent (aEl));
+                                          aCtx.compileContent (aEl),
+                                          ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.DOCUMENT));
   }
 
   public void register (@NonNull final XsltExtensionRegistry aRegistry)

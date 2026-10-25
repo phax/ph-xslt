@@ -80,11 +80,31 @@ public final class XsltCompileOptions
     }
   }
 
+  /**
+   * A schema document the host offers to xsl:import-schema: used for a
+   * declaration that names its namespace but gives no schema location, or
+   * whose schema location cannot be read or has another target namespace
+   * (XSLT 3.0 section 3.16 makes the location a hint).
+   *
+   * @param namespace
+   *        The target namespace, or <code>null</code> to take it from the
+   *        document itself.
+   * @param systemId
+   *        The absolute URI of the schema document.
+   */
+  public record HostSchema (@Nullable String namespace, @NonNull String systemId)
+  {}
+
+  /** Schema-awareness is off by default: the processor is a basic processor. */
+  public static final boolean DEFAULT_SCHEMA_AWARE = false;
+
   private String m_sBaseUri;
   private IResourceResolver m_aResolver;
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticParams = new CommonsLinkedHashMap <> ();
   private final ICommonsList <PackageSource> m_aPackages = new CommonsArrayList <> ();
   private boolean m_bLoadExternalEntities = false;
+  private boolean m_bSchemaAware = DEFAULT_SCHEMA_AWARE;
+  private final ICommonsList <HostSchema> m_aHostSchemas = new CommonsArrayList <> ();
 
   /** @return The stylesheet's own URI, against which import/include hrefs resolve. */
   @Nullable
@@ -169,5 +189,44 @@ public final class XsltCompileOptions
   {
     m_bLoadExternalEntities = bLoadExternalEntities;
     return this;
+  }
+
+  /**
+   * @return <code>true</code> if the stylesheet is compiled by a schema-aware
+   *         processor. Default {@link #DEFAULT_SCHEMA_AWARE}.
+   */
+  public boolean isSchemaAware ()
+  {
+    return m_bSchemaAware;
+  }
+
+  /**
+   * Claim schema-awareness (XSLT 3.0 section 27.2) for the stylesheet:
+   * xsl:import-schema, the validation and type attributes, typed input and the
+   * schema type tests of a schema-aware processor. It needs Apache Xerces-J on
+   * the class path (see
+   * {@link com.helger.xpath.xdm.schema.XdmSchemaSupport#isAvailable()});
+   * compiling with the claim fails otherwise. Without it, the processor is a
+   * basic processor.
+   *
+   * @param bSchemaAware
+   *        <code>true</code> to compile schema-aware.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions setSchemaAware (final boolean bSchemaAware)
+  {
+    m_bSchemaAware = bSchemaAware;
+    return this;
+  }
+
+  /**
+   * @return The schema documents the host offers to xsl:import-schema
+   *         (mutable). Only used when schema-aware.
+   */
+  @NonNull
+  public ICommonsList <HostSchema> hostSchemas ()
+  {
+    return m_aHostSchemas;
   }
 }

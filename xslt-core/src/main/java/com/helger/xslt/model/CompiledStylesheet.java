@@ -32,6 +32,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xslt.XsltExecutable;
 import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
@@ -70,6 +71,8 @@ public final class CompiledStylesheet implements XsltExecutable
   private final ICommonsMap <Object, Object> m_aExtensionData = new CommonsHashMap <> ();
   private final ICommonsList <XslModule> m_aModules = new CommonsArrayList <> ();
   private boolean m_bPackage;
+  private IXdmSchemaSet m_aSchemaSet;
+  private boolean m_bStripInputTypeAnnotations;
   private final ICommonsSet <XdmQName> m_aExposedTemplates = new CommonsHashSet <> ();
   private final ICommonsSet <XdmQName> m_aPrivateModes = new CommonsHashSet <> ();
   private final ICommonsSet <XdmQName> m_aPrivateTemplates = new CommonsHashSet <> ();
@@ -101,6 +104,46 @@ public final class CompiledStylesheet implements XsltExecutable
    * @return <code>true</code> if the principal module is an xsl:package (named
    *         templates and modes are then private unless declared otherwise).
    */
+  /**
+   * @return <code>true</code> if the stylesheet was compiled schema-aware.
+   */
+  public boolean isSchemaAware ()
+  {
+    return m_aSchemaSet != null;
+  }
+
+  /**
+   * @return The in-scope schema definitions of a schema-aware stylesheet (the
+   *         imported schemas and the built-in types), <code>null</code> for a
+   *         basic processor.
+   */
+  @Override
+  @Nullable
+  public IXdmSchemaSet getSchemaSet ()
+  {
+    return m_aSchemaSet;
+  }
+
+  public void setSchemaSet (@Nullable final IXdmSchemaSet aSchemaSet)
+  {
+    m_aSchemaSet = aSchemaSet;
+  }
+
+  /**
+   * @return <code>true</code> if a module says
+   *         <code>input-type-annotations="strip"</code>.
+   */
+  @Override
+  public boolean isStripInputTypeAnnotations ()
+  {
+    return m_bStripInputTypeAnnotations;
+  }
+
+  public void setStripInputTypeAnnotations (final boolean bStrip)
+  {
+    m_bStripInputTypeAnnotations = bStrip;
+  }
+
   public boolean isPackage ()
   {
     return m_bPackage;

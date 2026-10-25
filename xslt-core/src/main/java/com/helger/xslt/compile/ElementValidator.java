@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
@@ -383,16 +384,53 @@ public final class ElementValidator
     return "strip".equals (s) || "preserve".equals (s) || "lax".equals (s);
   }
 
-  private static void _validateLiteralResultElement (@NonNull final XslElement aEl)
+  /**
+   * The validation attributes of a schema-aware processor: validation takes
+   * strict, lax, preserve and strip; default-validation only preserve and
+   * strip (XSLT 3.0 section 3.15); validation and type are mutually exclusive
+   * (XTSE1505).
+   */
+  private static void _checkSchemaAwareValidation (@NonNull final XslElement aEl,
+                                                   @Nullable final String sValidation,
+                                                   @Nullable final String sDefVal,
+                                                   final boolean bHasType)
   {
-    if (aEl.getAttribute (XsltNames.NS_XSL, "type") != null)
-      throw XsltException.at (aEl, "XTSE1660", "xsl:type requires a schema-aware processor");
-    final String sValidation = aEl.getAttribute (XsltNames.NS_XSL, "validation");
-    if (sValidation != null && !_isValidationOk (sValidation.trim ()))
-      throw XsltException.at (aEl, "XTSE1660", "xsl:validation='" + sValidation + "' requires a schema-aware processor");
-    final String sDefVal = aEl.getAttribute (XsltNames.NS_XSL, "default-validation");
-    if (sDefVal != null && !_isValidationOk (sDefVal.trim ()))
-      throw XsltException.at (aEl, "XTSE1660", "xsl:default-validation='" + sDefVal + "' requires a schema-aware processor");
+    if (sValidation != null)
+    {
+      final String s = sValidation.trim ();
+      if (!_isValidationOk (s) && !"strict".equals (s))
+        throw XsltException.at (aEl, "XTSE0020", "validation='" + sValidation + "' is not a valid value");
+      if (bHasType)
+        throw XsltException.at (aEl, "XTSE1505", "The type and validation attributes are mutually exclusive");
+    }
+    if (sDefVal != null)
+    {
+      final String s = sDefVal.trim ();
+      if (!"strip".equals (s) && !"preserve".equals (s))
+        throw XsltException.at (aEl,
+                                "XTSE0020",
+                                "default-validation='" + sDefVal + "' is not permitted; the only values are preserve and strip");
+    }
+  }
+
+  private static void _validateLiteralResultElement (@NonNull final XslElement aEl, final boolean bSchemaAware)
+  {
+    if (bSchemaAware)
+      _checkSchemaAwareValidation (aEl,
+                                   aEl.getAttribute (XsltNames.NS_XSL, "validation"),
+                                   aEl.getAttribute (XsltNames.NS_XSL, "default-validation"),
+                                   aEl.getAttribute (XsltNames.NS_XSL, "type") != null);
+    else
+    {
+      if (aEl.getAttribute (XsltNames.NS_XSL, "type") != null)
+        throw XsltException.at (aEl, "XTSE1660", "xsl:type requires a schema-aware processor");
+      final String sValidation = aEl.getAttribute (XsltNames.NS_XSL, "validation");
+      if (sValidation != null && !_isValidationOk (sValidation.trim ()))
+        throw XsltException.at (aEl, "XTSE1660", "xsl:validation='" + sValidation + "' requires a schema-aware processor");
+      final String sDefVal = aEl.getAttribute (XsltNames.NS_XSL, "default-validation");
+      if (sDefVal != null && !_isValidationOk (sDefVal.trim ()))
+        throw XsltException.at (aEl, "XTSE1660", "xsl:default-validation='" + sDefVal + "' requires a schema-aware processor");
+    }
     final String sVersion = aEl.getAttribute (XsltNames.NS_XSL, "version");
     if (sVersion != null)
     {
@@ -469,23 +507,28 @@ public final class ElementValidator
     throw XsltException.at (aEl, "XTSE0020", sAttr + "='" + s + "' is not allowed on xsl:" + aEl.getLocalName ());
   }
 
-  private static void _validateXslElement (@NonNull final XslElement aEl)
+  private static void _validateXslElement (@NonNull final XslElement aEl, final boolean bSchemaAware)
   {
     final String sLocal = aEl.getLocalName ();
     final String sVersion = aEl.getAttr ("version");
     if (sVersion != null && !XsltNames.isDecimalLexical (sVersion.trim ()))
       throw XsltException.at (aEl, "XTSE0110", "version='" + sVersion + "' is not a valid number");
     final String sDefVal = aEl.getAttr ("default-validation");
-    if (sDefVal != null && !_isValidationOk (sDefVal.trim ()))
-      throw XsltException.at (aEl, "XTSE1660", "default-validation='" + sDefVal + "' requires a schema-aware processor");
     final String sExpand = aEl.getAttr ("expand-text");
     if (sExpand != null)
       _checkBoolean (aEl, "expand-text", sExpand);
     final String sValidation = aEl.getAttr ("validation");
-    if (sValidation != null && "strict".equals (sValidation.trim ()))
-      throw XsltException.at (aEl, "XTSE1660", "validation='strict' requires a schema-aware processor");
-    if (aEl.hasAttr ("type") && !"function".equals (sLocal))
-      throw XsltException.at (aEl, "XTSE1660", "The type attribute requires a schema-aware processor");
+    if (bSchemaAware)
+      _checkSchemaAwareValidation (aEl, sValidation, sDefVal, aEl.hasAttr ("type") && !"function".equals (sLocal));
+    else
+    {
+      if (sDefVal != null && !_isValidationOk (sDefVal.trim ()))
+        throw XsltException.at (aEl, "XTSE1660", "default-validation='" + sDefVal + "' requires a schema-aware processor");
+      if (sValidation != null && "strict".equals (sValidation.trim ()))
+        throw XsltException.at (aEl, "XTSE1660", "validation='strict' requires a schema-aware processor");
+      if (aEl.hasAttr ("type") && !"function".equals (sLocal))
+        throw XsltException.at (aEl, "XTSE1660", "The type attribute requires a schema-aware processor");
+    }
     final String sDefColl = aEl.getAttr ("default-collation");
     if (sDefColl != null)
     {
@@ -879,12 +922,29 @@ public final class ElementValidator
    */
   public static void validateTree (@NonNull final XslElement aEl)
   {
+    validateTree (aEl, false);
+  }
+
+  /**
+   * Validate a module tree.
+   *
+   * @param aEl
+   *        The element to start at (module root).
+   * @param bSchemaAware
+   *        <code>true</code> for a schema-aware processor (validation and type
+   *        attributes are allowed).
+   */
+  public static void validateTree (@NonNull final XslElement aEl, final boolean bSchemaAware)
+  {
     if (aEl.isXsl () && aEl.isForwardsCompatible () && !XsltElementSpecs.isKnown (aEl.getLocalName ()))
       return;
     if (aEl.isXsl ())
-      _validateXslElement (aEl);
+      _validateXslElement (aEl, bSchemaAware);
     else
-      _validateLiteralResultElement (aEl);
+      _validateLiteralResultElement (aEl, bSchemaAware);
+    // An inline schema is not part of the stylesheet
+    if (bSchemaAware && aEl.isXsl ("import-schema"))
+      return;
     final boolean bSheet = _isStylesheetRoot (aEl);
     for (final XslNode aNode : aEl.getChildren ())
     {
@@ -897,7 +957,7 @@ public final class ElementValidator
       final XslElement aChild = (XslElement) aNode;
       if (bSheet && aChild.isXsl () && !TOP_LEVEL_DECLARATIONS.contains (aChild.getLocalName ()) && aChild.isForwardsCompatible ())
         continue;
-      validateTree (aChild);
+      validateTree (aChild, bSchemaAware);
     }
   }
 }
