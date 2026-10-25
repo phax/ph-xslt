@@ -212,6 +212,24 @@ public final class StylesheetCompiler
 
   /**
    * @param aEl
+   *        A literal result element.
+   * @param sUri
+   *        A namespace URI.
+   * @return <code>true</code> if an xsl:namespace-alias of the element's
+   *         package has this URI as its result namespace.
+   */
+  public boolean isNamespaceAliasResult (@NonNull final XslElement aEl, @NonNull final String sUri)
+  {
+    final ICommonsMap <String, NamespaceAlias> aMap = m_aAliases.get (m_aPackages.getUnit (aEl));
+    if (aMap != null)
+      for (final NamespaceAlias aAlias : aMap.values ())
+        if (aAlias.resultUri ().equals (sUri))
+          return true;
+    return false;
+  }
+
+  /**
+   * @param aEl
    *        An element.
    * @return The unnamed decimal format for expressions on it (decimal formats
    *         are local to a package).

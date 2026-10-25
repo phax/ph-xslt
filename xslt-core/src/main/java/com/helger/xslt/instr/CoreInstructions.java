@@ -302,7 +302,8 @@ public final class CoreInstructions
           aNamespaces.put (aAlias.resultPrefix (), aAlias.resultUri ());
         continue;
       }
-      if (aExcluded.contains (sUri))
+      // The result namespace of an xsl:namespace-alias is not excluded
+      if (aExcluded.contains (sUri) && !aCompiler.isNamespaceAliasResult (aEl, sUri))
         continue;
       aNamespaces.put (sPrefix, sUri);
     }
