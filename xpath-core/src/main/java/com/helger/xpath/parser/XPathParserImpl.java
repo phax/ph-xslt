@@ -51,6 +51,11 @@ import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.EXdmSimpleVariety;
+import com.helger.xpath.xdm.schema.IXdmAttributeDeclaration;
+import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * The stateful recursive-descent parser behind {@link XPathParser}. One
@@ -354,6 +359,28 @@ final class XPathParserImpl
                   aTok);
   }
 
+  /**
+   * The constructor function of a user-defined simple type of the in-scope
+   * schema definitions is a cast to it (XPath 3.1 section 3.1.5.1).
+   *
+   * @return The cast, or <code>null</code> if the name is not such a type or
+   *         a function of that name and arity exists.
+   */
+  @Nullable
+  private IExpr _getSchemaConstructor (@NonNull final XdmQName aName, @NonNull final List <IExpr> aArgs)
+  {
+    if (aArgs.size () != 1 || m_aCtx.getSchemaSet () == null)
+      return null;
+    if (m_aCtx.getFunctionLibrary ().getFunction (aName, 1) != null)
+      return null;
+    final IXdmTypeDefinition aUserType = _getUserSimpleType (aName);
+    if (aUserType == null)
+      return null;
+    return new IExpr.CastExpr (aArgs.get (0),
+                               new SeqType (false, _schemaAtomicItemType (aUserType), EOccurrence.ZERO_OR_ONE, false),
+                               false);
+  }
+
   @NonNull
   private XdmQName _parseVarName ()
   {
@@ -386,10 +413,42 @@ final class XPathParserImpl
     return EAtomicType.getFromLocalName (aName.localName ());
   }
 
-  private static boolean _isKnownSchemaType (@NonNull final XdmQName aName)
+  private boolean _isKnownSchemaType (@NonNull final XdmQName aName)
   {
-    return _atomicTypeOf (aName) != null ||
-           XdmConstants.NS_XS.equals (aName.namespaceUri ()) && NON_ATOMIC_XS_TYPES.contains (aName.localName ());
+    if (_atomicTypeOf (aName) != null ||
+        XdmConstants.NS_XS.equals (aName.namespaceUri ()) && NON_ATOMIC_XS_TYPES.contains (aName.localName ()))
+      return true;
+    final IXdmSchemaSet aSchemaSet = m_aCtx.getSchemaSet ();
+    return aSchemaSet != null && aSchemaSet.getTypeDefinition (aName) != null;
+  }
+
+  /**
+   * @return A user-defined simple type of the in-scope schema definitions, or
+   *         <code>null</code>. Built-in types (in the xs namespace) are never
+   *         returned.
+   */
+  @Nullable
+  private IXdmTypeDefinition _getUserSimpleType (@NonNull final XdmQName aName)
+  {
+    final IXdmSchemaSet aSchemaSet = m_aCtx.getSchemaSet ();
+    if (aSchemaSet == null || XdmConstants.NS_XS.equals (aName.namespaceUri ()))
+      return null;
+    final IXdmTypeDefinition ret = aSchemaSet.getTypeDefinition (aName);
+    return ret == null || ret.isComplex () ? null : ret;
+  }
+
+  /**
+   * @return The item type of a user-defined simple type: its built-in atomic
+   *         base type for an atomic type, xs:anyAtomicType otherwise.
+   */
+  @NonNull
+  private static ItemType _schemaAtomicItemType (@NonNull final IXdmTypeDefinition aType)
+  {
+    final XdmQName aBuiltin = aType.getBuiltinAtomicType ();
+    EAtomicType eBuiltin = aBuiltin == null ? null : EAtomicType.getFromLocalName (aBuiltin.localName ());
+    if (eBuiltin == null)
+      eBuiltin = EAtomicType.ANY_ATOMIC_TYPE;
+    return ItemType.schemaAtomic (eBuiltin, aType);
   }
 
   private void _checkNotXmlnsNamespace (@NonNull final String sNs, @NonNull final XPathToken aTok)
@@ -435,15 +494,23 @@ final class XPathParserImpl
           break;
       }
     }
+    ItemType aItemType = null;
     if (eType == null)
-      throw _error ("XQST0052", "The cast target " + aName.getEQName () + " is not a known simple type", aTok);
+    {
+      final IXdmTypeDefinition aUserType = _getUserSimpleType (aName);
+      if (aUserType == null)
+        throw _error ("XQST0052", "The cast target " + aName.getEQName () + " is not a known simple type", aTok);
+      aItemType = _schemaAtomicItemType (aUserType);
+    }
+    else
+      aItemType = ItemType.atomic (eType);
     EOccurrence eOcc = EOccurrence.ONE;
     if (_is (ETokenKind.QUESTION))
     {
       _next ();
       eOcc = EOccurrence.ZERO_OR_ONE;
     }
-    return new SeqType (false, ItemType.atomic (eType), eOcc, bList);
+    return new SeqType (false, aItemType, eOcc, bList);
   }
 
   /** element(...) / attribute(...) arguments, current token after '('. */
@@ -557,10 +624,26 @@ final class XPathParserImpl
           throw _unexpected ("a declaration name");
         _next ();
         final XdmQName aName = _resolve (aTok, bElement ? m_aCtx.getDefaultElementNamespace () : "");
-        // No schema components are in scope, so no declaration exists
-        throw _error ("XPST0008",
-                      aKindTok.text () + "(" + aName.getEQName () + ") names no declaration in the in-scope schema",
-                      aTok);
+        final IXdmSchemaSet aSchemaSet = m_aCtx.getSchemaSet ();
+        final IXdmElementDeclaration aElementDecl = aSchemaSet != null && bElement ? aSchemaSet.getElementDeclaration (aName)
+                                                                                   : null;
+        final IXdmAttributeDeclaration aAttrDecl = aSchemaSet != null && !bElement ? aSchemaSet.getAttributeDeclaration (aName)
+                                                                                   : null;
+        if (aElementDecl == null && aAttrDecl == null)
+          throw _error ("XPST0008",
+                        aKindTok.text () + "(" + aName.getEQName () + ") names no declaration in the in-scope schema",
+                        aTok);
+        ret = new NodeTest (bElement ? ENodeTestKind.SCHEMA_ELEMENT : ENodeTestKind.SCHEMA_ATTRIBUTE,
+                            false,
+                            false,
+                            false,
+                            aName,
+                            null,
+                            false,
+                            null,
+                            aElementDecl,
+                            aAttrDecl);
+        break;
       }
       case "document-node":
       {
@@ -689,7 +772,22 @@ final class XPathParserImpl
     if (aTok.isEQName () && _peekKind (1) == ETokenKind.LPAREN)
       throw _syntax ("'" + aTok.getDisplayText () + "()' is not an item type", aTok);
     if (aTok.isEQName ())
+    {
+      if (m_aCtx.getSchemaSet () != null)
+      {
+        final XdmQName aName = _resolve (aTok, m_aCtx.getDefaultElementNamespace ());
+        if (_atomicTypeOf (aName) == null)
+        {
+          final IXdmTypeDefinition aUserType = _getUserSimpleType (aName);
+          if (aUserType != null && aUserType.getVariety () != EXdmSimpleVariety.LIST)
+          {
+            _next ();
+            return _schemaAtomicItemType (aUserType);
+          }
+        }
+      }
       return ItemType.atomic (_parseAtomicTypeName ());
+    }
     throw _unexpected ("an item type");
   }
 
@@ -1042,6 +1140,9 @@ final class XPathParserImpl
           _next ();
           final XdmQName aName = _resolveFunctionName (aTok);
           final ICommonsList <IExpr> aArgs = _parseArgList ();
+          final IExpr aConstructor = _getSchemaConstructor (aName, aArgs);
+          if (aConstructor != null)
+            return aConstructor;
           _checkFunction (aName, aArgs.size (), aTok);
           return new IExpr.FunctionCallExpr (aName, aArgs);
         }
@@ -1304,6 +1405,9 @@ final class XPathParserImpl
       _next ();
       final XdmQName aName = _resolveFunctionName (aTok);
       final ICommonsList <IExpr> aArgs = _prepend (aBase, _parseArgList ());
+      final IExpr aConstructor = _getSchemaConstructor (aName, aArgs);
+      if (aConstructor != null)
+        return aConstructor;
       _checkFunction (aName, aArgs.size (), aTok);
       return new IExpr.FunctionCallExpr (aName, aArgs);
     }

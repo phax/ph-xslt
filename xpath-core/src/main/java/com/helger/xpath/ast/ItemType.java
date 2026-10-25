@@ -22,6 +22,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.xpath.value.EAtomicType;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * A parsed ItemType.
@@ -44,6 +45,11 @@ import com.helger.xpath.value.EAtomicType;
  * @param valueType
  *        For a typed MAP test the value type; for a typed ARRAY test the
  *        member type.
+ * @param schemaType
+ *        For ATOMIC a user-defined simple type of the in-scope schema
+ *        definitions (an atomic or union type; in a cast also a list type);
+ *        <code>atomicType</code> is then its built-in base, or
+ *        <code>xs:anyAtomicType</code>. <code>null</code> for built-in types.
  * @author Philip Helger
  */
 public record ItemType (@NonNull Kind kind,
@@ -53,7 +59,8 @@ public record ItemType (@NonNull Kind kind,
                         @Nullable List <SeqType> paramTypes,
                         @Nullable SeqType returnType,
                         @Nullable EAtomicType mapKeyType,
-                        @Nullable SeqType valueType)
+                        @Nullable SeqType valueType,
+                        @Nullable IXdmTypeDefinition schemaType)
 {
   /** The ItemType kinds. */
   public enum Kind
@@ -67,12 +74,58 @@ public record ItemType (@NonNull Kind kind,
     ARRAY
   }
 
+  /**
+   * An item type without a user-defined schema type.
+   *
+   * @param kind
+   *        Which kind of item type.
+   * @param atomicType
+   *        For ATOMIC the type.
+   * @param nodeTest
+   *        For NODE the kind test.
+   * @param wildcard
+   *        The wildcard form.
+   * @param paramTypes
+   *        Function parameter types.
+   * @param returnType
+   *        Function return type.
+   * @param mapKeyType
+   *        Map key type.
+   * @param valueType
+   *        Map value or array member type.
+   */
+  public ItemType (@NonNull final Kind kind,
+                   @Nullable final EAtomicType atomicType,
+                   @Nullable final NodeTest nodeTest,
+                   final boolean wildcard,
+                   @Nullable final List <SeqType> paramTypes,
+                   @Nullable final SeqType returnType,
+                   @Nullable final EAtomicType mapKeyType,
+                   @Nullable final SeqType valueType)
+  {
+    this (kind, atomicType, nodeTest, wildcard, paramTypes, returnType, mapKeyType, valueType, null);
+  }
+
   public static final ItemType ITEM = new ItemType (Kind.ITEM, null, null, false, null, null, null, null);
 
   @NonNull
   public static ItemType atomic (@NonNull final EAtomicType eType)
   {
     return new ItemType (Kind.ATOMIC, eType, null, false, null, null, null, null);
+  }
+
+  /**
+   * @param eBuiltin
+   *        The built-in base type, or <code>xs:anyAtomicType</code> for a union
+   *        or list type.
+   * @param aSchemaType
+   *        The user-defined simple type.
+   * @return An atomic item type of a user-defined simple type.
+   */
+  @NonNull
+  public static ItemType schemaAtomic (@NonNull final EAtomicType eBuiltin, @NonNull final IXdmTypeDefinition aSchemaType)
+  {
+    return new ItemType (Kind.ATOMIC, eBuiltin, null, false, null, null, null, null, aSchemaType);
   }
 
   @NonNull

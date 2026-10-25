@@ -50,6 +50,7 @@ import com.helger.xpath.ops.AtomicArithmetic;
 import com.helger.xpath.ops.AtomicCaster;
 import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.ops.Atomizer;
+import com.helger.xpath.ops.SchemaTypeOps;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.IXdmFunction;
 import com.helger.xpath.value.XdmArray;
@@ -60,6 +61,7 @@ import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * Tree-walking evaluator for {@link IExpr} (a port of go-xslt's
@@ -1091,10 +1093,54 @@ public final class XPathEvaluator
     return AtomicCaster.isCastable (aValue, eTarget, aCtx.getStaticContext ());
   }
 
+  /**
+   * Cast or castable to a user-defined simple type of the in-scope schema
+   * definitions.
+   */
+  @NonNull
+  private static XdmSequence _evalSchemaCast (final IExpr.@NonNull CastExpr aExpr,
+                                              @NonNull final IXdmTypeDefinition aTarget,
+                                              @NonNull final DynamicContext aCtx)
+  {
+    final SeqType aType = aExpr.type ();
+    final boolean bCastable = aExpr.castable ();
+    final XdmSequence aAtoms = _atomize (evaluateInternal (aExpr.operand (), aCtx));
+    if (aAtoms.isEmpty ())
+    {
+      final boolean bAllowEmpty = aType.occurrence ().allowsEmpty ();
+      if (bCastable)
+        return _bool (bAllowEmpty);
+      if (bAllowEmpty)
+        return XdmSequence.EMPTY;
+      throw XPathException.type ("An empty sequence cannot be cast to a user-defined type");
+    }
+    if (aAtoms.size () > 1)
+    {
+      if (bCastable)
+        return FALSE_SEQ;
+      throw XPathException.type ("A sequence of " + aAtoms.size () + " items cannot be cast");
+    }
+    final XdmAtomic aValue = (XdmAtomic) aAtoms.get (0);
+    if (!bCastable)
+      return SchemaTypeOps.cast (aValue, aTarget, aCtx.getStaticContext ());
+    try
+    {
+      SchemaTypeOps.cast (aValue, aTarget, aCtx.getStaticContext ());
+      return TRUE_SEQ;
+    }
+    catch (final XPathException ex)
+    {
+      return FALSE_SEQ;
+    }
+  }
+
   @NonNull
   private static XdmSequence _evalCast (final IExpr.@NonNull CastExpr aExpr, @NonNull final DynamicContext aCtx)
   {
     final SeqType aType = aExpr.type ();
+    final IXdmTypeDefinition aSchemaTarget = aType.itemType ().schemaType ();
+    if (aSchemaTarget != null)
+      return _evalSchemaCast (aExpr, aSchemaTarget, aCtx);
     final EAtomicType eTarget = aType.itemType ().atomicType ();
     if (eTarget == EAtomicType.ANY_ATOMIC_TYPE || eTarget == EAtomicType.NOTATION)
       throw XPathException.of ("XPST0080", eTarget.getQualifiedName () + " is not a valid cast target");

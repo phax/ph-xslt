@@ -20,6 +20,7 @@ import org.apache.xerces.xs.XSElementDeclaration;
 import org.apache.xerces.xs.XSModel;
 import org.apache.xerces.xs.XSObjectList;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.xpath.xdm.XdmQName;
@@ -72,17 +73,21 @@ final class XercesElementDeclaration implements IXdmElementDeclaration
     return m_aDecl.getAbstract ();
   }
 
-  public boolean isSubstitutableBy (@NonNull final XdmQName aName)
+  @Nullable
+  public IXdmElementDeclaration getSubstitutionMember (@NonNull final XdmQName aName)
   {
     if (getName ().equals (aName))
-      return true;
+      return this;
     // The substitution group of the model is transitive already
     final XSObjectList aGroup = m_aModel.getSubstitutionGroup (m_aDecl);
     if (aGroup != null)
       for (int i = 0; i < aGroup.getLength (); ++i)
-        if (getName ((XSElementDeclaration) aGroup.item (i)).equals (aName))
-          return true;
-    return false;
+      {
+        final XSElementDeclaration aMember = (XSElementDeclaration) aGroup.item (i);
+        if (getName (aMember).equals (aName))
+          return new XercesElementDeclaration (m_aModel, aMember);
+      }
+    return null;
   }
 
   @Override

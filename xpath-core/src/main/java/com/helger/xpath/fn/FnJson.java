@@ -50,6 +50,8 @@ import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmValidationException;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * Function family: fn:parse-json, json-doc, json-to-xml, xml-to-json,
@@ -379,7 +381,7 @@ public final class FnJson
     final boolean bEscape = FnOptionMap.getBoolean (aMap, "escape", false, aCtx);
     final String sDuplicates = FnOptionMap.getString (aMap,
                                                       "duplicates",
-                                                      bJsonToXml && !bValidate ? "retain" : "use-first",
+                                                      bJsonToXml ? bValidate ? "reject" : "retain" : "use-first",
                                                       aCtx);
     final boolean bValidDuplicates = bJsonToXml ? "reject".equals (sDuplicates) ||
                                                   "use-first".equals (sDuplicates) ||
@@ -466,12 +468,24 @@ public final class FnJson
     new JsonParser (((XdmAtomic) aArgs.get (0).get (0)).getString (),
                     aOptions.escape (),
                     aOptions.fallback ()).parse (aHandler);
-    if (aOptions.validate ())
+    // validate=true needs the schema for the namespace among the in-scope
+    // schema definitions (F&O 3.1 section 17.5.1)
+    final IXdmSchemaSet aSchemaSet = aCtx.getStaticContext ().getSchemaSet ();
+    final XdmNode aRoot = aHandler.m_aResult;
+    if (aOptions.validate () && (aSchemaSet == null || aSchemaSet.getElementDeclaration (aRoot.getName ()) == null))
       throw XPathException.of ("FOJS0004", "The option validate=true requires a schema-aware processor");
     final XdmNode aDoc = XdmNode.createDocument ();
-    final XdmNode aRoot = aHandler.m_aResult;
     aRoot.declareNamespace ("", NS_FN);
     aDoc.appendChild (aRoot);
+    if (aOptions.validate ())
+      try
+      {
+        aSchemaSet.validateElement (aRoot, null, true);
+      }
+      catch (final XdmValidationException ex)
+      {
+        throw XPathException.of ("FOJS0004", "The result could not be validated: " + ex.getMessage ());
+      }
     aDoc.setBaseUri (aCtx.getStaticContext ().getBaseUri ());
     aDoc.assignDocumentOrder ();
     return XdmSequence.of (aDoc);

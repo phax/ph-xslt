@@ -39,6 +39,8 @@ import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
+import com.helger.xpath.xdm.XdmValidationException;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * fn:data and effective boolean value. Owner: atomic-values workstream.
@@ -117,12 +119,65 @@ public final class Atomizer
       aBuilder.add (AtomicCaster.castFromString (sValue, eType, aNamespaces));
   }
 
+  /**
+   * Typed value of a node validated with the schema component model available
+   * (Apache Xerces-J): content types are known, and values of user-defined
+   * types, lists and unions are typed item by item.
+   *
+   * @return <code>false</code> if the value cannot be computed this way.
+   */
+  private static boolean _addDefinitionTypedValue (@NonNull final XdmNode aNode,
+                                                   @NonNull final IXdmTypeDefinition aType,
+                                                   final XdmSequence.@NonNull Builder aBuilder)
+  {
+    if (aNode.isNilled ())
+      return true;
+    switch (aType.getContentType ())
+    {
+      case EMPTY:
+        return true;
+      case ELEMENT_ONLY:
+        throw XPathException.of ("FOTY0012",
+                                 "The element " +
+                                             aNode.getName ().getEQName () +
+                                             " has element-only content and therefore no typed value");
+      case MIXED:
+        aBuilder.add (XdmAtomic.untyped (aNode.getStringValue ()));
+        return true;
+      default:
+        break;
+    }
+    final IXdmTypeDefinition aSimple = aType.getSimpleContentType ();
+    if (aSimple == null || aSimple.getVariety () == null)
+    {
+      aBuilder.add (XdmAtomic.untyped (aNode.getStringValue ()));
+      return true;
+    }
+    final StaticContext aNamespaces = aSimple.isNamespaceSensitive () ? _getNamespaceContext (aNode) : null;
+    try
+    {
+      aBuilder.addAll (SchemaTypeOps.toAtomics (aSimple.validate (aNode.getStringValue (),
+                                                                  aNamespaces == null ? null
+                                                                                      : sPrefix -> sPrefix.isEmpty () ? aNamespaces.getDefaultElementNamespace ()
+                                                                                                                      : aNamespaces.getNamespaceUri (sPrefix)),
+                                                aNamespaces));
+      return true;
+    }
+    catch (final XdmValidationException ex)
+    {
+      // Not valid (e.g. changed after validation): fall back
+      return false;
+    }
+  }
+
   private static void _addTypedValue (@NonNull final XdmNode aNode, final XdmSequence.@NonNull Builder aBuilder)
   {
     final XdmSchemaType aSchemaType = aNode.getSchemaType ();
     if (aSchemaType != null)
     {
-      _addSchemaTypedValue (aNode, aSchemaType, aBuilder);
+      final IXdmTypeDefinition aDefinition = aSchemaType.getDefinition ();
+      if (aDefinition == null || !_addDefinitionTypedValue (aNode, aDefinition, aBuilder))
+        _addSchemaTypedValue (aNode, aSchemaType, aBuilder);
       return;
     }
     final XdmQName aAnnotation = aNode.getTypeAnnotation ();

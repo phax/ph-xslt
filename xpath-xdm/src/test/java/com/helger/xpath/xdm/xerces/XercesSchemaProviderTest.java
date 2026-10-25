@@ -72,8 +72,8 @@ public final class XercesSchemaProviderTest
     final IXdmSchemaSet aSet = _compile ();
     final IXdmElementDeclaration aA = aSet.getElementDeclaration (new XdmQName (NS, "a"));
     assertNotNull (aA);
-    assertTrue (aA.isSubstitutableBy (new XdmQName (NS, "b")));
-    assertFalse (aA.isSubstitutableBy (new XdmQName (NS, "c")));
+    assertNotNull (aA.getSubstitutionMember (new XdmQName (NS, "b")));
+    assertNull (aA.getSubstitutionMember (new XdmQName (NS, "c")));
     assertEquals (EXdmContentType.ELEMENT_ONLY, aA.getTypeDefinition ().getContentType ());
     assertNull (aSet.getElementDeclaration (new XdmQName (NS, "c")));
 

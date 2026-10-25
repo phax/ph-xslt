@@ -37,6 +37,7 @@ import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * Compiles and evaluates expressions with the engine under one configured
@@ -64,6 +65,7 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
   private EXmlVersion m_eXmlVersion;
   private EXsdVersion m_eXsdVersion;
   private String m_sDefaultLanguage;
+  private IXdmSchemaSet m_aSchemaSet;
   private FormatDecimalFormat m_aDefaultDecimalFormat;
   private final ICommonsOrderedMap <XdmQName, FormatDecimalFormat> m_aDecimalFormats = new CommonsLinkedHashMap <> ();
 
@@ -192,6 +194,18 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
     return this;
   }
 
+  /**
+   * @param aSchemaSet
+   *        The in-scope schema definitions, may be <code>null</code>.
+   * @return this for chaining
+   */
+  @NonNull
+  public QT3EngineEvaluator setSchemaSet (@Nullable final IXdmSchemaSet aSchemaSet)
+  {
+    m_aSchemaSet = aSchemaSet;
+    return this;
+  }
+
   @NonNull
   public QT3EngineEvaluator setVariable (@NonNull final XdmQName aName, @NonNull final XdmSequence aValue)
   {
@@ -221,6 +235,7 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
       aStatic.setDefaultCollation (m_sDefaultCollation);
     aStatic.setXPath10Compatibility (m_bXPath10Compatibility);
     aStatic.setStaticTyping (m_bStaticTyping);
+    aStatic.setSchemaSet (m_aSchemaSet);
     if (m_eXmlVersion != null)
       aStatic.setXmlVersion (m_eXmlVersion);
     if (m_eXsdVersion != null)

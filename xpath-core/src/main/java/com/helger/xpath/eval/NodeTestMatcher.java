@@ -29,6 +29,9 @@ import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
+import com.helger.xpath.xdm.schema.IXdmAttributeDeclaration;
+import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * Node tests of axis steps and the node kind tests of sequence types (XPath
@@ -124,6 +127,53 @@ public final class NodeTestMatcher
     if (aAnnotation == null)
       return _isUntypedAnnotationOf (aTypeName, bElement);
     return isSchemaTypeDerivedFrom (resolveSchemaType (aAnnotation), resolveSchemaType (aTypeName));
+  }
+
+  /**
+   * @return <code>true</code> if the type annotation of the node is or derives
+   *         from the type definition (of a schema declaration).
+   */
+  private static boolean _isAnnotationDerivedFrom (@NonNull final XdmNode aNode,
+                                                   @NonNull final IXdmTypeDefinition aType,
+                                                   final boolean bElement)
+  {
+    final XdmSchemaType aSchemaType = aNode.getSchemaType ();
+    final XdmQName aTypeName = aType.getName ();
+    if (aSchemaType != null)
+    {
+      final IXdmTypeDefinition aNodeType = aSchemaType.getDefinition ();
+      if (aNodeType != null)
+        return aNodeType.isDerivedFrom (aType);
+      return aTypeName != null && aSchemaType.isDerivedFrom (aTypeName.namespaceUri (), aTypeName.localName ());
+    }
+    return aTypeName != null && _isAnnotationOf (aNode, aTypeName, bElement);
+  }
+
+  /**
+   * schema-element(N) (XPath 3.1 section 2.5.5.4): the name is N or in its
+   * substitution group, the type annotation derives from the type of the
+   * declaration of that name, and a nilled element needs a nillable
+   * declaration.
+   */
+  private static boolean _matchesSchemaElement (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
+  {
+    final IXdmElementDeclaration aHead = aTest.elementDeclaration ();
+    if (aHead == null || !aNode.isElement ())
+      return false;
+    final IXdmElementDeclaration aDecl = aHead.getSubstitutionMember (aNode.getName ());
+    if (aDecl == null)
+      return false;
+    if (aNode.isNilled () && !aDecl.isNillable ())
+      return false;
+    return _isAnnotationDerivedFrom (aNode, aDecl.getTypeDefinition (), true);
+  }
+
+  private static boolean _matchesSchemaAttribute (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
+  {
+    final IXdmAttributeDeclaration aDecl = aTest.attributeDeclaration ();
+    if (aDecl == null || !aNode.isAttribute () || !aDecl.getName ().equals (aNode.getName ()))
+      return false;
+    return _isAnnotationDerivedFrom (aNode, aDecl.getTypeDefinition (), false);
   }
 
   private static boolean _matchesKindName (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
@@ -246,9 +296,9 @@ public final class NodeTestMatcher
       case NAMESPACE_NODE:
         return eKind == ENodeKind.NAMESPACE;
       case SCHEMA_ELEMENT:
+        return _matchesSchemaElement (aTest, aNode);
       case SCHEMA_ATTRIBUTE:
-        // No schema components are in scope, so no declaration exists
-        return false;
+        return _matchesSchemaAttribute (aTest, aNode);
       default:
         return false;
     }

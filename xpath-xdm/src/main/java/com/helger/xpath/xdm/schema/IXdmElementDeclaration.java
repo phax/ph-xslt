@@ -17,6 +17,7 @@
 package com.helger.xpath.xdm.schema;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.xpath.xdm.XdmQName;
 
@@ -40,8 +41,10 @@ public interface IXdmElementDeclaration
   /**
    * @param aName
    *        An element name.
-   * @return <code>true</code> if it is the name of this declaration or of a
-   *         declaration in its substitution group (transitively).
+   * @return This declaration if it has the name, else the declaration with that
+   *         name in the substitution group of this declaration (transitively),
+   *         else <code>null</code>.
    */
-  boolean isSubstitutableBy (@NonNull XdmQName aName);
+  @Nullable
+  IXdmElementDeclaration getSubstitutionMember (@NonNull XdmQName aName);
 }
