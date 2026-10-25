@@ -151,8 +151,9 @@ public final class NamespaceFixup
   public static void applyNoInherit (@NonNull final XdmNode aElement)
   {
     final Map <String, String> aDeclared = aElement.getDeclaredNamespaces ();
-    if (aDeclared.isEmpty ())
-      return;
+    // The binding of the element's own name is a namespace node of it too
+    if (!aDeclared.containsKey (aElement.getName ().prefix ()) && !"xml".equals (aElement.getName ().prefix ()))
+      aDeclared.put (aElement.getName ().prefix (), aElement.getName ().namespaceUri ());
     for (int i = 0; i < aElement.getChildCount (); ++i)
     {
       final XdmNode aChild = aElement.getChildAtIndex (i);

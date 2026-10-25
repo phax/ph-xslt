@@ -126,18 +126,6 @@ public final class CoreInstructions
                                                                 @NonNull final List <XslNode> aChildren)
   {
     final ICommonsList <IInstruction> aInstrs = new CommonsArrayList <> ();
-    final String sOwnVersion = aParent.getParent () != null ? aParent.getStandardAttr ("version") : null;
-    if (sOwnVersion != null &&
-        XsltNames.isDecimalLexical (sOwnVersion.trim ()) &&
-        new BigDecimal (sOwnVersion.trim ()).compareTo (BigDecimal.valueOf (2)) < 0)
-    {
-      // Backwards compatible processing is not supported: an error, but only
-      // if the code is executed
-      aInstrs.add (new CompiledInstruction (aParent, (c, o) -> {
-        throw new XPathException ("XTDE0160", "Backwards compatible processing (version " + sOwnVersion + ") is not supported");
-      }));
-      return new SequenceConstructor (aParent, aInstrs);
-    }
     CompileContext aCur = aCtx;
     boolean bHasMarker = false;
     for (final XslNode aNode : aChildren)
@@ -314,7 +302,7 @@ public final class CoreInstructions
           aNamespaces.put (aAlias.resultPrefix (), aAlias.resultUri ());
         continue;
       }
-      if (aExcluded.contains (sUri) && !(sPrefix.equals (aSrcName.prefix ()) && sUri.equals (aSrcName.namespaceUri ())))
+      if (aExcluded.contains (sUri))
         continue;
       aNamespaces.put (sPrefix, sUri);
     }
@@ -368,9 +356,32 @@ public final class CoreInstructions
    *        The element.
    * @return The instruction or <code>null</code>.
    */
+  /**
+   * @param aEl
+   *        An instruction element.
+   * @return <code>true</code> if it is evaluated in backwards compatible mode:
+   *         the nearest [xsl:]version below the module's outermost element is
+   *         less than 2.0. The version of the outermost element is ignored, so
+   *         stylesheets written as version 1.0 run as 3.0.
+   */
+  private static boolean _isBackwardsCompatible (@NonNull final XslElement aEl)
+  {
+    for (XslElement aCur = aEl; aCur != null && aCur.getParent () != null; aCur = aCur.getParent ())
+    {
+      final String s = aCur.getStandardAttr ("version");
+      if (s != null)
+        return XsltNames.isDecimalLexical (s.trim ()) && new BigDecimal (s.trim ()).compareTo (BigDecimal.valueOf (2)) < 0;
+    }
+    return false;
+  }
+
   @Nullable
   public static IInstruction compileInstruction (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
+    if (_isBackwardsCompatible (aEl))
+      return new CompiledInstruction (aEl, (c, o) -> {
+        throw new XPathException ("XTDE0160", "Backwards compatible processing is not supported");
+      });
     if (aEl.isXsl ())
     {
       final String sLocal = aEl.getLocalName ();

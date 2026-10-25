@@ -166,12 +166,12 @@ public final class ContentOutput implements IXsltOutput
                                 "A default namespace node cannot be added to the element " +
                                             aElName.getLexicalName () +
                                             ", which is in no namespace");
-    if (aElName.prefix ().equals (sPrefix) && !aElName.namespaceUri ().equals (sUri))
-      _renameElementPrefix ();
     final String sOwn = m_aParent.getDeclaredNamespaces ().get (sPrefix);
-    if (sOwn != null && !sOwn.equals (sUri))
+    if (sOwn != null && !sOwn.isEmpty () && !sOwn.equals (sUri))
       throw new XPathException ("XTDE0430",
                                 "Two namespace nodes for prefix '" + sPrefix + "' with different URIs");
+    if (aElName.prefix ().equals (sPrefix) && !aElName.namespaceUri ().equals (sUri))
+      _renameElementPrefix ();
     m_aParent.declareNamespace (sPrefix, sUri);
   }
 

@@ -36,6 +36,7 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.fn.FnUri;
 import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
@@ -795,9 +796,10 @@ public final class StylesheetCompiler
                                                                                               sUse);
     if (!m_aGlobalContextItemModules.add (aEl.getModule ()))
       throw XsltException.at (aEl, "XTSE3087", "A stylesheet module may contain only one xsl:global-context-item");
-    if (aPrev != null && (!aPrev.use ().equals (aNew.use ()) || !Objects.equals (m_sGlobalContextItemAs, sAs)))
+    final String sAsNorm = aNew.as () == null ? null : SequenceTypeMatcher.getAsString (aNew.as ());
+    if (aPrev != null && (!aPrev.use ().equals (aNew.use ()) || !Objects.equals (m_sGlobalContextItemAs, sAsNorm)))
       throw XsltException.at (aEl, "XTSE3087", "Conflicting xsl:global-context-item declarations");
-    m_sGlobalContextItemAs = sAs;
+    m_sGlobalContextItemAs = sAsNorm;
     m_aStylesheet.setGlobalContextItem (aNew);
   }
 
