@@ -24,7 +24,10 @@ import org.jspecify.annotations.NonNull;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.fn.FnAccessor;
+import com.helger.xpath.xdm.EIDKind;
+import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.XdmQName;
 
 /**
  * Copies nodes the way xsl:copy-of does: deep, without type annotations,
@@ -45,6 +48,28 @@ public final class NodeCopier
   {}
 
   /**
+   * Create an attribute node; an <code>xml:id</code> attribute is an ID
+   * (XDM 3.1 section 6.3.3) with its value whitespace normalized.
+   *
+   * @param aName
+   *        Name.
+   * @param sValue
+   *        Value.
+   * @return The new attribute.
+   */
+  @NonNull
+  public static XdmNode createAttribute (@NonNull final XdmQName aName, @NonNull final String sValue)
+  {
+    if (aName.isSameName (XdmConstants.NS_XML, "id"))
+    {
+      final XdmNode ret = XdmNode.createAttribute (aName, sValue.trim ().replaceAll ("[ \\t\\r\\n]+", " "));
+      ret.setIDKind (EIDKind.ID);
+      return ret;
+    }
+    return XdmNode.createAttribute (aName, sValue);
+  }
+
+  /**
    * Copy one node without its children (and without its attributes).
    *
    * @param aNode
@@ -58,7 +83,7 @@ public final class NodeCopier
     {
       case DOCUMENT -> XdmNode.createDocument ();
       case ELEMENT -> XdmNode.createElement (aNode.getName ());
-      case ATTRIBUTE -> XdmNode.createAttribute (aNode.getName (), aNode.getValue ());
+      case ATTRIBUTE -> createAttribute (aNode.getName (), aNode.getValue ());
       case TEXT -> XdmNode.createText (aNode.getValue ());
       case COMMENT -> XdmNode.createComment (aNode.getValue ());
       case PROCESSING_INSTRUCTION -> XdmNode.createProcessingInstruction (aNode.getName ().localName (),
@@ -127,7 +152,7 @@ public final class NodeCopier
       for (int i = 0; i < nAttrs; ++i)
       {
         final XdmNode aAttr = aSrc.getAttributeAtIndex (i);
-        aDst.addAttribute (XdmNode.createAttribute (aAttr.getName (), aAttr.getValue ()));
+        aDst.addAttribute (createAttribute (aAttr.getName (), aAttr.getValue ()));
       }
       final int nChildren = aSrc.getChildCount ();
       for (int i = 0; i < nChildren; ++i)

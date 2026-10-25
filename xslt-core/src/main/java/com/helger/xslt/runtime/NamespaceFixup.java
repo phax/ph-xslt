@@ -64,7 +64,7 @@ public final class NamespaceFixup
       // Only declare if the element does not declare this prefix itself with
       // another URI (that conflict was rejected when the namespace was added)
       final String sOwn = aElement.getDeclaredNamespaces ().get (sPrefix);
-      if (sOwn == null)
+      if (sOwn == null || sOwn.isEmpty ())
         aElement.declareNamespace (sPrefix, sUri);
     }
     final int nAttrs = aElement.getAttributeCount ();
@@ -75,7 +75,8 @@ public final class NamespaceFixup
           aAttrName.hasPrefix () &&
           !"xml".equals (aAttrName.prefix ()) &&
           !_isBound (aElement, aAttrName.prefix (), aAttrName.namespaceUri ()) &&
-          aElement.getDeclaredNamespaces ().get (aAttrName.prefix ()) == null)
+          (aElement.getDeclaredNamespaces ().get (aAttrName.prefix ()) == null ||
+           aElement.getDeclaredNamespaces ().get (aAttrName.prefix ()).isEmpty ()))
         aElement.declareNamespace (aAttrName.prefix (), aAttrName.namespaceUri ());
     }
   }
@@ -136,6 +137,32 @@ public final class NamespaceFixup
     } while (_conflicts (aElement, aDeclared, sNew, sUri));
     aElement.declareNamespace (sNew, sUri);
     return new XdmQName (sUri, aName.localName (), sNew);
+  }
+
+  /**
+   * inherit-namespaces="no" (XSLT 3.0 section 11.1.3): the element children of
+   * a new element do not inherit its namespaces. Every namespace the element
+   * declares and a child does not declare itself is undeclared on the child;
+   * the fixup declares again what the child's names need.
+   *
+   * @param aElement
+   *        The new element, with its content.
+   */
+  public static void applyNoInherit (@NonNull final XdmNode aElement)
+  {
+    final Map <String, String> aDeclared = aElement.getDeclaredNamespaces ();
+    if (aDeclared.isEmpty ())
+      return;
+    for (int i = 0; i < aElement.getChildCount (); ++i)
+    {
+      final XdmNode aChild = aElement.getChildAtIndex (i);
+      if (!aChild.isElement ())
+        continue;
+      final Map <String, String> aOwn = aChild.getDeclaredNamespaces ();
+      for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
+        if (!aEntry.getValue ().isEmpty () && !aOwn.containsKey (aEntry.getKey ()))
+          aChild.declareNamespace (aEntry.getKey (), "");
+    }
   }
 
   /**

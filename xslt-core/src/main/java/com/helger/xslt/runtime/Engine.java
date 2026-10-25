@@ -79,7 +79,7 @@ public final class Engine
 {
   /** The current output URI (fn:current-output-uri). */
   public static final XsltStateKey <String> CURRENT_OUTPUT_URI = new XsltStateKey <> ("current-output-uri",
-                                                                                     XsltStateKey.EScope.KEPT);
+                                                                                     XsltStateKey.EScope.CLEARED_IN_FUNCTIONS);
 
   /** Default maximum number of executed instructions. */
   public static final long DEFAULT_MAX_STEPS = 20_000_000L;
@@ -100,6 +100,9 @@ public final class Engine
       return null;
     return getGlobalValue (aDef);
   }
+
+  // NaN equals nothing: a unique key that is never searched for
+  private static final Object NAN_KEY = new Object ();
 
   private record KeyIndexId (@NonNull XdmQName name, @NonNull XdmNode root)
   {}
@@ -838,6 +841,14 @@ public final class Engine
       final String s = aValue.getString ();
       return aCollation == null ? "S" + s : aCollation.getCollationKey (s);
     }
+    if (aValue.isNumeric ())
+    {
+      // eq promotes to xs:double when the types differ
+      final double d = aValue.getAsDouble ();
+      if (Double.isNaN (d))
+        return NAN_KEY;
+      return Double.valueOf (d == 0 ? 0d : d);
+    }
     return AtomicComparator.getMapKey (aValue);
   }
 
@@ -896,12 +907,19 @@ public final class Engine
                                                                                        : CollationRegistry.getCollationOrThrow (sCollation);
     final boolean bComposite = aDefs.getFirst ().isComposite ();
     final XsltContext aUseCtx = createRootContext ().withState (XsltState.EMPTY);
+    boolean bNamespaces = false;
+    for (final KeyDefinition aDef : aDefs)
+      if (aDef.getMatch ().pattern ().getSource ().contains ("namespace-node"))
+        bNamespaces = true;
     final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aRoot);
     while (!aStack.isEmpty ())
     {
       final XdmNode aNode = aStack.pop ();
       _indexNode (aNode, aDefs, aUseCtx, aCollation, bComposite, ret);
+      if (bNamespaces)
+        for (final XdmNode aNS : aNode.getNamespaceNodes ())
+          _indexNode (aNS, aDefs, aUseCtx, aCollation, bComposite, ret);
       for (int i = 0; i < aNode.getAttributeCount (); ++i)
         _indexNode (aNode.getAttributeAtIndex (i), aDefs, aUseCtx, aCollation, bComposite, ret);
       for (int i = aNode.getChildCount () - 1; i >= 0; --i)
@@ -968,7 +986,8 @@ public final class Engine
     else
       for (final IXdmItem aAtom : aAtoms)
       {
-        final ICommonsList <XdmNode> aNodes = aIndex.get (_getKeyValue ((XdmAtomic) aAtom, aCollation));
+        final Object aKey = _getKeyValue ((XdmAtomic) aAtom, aCollation);
+        final ICommonsList <XdmNode> aNodes = aKey == NAN_KEY ? null : aIndex.get (aKey);
         if (aNodes != null)
           for (final XdmNode aNode : aNodes)
             aResult.add (aNode);

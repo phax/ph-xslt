@@ -65,7 +65,7 @@ public final class XsltCompiler
       final InputSource aSource = new InputSource (new StringReader (sStylesheet));
       if (aOptions.getBaseUri () != null)
         aSource.setSystemId (aOptions.getBaseUri ());
-      aDoc = new XdmParser ().parse (aSource);
+      aDoc = new XdmParser ().setLoadExternalEntities (aOptions.isLoadExternalEntities ()).parse (aSource);
     }
     catch (final XdmParseException ex)
     {

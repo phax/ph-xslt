@@ -112,10 +112,10 @@ public final class ContentOutput implements IXsltOutput
       return;
     }
     final XdmQName aFixed = NamespaceFixup.getAttributeNameFor (m_aParent, aName);
-    if (bNew && aFixed == aName && aAttr.getParent () == null)
+    if (bNew && aFixed == aName && aAttr.getParent () == null && !aName.isSameName (XdmConstants.NS_XML, "id"))
       m_aParent.addAttribute (aAttr);
     else
-      m_aParent.addAttribute (XdmNode.createAttribute (aFixed, aAttr.getValue ()));
+      m_aParent.addAttribute (NodeCopier.createAttribute (aFixed, aAttr.getValue ()));
   }
 
   private void _addNamespace (@NonNull final XdmNode aNS)

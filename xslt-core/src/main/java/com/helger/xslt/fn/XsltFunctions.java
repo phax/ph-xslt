@@ -271,7 +271,9 @@ public final class XsltFunctions
       if (!(aCtx.getContextItem () instanceof final XdmNode aNode))
         throw new XPathException (aCtx.getContextItem () == null ? "XPDY0002" : "XPTY0004",
                                   "key() with two arguments requires a node as context item");
-      aTop = aNode;
+      aTop = aNode.getRoot ();
+      if (!aTop.isDocument ())
+        throw new XPathException ("XTDE1270", "key() with two arguments requires the context node to be in a tree rooted at a document node");
     }
     return aXCtx.getEngine ().findKeyNodes (aXCtx, aName, aArgs.get (1), aTop);
   }
@@ -404,7 +406,7 @@ public final class XsltFunctions
     aLib.register (NS, "document", "(item()*) as node()*", XsltFunctions::_document);
     aLib.register (NS, "document", "(item()*, node()) as node()*", XsltFunctions::_document);
     aLib.register (NS, "regex-group", "(xs:integer) as xs:string", XsltFunctions::_regexGroup);
-    aLib.register (NS, "current-output-uri", "() as xs:anyURI?", XsltFunctions::_currentOutputUri);
+    aLib.register (NS, "current-output-uri", "() as xs:anyURI?", XsltFunctions::_currentOutputUri, true);
     aLib.register (NS, "unparsed-entity-uri", "(xs:string) as xs:anyURI", XsltFunctions::_unparsedEntity, true);
     aLib.register (NS, "unparsed-entity-uri", "(xs:string, node()) as xs:anyURI", XsltFunctions::_unparsedEntity);
     aLib.register (NS, "unparsed-entity-public-id", "(xs:string) as xs:string", XsltFunctions::_unparsedEntity, true);

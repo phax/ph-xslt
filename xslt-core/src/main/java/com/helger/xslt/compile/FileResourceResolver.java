@@ -42,11 +42,19 @@ import com.helger.xpath.xdm.XdmParser;
 @Immutable
 public final class FileResourceResolver implements IResourceResolver
 {
-  /** The shared instance. */
-  public static final FileResourceResolver INSTANCE = new FileResourceResolver ();
+  /** The shared instance, without external entities. */
+  public static final FileResourceResolver INSTANCE = new FileResourceResolver (false);
 
-  private FileResourceResolver ()
-  {}
+  private final boolean m_bLoadExternalEntities;
+
+  /**
+   * @param bLoadExternalEntities
+   *        <code>true</code> to load external DTDs and entities.
+   */
+  public FileResourceResolver (final boolean bLoadExternalEntities)
+  {
+    m_bLoadExternalEntities = bLoadExternalEntities;
+  }
 
   @Nullable
   private static Path _getPath (@NonNull final String sAbsoluteUri)
@@ -76,7 +84,7 @@ public final class FileResourceResolver implements IResourceResolver
       return null;
     try
     {
-      final XdmNode ret = new XdmParser ().parse (aPath);
+      final XdmNode ret = new XdmParser ().setLoadExternalEntities (m_bLoadExternalEntities).parse (aPath);
       if (ret.getDocumentUri () == null)
         ret.setDocumentUri (sAbsoluteUri);
       return ret;

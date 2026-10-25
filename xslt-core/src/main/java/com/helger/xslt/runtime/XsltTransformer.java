@@ -226,7 +226,12 @@ public final class XsltTransformer
     final SerializationParams aParams = aOutputDef.createSerializationParams (sMethod);
     for (final IOutputCustomizer aCustomizer : XsltExtensionRegistry.getInstance ().getAllOutputCustomizers ())
       aCustomizer.customize (m_aSheet, aOutputDef, aParams);
-    final String sSerialized = XdmSerializer.serialize (aTree != null ? XdmSequence.of (aTree) : aRaw, aParams);
+    SerializationChecks.check (aParams, aTree);
+    // With an item separator the raw sequence is serialized, so that the
+    // separator comes between its items
+    final boolean bSerializeRaw = aTree == null || aOutputDef.getValue ("item-separator") != null &&
+                                                   !"#absent".equals (aOutputDef.getValue ("item-separator"));
+    final String sSerialized = XdmSerializer.serialize (bSerializeRaw ? aRaw : XdmSequence.of (aTree), aParams);
     return new XsltTransformResult (aRaw,
                                     aTree,
                                     sSerialized,

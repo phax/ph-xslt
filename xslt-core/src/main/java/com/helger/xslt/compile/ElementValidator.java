@@ -613,6 +613,9 @@ public final class ElementValidator
       final String sStandalone = aEl.getAttr ("standalone");
       if (sStandalone != null && !XsltNames.isXsltBooleanLexical (sStandalone) && !"omit".equals (sStandalone.trim ()))
         throw XsltException.at (aEl, "XTSE0020", "standalone='" + sStandalone + "' is not allowed");
+      final String sHtmlVersion = aEl.getAttr ("html-version");
+      if (sHtmlVersion != null && !XsltNames.isDecimalLexical (sHtmlVersion.trim ()))
+        throw XsltException.at (aEl, "XTSE0020", "html-version='" + sHtmlVersion + "' is not a number");
       final String sMethod = aEl.getAttr ("method");
       if (sMethod != null)
       {

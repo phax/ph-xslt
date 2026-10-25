@@ -46,6 +46,7 @@ import com.helger.xslt.compile.XsltElementSpecs;
 import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.model.VariableDef;
 import com.helger.xslt.runtime.ContentOutput;
+import com.helger.xslt.runtime.NamespaceFixup;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 import com.helger.xslt.tree.XslText;
@@ -323,6 +324,8 @@ public final class CoreInstructions
     final ICommonsList <XdmQName> aSets = getUseAttributeSets (aCtx, aEl, true);
     final SequenceConstructor aBody = aCtx.compileSequenceConstructor (aEl, aEl.getChildren ());
     final String sBase = aEl.getStaticBaseUri ();
+    final String sInherit = aEl.getAttribute (XsltNames.NS_XSL, "inherit-namespaces");
+    final boolean bNoInherit = sInherit != null && !XsltNames.isXsltTrue (sInherit);
     return new CompiledInstruction (aEl, (c, o) -> {
       final XdmNode aElement = XdmNode.createElement (aName);
       for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
@@ -336,6 +339,8 @@ public final class CoreInstructions
       for (int i = 0; i < aAttrNames.size (); ++i)
         aContent.appendNew (XdmNode.createAttribute (aAttrNames.get (i), aAttrValues.get (i).evaluate (c)));
       aBody.execute (c, aContent);
+      if (bNoInherit)
+        NamespaceFixup.applyNoInherit (aElement);
       o.appendNew (aElement);
     });
   }

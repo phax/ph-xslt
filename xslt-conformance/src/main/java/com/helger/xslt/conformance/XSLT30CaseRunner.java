@@ -76,7 +76,7 @@ public final class XSLT30CaseRunner
   private static final XdmQName INITIAL_TEMPLATE = new XdmQName (XdmConstants.NS_XSL, "initial-template", "xsl");
   private static final Pattern XML_DECL_ENCODING = Pattern.compile ("^<\\?xml[^>]*encoding\\s*=\\s*[\"']([A-Za-z0-9._:-]+)[\"']");
   private static final Pattern PSEUDO_ATTR_HREF = Pattern.compile ("href\\s*=\\s*[\"']([^\"']*)[\"']");
-  private static final int MAX_DETAIL_LEN = 200;
+  private static final int MAX_DETAIL_LEN = 400;
 
   /**
    * The outcome of one case.
@@ -328,7 +328,7 @@ public final class XSLT30CaseRunner
       aStaticKey.put (aParam.name ().toString (), aParam.as () + "\u0001" + aParam.select ());
     final String sKey = aStylesheet.toString () + (bEmbedded ? "\u0003embedded" : "") + "\u0000" + aStaticKey;
     final XsltExecutable aExecutable = m_aCache.getOrCompile (sKey, () -> {
-      final XsltCompileOptions aOptions = new XsltCompileOptions ();
+      final XsltCompileOptions aOptions = new XsltCompileOptions ().setLoadExternalEntities (true);
       for (final XSLT30Param aParam : aStaticParams.values ())
         aOptions.setStaticParam (aParam.name (), _evaluateParam (aParam, null, aResolver, sBaseUri));
       if (bEmbedded)
@@ -573,6 +573,8 @@ public final class XSLT30CaseRunner
     try
     {
       final QT3Outcome aOutcome = _check (aSet, aCase, aActual);
+      if (aOutcome.isFail () && sDetail.isEmpty () && aActual.error () == null)
+        sDetail = "got: " + _cut (aActual.output ());
       return new CaseResult (aOutcome, aOutcome.isFail () ? sDetail : "");
     }
     catch (final Throwable t)

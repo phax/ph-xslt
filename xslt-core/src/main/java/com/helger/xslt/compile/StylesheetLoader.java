@@ -108,7 +108,7 @@ public final class StylesheetLoader
   private IResourceResolver _getResolver ()
   {
     final IResourceResolver ret = m_aOptions.getResolver ();
-    return ret != null ? ret : FileResourceResolver.INSTANCE;
+    return ret != null ? ret : new FileResourceResolver (m_aOptions.isLoadExternalEntities ());
   }
 
   /**

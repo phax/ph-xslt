@@ -75,6 +75,7 @@ public final class OutputDefinition
   private final ICommonsList <XdmQName> m_aCdataSectionElements = new CommonsArrayList <> ();
   private final ICommonsList <XdmQName> m_aSuppressIndentation = new CommonsArrayList <> ();
   private final ICommonsList <XdmQName> m_aUseCharacterMaps = new CommonsArrayList <> ();
+  private final ICommonsMap <Integer, String> m_aInlineCharacterMap = new CommonsHashMap <> ();
 
   /**
    * @param aName
@@ -181,6 +182,20 @@ public final class OutputDefinition
     return m_aValues.get ("method");
   }
 
+  /**
+   * Add a character mapping given inline (in a serialization parameter
+   * document).
+   *
+   * @param nCodePoint
+   *        Character.
+   * @param sReplacement
+   *        Replacement string.
+   */
+  public void addInlineCharacterMapping (final int nCodePoint, @NonNull final String sReplacement)
+  {
+    m_aInlineCharacterMap.put (Integer.valueOf (nCodePoint), sReplacement);
+  }
+
   /** @return The QNames of use-character-maps. */
   @NonNull
   @ReturnsMutableCopy
@@ -258,6 +273,8 @@ public final class OutputDefinition
         }
       }
     }
+    for (final var aEntry : m_aInlineCharacterMap.entrySet ())
+      ret.addCharacterMapping (aEntry.getKey ().intValue (), aEntry.getValue ());
     for (final XdmQName aName : m_aCdataSectionElements)
       ret.addCdataSectionElement (aName);
     for (final XdmQName aName : m_aSuppressIndentation)

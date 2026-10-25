@@ -32,7 +32,11 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedSet;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.ast.SeqType;
+import com.helger.xpath.XPathException;
 import com.helger.xpath.collation.CollationRegistry;
+import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.fn.FnUri;
+import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.pattern.CompiledXsltPattern;
@@ -50,6 +54,7 @@ import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.EOnNoMatch;
 import com.helger.xslt.model.KeyDefinition;
 import com.helger.xslt.model.Mode;
+import com.helger.xslt.model.OutputDefinition;
 import com.helger.xslt.model.OutputDefinition;
 import com.helger.xslt.model.SpaceRules;
 import com.helger.xslt.model.Template;
@@ -631,21 +636,72 @@ public final class StylesheetCompiler
     m_aStylesheet.addKey (new KeyDefinition (aEl, aName, aMatch, aUse, aBody, bComposite, sCollation));
   }
 
+  private void _readParameterDocument (@NonNull final XslElement aEl,
+                                       @NonNull final ICommonsMap <String, String> aAttrs,
+                                       @NonNull final OutputDefinition aDef)
+  {
+    final String sHref = aEl.getAttr ("parameter-document");
+    if (sHref == null)
+      return;
+    final String sBase = aEl.getStaticBaseUri ();
+    String sUri = sHref.trim ();
+    try
+    {
+      if (sBase != null && FnUri.isAbsoluteUri (sBase))
+        sUri = FnUri.resolveUri (sUri, sBase);
+    }
+    catch (final XPathException ex)
+    {
+      throw XsltException.at (aEl, "XTSE0020", "Invalid parameter-document URI '" + sHref + "'");
+    }
+    final IResourceResolver aResolver = m_aOptions.getResolver () != null ? m_aOptions.getResolver ()
+                                                                         : new FileResourceResolver (m_aOptions.isLoadExternalEntities ());
+    final XdmNode aDoc = aResolver.resolveDocument (sUri);
+    if (aDoc == null)
+      throw XsltException.at (aEl, "XTSE0020", "The parameter document '" + sUri + "' cannot be retrieved");
+    XdmNode aRoot = null;
+    for (int i = 0; i < aDoc.getChildCount (); ++i)
+      if (aDoc.getChildAtIndex (i).isElement ())
+        aRoot = aDoc.getChildAtIndex (i);
+    if (aRoot == null || !SerializationParams.NS_OUTPUT.equals (aRoot.getName ().namespaceUri ()))
+      throw XsltException.at (aEl, "XTSE0020", "'" + sUri + "' is not a serialization parameter document");
+    for (int i = 0; i < aRoot.getChildCount (); ++i)
+    {
+      final XdmNode aParam = aRoot.getChildAtIndex (i);
+      if (!aParam.isElement () || !SerializationParams.NS_OUTPUT.equals (aParam.getName ().namespaceUri ()))
+        continue;
+      if ("use-character-maps".equals (aParam.getName ().localName ()))
+      {
+        for (int j = 0; j < aParam.getChildCount (); ++j)
+        {
+          final XdmNode aMap = aParam.getChildAtIndex (j);
+          final XdmNode aChar = aMap.isElement () ? aMap.getAttribute ("", "character") : null;
+          final XdmNode aString = aMap.isElement () ? aMap.getAttribute ("", "map-string") : null;
+          if (aChar != null && aString != null && aChar.getValue ().codePointCount (0, aChar.getValue ().length ()) == 1)
+            aDef.addInlineCharacterMapping (aChar.getValue ().codePointAt (0), aString.getValue ());
+        }
+        continue;
+      }
+      final XdmNode aValue = aParam.getAttribute ("", "value");
+      if (aValue != null)
+        aAttrs.put (aParam.getName ().localName (), aValue.getValue ());
+    }
+  }
+
   private void _compileOutput (@NonNull final XslElement aEl)
   {
     final ICommonsMap <String, String> aAttrs = new CommonsHashMap <> ();
+    final String sName = aEl.getAttr ("name");
+    final OutputDefinition aDef = sName != null ? m_aStylesheet.getOrCreateNamedOutput (createGlobalContext ().resolveQName (aEl, sName, false))
+                                                : m_aStylesheet.getOutput ();
+    _readParameterDocument (aEl, aAttrs, aDef);
     for (final String sAttr : OutputDefinition.ATTRIBUTES)
     {
       final String v = aEl.getAttr (sAttr);
       if (v != null)
         aAttrs.put (sAttr, v);
     }
-    final String sName = aEl.getAttr ("name");
-    if (sName != null)
-      m_aStylesheet.getOrCreateNamedOutput (createGlobalContext ().resolveQName (aEl, sName, false))
-                   .merge (aEl, aEl.getPrecedence (), aAttrs);
-    else
-      m_aStylesheet.getOutput ().merge (aEl, aEl.getPrecedence (), aAttrs);
+    aDef.merge (aEl, aEl.getPrecedence (), aAttrs);
   }
 
   private void _compileSpace (@NonNull final XslElement aEl, final boolean bStrip)

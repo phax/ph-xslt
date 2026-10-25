@@ -34,6 +34,7 @@ import com.helger.xslt.compile.XPathExpr;
 import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.runtime.ContentOutput;
 import com.helger.xslt.runtime.IXsltOutput;
+import com.helger.xslt.runtime.NamespaceFixup;
 import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
@@ -69,9 +70,10 @@ public final class NodeInstructions
   private static String _evaluateValue (@NonNull final XsltContext aCtx,
                                         @Nullable final XPathExpr aSelect,
                                         @Nullable final SequenceConstructor aBody,
-                                        @Nullable final Avt aSeparator)
+                                        @Nullable final Avt aSeparator,
+                                        final boolean bAlwaysSpace)
   {
-    final String sSep = aSeparator != null ? aSeparator.evaluate (aCtx) : aSelect != null ? " " : "";
+    final String sSep = aSeparator != null ? aSeparator.evaluate (aCtx) : aSelect != null || bAlwaysSpace ? " " : "";
     final XdmSequence aValue;
     if (aSelect != null)
       aValue = aSelect.evaluate (aCtx);
@@ -93,7 +95,7 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
-    return new CompiledInstruction (aEl, (c, o) -> o.appendNew (XdmNode.createText (_evaluateValue (c, aSelect, aBody, aSep))));
+    return new CompiledInstruction (aEl, (c, o) -> o.appendNew (XdmNode.createText (_evaluateValue (c, aSelect, aBody, aSep, false))));
   }
 
   @NonNull
@@ -186,6 +188,7 @@ public final class NodeInstructions
     final Avt aNamespace = aCtx.compileOptionalAvt (aEl, "namespace");
     final ICommonsList <XdmQName> aSets = CoreInstructions.getUseAttributeSets (aCtx, aEl, false);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
+    final boolean bNoInherit = aEl.hasAttr ("inherit-namespaces") && !XsltNames.isXsltTrue (aEl.getAttr ("inherit-namespaces"));
     return new CompiledInstruction (aEl, (c, o) -> {
       final XdmQName aQName = _computeName (c, aEl, aName, aNamespace, true);
       final XdmNode aElement = XdmNode.createElement (aQName);
@@ -193,6 +196,8 @@ public final class NodeInstructions
       if (aSets.isNotEmpty ())
         c.getEngine ().applyAttributeSets (aSets, c, aContent);
       aBody.execute (c, aContent);
+      if (bNoInherit)
+        NamespaceFixup.applyNoInherit (aElement);
       o.appendNew (aElement);
     });
   }
@@ -207,7 +212,7 @@ public final class NodeInstructions
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
     return new CompiledInstruction (aEl, (c, o) -> {
       final XdmQName aQName = _computeName (c, aEl, aName, aNamespace, false);
-      final String sValue = _evaluateValue (c, aSelect, aBody, aSep);
+      final String sValue = _evaluateValue (c, aSelect, aBody, aSep, false);
       o.appendNew (XdmNode.createAttribute (aQName, sValue));
     });
   }
@@ -218,7 +223,7 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     return new CompiledInstruction (aEl, (c, o) -> {
-      String s = _evaluateValue (c, aSelect, aBody, null);
+      String s = _evaluateValue (c, aSelect, aBody, null, true);
       while (s.contains ("--"))
         s = s.replace ("--", "- -");
       if (s.endsWith ("-"))
@@ -237,7 +242,7 @@ public final class NodeInstructions
       final String sName = XsltNames.trimXmlWhitespace (aName.evaluate (c));
       if (!XsltNames.isNCName (sName) || "xml".equalsIgnoreCase (sName))
         throw new XPathException ("XTDE0890", "'" + sName + "' is not a valid processing instruction name");
-      String s = _evaluateValue (c, aSelect, aBody, null);
+      String s = _evaluateValue (c, aSelect, aBody, null, true);
       int nStart = 0;
       while (nStart < s.length () && " \t\r\n".indexOf (s.charAt (nStart)) >= 0)
         nStart++;
@@ -258,7 +263,7 @@ public final class NodeInstructions
       final String sPrefix = XsltNames.trimXmlWhitespace (aName.evaluate (c));
       if (!sPrefix.isEmpty () && !XsltNames.isNCName (sPrefix) || "xmlns".equals (sPrefix))
         throw new XPathException ("XTDE0920", "'" + sPrefix + "' is not a valid namespace prefix");
-      final String sUri = _evaluateValue (c, aSelect, aBody, null);
+      final String sUri = _evaluateValue (c, aSelect, aBody, null, true);
       if (sUri.isEmpty ())
         throw new XPathException ("XTDE0930", "The namespace URI of xsl:namespace is empty");
       if (NS_XMLNS.equals (sUri))
@@ -290,6 +295,7 @@ public final class NodeInstructions
     final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") || XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
     final ICommonsList <XdmQName> aSets = CoreInstructions.getUseAttributeSets (aCtx, aEl, false);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
+    final boolean bNoInherit = aEl.hasAttr ("inherit-namespaces") && !XsltNames.isXsltTrue (aEl.getAttr ("inherit-namespaces"));
     return new CompiledInstruction (aEl, (c, o) -> {
       XsltContext aCtx2 = c;
       final IXdmItem aItem;
@@ -338,6 +344,8 @@ public final class NodeInstructions
           if (aSets.isNotEmpty ())
             aCtx2.getEngine ().applyAttributeSets (aSets, aCtx2, aContent);
           aBody.execute (aCtx2, aContent);
+          if (bNoInherit)
+            NamespaceFixup.applyNoInherit (aCopy);
           o.appendNew (aCopy);
           break;
         }

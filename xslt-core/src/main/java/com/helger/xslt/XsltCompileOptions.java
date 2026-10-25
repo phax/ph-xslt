@@ -58,6 +58,7 @@ public final class XsltCompileOptions
   private IResourceResolver m_aResolver;
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticParams = new CommonsLinkedHashMap <> ();
   private final ICommonsList <PackageSource> m_aPackages = new CommonsArrayList <> ();
+  private boolean m_bLoadExternalEntities = false;
 
   /** @return The stylesheet's own URI, against which import/include hrefs resolve. */
   @Nullable
@@ -124,6 +125,23 @@ public final class XsltCompileOptions
   {
     ValueEnforcer.notNull (aPackage, "Package");
     m_aPackages.add (aPackage);
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if external DTDs and entities of stylesheet
+   *         modules are loaded. Default <code>false</code> (for untrusted
+   *         stylesheets).
+   */
+  public boolean isLoadExternalEntities ()
+  {
+    return m_bLoadExternalEntities;
+  }
+
+  @NonNull
+  public XsltCompileOptions setLoadExternalEntities (final boolean bLoadExternalEntities)
+  {
+    m_bLoadExternalEntities = bLoadExternalEntities;
     return this;
   }
 }

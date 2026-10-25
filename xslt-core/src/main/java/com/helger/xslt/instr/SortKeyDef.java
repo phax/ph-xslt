@@ -102,8 +102,14 @@ public final class SortKeyDef
   @NonNull
   public static SortKeyDef compile (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
-    final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
-    final SequenceConstructor aBody = aSelect == null ? aCtx.compileSequenceConstructor (aEl, aEl.getChildren ()) : null;
+    XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
+    SequenceConstructor aBody = aSelect == null ? aCtx.compileSequenceConstructor (aEl, aEl.getChildren ()) : null;
+    if (aBody != null && aBody.isEmpty ())
+    {
+      // Neither select nor content: the sort key is the item itself
+      aSelect = aCtx.compileExpression (aEl, ".");
+      aBody = null;
+    }
     return new SortKeyDef (aEl,
                            aSelect,
                            aBody,
@@ -146,7 +152,7 @@ public final class SortKeyDef
         sDataType = s;
     }
     int nCaseOrder = 0;
-    if (m_aCaseOrder != null)
+    if (m_aCaseOrder != null && m_aCollation == null)
     {
       final String s = m_aCaseOrder.evaluate (aCtx).trim ();
       if ("upper-first".equals (s))
@@ -289,12 +295,14 @@ public final class SortKeyDef
                                   @NonNull final XsltContext aCtx)
   {
     final int nItems = aSeq.size ();
-    if (aKeys.isEmpty () || nItems == 0)
+    if (aKeys.isEmpty ())
       return aSeq;
     final int nKeys = aKeys.size ();
     final Settings [] aSettings = new Settings [nKeys];
     for (int k = 0; k < nKeys; ++k)
       aSettings[k] = aKeys.get (k)._evaluateSettings (aCtx);
+    if (nItems < 2)
+      return aSeq;
     final XdmAtomic [] [] aValues = new XdmAtomic [nItems] [nKeys];
     final XsltContext aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
     for (int i = 0; i < nItems; ++i)
