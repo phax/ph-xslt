@@ -113,6 +113,14 @@ public final class ForEachGroupInstructionTest
                              TE +
                              END,
                              null));
+    assertEquals ("XTDE1061",
+                  errorCode (SHEET +
+                             IT +
+                             "<xsl:for-each-group select='1' group-by='.'><xsl:variable name='f' select='current-group#0'/>" +
+                             "<xsl:value-of select='$f()'/></xsl:for-each-group>" +
+                             TE +
+                             END,
+                             null));
     assertEquals ("XTTE1100",
                   errorCode (SHEET + IT + "<xsl:for-each-group select='1' group-adjacent='(1,2)'/>" + TE + END, null));
   }

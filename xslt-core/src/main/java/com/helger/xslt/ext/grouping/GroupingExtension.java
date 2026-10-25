@@ -75,8 +75,18 @@ public final class GroupingExtension implements IXsltExtension
   {
     aRegistry.registerInstruction ("for-each-group", ForEachGroupInstruction::compile);
     aRegistry.registerFunctions (aLib -> {
-      aLib.register (XdmConstants.NS_FN, "current-group", "() as item()*", GroupingExtension::_currentGroup);
-      aLib.register (XdmConstants.NS_FN, "current-grouping-key", "() as xs:anyAtomicType*", GroupingExtension::_currentGroupingKey);
+      // A dynamic call (current-group#0) never sees a current group
+      aLib.register (XdmConstants.NS_FN, "current-group", "() as item()*", GroupingExtension::_currentGroup, false, (aCtx, aArgs) -> {
+        throw new XPathException ("XTDE1061", "current-group() is not available in a dynamic function call");
+      });
+      aLib.register (XdmConstants.NS_FN,
+                     "current-grouping-key",
+                     "() as xs:anyAtomicType*",
+                     GroupingExtension::_currentGroupingKey,
+                     false,
+                     (aCtx, aArgs) -> {
+                       throw new XPathException ("XTDE1071", "current-grouping-key() is not available in a dynamic function call");
+                     });
     });
   }
 }
