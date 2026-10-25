@@ -314,7 +314,7 @@ public final class XsltFunctions
       }
       for (final String sRef : aRefs)
       {
-        final String sTrimmed = sRef.trim ();
+        final String sTrimmed = FnUri.iriToUri (sRef.trim ());
         String sUri;
         try
         {

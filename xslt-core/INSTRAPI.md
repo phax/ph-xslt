@@ -91,6 +91,7 @@ prefix on literal result elements), `getChildren ()` (elements and text; comment
 |--------|-----|
 | `compileExpression (el, text)`, `compileRequiredExpression (el, attr)` (XTSE0010 if missing), `compileOptionalExpression (el, attr)` | XPath on an element → `XPathExpr` |
 | `compileAvt (el, text)`, `compileOptionalAvt (el, attr)` | attribute value templates → `Avt` (`isConstant`, `getConstantValue`, `evaluate (ctx)`) |
+| `compileTextValueTemplate (el, text)` | text value templates (expand-text) |
 | `compilePattern (el, text)` | pattern → `CompiledPattern` (only globals in scope); `getCompiler ().compileCheckedPattern (ctx, el, text)` adds XTSE1060/1070/3470/3500 |
 | `compileSequenceType (el, text)` | `as` attributes → `SeqType` |
 | `resolveQName (el, lexical, bDefaultNs)`, `resolveQNameAttr (el, attr, bDefaultNs)` | names (XTSE0020/XTSE0280) |

@@ -30,6 +30,7 @@ import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.regex.XPathRegex;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.serialize.XdmSerializer;
+import com.helger.xpath.value.XdmArray;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
@@ -451,6 +452,14 @@ public final class ControlInstructions
     }
     if (aItem instanceof final XdmMap aMap)
       return !aMap.isEmpty ();
+    if (aItem instanceof final XdmArray aArray)
+    {
+      for (final XdmSequence aMember : aArray.members ())
+        for (final IXdmItem aMemberItem : aMember)
+          if (_isPopulated (aMemberItem))
+            return true;
+      return false;
+    }
     return !ConditionalContent.isDeemedEmpty (aItem);
   }
 
