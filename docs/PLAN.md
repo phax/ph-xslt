@@ -20,11 +20,11 @@ Decisions:
 | 5 | Regex (translation to `java.util.regex`, own matcher as fallback), collation (java.text.Collator, ICU4J undecided) | `regex_*.go`, `fn_collation.go` | done |
 | 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
 | X1 | XSLT: XSLT30 harness (`xslt-conformance`), match patterns (`xpath-core` `pattern`), core compiler and engine with the basic instructions (`xslt-core`) | `xslt30_test.go`, `pattern*.go`, `compile.go`, `transform.go`, `modes.go`, `loader.go`, `avt.go` | done |
-| X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | in progress |
+| X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | done |
 | X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | |
 
-XSLT30 status (2026-10-25, after X1): 7,504 of 8,647 applicable cases pass (86.8%) as a basic processor; the
-remaining fails are mostly the X2 families and packages (X3). Extension API for the families: `xslt-core/INSTRAPI.md`.
+XSLT30 status (2026-10-25, after X2): 8,455 of 8,647 applicable cases pass (97.8%) as a basic processor, identical on
+JDK 21 and 25; about 135 of the 192 remaining fails are packages (X3). Extension API for the families: `xslt-core/INSTRAPI.md`.
 
 QT3 status (2026-10-24): 22,328 of 22,478 applicable cases pass (99.3%), 150 fail, all documented in
 `xpath-conformance/docs/accepted-failures/qt3.md` (`QT3Test` fails on any undocumented failure):

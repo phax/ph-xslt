@@ -7,8 +7,8 @@ A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 
 XML parsing and XSD validation are left to the JDK (Xerces); everything on top of it is implemented here.
 
 Status: work in progress. The XPath 3.1 engine runs and passes 99.3% of the applicable W3C QT3 test cases
-(22,328 of 22,478). The XSLT 3.0 core passes 86.8% of the applicable W3C xslt30-test cases (7,504 of
-8,647); instruction families such as xsl:number, grouping and accumulators are being added.
+(22,328 of 22,478). The XSLT 3.0 engine passes 97.8% of the applicable W3C xslt30-test cases as a basic
+processor (8,455 of 8,647); packages, `fn:transform`, streaming and schema-awareness are not done yet.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Modules
@@ -53,6 +53,8 @@ v0.1.0 - work in progress
 * Regular-expression category escapes (`\p{..}`, `\d`, `\w`) and the `i` flag are pinned to Unicode 15.0, so results are identical on JDK 21 and 25
 * Regular expressions use the XSD 1.1 character-class grammar unless XSD 1.0 is set explicitly
 * `FunctionLibrary` can register a separate implementation for dynamic function calls (`current-group#0` raises XTDE1061, `regex-group#1` returns a zero-length string)
+* Added accumulators (`xsl:accumulator`, `accumulator-before()`, `accumulator-after()`) with `use-accumulators` on `xsl:mode`, `xsl:source-document` and `xsl:merge-source`; values survive `copy-of()`, `snapshot()` and `copy-accumulators="yes"`
+* Added `xsl:try`/`xsl:catch` (err:* variables, `errors` name tests, `rollback-output`), `xsl:assert`, `xsl:evaluate` (the processor reports `supports-dynamic-evaluation`), `xsl:map`/`xsl:map-entry` and `xsl:source-document` (not streamed)
 * `XdmParser.setLoadExternalEntities(true)` now really reads the external DTD subset and external entities; secure processing had blocked every external access
 
 # Contributing
