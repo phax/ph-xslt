@@ -347,7 +347,7 @@ final class MarkupWriter
           aSB.append ("&gt;");
           break;
         case '"':
-          aSB.append ("&quot;");
+          aSB.append ("&#34;");
           break;
         case '\t':
           if (m_bHtml)
@@ -547,6 +547,7 @@ final class MarkupWriter
     final XdmQName aName = aElement.getName ();
     final boolean bNormalisePrefixes = m_bHtml5 && (m_bHtml || m_bXhtml);
     final StringBuilder aDecls = new StringBuilder ();
+    boolean bUndeclaresDefault = false;
 
     final ICommonsOrderedMap <String, String> aNamespaces = bTop ? aElement.getInScopeNamespaces ()
                                                                  : aElement.getDeclaredNamespaces ();
@@ -563,6 +564,7 @@ final class MarkupWriter
         if (sPrefix.isEmpty ())
         {
           // Default namespace undeclaration: handled with the element name
+          bUndeclaresDefault = true;
           continue;
         }
         if (m_aParams.isUndeclarePrefixes () && m_bXml11 && m_aScope.containsKey (sPrefix))
@@ -591,6 +593,10 @@ final class MarkupWriter
       {
         final String sPrefix = _getPrefix (aName, false, aDecls);
         sQName = sPrefix.isEmpty () ? aName.localName () : sPrefix + ":" + aName.localName ();
+        // A prefixed element that undeclares the default namespace while one
+        // is in scope in the output
+        if (bUndeclaresDefault && !sPrefix.isEmpty () && !_isBound ("", ""))
+          _bind ("", "", aDecls);
       }
 
     final boolean bHtmlElement = _isHtmlElement (aElement);
@@ -635,7 +641,7 @@ final class MarkupWriter
     if (bFixContentType)
     {
       aAttrs.append (" content=\"");
-      _escapeAttr (aAttrs, _getContentTypeValue ());
+      m_aCharset.mapAndEscape (aAttrs, _getContentTypeValue (), this::_escapeAttr);
       aAttrs.append ('"');
     }
     m_aSB.append ('<').append (sQName).append (aDecls).append (aAttrs);
@@ -646,7 +652,7 @@ final class MarkupWriter
   private String _getContentTypeMeta ()
   {
     final StringBuilder aSB = new StringBuilder ("<meta http-equiv=\"Content-Type\" content=\"");
-    _escapeAttr (aSB, _getContentTypeValue ());
+    m_aCharset.mapAndEscape (aSB, _getContentTypeValue (), this::_escapeAttr);
     aSB.append (m_bXhtml ? "\" />" : "\">");
     return aSB.toString ();
   }
@@ -780,7 +786,7 @@ final class MarkupWriter
             m_aSB.append ("></").append (sQName).append ('>');
         }
         else
-          if (m_bXhtml && _isHtmlElement (aElement))
+          if (m_bXhtml && (_isHtmlElement (aElement) || m_bHtml5 && !aElement.getName ().hasNamespace ()))
           {
             if (VOID_ELEMENTS.contains (sLocalLC))
               m_aSB.append (" />");

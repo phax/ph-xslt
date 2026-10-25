@@ -44,7 +44,7 @@ public final class XdmSerializerTest
   @Test
   public void testXml ()
   {
-    assertEquals ("<a xmlns=\"u\"><b x=\"&lt;&amp;&quot;\">&lt;&amp;&gt;</b><!--c--><?p d?><c xmlns=\"\"/></a>",
+    assertEquals ("<a xmlns=\"u\"><b x=\"&lt;&amp;&#34;\">&lt;&amp;&gt;</b><!--c--><?p d?><c xmlns=\"\"/></a>",
                   evalString ("serialize(parse-xml('<a xmlns=\"u\"><b x=\"&lt;&amp;&quot;\">&lt;&amp;&gt;</b><!--c--><?p d?><c xmlns=\"\"/></a>'))"));
     assertEquals ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><a/>",
                   evalString ("serialize(parse-xml('<a/>'), map{'omit-xml-declaration':false(), 'standalone':true()})"));

@@ -37,6 +37,7 @@ import com.helger.xslt.compile.Avt;
 import com.helger.xslt.compile.CompileContext;
 import com.helger.xslt.compile.StaticContexts;
 import com.helger.xslt.compile.XPathExpr;
+import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.tree.XslElement;
@@ -199,7 +200,7 @@ public final class SortKeyDef
     else
     {
       final SequenceOutput aOut = new SequenceOutput ();
-      m_aBody.execute (aCtx, aOut);
+      m_aBody.execute (Engine.withTemporaryOutputState (aCtx), aOut);
       aValue = aOut.getSequence ();
     }
     final XdmSequence aAtoms = Atomizer.atomize (aValue);

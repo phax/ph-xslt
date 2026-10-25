@@ -492,7 +492,10 @@ public final class XSLT30CaseRunner
     }
 
     final XsltTransformResult aResult = aExecutable.transform (aRequest);
-    return XSLT30Actual.ofResult (aResult, aFunction != null || aOutput != null && "no".equals (aOutput.tree ()), sResultVar);
+    return XSLT30Actual.ofResult (aResult,
+                                  aFunction != null || aOutput != null && "no".equals (aOutput.tree ()),
+                                  sResultVar,
+                                  aOutput != null && "yes".equals (aOutput.serialize ()));
   }
 
   /**
