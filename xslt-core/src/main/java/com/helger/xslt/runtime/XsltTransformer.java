@@ -160,7 +160,8 @@ public final class XsltTransformer
         if (aCand.getArity () == nArity)
         {
           final String sVis = aCand.getVisibility ();
-          if (sVis == null || "public".equals (sVis) || "final".equals (sVis))
+          // The default visibility of a function is private
+          if ("public".equals (sVis) || "final".equals (sVis))
             aFunc = aCand;
         }
       if (aFunc == null)
