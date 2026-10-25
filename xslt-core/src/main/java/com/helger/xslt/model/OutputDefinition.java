@@ -257,8 +257,9 @@ public final class OutputDefinition
       {
         case "allow-duplicate-names" -> ret.setAllowDuplicateNames (XsltNames.isXsltTrue (v));
         case "byte-order-mark" -> ret.setByteOrderMark (XsltNames.isXsltTrue (v));
-        case "doctype-public" -> ret.setDoctypePublic (v);
-        case "doctype-system" -> ret.setDoctypeSystem (v);
+        // A zero-length string is the same as omitting the attribute
+        case "doctype-public" -> ret.setDoctypePublic (v.isEmpty () ? null : v);
+        case "doctype-system" -> ret.setDoctypeSystem (v.isEmpty () ? null : v);
         case "encoding" -> ret.setEncoding (v);
         case "escape-uri-attributes" -> ret.setEscapeUriAttributes (XsltNames.isXsltTrue (v));
         case "html-version" ->

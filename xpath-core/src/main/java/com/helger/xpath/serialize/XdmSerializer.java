@@ -120,12 +120,19 @@ public final class XdmSerializer
               throw XPathException.of ("SENR0001",
                                        "An attribute or namespace node cannot be serialized on its own");
             case TEXT:
-              aText.append (aNode.getValue ());
+              if (aNode.isDisableOutputEscaping ())
+              {
+                // Kept as a node, so that the writer does not escape it
+                _flushText (aText, ret);
+                ret.add (aNode);
+              }
+              else
+                aText.append (aNode.getValue ());
               break;
             case DOCUMENT:
               for (final XdmNode aChild : aNode.getAllChildren ())
               {
-                if (aChild.getKind () == ENodeKind.TEXT)
+                if (aChild.getKind () == ENodeKind.TEXT && !aChild.isDisableOutputEscaping ())
                   aText.append (aChild.getValue ());
                 else
                 {
