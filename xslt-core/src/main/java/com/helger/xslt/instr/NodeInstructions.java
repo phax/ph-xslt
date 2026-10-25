@@ -96,7 +96,13 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
-    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> aRtOut.appendNew (XdmNode.createText (_evaluateValue (aRtCtx, aSelect, aBody, aSep, false))));
+    final boolean bDoe = XsltNames.isXsltTrue (aEl.getAttr ("disable-output-escaping"));
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final XdmNode aText = XdmNode.createText (_evaluateValue (aRtCtx, aSelect, aBody, aSep, false));
+      if (bDoe)
+        aText.setDisableOutputEscaping (true);
+      aRtOut.appendNew (aText);
+    });
   }
 
   @NonNull
@@ -107,14 +113,20 @@ public final class NodeInstructions
       if (aNode instanceof final XslText aText)
         aSB.append (aText.getValue ());
     final String sText = aSB.toString ();
+    final boolean bDoe = XsltNames.isXsltTrue (aEl.getAttr ("disable-output-escaping"));
     if (CompileContext.isExpandText (aEl))
     {
       final Avt aAvt = aCtx.compileTextValueTemplate (aEl, sText);
       if (!aAvt.isConstant ())
-        return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> aRtOut.appendNew (XdmNode.createText (aAvt.evaluate (aRtCtx))));
-      return new LiteralText (aEl, aAvt.getConstantValue ());
+        return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+          final XdmNode aText = XdmNode.createText (aAvt.evaluate (aRtCtx));
+          if (bDoe)
+            aText.setDisableOutputEscaping (true);
+          aRtOut.appendNew (aText);
+        });
+      return new LiteralText (aEl, aAvt.getConstantValue (), bDoe);
     }
-    return new LiteralText (aEl, sText);
+    return new LiteralText (aEl, sText, bDoe);
   }
 
   @NonNull

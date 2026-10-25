@@ -194,7 +194,20 @@ public final class ContentOutput implements IXsltOutput
         _addNamespace (aNode);
         break;
       case TEXT:
-        _addText (aNode.getValue ());
+        if (aNode.isDisableOutputEscaping ())
+        {
+          // Kept as a node of its own, so that the flag is not merged away
+          if (!aNode.getValue ().isEmpty ())
+          {
+            final XdmNode aText = XdmNode.createText (aNode.getValue ());
+            aText.setDisableOutputEscaping (true);
+            m_aParent.appendChild (aText);
+            m_aLastText = null;
+            m_bHasChildren = true;
+          }
+        }
+        else
+          _addText (aNode.getValue ());
         break;
       default:
       {

@@ -36,11 +36,18 @@ public final class LiteralText implements IInstruction
 {
   private final XslNode m_aLocation;
   private final String m_sText;
+  private final boolean m_bDisableOutputEscaping;
 
   public LiteralText (@Nullable final XslNode aLocation, @NonNull final String sText)
   {
+    this (aLocation, sText, false);
+  }
+
+  public LiteralText (@Nullable final XslNode aLocation, @NonNull final String sText, final boolean bDisableOutputEscaping)
+  {
     m_aLocation = aLocation;
     m_sText = sText;
+    m_bDisableOutputEscaping = bDisableOutputEscaping;
   }
 
   @NonNull
@@ -51,7 +58,10 @@ public final class LiteralText implements IInstruction
 
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
-    aOut.appendNew (XdmNode.createText (m_sText));
+    final XdmNode aText = XdmNode.createText (m_sText);
+    if (m_bDisableOutputEscaping)
+      aText.setDisableOutputEscaping (true);
+    aOut.appendNew (aText);
   }
 
   @Nullable
