@@ -635,7 +635,7 @@ final class MarkupWriter
     if (bFixContentType)
     {
       aAttrs.append (" content=\"");
-      _escapeAttr (aAttrs, _getContentTypeValue ());
+      m_aCharset.mapAndEscape (aAttrs, _getContentTypeValue (), this::_escapeAttr);
       aAttrs.append ('"');
     }
     m_aSB.append ('<').append (sQName).append (aDecls).append (aAttrs);
@@ -646,7 +646,7 @@ final class MarkupWriter
   private String _getContentTypeMeta ()
   {
     final StringBuilder aSB = new StringBuilder ("<meta http-equiv=\"Content-Type\" content=\"");
-    _escapeAttr (aSB, _getContentTypeValue ());
+    m_aCharset.mapAndEscape (aSB, _getContentTypeValue (), this::_escapeAttr);
     aSB.append (m_bXhtml ? "\" />" : "\">");
     return aSB.toString ();
   }
