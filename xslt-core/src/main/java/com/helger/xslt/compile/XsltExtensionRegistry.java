@@ -53,19 +53,19 @@ public final class XsltExtensionRegistry
    * The classes of the instruction families, each implementing
    * {@link IXsltExtension}. Missing classes are skipped.
    */
-  public static final String [] EXTENSION_CLASS_NAMES = { "NumberExtension",
-                                                          "GroupingExtension",
-                                                          "MergeExtension",
-                                                          "IterateExtension",
-                                                          "TryCatchExtension",
-                                                          "ResultDocumentExtension",
-                                                          "AccumulatorExtension",
-                                                          "EvaluateExtension",
-                                                          "MapExtension",
-                                                          "SourceDocumentExtension",
-                                                          "AssertExtension",
-                                                          "ForkExtension",
-                                                          "CharacterMapExtension" };
+  public static final String [] EXTENSION_CLASS_NAMES = { "com.helger.xslt.ext.number.NumberExtension",
+                                                          "com.helger.xslt.ext.grouping.GroupingExtension",
+                                                          "com.helger.xslt.ext.merge.MergeExtension",
+                                                          "com.helger.xslt.ext.iterate.IterateExtension",
+                                                          "com.helger.xslt.ext.trycatch.TryCatchExtension",
+                                                          "com.helger.xslt.ext.resultdocument.ResultDocumentExtension",
+                                                          "com.helger.xslt.ext.accumulator.AccumulatorExtension",
+                                                          "com.helger.xslt.ext.evaluate.EvaluateExtension",
+                                                          "com.helger.xslt.ext.map.MapExtension",
+                                                          "com.helger.xslt.ext.sourcedocument.SourceDocumentExtension",
+                                                          "com.helger.xslt.ext.assertion.AssertExtension",
+                                                          "com.helger.xslt.ext.fork.ForkExtension",
+                                                          "com.helger.xslt.ext.charactermap.CharacterMapExtension" };
 
   /** Declarations the stylesheet compiler handles itself. */
   public static final String [] CORE_DECLARATIONS = { "attribute-set",

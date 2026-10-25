@@ -277,6 +277,115 @@ public final class SortKeyDef
   }
 
   /**
+   * A list of sort keys whose attributes (order, data-type, collation, ...)
+   * have been evaluated once, for instructions that evaluate the key values
+   * themselves: xsl:for-each-group sorts groups, xsl:merge compares merge
+   * keys. Valid for one execution of the instruction only.
+   */
+  public static final class Evaluated
+  {
+    private final ICommonsList <SortKeyDef> m_aKeys;
+    private final Settings [] m_aSettings;
+    private final XsltContext m_aCtx;
+
+    private Evaluated (@NonNull final ICommonsList <SortKeyDef> aKeys,
+                       @NonNull final Settings [] aSettings,
+                       @NonNull final XsltContext aCtx)
+    {
+      m_aKeys = aKeys;
+      m_aSettings = aSettings;
+      m_aCtx = aCtx;
+    }
+
+    /** @return The number of keys. */
+    public int getKeyCount ()
+    {
+      return m_aSettings.length;
+    }
+
+    /**
+     * @param aItemCtx
+     *        The context in which the key values are evaluated (focus on the
+     *        item to sort).
+     * @return One value per key; <code>null</code> for an empty key.
+     * @throws XPathException
+     *         XTTE1020 if a key value has more than one item
+     */
+    @NonNull
+    public XdmAtomic [] computeKeys (@NonNull final XsltContext aItemCtx)
+    {
+      final XdmAtomic [] ret = new XdmAtomic [m_aSettings.length];
+      for (int k = 0; k < m_aSettings.length; ++k)
+        ret[k] = m_aKeys.get (k)._computeKey (aItemCtx, m_aSettings[k]);
+      return ret;
+    }
+
+    /**
+     * Compare two key tuples computed with {@link #computeKeys(XsltContext)}.
+     *
+     * @param a
+     *        First tuple.
+     * @param b
+     *        Second tuple.
+     * @return negative, 0 or positive, honouring the order of each key.
+     * @throws XPathException
+     *         XTDE1030 if two values are not comparable
+     */
+    public int compare (@NonNull final XdmAtomic [] a, @NonNull final XdmAtomic [] b)
+    {
+      for (int k = 0; k < m_aSettings.length; ++k)
+      {
+        int c = _compare (a[k], b[k], m_aSettings[k], m_aCtx);
+        if (m_aSettings[k].descending ())
+          c = -c;
+        if (c != 0)
+          return c;
+      }
+      return 0;
+    }
+
+    /**
+     * @param nKey
+     *        Key index.
+     * @param aOther
+     *        Other evaluated keys.
+     * @return <code>true</code> if key <code>nKey</code> has the same
+     *         effective order, data type, case order and collation in both.
+     */
+    public boolean hasSameSettings (final int nKey, @NonNull final Evaluated aOther)
+    {
+      final Settings a = m_aSettings[nKey];
+      final Settings b = aOther.m_aSettings[nKey];
+      if (a.descending () != b.descending () || a.caseOrder () != b.caseOrder ())
+        return false;
+      if (a.dataType () == null ? b.dataType () != null : !a.dataType ().equals (b.dataType ()))
+        return false;
+      final String sCollA = a.collation () == null ? CollationRegistry.CODEPOINT_URI : a.collation ().getUri ();
+      final String sCollB = b.collation () == null ? CollationRegistry.CODEPOINT_URI : b.collation ().getUri ();
+      return sCollA.equals (sCollB);
+    }
+  }
+
+  /**
+   * Evaluate the attributes of sort keys.
+   *
+   * @param aKeys
+   *        The sort keys, most significant first.
+   * @param aCtx
+   *        The context of the instruction (for the attribute value
+   *        templates).
+   * @return The evaluated keys.
+   */
+  @NonNull
+  public static Evaluated evaluate (@NonNull final ICommonsList <SortKeyDef> aKeys, @NonNull final XsltContext aCtx)
+  {
+    final Settings [] aSettings = new Settings [aKeys.size ()];
+    for (int k = 0; k < aSettings.length; ++k)
+      aSettings[k] = aKeys.get (k)._evaluateSettings (aCtx);
+    return new Evaluated (aKeys, aSettings, aCtx);
+  }
+
+  /**
    * Sort a sequence.
    *
    * @param aKeys

@@ -94,7 +94,7 @@ public final class BuiltInFunctionItem extends AbstractFunctionItem
   @NonNull
   public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
-    return m_aDef.getImpl ().call (m_aCapturedCtx != null ? m_aCapturedCtx : aCtx, aArgs);
+    return m_aDef.getDynamicCallImpl ().call (m_aCapturedCtx != null ? m_aCapturedCtx : aCtx, aArgs);
   }
 
   @Override
