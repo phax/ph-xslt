@@ -99,6 +99,21 @@ public record XSLT30Invocation (@NonNull ICommonsList <XSLT30Environment.Module>
    *        The variable the raw result is bound to in assertions, may be
    *        empty (then <code>$result</code>).
    */
-  public record Output (@NonNull String file, @NonNull String serialize, @NonNull String resultVar)
-  {}
+  public record Output (@NonNull String file, @NonNull String serialize, @NonNull String resultVar, @NonNull String tree)
+  {
+    /**
+     * Constructor without the tree attribute.
+     *
+     * @param file
+     *        Output file.
+     * @param serialize
+     *        Serialize attribute.
+     * @param resultVar
+     *        Result variable name.
+     */
+    public Output (@NonNull final String file, @NonNull final String serialize, @NonNull final String resultVar)
+    {
+      this (file, serialize, resultVar, "");
+    }
+  }
 }

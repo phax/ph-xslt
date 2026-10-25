@@ -17,6 +17,7 @@
 package com.helger.xslt.compile;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 import org.jspecify.annotations.NonNull;
@@ -108,6 +109,8 @@ public final class StylesheetCompiler
   private final ICommonsList <AttributeSetRef> m_aAttributeSetRefs = new CommonsArrayList <> ();
   private final ICommonsMap <XdmQName, Integer> m_aNamedTemplatePrecedence = new CommonsHashMap <> ();
   private int m_nOrder;
+  private final ICommonsSet <XslModule> m_aGlobalContextItemModules = new CommonsHashSet <> ();
+  private String m_sGlobalContextItemAs;
 
   private StylesheetCompiler (@NonNull final XsltCompileOptions aOptions)
   {
@@ -600,7 +603,8 @@ public final class StylesheetCompiler
 
   private void _compileGlobal (@NonNull final XslElement aEl, final boolean bParam)
   {
-    final VariableDef aVar = createGlobalContext ().compileVariable (aEl,
+    final XdmQName aOwnName = createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false);
+    final VariableDef aVar = createGlobalContext ().withoutGlobalVariable (aOwnName).compileVariable (aEl,
                                                                       bParam ? VariableDef.EKind.GLOBAL_PARAM
                                                                              : VariableDef.EKind.GLOBAL_VARIABLE);
     final Integer aWinner = m_aGlobalPrecedences.get (aVar.getName ());
@@ -789,8 +793,11 @@ public final class StylesheetCompiler
                                                                                                            : createGlobalContext ().compileSequenceType (aEl,
                                                                                                                                                          sAs),
                                                                                               sUse);
-    if (aPrev != null && !aPrev.use ().equals (aNew.use ()))
+    if (!m_aGlobalContextItemModules.add (aEl.getModule ()))
+      throw XsltException.at (aEl, "XTSE3087", "A stylesheet module may contain only one xsl:global-context-item");
+    if (aPrev != null && (!aPrev.use ().equals (aNew.use ()) || !Objects.equals (m_sGlobalContextItemAs, sAs)))
       throw XsltException.at (aEl, "XTSE3087", "Conflicting xsl:global-context-item declarations");
+    m_sGlobalContextItemAs = sAs;
     m_aStylesheet.setGlobalContextItem (aNew);
   }
 
@@ -958,9 +965,19 @@ public final class StylesheetCompiler
     final StylesheetLoader aLoader = new StylesheetLoader (m_aOptions);
     final XslModule aPrincipal = aLoader.loadModule (aRootSrc, m_aOptions.getBaseUri (), true);
     final ICommonsList <StylesheetLoader.Level> aLevels = aLoader.arrangeByPrecedence (aPrincipal);
+    String sInputTypeAnnotations = null;
     for (final XslModule aModule : aLoader.getAllModules ())
       if (aModule.getRoot () != null)
+      {
         ElementValidator.validateTree (aModule.getRoot ());
+        final String s = aModule.getRoot ().getAttr ("input-type-annotations");
+        if (s != null && aModule.getRoot ().isXsl () && !"unspecified".equals (s.trim ()))
+        {
+          if (sInputTypeAnnotations != null && !sInputTypeAnnotations.equals (s.trim ()))
+            throw XsltException.at (aModule.getRoot (), "XTSE0265", "Conflicting input-type-annotations values");
+          sInputTypeAnnotations = s.trim ();
+        }
+      }
 
     final FunctionLibrary aLib = FunctionLibrary.createDefault ();
     m_aRegistry.contributeFunctions (aLib);

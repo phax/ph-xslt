@@ -601,8 +601,11 @@ public final class ElementValidator
           throw XsltException.at (aEl,
                                   "XTSE0020",
                                   "xsl:decimal-format/@" + aEntry.getKey ().localName () + " must be a single character");
-    if ("global-context-item".equals (sLocal))
+    if ("global-context-item".equals (sLocal) || "context-item".equals (sLocal))
     {
+      final String sAs = aEl.getAttr ("as");
+      if (sAs != null && !sAs.trim ().isEmpty () && "?*+".indexOf (sAs.trim ().charAt (sAs.trim ().length () - 1)) >= 0)
+        throw XsltException.at (aEl, "XTSE0020", "as='" + sAs + "' must be an item type without occurrence indicator");
       final String sUse = aEl.getAttr ("use");
       if (sUse != null && !"required".equals (sUse.trim ()) && !"optional".equals (sUse.trim ()) && !"absent".equals (sUse.trim ()))
         throw XsltException.at (aEl, "XTSE0020", "use='" + sUse + "' is not allowed on xsl:global-context-item");

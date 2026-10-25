@@ -63,11 +63,32 @@ public final class CompileContext
 
   private final StylesheetCompiler m_aCompiler;
   private final Scope m_aScope;
+  private final XdmQName m_aHiddenGlobal;
 
   CompileContext (@NonNull final StylesheetCompiler aCompiler, @Nullable final Scope aScope)
   {
+    this (aCompiler, aScope, null);
+  }
+
+  private CompileContext (@NonNull final StylesheetCompiler aCompiler,
+                          @Nullable final Scope aScope,
+                          @Nullable final XdmQName aHiddenGlobal)
+  {
     m_aCompiler = aCompiler;
     m_aScope = aScope;
+    m_aHiddenGlobal = aHiddenGlobal;
+  }
+
+  /**
+   * @param aName
+   *        A global variable.
+   * @return A context in which that global variable is not in scope (a global
+   *         variable is not in scope in its own definition).
+   */
+  @NonNull
+  public CompileContext withoutGlobalVariable (@NonNull final XdmQName aName)
+  {
+    return new CompileContext (m_aCompiler, m_aScope, aName);
   }
 
   /** @return The compiler (global stylesheet information). */
@@ -98,14 +119,14 @@ public final class CompileContext
   @NonNull
   public CompileContext withVariable (@NonNull final XdmQName aName)
   {
-    return new CompileContext (m_aCompiler, new Scope (aName, m_aScope));
+    return new CompileContext (m_aCompiler, new Scope (aName, m_aScope), m_aHiddenGlobal);
   }
 
   /** @return A context with only the global variables in scope. */
   @NonNull
   public CompileContext withGlobalScopeOnly ()
   {
-    return m_aScope == null ? this : new CompileContext (m_aCompiler, null);
+    return m_aScope == null ? this : new CompileContext (m_aCompiler, null, m_aHiddenGlobal);
   }
 
   /** @return The names of all variables in scope (globals and locals). */
@@ -113,6 +134,8 @@ public final class CompileContext
   public ICommonsOrderedSet <XdmQName> getVariablesInScope ()
   {
     final ICommonsOrderedSet <XdmQName> ret = new CommonsLinkedHashSet <> (m_aCompiler.getGlobalVariableNames ());
+    if (m_aHiddenGlobal != null)
+      ret.remove (m_aHiddenGlobal);
     for (Scope aCur = m_aScope; aCur != null; aCur = aCur.next ())
       ret.add (aCur.name ());
     return ret;
@@ -395,7 +418,10 @@ public final class CompileContext
       if (aNode instanceof final XslElement aChild && aChild.isXsl ())
       {
         final String sLocal = aChild.getLocalName ();
-        if ("param".equals (sLocal) || "sort".equals (sLocal) || "with-param".equals (sLocal) || "context-item".equals (sLocal))
+        if ("param".equals (sLocal) ||
+            "sort".equals (sLocal) ||
+            "with-param".equals (sLocal) ||
+            "context-item".equals (sLocal) && aEl.isXsl ("template"))
           continue;
       }
       aChildren.add (aNode);

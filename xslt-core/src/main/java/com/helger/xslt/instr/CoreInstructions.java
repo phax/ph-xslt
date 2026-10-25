@@ -16,6 +16,7 @@
  */
 package com.helger.xslt.instr;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -125,6 +126,18 @@ public final class CoreInstructions
                                                                 @NonNull final List <XslNode> aChildren)
   {
     final ICommonsList <IInstruction> aInstrs = new CommonsArrayList <> ();
+    final String sOwnVersion = aParent.getParent () != null ? aParent.getStandardAttr ("version") : null;
+    if (sOwnVersion != null &&
+        XsltNames.isDecimalLexical (sOwnVersion.trim ()) &&
+        new BigDecimal (sOwnVersion.trim ()).compareTo (BigDecimal.valueOf (2)) < 0)
+    {
+      // Backwards compatible processing is not supported: an error, but only
+      // if the code is executed
+      aInstrs.add (new CompiledInstruction (aParent, (c, o) -> {
+        throw new XPathException ("XTDE0160", "Backwards compatible processing (version " + sOwnVersion + ") is not supported");
+      }));
+      return new SequenceConstructor (aParent, aInstrs);
+    }
     CompileContext aCur = aCtx;
     boolean bHasMarker = false;
     for (final XslNode aNode : aChildren)

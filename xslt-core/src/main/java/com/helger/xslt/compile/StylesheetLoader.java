@@ -38,6 +38,7 @@ import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.eval.XPathEvaluator;
 import com.helger.xpath.fn.FnUri;
 import com.helger.xpath.fn.FunctionLibrary;
+import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.parser.XPathParser;
 import com.helger.xpath.value.XdmAtomic;
@@ -76,6 +77,10 @@ public final class StylesheetLoader
   private final ICommonsMap <XslElement, XslModule> m_aLoadedModules = new CommonsHashMap <> ();
   private final ICommonsList <XslModule> m_aAllModules = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aLoadStack = new CommonsArrayList <> ();
+  // Import precedence groups: a module and the modules it includes share one;
+  // the stack holds the groups of the modules being loaded (import ancestors)
+  private final ICommonsList <Object> m_aGroupStack = new CommonsArrayList <> ();
+  private final ICommonsMap <XdmQName, Object> m_aStaticGroups = new CommonsHashMap <> ();
 
   public StylesheetLoader (@NonNull final XsltCompileOptions aOptions)
   {
@@ -174,13 +179,12 @@ public final class StylesheetLoader
       if (sLocal.length () < 2 || sLocal.charAt (0) != '_')
         continue;
       final XdmQName aTarget;
+      // Shadow attributes exist on XSLT elements only; xsl:_name on a literal
+      // result element is an error reported by the validator (XTSE0805)
       if (bXsl && aName.namespaceUri ().isEmpty ())
         aTarget = new XdmQName ("", sLocal.substring (1));
       else
-        if (!bXsl && XsltNames.NS_XSL.equals (aName.namespaceUri ()))
-          aTarget = new XdmQName (XsltNames.NS_XSL, sLocal.substring (1), aName.prefix ());
-        else
-          continue;
+        continue;
       final String sValue = _evaluateStaticAvt (aEl, aEntry.getValue ());
       aEl.removeAttribute (aName);
       aEl.setAttribute (aTarget, sValue);
@@ -254,7 +258,34 @@ public final class StylesheetLoader
         throw XsltException.locate (ex, aEl);
       }
     }
+    final Object aGroup = m_aGroupStack.isEmpty () ? null : m_aGroupStack.getLast ();
+    final Object aPrevGroup = m_aStaticGroups.get (aName);
+    if (aPrevGroup != null || m_aStaticValues.containsKey (aName))
+    {
+      // An earlier declaration of an importing module has the higher import
+      // precedence and stays in effect
+      if (aPrevGroup != aGroup && m_aGroupStack.contains (aPrevGroup))
+        return;
+      // An earlier declaration with lower import precedence must agree
+      if (aPrevGroup != aGroup)
+      {
+        boolean bSame;
+        try
+        {
+          bSame = AtomicComparator.deepEqual (m_aStaticValues.get (aName), aValue, null, new DynamicContext (_createStaticContext (aEl)));
+        }
+        catch (final XPathException ex)
+        {
+          bSame = false;
+        }
+        if (!bSame)
+          throw XsltException.at (aEl,
+                                  "XTSE3450",
+                                  "The static variable $" + aName.getEQName () + " is inconsistent with a declaration of lower import precedence");
+      }
+    }
     m_aStaticValues.put (aName, aValue);
+    m_aStaticGroups.put (aName, aGroup);
   }
 
   @NonNull
@@ -346,6 +377,7 @@ public final class StylesheetLoader
     if (aRoot == null)
       throw XsltException.at (aIncludeEl, "XTSE0165", "The stylesheet module '" + sUri + "' has no document element");
     m_aLoadStack.add (sKey);
+    m_aGroupStack.add (aIncludeEl.isXsl ("import") || m_aGroupStack.isEmpty () ? new Object () : m_aGroupStack.getLast ());
     try
     {
       return loadModule (aRoot, sUri, false);
@@ -353,6 +385,7 @@ public final class StylesheetLoader
     finally
     {
       m_aLoadStack.removeLast ();
+      m_aGroupStack.removeLast ();
     }
   }
 
@@ -445,6 +478,8 @@ public final class StylesheetLoader
   {
     final XslModule aModule = new XslModule (sUri, aRootSrc.getRoot ());
     m_aAllModules.add (aModule);
+    if (bPrincipal)
+      m_aGroupStack.add (new Object ());
     final XdmQName aRootName = aRootSrc.getName ();
     if (!XsltNames.NS_XSL.equals (aRootName.namespaceUri ()))
     {

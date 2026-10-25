@@ -56,9 +56,9 @@ public final class Avt
   @NonNull
   private String _evaluatePart (@NonNull final XPathExpr aExpr, @NonNull final XsltContext aCtx)
   {
-    if (m_bTextValueTemplate)
-      return SimpleContent.join (aExpr.evaluate (aCtx), " ");
-    return aExpr.evaluateString (aCtx, " ");
+    // XSLT 3.0 sections 5.6.1/5.6.2: zero-length text nodes are dropped and
+    // adjacent text nodes merged before the items are joined with spaces
+    return SimpleContent.join (aExpr.evaluate (aCtx), " ");
   }
 
   /** @return <code>true</code> if the template contains no expression. */

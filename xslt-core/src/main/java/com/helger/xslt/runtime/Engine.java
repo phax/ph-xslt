@@ -748,6 +748,9 @@ public final class Engine
     final Mode aMode = aState.getCurrentMode () != null ? aState.getCurrentMode ()
                                                         : m_aSheet.getOrCreateMode (m_aSheet.getDefaultModeName ());
     final IXdmItem aItem = aCtx.getContextItem ();
+    if (aItem == null)
+      throw new XPathException ("XTDE0560",
+                                "xsl:" + (bImports ? "apply-imports" : "next-match") + " is used while the context item is absent");
     final TemplateRule aNext;
     if (bImports)
     {
