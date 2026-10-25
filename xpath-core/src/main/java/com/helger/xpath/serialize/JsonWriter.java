@@ -111,13 +111,19 @@ final class JsonWriter
             aTarget.append ("\\t");
             break;
           default:
-            if (cp < 0x20 || cp >= 0x7F && cp <= 0x9F || aCharset != null && !aCharset.canEncode (cp))
+            if (cp < 0x20 || cp >= 0x7F && cp <= 0x9F)
             {
-              for (final char c : Character.toChars (cp))
-                aTarget.append ("\\u").append (String.format (Locale.ROOT, "%04x", Integer.valueOf (c)));
+              // F&O 3.1 §17.5.4 (xml-to-json): upper-case hexadecimal
+              aTarget.append ("\\u").append (String.format (Locale.ROOT, "%04X", Integer.valueOf (cp)));
             }
             else
-              aTarget.appendCodePoint (cp);
+              if (aCharset != null && !aCharset.canEncode (cp))
+              {
+                for (final char c : Character.toChars (cp))
+                  aTarget.append ("\\u").append (String.format (Locale.ROOT, "%04x", Integer.valueOf (c)));
+              }
+              else
+                aTarget.appendCodePoint (cp);
         }
       }
     };

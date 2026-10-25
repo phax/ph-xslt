@@ -462,6 +462,12 @@ public final class FormatDateTime
         final int nCut = nWMin <= 3 && 3 <= nWMax ? 3 : nWMax;
         s = s.substring (0, s.offsetByCodePoints (0, nCut));
       }
+      // Section 9.8.4.3: "If FN is shorter than the minimum width, then it is
+      // padded by appending spaces to the end of the name." That section
+      // covers the integer-valued components only, so of the named ones M
+      // and F, not the am/pm marker P
+      if (cComp == 'M' || cComp == 'F')
+        s = _padRight (s, nWMin);
       return s;
     }
     if (sMod.equals ("I") || sMod.equals ("i"))
@@ -500,7 +506,10 @@ public final class FormatDateTime
                                         nWMax);
     final boolean bNeg = nValue < 0;
     String s = Long.toString (Math.abs (nValue));
-    if (aW[1] > 0 && s.length () > aW[1])
+    // Only the year is cut to its low-order digits (section 9.8.4.4); for
+    // every other component "The maximum width, if specified, is ignored"
+    // (section 9.8.4.3)
+    if (cComp == 'Y' && aW[1] > 0 && s.length () > aW[1])
       s = s.substring (s.length () - aW[1]);
     if (s.length () < aW[0])
       s = "0".repeat (aW[0] - s.length ()) + s;
@@ -755,6 +764,10 @@ public final class FormatDateTime
         final int nDow = DateTimeCalendar.getIsoDayOfWeek (aValue.getEpochDay ());
         nNum = nDow;
         sName = _dayNames (aOpts)[nDow - 1];
+        // F&O 3.1 section 9.8.4.1: the default presentation of F is n (a
+        // lower-case name)
+        if (sMod.isEmpty ())
+          sMod = "n";
         break;
       }
       case 'H':

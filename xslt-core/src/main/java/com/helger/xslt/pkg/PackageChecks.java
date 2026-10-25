@@ -502,13 +502,14 @@ public final class PackageChecks
   {
     if (sAccepted.isEmpty ())
       return true;
+    // The table of section 3.5.3.2
     return switch (sDeclared)
     {
-      case "public", "abstract" -> "public".equals (sAccepted) ||
-                                   "private".equals (sAccepted) ||
-                                   "final".equals (sAccepted) ||
-                                   "abstract".equals (sAccepted) ||
-                                   "hidden".equals (sAccepted);
+      case "public" -> "public".equals (sAccepted) ||
+                       "private".equals (sAccepted) ||
+                       "final".equals (sAccepted) ||
+                       "hidden".equals (sAccepted);
+      case "abstract" -> "abstract".equals (sAccepted) || "hidden".equals (sAccepted);
       case "final" -> "private".equals (sAccepted) || "final".equals (sAccepted) || "hidden".equals (sAccepted);
       default -> false;
     };

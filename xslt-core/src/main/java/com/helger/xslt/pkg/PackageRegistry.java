@@ -71,6 +71,7 @@ public final class PackageRegistry
     private final XsltCompileOptions.PackageSource m_aSource;
     private final int m_nIndex;
     private boolean m_bLoaded;
+    private boolean m_bNotPackage;
     private XdmNode m_aRoot;
     private String m_sName;
     private String m_sVersion;
@@ -159,6 +160,9 @@ public final class PackageRegistry
       aEntry.m_sName = aName == null ? null : aName.getValue ().trim ();
       aEntry.m_sVersion = aVersion == null ? null : aVersion.getValue ().trim ();
     }
+    else
+      if (aRoot != null)
+        aEntry.m_bNotPackage = true;
     if (aEntry.m_aSource.name () != null)
       aEntry.m_sName = aEntry.m_aSource.name ().trim ();
     if (aEntry.m_aSource.version () != null && !aEntry.m_aSource.version ().isBlank ())
@@ -209,22 +213,32 @@ public final class PackageRegistry
    *        The xsl:use-package element.
    * @return The package with the highest version that matches.
    * @throws XsltException
-   *         XTSE0020 for invalid package-version ranges, XTSE3000 if no
-   *         package matches
+   *         XTSE0010 without a name, XTSE0020 for invalid package-version
+   *         ranges, XTSE0165 if the source of that name is not a package,
+   *         XTSE3000 if no package matches
    */
   @NonNull
   public ResolvedPackage resolve (@NonNull final XslElement aUse)
   {
-    final String sName = aUse.getAttr ("name") == null ? "" : aUse.getAttr ("name").trim ();
+    if (aUse.getAttr ("name") == null)
+      throw XsltException.at (aUse, "XTSE0010", "xsl:use-package requires a name attribute");
+    final String sName = aUse.getAttr ("name").trim ();
     final String sRanges = aUse.getAttr ("package-version") == null ? "*" : aUse.getAttr ("package-version").trim ();
     final PackageVersionRanges aRanges = PackageVersionRanges.parse (sRanges);
     if (aRanges == null)
       throw XsltException.at (aUse, "XTSE0020", "'" + sRanges + "' is not a valid package-version range");
     final ResolvedPackage ret = find (sName, aRanges);
     if (ret == null)
+    {
+      // Section 3.11.1 applied to packages: the resource supplied for the name
+      // does not contain a package
+      for (final Entry aEntry : m_aEntries)
+        if (aEntry.m_bNotPackage && sName.equals (aEntry.m_sName))
+          throw XsltException.at (aUse, "XTSE0165", "The package source for '" + sName + "' is not an xsl:package");
       throw XsltException.at (aUse,
                               "XTSE3000",
                               "No package named '" + sName + "' with a version matching '" + sRanges + "' is available");
+    }
     return ret;
   }
 }

@@ -25,6 +25,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsLinkedHashMap;
@@ -50,6 +51,9 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 public final class XdmNode implements IXdmItem
 {
   private static final AtomicLong TREE_COUNTER = new AtomicLong (0);
+  // Guards the lazy creation of the namespace nodes of all elements (one lock
+  // per node would cost memory on every node)
+  private static final SimpleReadWriteLock NAMESPACE_NODES_LOCK = new SimpleReadWriteLock ();
 
   private final ENodeKind m_eKind;
   private int m_nOrder;
@@ -610,8 +614,10 @@ public final class XdmNode implements IXdmItem
   {
     if (m_eKind != ENodeKind.ELEMENT)
       return new CommonsArrayList <> ();
-    synchronized (this)
-    {
+    final ICommonsList <XdmNode> aExisting = NAMESPACE_NODES_LOCK.readLockedGet ( () -> m_aNamespaceNodes);
+    if (aExisting != null)
+      return aExisting.getClone ();
+    return NAMESPACE_NODES_LOCK.writeLockedGet ( () -> {
       if (m_aNamespaceNodes == null)
       {
         final ICommonsList <XdmNode> aList = new CommonsArrayList <> ();
@@ -625,7 +631,7 @@ public final class XdmNode implements IXdmItem
         m_aNamespaceNodes = aList;
       }
       return m_aNamespaceNodes.getClone ();
-    }
+    });
   }
 
   @NonNull

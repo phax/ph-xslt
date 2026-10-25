@@ -153,6 +153,7 @@ public final class ElementValidator
     BOOL_ATTRS.put ("function", new CommonsHashSet <> ("override", "override-extension-function", "cache", "identity-sensitive"));
     BOOL_AVT_ATTRS.put ("message", new CommonsHashSet <> ("terminate"));
     BOOL_AVT_ATTRS.put ("assert", new CommonsHashSet <> ("terminate"));
+    BOOL_AVT_ATTRS.put ("sort", new CommonsHashSet <> ("stable"));
 
     SELECT_EXCLUSIVE.put ("attribute", new Object [] { "XTSE0840", new CommonsHashSet <> () });
     SELECT_EXCLUSIVE.put ("value-of", new Object [] { "XTSE0870", new CommonsHashSet <> () });
@@ -611,7 +612,9 @@ public final class ElementValidator
       if (sUse != null && !"required".equals (sUse.trim ()) && !"optional".equals (sUse.trim ()) && !"absent".equals (sUse.trim ()))
         throw XsltException.at (aEl, "XTSE0020", "use='" + sUse + "' is not allowed on xsl:global-context-item");
       if (aEl.hasAttr ("as") && sUse != null && "absent".equals (sUse.trim ()))
-        throw XsltException.at (aEl, "XTSE3089", "use='absent' cannot be combined with an as attribute");
+        throw XsltException.at (aEl,
+                                "context-item".equals (sLocal) ? "XTSE3088" : "XTSE3089",
+                                "use='absent' cannot be combined with an as attribute");
     }
     if ("output".equals (sLocal))
     {

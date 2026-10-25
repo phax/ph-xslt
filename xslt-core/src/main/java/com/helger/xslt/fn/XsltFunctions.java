@@ -283,7 +283,7 @@ public final class XsltFunctions
     else
     {
       if (!(aCtx.getContextItem () instanceof final XdmNode aNode))
-        throw new XPathException (aCtx.getContextItem () == null ? "XPDY0002" : "XPTY0004",
+        throw new XPathException (aCtx.getContextItem () == null ? "XTDE1270" : "XPTY0004",
                                   "key() with two arguments requires a node as context item");
       aTop = aNode.getRoot ();
       if (!aTop.isDocument ())

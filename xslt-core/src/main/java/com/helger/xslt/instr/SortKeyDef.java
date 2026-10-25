@@ -33,6 +33,7 @@ import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.Avt;
 import com.helger.xslt.compile.CompileContext;
 import com.helger.xslt.compile.StaticContexts;
@@ -92,6 +93,11 @@ public final class SortKeyDef
     return m_aElement;
   }
 
+  private static boolean _isValidLang (@NonNull final String s)
+  {
+    return s.isEmpty () || s.matches ("[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*");
+  }
+
   /**
    * @param aCtx
    *        Compile context.
@@ -111,6 +117,11 @@ public final class SortKeyDef
       aSelect = aCtx.compileExpression (aEl, ".");
       aBody = null;
     }
+    // XTSE0020 for an invalid lang written without curly brackets (XTDE0030
+    // is only for an attribute value template with expressions)
+    final String sLang = aEl.getAttr ("lang");
+    if (sLang != null && sLang.indexOf ('{') < 0 && !_isValidLang (sLang.trim ()))
+      throw XsltException.at (aEl, "XTSE0020", "lang='" + sLang + "' is not a valid language code");
     return new SortKeyDef (aEl,
                            aSelect,
                            aBody,
@@ -173,7 +184,7 @@ public final class SortKeyDef
     if (m_aLang != null)
     {
       final String s = m_aLang.evaluate (aCtx).trim ();
-      if (!s.isEmpty () && !s.matches ("[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*"))
+      if (!_isValidLang (s))
         throw new XPathException ("XTDE0030", "lang='" + s + "' is not a valid language code");
     }
     String sCollation = m_sDefaultCollation;

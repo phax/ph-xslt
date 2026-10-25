@@ -115,6 +115,7 @@ public final class StylesheetCompiler
   private final ICommonsMap <PackageUnit, ICommonsMap <String, NamespaceAlias>> m_aAliases = new CommonsHashMap <> ();
   private final ICommonsMap <PackageUnit, Object []> m_aDecimalFormatsByUnit = new CommonsHashMap <> ();
   private final ICommonsMap <String, FunctionEntry> m_aFunctionsByKey = new CommonsHashMap <> ();
+  private final ICommonsList <UserFunction> m_aHomonymLosers = new CommonsArrayList <> ();
   private final ICommonsMap <XslElement, UserFunction> m_aFunctionsByElement = new CommonsHashMap <> ();
   private final ICommonsList <CallTemplateRef> m_aCallTemplateRefs = new CommonsArrayList <> ();
   private final ICommonsList <AttributeSetRef> m_aAttributeSetRefs = new CommonsArrayList <> ();
@@ -389,6 +390,12 @@ public final class StylesheetCompiler
           if (aUnit.hidden ().contains (PackageComponent.getSymbolicName ("function", aFunc.getName (), aFunc.getArity ())))
             aLib.hide (aFunc.getName (), aFunc.getArity ());
         }
+        for (final UserFunction aFunc : m_aHomonymLosers)
+          if (m_aPackages.getUnit (aFunc.getElement ()) == aUnit)
+          {
+            final FunctionSignature aSig = m_aFunctionSignatures.get (aFunc);
+            aLib.registerParsed (aFunc.getName (), aSig.paramTypes (), aSig.returnType (), aFunc, true);
+          }
         m_aUnitLibraries.put (aUnit, aLib);
       }
     for (final Map.Entry <XslElement, UserFunction> aEntry : m_aOriginalFunctions.entrySet ())
@@ -657,6 +664,16 @@ public final class StylesheetCompiler
     m_aFunctionSignatures.put (aFunc, new FunctionSignature (aParamTypes, aReturnType));
     if (aPrev != null && PackageModel.isOverride (aEl))
       m_aOriginalFunctions.put (aEl, aPrev.function ());
+    if (m_aPackages != null && !PackageModel.isOverride (aEl))
+    {
+      final PackageComponent aComp = PackageChecks.getComponent (aEl);
+      if (aComp != null && m_aPackages.isShadowedByVisibleHomonym (aEl, aComp))
+      {
+        // Only the code of its own package still calls it
+        m_aHomonymLosers.add (aFunc);
+        return;
+      }
+    }
     if (aPrev == null || aPrev.precedence () < aEl.getPrecedence ())
     {
       m_aFunctionsByKey.put (sKey, new FunctionEntry (aFunc, aEl.getPrecedence ()));
@@ -800,7 +817,7 @@ public final class StylesheetCompiler
       if (!"required".equals (sUse) && !"optional".equals (sUse) && !"absent".equals (sUse))
         throw XsltException.at (aCI, "XTSE0020", "use='" + sUse + "' is not allowed on xsl:context-item");
       if ("absent".equals (sUse) && aCI.hasAttr ("as"))
-        throw XsltException.at (aCI, "XTSE3089", "use='absent' cannot be combined with an as attribute");
+        throw XsltException.at (aCI, "XTSE3088", "use='absent' cannot be combined with an as attribute");
       // A template rule always has a context item
       if (aName == null && "absent".equals (sUse))
         throw XsltException.at (aCI, "XTSE0020", "use='absent' is not allowed on xsl:context-item of a template without a name");
@@ -1050,7 +1067,11 @@ public final class StylesheetCompiler
           final XdmNode aMap = aParam.getChildAtIndex (j);
           final XdmNode aChar = aMap.isElement () ? aMap.getAttribute ("", "character") : null;
           final XdmNode aString = aMap.isElement () ? aMap.getAttribute ("", "map-string") : null;
-          if (aChar != null && aString != null && aChar.getValue ().codePointCount (0, aChar.getValue ().length ()) == 1)
+          // An invalid parameter document is a serialization error (XSLT 3.0
+          // section 26.1, Serialization 3.1 section 3.1)
+          if (aChar != null && aChar.getValue ().codePointCount (0, aChar.getValue ().length ()) != 1)
+            throw XsltException.at (aEl, "SEPM0017", "output:character-map/@character must be a single character");
+          if (aChar != null && aString != null)
             aDef.addInlineCharacterMapping (aChar.getValue ().codePointAt (0), aString.getValue ());
         }
         continue;

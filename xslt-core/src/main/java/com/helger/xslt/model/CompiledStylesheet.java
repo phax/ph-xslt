@@ -72,6 +72,8 @@ public final class CompiledStylesheet implements XsltExecutable
   private boolean m_bPackage;
   private final ICommonsSet <XdmQName> m_aExposedTemplates = new CommonsHashSet <> ();
   private final ICommonsSet <XdmQName> m_aPrivateModes = new CommonsHashSet <> ();
+  private final ICommonsSet <XdmQName> m_aPrivateTemplates = new CommonsHashSet <> ();
+  private final ICommonsSet <XdmQName> m_aExposedModes = new CommonsHashSet <> ();
   private PackageModel m_aPackages;
   private final ICommonsMap <VariableDef, VariableDef> m_aOriginalVariables = new CommonsHashMap <> ();
   private final ICommonsMap <PackageUnit, ICommonsMap <XdmQName, VariableDef>> m_aPackageGlobals = new CommonsHashMap <> ();
@@ -156,6 +158,24 @@ public final class CompiledStylesheet implements XsltExecutable
   public ICommonsSet <XdmQName> exposedTemplates ()
   {
     return m_aExposedTemplates;
+  }
+
+  /**
+   * @return The named templates an xsl:expose naming them explicitly makes
+   *         private, which takes precedence over their declared visibility
+   *         (not eligible as initial template).
+   */
+  @NonNull
+  public ICommonsSet <XdmQName> privateTemplates ()
+  {
+    return m_aPrivateTemplates;
+  }
+
+  /** @return The modes an xsl:expose makes public or final. */
+  @NonNull
+  public ICommonsSet <XdmQName> exposedModes ()
+  {
+    return m_aExposedModes;
   }
 
   /** @return The modes an xsl:expose makes private (not eligible as initial mode). */

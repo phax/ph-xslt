@@ -30,6 +30,8 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.serialize.XdmSerializer;
+import com.helger.xpath.value.IXdmFunction;
+import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
@@ -91,6 +93,10 @@ public final class XsltTransformer
     if (m_aSheet.isMultiPackage () &&
         !m_aSheet.getPackages ().isInPrincipal (aTemplate.getElement ()) &&
         !m_aSheet.getPackages ().isAcceptedExplicitly (PackageComponent.getSymbolicName ("template", aTemplate.getName (), 0)))
+      return false;
+    // An explicit name in xsl:expose takes precedence over the declared
+    // visibility (XSLT 3.0 section 3.5.3.1)
+    if (m_aSheet.privateTemplates ().contains (aTemplate.getName ()))
       return false;
     final String sVis = aTemplate.getElement ().getAttr ("visibility");
     if (sVis != null)
@@ -314,7 +320,10 @@ public final class XsltTransformer
               (m_aSheet.privateModes ().contains (aModeName) ||
                "private".equals (sVis) ||
                "abstract".equals (sVis) ||
-               sVis == null && m_aSheet.isPackage () && aMode.getDeclaration () != null))
+               sVis == null &&
+                               m_aSheet.isPackage () &&
+                               aMode.getDeclaration () != null &&
+                               !m_aSheet.exposedModes ().contains (aModeName)))
             throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not public", null, 0, 0);
           aEngine.applyTemplates (aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)),
                                   aMatchSelection,
@@ -344,7 +353,16 @@ public final class XsltTransformer
     {
       final ICommonsList <IXdmItem> aItems = new CommonsArrayList <> ();
       for (int i = 0; i < aBuffer.size (); ++i)
-        aItems.add (aBuffer.get (i));
+      {
+        final IXdmItem aItem = aBuffer.get (i);
+        // Result tree construction is sequence normalization (XSLT 3.0
+        // section 2.3.6.1), which rejects attribute and namespace nodes
+        if (aItem instanceof final XdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE) ||
+            aItem instanceof XdmMap ||
+            aItem instanceof IXdmFunction)
+          throw new XPathException ("SENR0001", "The principal result contains an attribute or namespace node, a map or a function");
+        aItems.add (aItem);
+      }
       aTree = XdmNode.createDocument ();
       if (m_aRequest.getBaseOutputUri () != null)
         aTree.setBaseUri (m_aRequest.getBaseOutputUri ());
