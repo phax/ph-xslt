@@ -611,7 +611,9 @@ public final class ElementValidator
       if (sUse != null && !"required".equals (sUse.trim ()) && !"optional".equals (sUse.trim ()) && !"absent".equals (sUse.trim ()))
         throw XsltException.at (aEl, "XTSE0020", "use='" + sUse + "' is not allowed on xsl:global-context-item");
       if (aEl.hasAttr ("as") && sUse != null && "absent".equals (sUse.trim ()))
-        throw XsltException.at (aEl, "XTSE3089", "use='absent' cannot be combined with an as attribute");
+        throw XsltException.at (aEl,
+                                "context-item".equals (sLocal) ? "XTSE3088" : "XTSE3089",
+                                "use='absent' cannot be combined with an as attribute");
     }
     if ("output".equals (sLocal))
     {
