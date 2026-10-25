@@ -74,6 +74,8 @@ public final class XdmNode implements IXdmItem
   private int m_nNamespaceIndex;
   // Lazily built namespace axis of an element
   private ICommonsList <XdmNode> m_aNamespaceNodes;
+  // XSLT disable-output-escaping on a text node
+  private boolean m_bDisableOutputEscaping;
   // Unparsed entities of a document node: name to {system ID, public ID}
   private ICommonsOrderedMap <String, String []> m_aUnparsedEntities;
 
@@ -348,6 +350,20 @@ public final class XdmNode implements IXdmItem
   public void setBaseUri (@Nullable final String sBaseUri)
   {
     m_sBaseUri = sBaseUri;
+  }
+
+  /**
+   * @return <code>true</code> if this text node is written without escaping
+   *         by the XML and HTML output methods (XSLT disable-output-escaping).
+   */
+  public boolean isDisableOutputEscaping ()
+  {
+    return m_bDisableOutputEscaping;
+  }
+
+  public void setDisableOutputEscaping (final boolean bDisableOutputEscaping)
+  {
+    m_bDisableOutputEscaping = bDisableOutputEscaping;
   }
 
   /**
