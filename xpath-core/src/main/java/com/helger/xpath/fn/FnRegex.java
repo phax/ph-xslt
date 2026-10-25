@@ -27,6 +27,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.EXsdVersion;
+import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.regex.XPathRegex;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
@@ -69,10 +70,11 @@ public final class FnRegex
                                       @NonNull final String sPattern,
                                       @Nullable final String sFlags)
   {
-    // The character class grammar follows the XSD version in force
+    // The XSD 1.1 character class grammar, unless XSD 1.0 was declared
+    final StaticContext aStaticCtx = aCtx.getStaticContext ();
     return XPathRegex.compile (sPattern,
                                sFlags,
-                               aCtx.getStaticContext ().getXsdVersion () == EXsdVersion.V11);
+                               !aStaticCtx.isXsdVersionSet () || aStaticCtx.getXsdVersion () == EXsdVersion.V11);
   }
 
   @NonNull

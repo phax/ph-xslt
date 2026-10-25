@@ -63,20 +63,21 @@ public final class XPathRegexTest
   @Test
   public void testXsdVersions ()
   {
-    // XSD 1.0 (default): a '-' after a range is only allowed at the end
+    // XSD 1.0: a '-' after a range is only allowed at the end
     try
     {
-      XPathRegex.compile ("[a-c-1-4]", null);
+      XPathRegex.compile ("[a-c-1-4]", null, false);
       fail ();
     }
     catch (final XPathException ex)
     {
       assertEquals ("FORX0002", ex.getCode ());
     }
-    XPathRegex.compile ("[a-c-]", null);
-    XPathRegex.compile ("[a-z--[b]]", null);
-    // XSD 1.1: a literal
+    XPathRegex.compile ("[a-c-]", null, false);
+    XPathRegex.compile ("[a-z--[b]]", null, false);
+    // XSD 1.1 (default): a literal
     assertTrue (XPathRegex.compile ("^[a-c-1-4]+$", null, true).getPattern ().matcher ("-2b").matches ());
+    assertTrue (XPathRegex.compile ("^[a-c-1-4]+$", null).getPattern ().matcher ("-2b").matches ());
   }
 
   @Test

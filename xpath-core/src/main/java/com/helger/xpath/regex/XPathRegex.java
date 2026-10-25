@@ -176,8 +176,9 @@ public final class XPathRegex
   }
 
   /**
-   * Compile an XPath regular expression with the XSD 1.0 character class
-   * grammar F&amp;O 3.1 references, using the cache.
+   * Compile an XPath regular expression with the XSD 1.1 character class
+   * grammar (F&amp;O 3.1 leaves the XSD version to the processor; a '-'
+   * directly after a range is a literal), using the cache.
    *
    * @param sPattern
    *        The regular expression.
@@ -190,7 +191,7 @@ public final class XPathRegex
   @NonNull
   public static XPathRegex compile (@NonNull final String sPattern, @Nullable final String sFlags)
   {
-    return compile (sPattern, sFlags, false);
+    return compile (sPattern, sFlags, true);
   }
 
   /**
