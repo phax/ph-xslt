@@ -399,7 +399,8 @@ public final class AccumulatorExtension implements IXsltExtension
                                     @NonNull final XsltContext aCaller)
   {
     final Engine aEngine = aCaller.getEngine ();
-    final XsltContext aBase = aEngine.createRootContext ().withState (XsltState.EMPTY);
+    // Rules run in temporary output state: no xsl:result-document (XTDE1480)
+    final XsltContext aBase = Engine.withTemporaryOutputState (aEngine.createRootContext ().withState (XsltState.EMPTY));
     XdmSequence aValue;
     try
     {
