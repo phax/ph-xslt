@@ -7,7 +7,8 @@ A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 
 XML parsing and XSD validation are left to the JDK (Xerces); everything on top of it is implemented here.
 
 Status: work in progress. The XPath 3.1 engine runs and passes 99.3% of the applicable W3C QT3 test cases
-(22,328 of 22,478); XSLT has not been started.
+(22,328 of 22,478). The XSLT 3.0 core passes 86.8% of the applicable W3C xslt30-test cases (7,504 of
+8,647); instruction families such as xsl:number, grouping and accumulators are being added.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Modules
@@ -17,6 +18,8 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `xpath-xdm` | XPath data model: node tree built from SAX, names, document order | usable |
 | `xpath-core` | XPath 3.1: values, parser, evaluator, F&O 3.1 function library, regex, collations, serialisation | usable |
 | `xpath-conformance` | W3C QT3 test harness (not deployed) | usable |
+| `xslt-core` | XSLT 3.0: stylesheet compiler, modules, templates and modes, the basic instructions, XSLT functions | in progress |
+| `xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
 
@@ -41,6 +44,7 @@ v0.1.0 - work in progress
 * Added the XML and XSD version (`StaticContext.setXmlVersion`/`setXsdVersion`) and the default language (`DynamicContext.setDefaultLanguage`) settings
 * Added schema-validated input with the JDK validator: `XdmParser.setSchema` annotates the tree (`XdmSchemaType`, nilled, schema IDs), which gives typed values, `fn:nilled`, schema-based `fn:id`/`fn:element-with-id`/`fn:idref` and `element(N, T)`/`attribute(N, T)` tests; invalid documents raise `XdmValidationException`
 * `XdmParser` always uses the JDK parser, also when another JAXP implementation such as Apache Xerces is on the class path
+* Added the module `xslt-core` with the XSLT 3.0 compiler and engine (`XsltCompiler`, `XsltExecutable`): include/import, static processing (use-when, static parameters, shadow attributes), template rules and modes, all basic instructions, stylesheet functions, keys, attribute sets, the XSLT functions, step and depth budgets, and an extension API for instruction families (`xslt-core/INSTRAPI.md`)
 * `XdmParser.setLoadExternalEntities(true)` now really reads the external DTD subset and external entities; secure processing had blocked every external access
 
 # Contributing
