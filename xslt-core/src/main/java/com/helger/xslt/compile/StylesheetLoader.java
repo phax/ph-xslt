@@ -376,7 +376,9 @@ public final class StylesheetLoader
     }
     final String sKey = sUri + (sFragment == null ? "" : "#" + sFragment);
     if (m_aLoadStack.contains (sKey))
-      throw XsltException.at (aIncludeEl, "XTSE0180", "The stylesheet module '" + sKey + "' includes or imports itself");
+      throw XsltException.at (aIncludeEl,
+                              aIncludeEl.isXsl ("import") ? "XTSE0210" : "XTSE0180",
+                              "The stylesheet module '" + sKey + "' includes or imports itself");
     XdmNode aDoc;
     if (sUri.isEmpty () || sBase != null && sUri.equals (_stripFragment (sBase)))
       aDoc = aIncludeEl.getModule ().getSourceDocument ();
@@ -403,6 +405,11 @@ public final class StylesheetLoader
       throw XsltException.at (aIncludeEl,
                               "XTSE0165",
                               "'" + sUri + "' is an xsl:package, which cannot be the target of xsl:" + aIncludeEl.getLocalName ());
+    // Section 3.11.1: a resource that is neither an XSLT element nor a
+    // simplified stylesheet module does not contain a stylesheet module
+    if (!XsltNames.NS_XSL.equals (aRoot.getName ().namespaceUri ()) &&
+        aRoot.getAttribute (XsltNames.NS_XSL, "version") == null)
+      throw XsltException.at (aIncludeEl, "XTSE0165", "'" + sUri + "' does not contain a stylesheet module");
     m_aLoadStack.add (sKey);
     m_aGroupStack.add (aIncludeEl.isXsl ("import") || m_aGroupStack.isEmpty () ? new Object () : m_aGroupStack.getLast ());
     try
@@ -516,6 +523,17 @@ public final class StylesheetLoader
     }
     if (aText.length () > 0)
       aEl.appendChild (new XslText (aModule, aText.toString (), nTextLine, nTextColumn));
+    if (bChildrenTopLevel)
+    {
+      // Section 3.11.3: xsl:import children precede all other element children
+      boolean bOther = false;
+      for (final XslElement aChild : aEl.getElementChildren ())
+        if (!aChild.isXsl ("import"))
+          bOther = true;
+        else
+          if (bOther)
+            throw XsltException.at (aChild, "XTSE0200", "xsl:import must precede all other element children of the stylesheet");
+    }
   }
 
   /**

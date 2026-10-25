@@ -764,12 +764,12 @@ public final class Engine
                              ("untyped".equals (aType.localName ()) || "untypedAtomic".equals (aType.localName ())));
     switch (sTyped)
     {
-      case "yes", "strict", "lax":
+      case "yes", "true", "1", "strict", "lax":
         if (!bTyped)
           throw new XPathException ("XTTE3100",
                                     "The mode is declared typed='" + sTyped + "' but the node " + aNode.getName ().getLexicalName () + " is untyped");
         break;
-      case "no":
+      case "no", "false", "0":
         if (bTyped)
           throw new XPathException ("XTTE3110",
                                     "The mode is declared typed='no' but the node " + aNode.getName ().getLexicalName () + " has a type annotation");
