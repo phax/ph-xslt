@@ -316,7 +316,9 @@ final class UcaCollation implements ICollation
       if (m_nLevel >= 2)
         _appendJavaKey (aList, m_aSecondary, m_bBackwards ? _reverse (sBase) : sBase);
       aList.add (0);
-      if (m_bUpperFirst || m_bCaseLevel)
+      // Without caseLevel, case is a tertiary difference: caseFirst does not
+      // count below tertiary strength
+      if (m_bCaseLevel || (m_bUpperFirst && m_nLevel >= 3))
         sBase.codePoints ().forEach (c -> {
           if (Character.isUpperCase (c))
             aList.add (m_bUpperFirst ? 1 : 2);
