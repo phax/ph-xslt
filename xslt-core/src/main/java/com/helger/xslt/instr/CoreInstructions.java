@@ -483,7 +483,9 @@ public final class CoreInstructions
       final IInstructionCompiler aCompiler = aCtx.getCompiler ().getRegistry ().getInstructionCompiler (sLocal);
       if (aCompiler != null)
         return aCompiler.compile (aCtx, aEl);
-      if (!XsltElementSpecs.isKnown (sLocal) && aEl.isForwardsCompatible ())
+      // XSLT 3.0 section 3.10: without xsl:fallback children an unknown
+      // instruction is a static error even in forwards compatible mode
+      if (!XsltElementSpecs.isKnown (sLocal) && aEl.isForwardsCompatible () && !aEl.getXslChildren ("fallback").isEmpty ())
         return _compileFallback (aCtx, aEl, "The XSLT instruction");
       if (XsltElementSpecs.isKnown (sLocal) && aCtx.getCompiler ().getRegistry ().getDeclarationCompiler (sLocal) == null &&
           !aEl.getXslChildren ("fallback").isEmpty ())

@@ -344,7 +344,14 @@ public final class XsltTransformer
     {
       final ICommonsList <IXdmItem> aItems = new CommonsArrayList <> ();
       for (int i = 0; i < aBuffer.size (); ++i)
-        aItems.add (aBuffer.get (i));
+      {
+        final IXdmItem aItem = aBuffer.get (i);
+        // Result tree construction is sequence normalization (XSLT 3.0
+        // section 2.3.6.1), which rejects attribute and namespace nodes
+        if (aItem instanceof final XdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE))
+          throw new XPathException ("SENR0001", "The principal result contains an attribute or namespace node");
+        aItems.add (aItem);
+      }
       aTree = XdmNode.createDocument ();
       if (m_aRequest.getBaseOutputUri () != null)
         aTree.setBaseUri (m_aRequest.getBaseOutputUri ());
