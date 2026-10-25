@@ -18,9 +18,12 @@ package com.helger.xslt.conformance;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.util.stream.Stream;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -223,11 +226,60 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     return ret;
   }
 
+  /**
+   * A directory collection <code>dir/?select=pattern</code>: the files of
+   * the directory whose names match the glob pattern, sorted by name.
+   */
+  @Nullable
+  private static ICommonsList <Path> _getDirectoryCollection (@NonNull final String sUri)
+  {
+    final int nQuery = sUri.indexOf ("?select=");
+    if (nQuery < 0)
+      return null;
+    final Path aDir = _fileUriToPath (sUri.substring (0, nQuery));
+    if (aDir == null || !Files.isDirectory (aDir))
+      return null;
+    final PathMatcher aMatcher;
+    try
+    {
+      aMatcher = FileSystems.getDefault ().getPathMatcher ("glob:" + sUri.substring (nQuery + 8));
+    }
+    catch (final IllegalArgumentException ex)
+    {
+      return null;
+    }
+    final ICommonsList <Path> ret = new CommonsArrayList <> ();
+    try (final Stream <Path> aStream = Files.list (aDir))
+    {
+      aStream.filter (aPath -> Files.isRegularFile (aPath) && aMatcher.matches (aPath.getFileName ())).sorted ().forEach (ret::add);
+    }
+    catch (final IOException ex)
+    {
+      return null;
+    }
+    return ret;
+  }
+
+  /**
+   * The paths of a collection: a declared one (a directory URI matches with
+   * or without the trailing slash) or a directory collection.
+   */
+  @Nullable
+  private ICommonsList <Path> _getCollectionPaths (@NonNull final String sUri)
+  {
+    ICommonsList <Path> ret = m_aCollections.get (sUri);
+    if (ret == null)
+      ret = m_aCollections.get (sUri.endsWith ("/") ? sUri.substring (0, sUri.length () - 1) : sUri + "/");
+    if (ret == null)
+      ret = _getDirectoryCollection (sUri);
+    return ret;
+  }
+
   @Nullable
   @ReturnsMutableCopy
   public ICommonsList <XdmNode> resolveCollection (@NonNull final String sUri)
   {
-    final ICommonsList <Path> aPaths = m_aCollections.get (sUri);
+    final ICommonsList <Path> aPaths = _getCollectionPaths (sUri);
     if (aPaths == null)
       return null;
     final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
@@ -244,7 +296,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
   @ReturnsMutableCopy
   public ICommonsList <String> resolveUriCollection (@NonNull final String sUri)
   {
-    final ICommonsList <Path> aPaths = m_aCollections.get (sUri);
+    final ICommonsList <Path> aPaths = _getCollectionPaths (sUri);
     if (aPaths == null)
       return null;
     final ICommonsList <String> ret = new CommonsArrayList <> ();

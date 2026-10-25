@@ -58,6 +58,7 @@ import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.EOnNoMatch;
 import com.helger.xslt.model.KeyDefinition;
 import com.helger.xslt.model.Mode;
+import com.helger.xslt.model.OutputDefinition;
 import com.helger.xslt.model.SpaceRules;
 import com.helger.xslt.model.Template;
 import com.helger.xslt.model.TemplateRule;
@@ -118,6 +119,9 @@ public final class Engine
   private final ICommonsSet <XdmQName> m_aKeysInProgress = new CommonsHashSet <> ();
   private final ICommonsList <String> m_aMessages = new CommonsArrayList <> ();
   private final ICommonsList <XsltTransformResult.SecondaryResult> m_aSecondaryResults = new CommonsArrayList <> ();
+  private IXsltOutput m_aPrincipalOutput;
+  private OutputDefinition m_aPrincipalOutputDefinition;
+  private int m_nPrincipalSealedSize = -1;
   private final ICommonsMap <Object, Object> m_aRunData = new CommonsHashMap <> ();
   private final long m_nMaxSteps;
   private final int m_nMaxDepth;
@@ -144,8 +148,8 @@ public final class Engine
     aDyn.setGlobalVariableResolver (this::_resolveGlobal);
     final String sOutputUri = aRequest.getBaseOutputUri ();
     XsltState aState = XsltState.EMPTY;
-    if (sOutputUri != null)
-      aState = aState.with (CURRENT_OUTPUT_URI, sOutputUri);
+    // Always set, so that its absence marks temporary output state
+    aState = aState.with (CURRENT_OUTPUT_URI, sOutputUri != null ? sOutputUri : "");
     m_aRootDyn = aDyn.withHostState (aState);
     m_aPatternDyn = aDyn.withHostState (XsltState.EMPTY);
   }
@@ -1118,6 +1122,81 @@ public final class Engine
   public ICommonsList <XsltTransformResult.SecondaryResult> getSecondaryResults ()
   {
     return m_aSecondaryResults;
+  }
+
+  /**
+   * @param aCtx
+   *        A context.
+   * @return The context in temporary output state (XSLT 3.0 section 25.2):
+   *         there is no current output URI and xsl:result-document is not
+   *         allowed.
+   */
+  @NonNull
+  public static XsltContext withTemporaryOutputState (@NonNull final XsltContext aCtx)
+  {
+    return aCtx.get (CURRENT_OUTPUT_URI) == null ? aCtx : aCtx.with (CURRENT_OUTPUT_URI, null);
+  }
+
+  /**
+   * @param aCtx
+   *        A context.
+   * @return <code>true</code> if the context is in temporary output state
+   *         (in a variable, function, key, sort key, pattern, ...).
+   */
+  public static boolean isTemporaryOutputState (@NonNull final XsltContext aCtx)
+  {
+    return aCtx.get (CURRENT_OUTPUT_URI) == null;
+  }
+
+  /**
+   * @param aOut
+   *        The output the principal result is written to.
+   */
+  public void setPrincipalOutput (@Nullable final IXsltOutput aOut)
+  {
+    m_aPrincipalOutput = aOut;
+  }
+
+  /** @return The output of the principal result, or <code>null</code>. */
+  @Nullable
+  public IXsltOutput getPrincipalOutput ()
+  {
+    return m_aPrincipalOutput;
+  }
+
+  /**
+   * @param aDef
+   *        The output definition that replaces the unnamed one for the
+   *        principal result (an xsl:result-document without href).
+   */
+  public void setPrincipalOutputDefinition (@Nullable final OutputDefinition aDef)
+  {
+    m_aPrincipalOutputDefinition = aDef;
+  }
+
+  /** @return The replacement output definition of the principal result, or <code>null</code>. */
+  @Nullable
+  public OutputDefinition getPrincipalOutputDefinition ()
+  {
+    return m_aPrincipalOutputDefinition;
+  }
+
+  /**
+   * Mark the principal result as complete (written by an xsl:result-document
+   * without href): anything written to it afterwards is XTDE1490.
+   *
+   * @param nSize
+   *        The number of items in the principal output at that point.
+   */
+  public void sealPrincipalOutput (final int nSize)
+  {
+    m_nPrincipalSealedSize = nSize;
+  }
+
+  /** @return The size at which the principal output was sealed, or -1. */
+  public int getPrincipalSealedSize ()
+  {
+    return m_nPrincipalSealedSize;
   }
 
   /** @return The stylesheet element of the principal module, or <code>null</code>. */

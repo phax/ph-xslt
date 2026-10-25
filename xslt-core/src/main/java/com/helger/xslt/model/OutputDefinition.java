@@ -86,6 +86,23 @@ public final class OutputDefinition
     m_aName = aName;
   }
 
+  /**
+   * @return A copy of this definition (xsl:result-document starts from an
+   *         output definition and merges its own attributes).
+   */
+  @NonNull
+  public OutputDefinition getClone ()
+  {
+    final OutputDefinition ret = new OutputDefinition (m_aName);
+    ret.m_aValues.putAll (m_aValues);
+    ret.m_aPrecedences.putAll (m_aPrecedences);
+    ret.m_aCdataSectionElements.addAll (m_aCdataSectionElements);
+    ret.m_aSuppressIndentation.addAll (m_aSuppressIndentation);
+    ret.m_aUseCharacterMaps.addAll (m_aUseCharacterMaps);
+    ret.m_aInlineCharacterMap.putAll (m_aInlineCharacterMap);
+    return ret;
+  }
+
   @Nullable
   public XdmQName getName ()
   {
@@ -240,8 +257,9 @@ public final class OutputDefinition
       {
         case "allow-duplicate-names" -> ret.setAllowDuplicateNames (XsltNames.isXsltTrue (v));
         case "byte-order-mark" -> ret.setByteOrderMark (XsltNames.isXsltTrue (v));
-        case "doctype-public" -> ret.setDoctypePublic (v);
-        case "doctype-system" -> ret.setDoctypeSystem (v);
+        // A zero-length string is the same as omitting the attribute
+        case "doctype-public" -> ret.setDoctypePublic (v.isEmpty () ? null : v);
+        case "doctype-system" -> ret.setDoctypeSystem (v.isEmpty () ? null : v);
         case "encoding" -> ret.setEncoding (v);
         case "escape-uri-attributes" -> ret.setEscapeUriAttributes (XsltNames.isXsltTrue (v));
         case "html-version" ->

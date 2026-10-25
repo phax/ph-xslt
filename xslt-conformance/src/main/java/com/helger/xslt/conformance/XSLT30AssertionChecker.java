@@ -40,6 +40,7 @@ import com.helger.xpath.conformance.QT3EngineEvaluator;
 import com.helger.xpath.conformance.QT3Outcome;
 import com.helger.xpath.conformance.QT3ResourceResolver;
 import com.helger.xpath.conformance.QT3XmlCompare;
+import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
@@ -49,6 +50,7 @@ import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltTransformResult;
+import com.helger.xslt.runtime.NodeCopier;
 
 /**
  * Evaluates xslt30-test assertions against the outcome of a transformation, a
@@ -82,6 +84,11 @@ public final class XSLT30AssertionChecker
   /** An unclosed HTML void element start tag. */
   private static final Pattern HTML_VOID_TAG = Pattern.compile ("<(area|base|basefont|br|col|embed|frame|hr|img|input|isindex|link|meta|param|source|track|wbr)(\\s[^<>]*[^<>/]|\\s*)>",
                                                                 Pattern.CASE_INSENSITIVE);
+
+  /** A whitespace-only run between two tags. */
+  private static final Pattern INDENTATION = Pattern.compile (">[ \\t\\r\\n]+<");
+  /** A run of XML whitespace. */
+  private static final Pattern WHITESPACE_RUN = Pattern.compile ("[ \\t\\r\\n]+");
 
   /** Expression fragments only a type-annotated tree can answer. */
   private static final String [] PSVI_MARKERS = { "instance of element(",
@@ -148,6 +155,41 @@ public final class XSLT30AssertionChecker
     {
       return null;
     }
+  }
+
+  /**
+   * Parse an xsl:message text as a document node: it may have several element
+   * children, or only text, comments or processing instructions.
+   *
+   * @return The document or <code>null</code> if the text is not a
+   *         well-formed fragment.
+   */
+  @Nullable
+  private static XdmNode _parseMessageDocument (@NonNull final String sMessage)
+  {
+    final XdmNode aWrapped = QT3XmlCompare.parseFragment (sMessage);
+    if (aWrapped == null || aWrapped.getChildCount () != 1)
+      return null;
+    final XdmNode aWrapper = aWrapped.getChildAtIndex (0);
+    final XdmNode ret = XdmNode.createDocument ();
+    for (final XdmNode aChild : aWrapper.getAllChildren ())
+      ret.appendChild (NodeCopier.copyDeep (aChild, true));
+    ret.assignDocumentOrder ();
+    return ret;
+  }
+
+  /**
+   * Remove the whitespace that indent="yes" leaves to the serializer of the
+   * given method: whitespace-only runs between tags, and for xhtml and html
+   * also the length of every other whitespace run.
+   */
+  @NonNull
+  private static String _stripIndentation (@NonNull final String s, @NonNull final String sMethod)
+  {
+    String ret = s;
+    if (SerializationParams.METHOD_XHTML.equals (sMethod) || SerializationParams.METHOD_HTML.equals (sMethod))
+      ret = WHITESPACE_RUN.matcher (ret).replaceAll (" ");
+    return INDENTATION.matcher (ret).replaceAll ("><");
   }
 
   /**
@@ -310,6 +352,13 @@ public final class XSLT30AssertionChecker
   private QT3Outcome _checkAssert (@NonNull final XSLT30Assertion aAssertion, @NonNull final XSLT30Actual aActual)
   {
     final XdmNode aRawDoc = _getRawDocument (aActual);
+    if (aActual.message ())
+    {
+      // The message itself, as a document node
+      if (aRawDoc == null)
+        return QT3Outcome.fail ("assert-parse");
+      return _evalAssertOn (aAssertion, aRawDoc, aActual);
+    }
     // Serialising discards type annotations: only the raw tree can answer
     if (aRawDoc != null && _isAssertNeedingPsvi (aAssertion.value ()))
       return _evalAssertOn (aAssertion, aRawDoc, aActual);
@@ -437,13 +486,16 @@ public final class XSLT30AssertionChecker
           return QT3Outcome.of (aActual.messages ().isNotEmpty (), "no-message");
         for (final String sMessage : aActual.messages ())
         {
+          final XdmNode aMessageDoc = _parseMessageDocument (sMessage);
           final XSLT30Actual aMessage = new XSLT30Actual (sMessage,
                                                           null,
                                                           aActual.secondaries (),
                                                           aActual.messages (),
+                                                          aMessageDoc == null ? null : XdmSequence.of (aMessageDoc),
+                                                          "",
+                                                          aActual.baseUri (),
                                                           null,
-                                                          aActual.resultVar (),
-                                                          aActual.baseUri ());
+                                                          true);
           if (check (aAssertion.children ().getFirstOrNull (), aMessage).isPass ())
             return QT3Outcome.pass ();
         }
@@ -484,8 +536,19 @@ public final class XSLT30AssertionChecker
       case "assert-xml":
         return QT3Outcome.of (XSLT30XmlCompare.isXmlEqual (_getExpected (aAssertion), sOutput, bNormalizeSpace), sKind);
       case "assert-serialization":
-        return QT3Outcome.of (XSLT30XmlCompare.isSerialEqual (_getExpected (aAssertion), sOutput, bNormalizeSpace),
+      {
+        final String sExpected = _getExpected (aAssertion);
+        if (XSLT30XmlCompare.isSerialEqual (sExpected, sOutput, bNormalizeSpace))
+          return QT3Outcome.pass ();
+        // With indent="yes" Serialization 3.1 leaves some whitespace to the
+        // serializer; only that is ignored
+        final String sIndented = aActual.indentedMethod ();
+        return QT3Outcome.of (sIndented != null &&
+                              XSLT30XmlCompare.isSerialEqual (_stripIndentation (sExpected, sIndented),
+                                                              _stripIndentation (sOutput, sIndented),
+                                                              false),
                               sKind);
+      }
       case "serialization-matches":
       {
         final ICommonsMap <XdmQName, XdmSequence> aVars = new CommonsHashMap <> ();
