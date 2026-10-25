@@ -29,6 +29,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.StaticContext;
+import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.parser.XPathParser;
 import com.helger.xpath.xdm.XdmQName;
 
@@ -60,6 +61,19 @@ public final class FunctionLibrary
     private volatile List <SeqType> m_aParamTypes;
     private volatile SeqType m_aReturnType;
 
+    @NonNull
+    private static String _signatureText (@NonNull final List <SeqType> aParamTypes, @NonNull final SeqType aReturnType)
+    {
+      final StringBuilder aSB = new StringBuilder ("(");
+      for (int i = 0; i < aParamTypes.size (); ++i)
+      {
+        if (i > 0)
+          aSB.append (", ");
+        aSB.append (SequenceTypeMatcher.getAsString (aParamTypes.get (i)));
+      }
+      return aSB.append (") as ").append (SequenceTypeMatcher.getAsString (aReturnType)).toString ();
+    }
+
     FunctionDef (@NonNull final XdmQName aName,
                  @NonNull final String sSignature,
                  @NonNull final IXPathFunction aImpl,
@@ -69,6 +83,17 @@ public final class FunctionLibrary
       m_sSignature = sSignature;
       m_aImpl = aImpl;
       m_bFocusDependent = bFocusDependent;
+    }
+
+    FunctionDef (@NonNull final XdmQName aName,
+                 @NonNull final List <SeqType> aParamTypes,
+                 @NonNull final SeqType aReturnType,
+                 @NonNull final IXPathFunction aImpl,
+                 final boolean bFocusDependent)
+    {
+      this (aName, _signatureText (aParamTypes, aReturnType), aImpl, bFocusDependent);
+      m_aParamTypes = new CommonsArrayList <> (aParamTypes);
+      m_aReturnType = aReturnType;
     }
 
     private void _parse ()
@@ -225,6 +250,43 @@ public final class FunctionLibrary
     synchronized (m_aMap)
     {
       m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), new FunctionDef (aName, sSignature, aImpl, bFocusDependent));
+    }
+    return this;
+  }
+
+  /**
+   * Register a function whose signature is already parsed, e.g. an XSLT
+   * stylesheet function whose types use the namespaces of the stylesheet.
+   * Replaces a function with the same name and arity.
+   *
+   * @param aName
+   *        Expanded function name.
+   * @param aParamTypes
+   *        The parameter types; their number is the arity.
+   * @param aReturnType
+   *        The return type.
+   * @param aImpl
+   *        Implementation. The evaluator converts the arguments to the
+   *        parameter types before calling it.
+   * @param bFocusDependent
+   *        <code>true</code> if the implementation reads the focus.
+   * @return this for chaining
+   */
+  @NonNull
+  public FunctionLibrary registerParsed (@NonNull final XdmQName aName,
+                                         @NonNull final List <SeqType> aParamTypes,
+                                         @NonNull final SeqType aReturnType,
+                                         @NonNull final IXPathFunction aImpl,
+                                         final boolean bFocusDependent)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    ValueEnforcer.notNull (aParamTypes, "ParamTypes");
+    ValueEnforcer.notNull (aReturnType, "ReturnType");
+    ValueEnforcer.notNull (aImpl, "Impl");
+    final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
+    synchronized (m_aMap)
+    {
+      m_aMap.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
     }
     return this;
   }
