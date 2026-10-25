@@ -719,7 +719,10 @@ final class MarkupWriter
     switch (aNode.getKind ())
     {
       case TEXT:
-        _writeText (aNode.getValue (), aParent);
+        if (aNode.isDisableOutputEscaping ())
+          m_aSB.append (aNode.getValue ());
+        else
+          _writeText (aNode.getValue (), aParent);
         break;
       case COMMENT:
         m_aSB.append ("<!--").append (aNode.getValue ()).append ("-->");

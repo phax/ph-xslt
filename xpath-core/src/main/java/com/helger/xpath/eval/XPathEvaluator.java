@@ -20,9 +20,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
@@ -621,6 +623,119 @@ public final class XPathEvaluator
     return FALSE_SEQ;
   }
 
+  /** Marks a sequence for which no equality index can be built. */
+  private static final Object NO_INDEX = new Object ();
+  private static final String RUN_CACHE_EQ_INDEX = "xpath:eq-index";
+
+  /**
+   * Build (or get from the run cache) a hash index of a long sequence for
+   * general equality: kind 0 = numbers as doubles (untypedAtomic cast to
+   * xs:double), 1 = integers exactly, 2 = strings by codepoints.
+   *
+   * @return The set of keys or <code>null</code> if no index is possible.
+   */
+  @Nullable
+  @SuppressWarnings ("unchecked")
+  private static Set <Object> _getEqualityIndex (@NonNull final XdmSequence aSeq,
+                                                 final int nKind,
+                                                 @NonNull final DynamicContext aCtx)
+  {
+    final Map <String, Object> aCache = aCtx.getRunCache ();
+    IdentityHashMap <XdmSequence, Object []> aIndexes = (IdentityHashMap <XdmSequence, Object []>) aCache.get (RUN_CACHE_EQ_INDEX);
+    if (aIndexes == null)
+    {
+      aIndexes = new IdentityHashMap <> ();
+      aCache.put (RUN_CACHE_EQ_INDEX, aIndexes);
+    }
+    final Object [] aSlots = aIndexes.computeIfAbsent (aSeq, k -> new Object [3]);
+    if (aSlots[nKind] == null)
+    {
+      final Set <Object> aSet = new HashSet <> ();
+      Object aResult = aSet;
+      for (final IXdmItem aItem : _atomize (aSeq))
+      {
+        final XdmAtomic aAtom = (XdmAtomic) aItem;
+        final EAtomicType eType = aAtom.getType ();
+        if (nKind == 0 && eType == EAtomicType.UNTYPED_ATOMIC)
+        {
+          try
+          {
+            final double d = AtomicCaster.castFromString (aAtom.getString (), EAtomicType.DOUBLE, aCtx.getStaticContext ())
+                                         .getAsDouble ();
+            // NaN equals nothing; +0 and -0 are equal
+            if (!Double.isNaN (d))
+              aSet.add (Double.valueOf (d == 0 ? 0d : d));
+          }
+          catch (final XPathException ex)
+          {
+            aResult = NO_INDEX;
+            break;
+          }
+        }
+        else
+          if (nKind == 1 && eType.isIntegerFamily ())
+            aSet.add (aAtom.getBigInteger ());
+          else
+            if (nKind == 2 && aAtom.isStringLike ())
+              aSet.add (aAtom.getString ());
+            else
+            {
+              aResult = NO_INDEX;
+              break;
+            }
+      }
+      aSlots[nKind] = aResult;
+    }
+    return aSlots[nKind] == NO_INDEX ? null : (Set <Object>) aSlots[nKind];
+  }
+
+  /**
+   * General equality of one atomic value against a long sequence via a hash
+   * index (the same long sequence is typically compared many times, e.g. in a
+   * predicate).
+   *
+   * @return The result or <code>null</code> if the fast path does not apply.
+   */
+  @Nullable
+  private static XdmSequence _evalIndexedEquality (@NonNull final XdmSequence aLeft,
+                                                   @NonNull final XdmSequence aRight,
+                                                   @NonNull final DynamicContext aCtx)
+  {
+    final boolean bLeftBig = aLeft.size () >= 64;
+    final XdmSequence aBig = bLeftBig ? aLeft : aRight;
+    final XdmSequence aOne = bLeftBig ? aRight : aLeft;
+    if (aBig.size () < 64 || aOne.size () != 1 || !(aOne.get (0) instanceof final XdmAtomic aProbe))
+      return null;
+    if (_getDefaultCollation (aCtx) != null)
+      return null;
+    final EAtomicType eType = aProbe.getType ();
+    if (eType == EAtomicType.UNTYPED_ATOMIC)
+      return null;
+    if (eType.isIntegerFamily ())
+    {
+      final Set <Object> aInts = _getEqualityIndex (aBig, 1, aCtx);
+      if (aInts != null)
+        return _bool (aInts.contains (aProbe.getBigInteger ()));
+    }
+    if (eType.isNumeric ())
+    {
+      final Set <Object> aDoubles = _getEqualityIndex (aBig, 0, aCtx);
+      if (aDoubles != null)
+      {
+        final double d = aProbe.getAsDouble ();
+        return _bool (!Double.isNaN (d) && aDoubles.contains (Double.valueOf (d == 0 ? 0d : d)));
+      }
+      return null;
+    }
+    if (aProbe.isStringLike ())
+    {
+      final Set <Object> aStrings = _getEqualityIndex (aBig, 2, aCtx);
+      if (aStrings != null)
+        return _bool (aStrings.contains (aProbe.getString ()));
+    }
+    return null;
+  }
+
   @NonNull
   private static XdmSequence _evalComparison (final IExpr.@NonNull ComparisonExpr aExpr,
                                               @NonNull final DynamicContext aCtx)
@@ -655,6 +770,12 @@ public final class XPathEvaluator
     }
     final XdmSequence aLeft = evaluateInternal (aExpr.left (), aCtx);
     final XdmSequence aRight = evaluateInternal (aExpr.right (), aCtx);
+    if (aExpr.op () == EComparisonOp.GENERAL_EQ && !aCtx.getStaticContext ().isXPath10Compatibility ())
+    {
+      final XdmSequence aFast = _evalIndexedEquality (aLeft, aRight, aCtx);
+      if (aFast != null)
+        return aFast;
+    }
     if (aExpr.op ().isGeneral ())
       return _bool (AtomicComparator.generalCompare (aExpr.op (),
                                                      _atomize (aLeft),

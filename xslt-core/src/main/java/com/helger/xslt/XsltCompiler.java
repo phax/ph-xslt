@@ -16,11 +16,19 @@
  */
 package com.helger.xslt;
 
+import java.io.StringReader;
+
 import org.jspecify.annotations.NonNull;
+import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.enforce.ValueEnforcer;
 import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.XdmParseException;
+import com.helger.xpath.xdm.XdmParser;
+import com.helger.xslt.compile.StylesheetCompiler;
+import com.helger.xslt.runtime.LargeStackRunner;
 
 /**
  * Entry point: compile an XSLT 3.0 stylesheet (or package). Owner: XSLT core
@@ -49,7 +57,23 @@ public final class XsltCompiler
   @NonNull
   public static XsltExecutable compile (@NonNull final String sStylesheet, @NonNull final XsltCompileOptions aOptions)
   {
-    throw new UnsupportedOperationException ("Not implemented yet");
+    ValueEnforcer.notNull (sStylesheet, "Stylesheet");
+    ValueEnforcer.notNull (aOptions, "Options");
+    final XdmNode aDoc;
+    try
+    {
+      final InputSource aSource = new InputSource (new StringReader (sStylesheet));
+      if (aOptions.getBaseUri () != null)
+        aSource.setSystemId (aOptions.getBaseUri ());
+      aDoc = new XdmParser ().setLoadExternalEntities (aOptions.isLoadExternalEntities ()).parse (aSource);
+    }
+    catch (final XdmParseException ex)
+    {
+      throw new XsltException ("XTSE0010", "The stylesheet is not well-formed: " + ex.getMessage (), aOptions.getBaseUri (), 0, 0);
+    }
+    if (aOptions.getBaseUri () != null && aDoc.getDocumentUri () == null)
+      aDoc.setDocumentUri (aOptions.getBaseUri ());
+    return compile (aDoc, aOptions);
   }
 
   /**
@@ -65,6 +89,8 @@ public final class XsltCompiler
   @NonNull
   public static XsltExecutable compile (@NonNull final XdmNode aStylesheet, @NonNull final XsltCompileOptions aOptions)
   {
-    throw new UnsupportedOperationException ("Not implemented yet");
+    ValueEnforcer.notNull (aStylesheet, "Stylesheet");
+    ValueEnforcer.notNull (aOptions, "Options");
+    return LargeStackRunner.run ( () -> StylesheetCompiler.compile (aStylesheet, aOptions), "ph-xslt-compile");
   }
 }

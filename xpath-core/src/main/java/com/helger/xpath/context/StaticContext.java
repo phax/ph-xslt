@@ -92,6 +92,20 @@ public final class StaticContext
   }
 
   /**
+   * Remove all prefix bindings except <code>xml</code>, including the
+   * predeclared ones (XSLT knows only the namespaces in scope in the
+   * stylesheet).
+   *
+   * @return this for chaining
+   */
+  @NonNull
+  public StaticContext removeAllNamespacesExceptXml ()
+  {
+    m_aNamespaces.entrySet ().removeIf (e -> !"xml".equals (e.getKey ()));
+    return this;
+  }
+
+  /**
    * @param sPrefix
    *        The prefix.
    * @return The namespace URI or <code>null</code> if the prefix is unbound.

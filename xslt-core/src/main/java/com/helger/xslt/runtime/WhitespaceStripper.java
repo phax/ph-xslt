@@ -1,0 +1,166 @@
+/*
+ * Copyright (C) 2026 Philip Helger (www.helger.com)
+ * philip[at]helger[dot]com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.helger.xslt.runtime;
+
+import java.util.ArrayDeque;
+
+import org.jspecify.annotations.NonNull;
+
+import com.helger.annotation.concurrent.Immutable;
+import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.xpath.xdm.XdmConstants;
+import com.helger.xpath.xdm.XdmNode;
+import com.helger.xslt.model.SpaceRules;
+import com.helger.xslt.tree.XsltNames;
+
+/**
+ * Removes whitespace text nodes from source documents according to
+ * xsl:strip-space and xsl:preserve-space (XSLT 3.0 section 4.3). Since the
+ * tree model cannot remove nodes, a stripped copy is built (iteratively) when
+ * anything must be stripped.
+ *
+ * @author Philip Helger
+ */
+@Immutable
+public final class WhitespaceStripper
+{
+  @PresentForCodeCoverage
+  private static final WhitespaceStripper INSTANCE = new WhitespaceStripper ();
+
+  private WhitespaceStripper ()
+  {}
+
+  private record Job (@NonNull XdmNode source, @NonNull XdmNode target, boolean preserve)
+  {}
+
+  private static boolean _isPreserve (@NonNull final XdmNode aElement, final boolean bInherited)
+  {
+    final XdmNode aSpace = aElement.getAttribute (XdmConstants.NS_XML, "space");
+    if (aSpace == null)
+      return bInherited;
+    final String s = aSpace.getValue ().trim ();
+    if ("preserve".equals (s))
+      return true;
+    if ("default".equals (s))
+      return false;
+    return bInherited;
+  }
+
+  private static boolean _isStripped (@NonNull final XdmNode aText, final boolean bPreserve, @NonNull final SpaceRules aRules)
+  {
+    final XdmNode aParent = aText.getParent ();
+    return !bPreserve &&
+           aParent != null &&
+           aParent.isElement () &&
+           XsltNames.isWhitespaceOnly (aText.getValue ()) &&
+           aParent.getTypeAnnotation () == null &&
+           aRules.isStripped (aParent.getName ());
+  }
+
+  private static boolean _needsStripping (@NonNull final XdmNode aRoot, @NonNull final SpaceRules aRules)
+  {
+    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <Boolean> aPreserve = new ArrayDeque <> ();
+    aStack.push (aRoot);
+    aPreserve.push (Boolean.FALSE);
+    while (!aStack.isEmpty ())
+    {
+      final XdmNode aCur = aStack.pop ();
+      boolean bPreserve = aPreserve.pop ().booleanValue ();
+      if (aCur.isElement ())
+        bPreserve = _isPreserve (aCur, bPreserve);
+      for (int i = 0; i < aCur.getChildCount (); ++i)
+      {
+        final XdmNode aChild = aCur.getChildAtIndex (i);
+        if (aChild.isText ())
+        {
+          if (_isStripped (aChild, bPreserve, aRules))
+            return true;
+        }
+        else
+          if (aChild.isElement ())
+          {
+            aStack.push (aChild);
+            aPreserve.push (Boolean.valueOf (bPreserve));
+          }
+      }
+    }
+    return false;
+  }
+
+  @NonNull
+  private static XdmNode _copyNode (@NonNull final XdmNode aSrc)
+  {
+    final XdmNode ret = NodeCopier.copyShallow (aSrc);
+    ret.setLocation (aSrc.getLine (), aSrc.getColumn ());
+    ret.setTypeAnnotation (aSrc.getTypeAnnotation ());
+    ret.setSchemaType (aSrc.getSchemaType ());
+    ret.setNilled (aSrc.isNilled ());
+    ret.setIDKind (aSrc.getIDKind ());
+    ret.setBaseUri (aSrc.getBaseUri ());
+    if (aSrc.isElement ())
+      NodeCopier.copyNamespaces (aSrc, ret, false);
+    return ret;
+  }
+
+  /**
+   * @param aRoot
+   *        The root of a tree (normally a document node).
+   * @param aRules
+   *        The space rules of the stylesheet.
+   * @return The root itself if nothing is stripped, else the root of a
+   *         stripped copy.
+   */
+  @NonNull
+  public static XdmNode strip (@NonNull final XdmNode aRoot, @NonNull final SpaceRules aRules)
+  {
+    if (!(aRoot.isDocument () || aRoot.isElement ()) || !_needsStripping (aRoot, aRules))
+      return aRoot;
+    final XdmNode ret = _copyNode (aRoot);
+    if (aRoot.isElement ())
+      NodeCopier.copyNamespaces (aRoot, ret, true);
+    ret.setDocumentUri (aRoot.getDocumentUri ());
+    if (aRoot.isDocument ())
+      for (final String sName : aRoot.getAllUnparsedEntityNames ())
+      {
+        final String [] aEntity = aRoot.getUnparsedEntity (sName);
+        ret.addUnparsedEntity (sName, aEntity[0], aEntity[1]);
+      }
+    final ArrayDeque <Job> aStack = new ArrayDeque <> ();
+    aStack.push (new Job (aRoot, ret, false));
+    while (!aStack.isEmpty ())
+    {
+      final Job aJob = aStack.pop ();
+      final XdmNode aSrc = aJob.source ();
+      final boolean bPreserve = aSrc.isElement () ? _isPreserve (aSrc, aJob.preserve ()) : aJob.preserve ();
+      for (int i = 0; i < aSrc.getAttributeCount (); ++i)
+        aJob.target ().addAttribute (_copyNode (aSrc.getAttributeAtIndex (i)));
+      for (int i = 0; i < aSrc.getChildCount (); ++i)
+      {
+        final XdmNode aChild = aSrc.getChildAtIndex (i);
+        if (aChild.isText () && _isStripped (aChild, bPreserve, aRules))
+          continue;
+        final XdmNode aCopy = _copyNode (aChild);
+        aJob.target ().appendChild (aCopy);
+        if (aChild.isElement ())
+          aStack.push (new Job (aChild, aCopy, bPreserve));
+      }
+    }
+    ret.assignDocumentOrder ();
+    return ret;
+  }
+}

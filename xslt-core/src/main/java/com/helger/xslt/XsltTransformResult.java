@@ -41,6 +41,13 @@ import com.helger.xpath.xdm.XdmNode;
  *        Results of xsl:result-document.
  * @param messages
  *        The text of all xsl:message instructions in execution order.
+ * @param principalMethod
+ *        The effective output method of the principal result (xml, html,
+ *        xhtml, text, json, adaptive or an EQName), <code>null</code> if
+ *        unknown.
+ * @param principalIndent
+ *        <code>true</code> if the principal result was serialized with
+ *        indent="yes".
  * @author Philip Helger
  */
 @Immutable
@@ -48,8 +55,33 @@ public record XsltTransformResult (@NonNull XdmSequence principalRaw,
                                    @Nullable XdmNode principalTree,
                                    @NonNull String principalSerialized,
                                    @NonNull ICommonsList <SecondaryResult> secondaryResults,
-                                   @NonNull ICommonsList <String> messages)
+                                   @NonNull ICommonsList <String> messages,
+                                   @Nullable String principalMethod,
+                                   boolean principalIndent)
 {
+  /**
+   * Constructor without method and indent information.
+   *
+   * @param principalRaw
+   *        The raw principal result sequence.
+   * @param principalTree
+   *        The principal result tree or <code>null</code>.
+   * @param principalSerialized
+   *        The serialized principal result.
+   * @param secondaryResults
+   *        Results of xsl:result-document.
+   * @param messages
+   *        The texts of the xsl:message instructions.
+   */
+  public XsltTransformResult (@NonNull final XdmSequence principalRaw,
+                              @Nullable final XdmNode principalTree,
+                              @NonNull final String principalSerialized,
+                              @NonNull final ICommonsList <SecondaryResult> secondaryResults,
+                              @NonNull final ICommonsList <String> messages)
+  {
+    this (principalRaw, principalTree, principalSerialized, secondaryResults, messages, null, false);
+  }
+
   /** One xsl:result-document result. */
   public record SecondaryResult (@NonNull String href,
                                  @NonNull XdmSequence raw,

@@ -397,7 +397,8 @@ public final class XSLT30CatalogReader
                                  aContextItem == null ? null : _attr (aContextItem, "select"),
                                  aOutput == null ? null : new XSLT30Invocation.Output (_attr (aOutput, "file"),
                                                                                        _attr (aOutput, "serialize").strip (),
-                                                                                       _attr (aOutput, "result-var").strip ()),
+                                                                                       _attr (aOutput, "result-var").strip (),
+                                                                                       _attr (aOutput, "tree").strip ()),
                                  getInScopeNamespaces (aTest));
   }
 

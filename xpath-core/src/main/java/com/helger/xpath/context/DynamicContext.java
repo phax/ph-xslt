@@ -19,6 +19,7 @@ package com.helger.xpath.context;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -63,6 +64,7 @@ public final class DynamicContext
     private Object m_aHost = null;
     private ICommonsOrderedMap <String, String> m_aEnvironmentVariables = new CommonsLinkedHashMap <> ();
     private String m_sDefaultLanguage = DEFAULT_LANGUAGE;
+    private Function <XdmQName, XdmSequence> m_aGlobalVariableResolver = null;
   }
 
   /** The default language unless set otherwise. */
@@ -77,6 +79,7 @@ public final class DynamicContext
   private final IXdmItem m_aCurrentItem;
   private final int m_nPosition;
   private final int m_nSize;
+  private final Object m_aHostState;
   // Persistent linked list of bindings, innermost first
   private final VarBinding m_aVars;
 
@@ -89,6 +92,7 @@ public final class DynamicContext
                           @Nullable final IXdmItem aCurrentItem,
                           final int nPosition,
                           final int nSize,
+                          @Nullable final Object aHostState,
                           @Nullable final VarBinding aVars)
   {
     m_aStatic = aStatic;
@@ -97,6 +101,7 @@ public final class DynamicContext
     m_aCurrentItem = aCurrentItem;
     m_nPosition = nPosition;
     m_nSize = nSize;
+    m_aHostState = aHostState;
     m_aVars = aVars;
   }
 
@@ -108,7 +113,7 @@ public final class DynamicContext
    */
   public DynamicContext (@NonNull final StaticContext aStatic)
   {
-    this (ValueEnforcer.notNull (aStatic, "Static"), new RunState (), null, null, 0, 0, null);
+    this (ValueEnforcer.notNull (aStatic, "Static"), new RunState (), null, null, 0, 0, null, null);
   }
 
   @NonNull
@@ -140,7 +145,7 @@ public final class DynamicContext
   @NonNull
   public DynamicContext withFocus (@Nullable final IXdmItem aItem, final int nPosition, final int nSize)
   {
-    return new DynamicContext (m_aStatic, m_aRun, aItem, m_aCurrentItem, nPosition, nSize, m_aVars);
+    return new DynamicContext (m_aStatic, m_aRun, aItem, m_aCurrentItem, nPosition, nSize, m_aHostState, m_aVars);
   }
 
   @NonNull
@@ -152,14 +157,18 @@ public final class DynamicContext
                                m_aCurrentItem,
                                m_nPosition,
                                m_nSize,
+                               m_aHostState,
                                new VarBinding (aName, aValue, m_aVars));
   }
 
-  /** @return A context with the same run state and static context but no focus and no variables. */
+  /**
+   * @return A context with the same run state, static context and host state
+   *         but no focus, no current item and no variables.
+   */
   @NonNull
   public DynamicContext withoutFocusAndVariables ()
   {
-    return new DynamicContext (m_aStatic, m_aRun, null, null, 0, 0, null);
+    return new DynamicContext (m_aStatic, m_aRun, null, null, 0, 0, m_aHostState, null);
   }
 
   /**
@@ -175,7 +184,7 @@ public final class DynamicContext
   public DynamicContext withStaticContext (@NonNull final StaticContext aStatic)
   {
     ValueEnforcer.notNull (aStatic, "Static");
-    return new DynamicContext (aStatic, m_aRun, m_aItem, m_aCurrentItem, m_nPosition, m_nSize, m_aVars);
+    return new DynamicContext (aStatic, m_aRun, m_aItem, m_aCurrentItem, m_nPosition, m_nSize, m_aHostState, m_aVars);
   }
 
   /**
@@ -192,7 +201,31 @@ public final class DynamicContext
   @NonNull
   public DynamicContext withCurrentItem (@Nullable final IXdmItem aCurrentItem)
   {
-    return new DynamicContext (m_aStatic, m_aRun, m_aItem, aCurrentItem, m_nPosition, m_nSize, m_aVars);
+    return new DynamicContext (m_aStatic, m_aRun, m_aItem, aCurrentItem, m_nPosition, m_nSize, m_aHostState, m_aVars);
+  }
+
+  /**
+   * @return The per-context state of the host (the XSLT engine: current
+   *         template rule, current group, captured regex groups, ...), or
+   *         <code>null</code>. Unlike {@link #getHost()} it belongs to this
+   *         context and is carried into every context derived from it, also
+   *         into closures of inline function items.
+   */
+  @Nullable
+  public Object getHostState ()
+  {
+    return m_aHostState;
+  }
+
+  /**
+   * @param aHostState
+   *        The new per-context host state. May be <code>null</code>.
+   * @return A derived context with that host state.
+   */
+  @NonNull
+  public DynamicContext withHostState (@Nullable final Object aHostState)
+  {
+    return new DynamicContext (m_aStatic, m_aRun, m_aItem, m_aCurrentItem, m_nPosition, m_nSize, aHostState, m_aVars);
   }
 
   /**
@@ -222,7 +255,22 @@ public final class DynamicContext
     for (VarBinding aCur = m_aVars; aCur != null; aCur = aCur.next ())
       if (aCur.name ().equals (aName))
         return aCur.value ();
-    return null;
+    final Function <XdmQName, XdmSequence> aResolver = m_aRun.m_aGlobalVariableResolver;
+    return aResolver == null ? null : aResolver.apply (aName);
+  }
+
+  /**
+   * Set the run-wide resolver for variables that are not bound in a context
+   * (XSLT global variables and parameters, evaluated on first use). It is
+   * asked after the local bindings, so a local binding shadows it.
+   *
+   * @param aResolver
+   *        Returns the value of a variable or <code>null</code> if it is not
+   *        known. May be <code>null</code> to have none.
+   */
+  public void setGlobalVariableResolver (@Nullable final Function <XdmQName, XdmSequence> aResolver)
+  {
+    m_aRun.m_aGlobalVariableResolver = aResolver;
   }
 
   @NonNull

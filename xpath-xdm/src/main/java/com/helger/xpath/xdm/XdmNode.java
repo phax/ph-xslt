@@ -74,6 +74,10 @@ public final class XdmNode implements IXdmItem
   private int m_nNamespaceIndex;
   // Lazily built namespace axis of an element
   private ICommonsList <XdmNode> m_aNamespaceNodes;
+  // XSLT disable-output-escaping on a text node
+  private boolean m_bDisableOutputEscaping;
+  // Unparsed entities of a document node: name to {system ID, public ID}
+  private ICommonsOrderedMap <String, String []> m_aUnparsedEntities;
 
   private XdmNode (@NonNull final ENodeKind eKind, @Nullable final XdmQName aName, @Nullable final String sValue)
   {
@@ -346,6 +350,68 @@ public final class XdmNode implements IXdmItem
   public void setBaseUri (@Nullable final String sBaseUri)
   {
     m_sBaseUri = sBaseUri;
+  }
+
+  /**
+   * @return <code>true</code> if this text node is written without escaping
+   *         by the XML and HTML output methods (XSLT disable-output-escaping).
+   */
+  public boolean isDisableOutputEscaping ()
+  {
+    return m_bDisableOutputEscaping;
+  }
+
+  public void setDisableOutputEscaping (final boolean bDisableOutputEscaping)
+  {
+    m_bDisableOutputEscaping = bDisableOutputEscaping;
+  }
+
+  /**
+   * Record an unparsed entity declared in the DTD of a document.
+   *
+   * @param sName
+   *        Entity name.
+   * @param sSystemId
+   *        The (absolute) system identifier.
+   * @param sPublicId
+   *        The public identifier or <code>null</code>.
+   */
+  public void addUnparsedEntity (@NonNull final String sName,
+                                 @NonNull final String sSystemId,
+                                 @Nullable final String sPublicId)
+  {
+    ValueEnforcer.notNull (sName, "Name");
+    ValueEnforcer.notNull (sSystemId, "SystemId");
+    if (m_eKind != ENodeKind.DOCUMENT)
+      throw new IllegalStateException ("Only a document node has unparsed entities");
+    if (m_aUnparsedEntities == null)
+      m_aUnparsedEntities = new CommonsLinkedHashMap <> ();
+    // The first declaration of an entity is binding
+    m_aUnparsedEntities.putIfAbsent (sName, new String [] { sSystemId, sPublicId });
+  }
+
+  /**
+   * @param sName
+   *        Entity name.
+   * @return The system identifier (index 0) and public identifier (index 1,
+   *         possibly <code>null</code>) of an unparsed entity of this document
+   *         node, or <code>null</code> if there is none.
+   */
+  @Nullable
+  public String [] getUnparsedEntity (@NonNull final String sName)
+  {
+    if (m_aUnparsedEntities == null)
+      return null;
+    final String [] ret = m_aUnparsedEntities.get (sName);
+    return ret == null ? null : ret.clone ();
+  }
+
+  /** @return The names of the unparsed entities of this document node. */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <String> getAllUnparsedEntityNames ()
+  {
+    return m_aUnparsedEntities == null ? new CommonsArrayList <> () : new CommonsArrayList <> (m_aUnparsedEntities.keySet ());
   }
 
   public void appendChild (@NonNull final XdmNode aChild)

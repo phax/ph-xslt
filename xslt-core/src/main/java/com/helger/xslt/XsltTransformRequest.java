@@ -59,6 +59,8 @@ public final class XsltTransformRequest
   private IResourceResolver m_aResolver;
   private OffsetDateTime m_aCurrentDateTime;
   private BooleanSupplier m_aInterrupt;
+  private long m_nMaxSteps;
+  private int m_nMaxDepth;
 
   /** @return The global context item (normally the source document node). */
   @Nullable
@@ -88,7 +90,11 @@ public final class XsltTransformRequest
     return this;
   }
 
-  /** @return The initial mode, <code>null</code> for the default mode. */
+  /**
+   * @return The initial mode, <code>null</code> for the default mode. The
+   *         names <code>#unnamed</code> and <code>#default</code> (in no
+   *         namespace) stand for the unnamed and the default mode.
+   */
   @Nullable
   public XdmQName getInitialMode ()
   {
@@ -205,6 +211,44 @@ public final class XsltTransformRequest
   public XsltTransformRequest setInterrupt (@Nullable final BooleanSupplier aInterrupt)
   {
     m_aInterrupt = aInterrupt;
+    return this;
+  }
+
+  /** @return The maximum number of instructions to execute, 0 for the default (20,000,000). */
+  public long getMaxSteps ()
+  {
+    return m_nMaxSteps;
+  }
+
+  /**
+   * @param nMaxSteps
+   *        The maximum number of instructions to execute; when exceeded the
+   *        transformation fails with XPDY0130. 0 for the default.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setMaxSteps (final long nMaxSteps)
+  {
+    m_nMaxSteps = nMaxSteps;
+    return this;
+  }
+
+  /** @return The maximum nesting depth of templates and functions, 0 for the default (10,000). */
+  public int getMaxDepth ()
+  {
+    return m_nMaxDepth;
+  }
+
+  /**
+   * @param nMaxDepth
+   *        The maximum nesting depth of templates and functions; it can only
+   *        lower the default of 10,000. 0 for the default.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setMaxDepth (final int nMaxDepth)
+  {
+    m_nMaxDepth = nMaxDepth;
     return this;
   }
 }
