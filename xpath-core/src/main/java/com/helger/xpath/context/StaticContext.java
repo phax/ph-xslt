@@ -59,6 +59,7 @@ public final class StaticContext
   private final ICommonsSet <XdmQName> m_aDeclaredVariables = new CommonsHashSet <> ();
   private EXmlVersion m_eXmlVersion = DEFAULT_XML_VERSION;
   private EXsdVersion m_eXsdVersion = DEFAULT_XSD_VERSION;
+  private boolean m_bXsdVersionSet = false;
 
   public StaticContext ()
   {
@@ -320,10 +321,20 @@ public final class StaticContext
     return m_eXsdVersion;
   }
 
+  /**
+   * @return <code>true</code> if {@link #setXsdVersion(EXsdVersion)} was
+   *         called, <code>false</code> if the default applies.
+   */
+  public boolean isXsdVersionSet ()
+  {
+    return m_bXsdVersionSet;
+  }
+
   @NonNull
   public StaticContext setXsdVersion (@NonNull final EXsdVersion eXsdVersion)
   {
     m_eXsdVersion = ValueEnforcer.notNull (eXsdVersion, "XsdVersion");
+    m_bXsdVersionSet = true;
     return this;
   }
 }

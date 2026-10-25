@@ -486,7 +486,14 @@ public final class XsltFunctions
     aLib.register (NS, "key", "(xs:string, xs:anyAtomicType*, node()) as node()*", XsltFunctions::_key);
     aLib.register (NS, "document", "(item()*) as node()*", XsltFunctions::_document);
     aLib.register (NS, "document", "(item()*, node()) as node()*", XsltFunctions::_document);
-    aLib.register (NS, "regex-group", "(xs:integer) as xs:string", XsltFunctions::_regexGroup);
+    // A dynamic call (regex-group#1) has no captured substrings (XSLT 3.0
+    // section 5.3.4), whatever xsl:analyze-string encloses the call
+    aLib.register (NS,
+                   "regex-group",
+                   "(xs:integer) as xs:string",
+                   XsltFunctions::_regexGroup,
+                   false,
+                   (aRtCtx, aFnArgs) -> XdmSequence.of (XdmAtomic.string ("")));
     aLib.register (NS, "current-output-uri", "() as xs:anyURI?", XsltFunctions::_currentOutputUri, true);
     aLib.register (NS, "unparsed-entity-uri", "(xs:string) as xs:anyURI", (aRtCtx, aFnArgs) -> _unparsedEntity (aRtCtx, aFnArgs, false), true);
     aLib.register (NS, "unparsed-entity-uri", "(xs:string, node()) as xs:anyURI", (aRtCtx, aFnArgs) -> _unparsedEntity (aRtCtx, aFnArgs, false));

@@ -31,7 +31,8 @@ import com.helger.collection.commons.ICommonsMap;
  * case-insensitively if they have the same simple case folding. The folding is
  * derived from the JDK case mappings as <code>lower(upper(c))</code>, with the
  * Turkic dotted and dotless i excluded (Unicode simple case folding leaves
- * both alone).
+ * both alone). Characters that are not assigned in Unicode 15.0 have no case
+ * variants, so that a newer JDK does not add any.
  *
  * @author Philip Helger
  */
@@ -65,7 +66,10 @@ final class CaseVariants
       for (int c = 0; c <= Character.MAX_CODE_POINT; ++c)
       {
         final int nFold = _fold (c);
-        if (nFold != c)
+        // Only characters of Unicode 15.0, the version of UnicodeCategories,
+        // so that the result does not depend on the JDK
+        if (nFold != c && !"Cn".equals (UnicodeCategories.getCategory (c)) &&
+            !"Cn".equals (UnicodeCategories.getCategory (nFold)))
         {
           final Integer aKey = Integer.valueOf (nFold);
           final int [] aOld = aClasses.get (aKey);
