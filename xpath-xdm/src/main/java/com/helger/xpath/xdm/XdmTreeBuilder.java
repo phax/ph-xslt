@@ -33,6 +33,8 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.xpath.xdm.schema.EXdmContentType;
+import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * SAX2 handler that builds an {@link XdmNode} tree. Adjacent character events
@@ -118,6 +120,30 @@ public final class XdmTreeBuilder extends DefaultHandler2
   {
     final int nIndex = sQName.indexOf (':');
     return nIndex < 0 ? "" : sQName.substring (0, nIndex);
+  }
+
+  /**
+   * The JDK validator reports whitespace in element-only content as ignorable
+   * whitespace, Apache Xerces-J does not. With Xerces-J the content type is
+   * known from the schema component model, so such whitespace text nodes are
+   * dropped here (XDM 3.1 section 6.7.3).
+   */
+  private static void _dropElementOnlyWhitespace (@NonNull final XdmNode aElement, @NonNull final XdmSchemaType aType)
+  {
+    if (aElement.getChildCount () == 0)
+      return;
+    final IXdmTypeDefinition aDef = aType.getDefinition ();
+    if (aDef == null)
+      return;
+    final EXdmContentType eContent = aDef.getContentType ();
+    if (eContent != EXdmContentType.ELEMENT_ONLY && eContent != EXdmContentType.EMPTY)
+      return;
+    for (int i = aElement.getChildCount () - 1; i >= 0; --i)
+    {
+      final XdmNode aChild = aElement.getChildAtIndex (i);
+      if (aChild.isText () && aChild.getValue ().isBlank ())
+        aElement.removeChild (aChild);
+    }
   }
 
   @NonNull
@@ -346,6 +372,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
         final XdmSchemaType aType = _getSchemaType (aStartType != null ? aStartType : aEndType,
                                                     aEndType != null ? aEndType : aStartType);
         m_aCurrent.setSchemaType (aType);
+        _dropElementOnlyWhitespace (m_aCurrent, aType);
         if (aType.getAtomicBase () != null && !m_aCurrent.isNilled ())
           m_aCurrent.setIDKind (_getSchemaIDKind (aType, m_aCurrent.getStringValue ()));
       }

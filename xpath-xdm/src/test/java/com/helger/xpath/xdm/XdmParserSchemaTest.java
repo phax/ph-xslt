@@ -26,7 +26,6 @@ import static org.junit.Assert.fail;
 
 import java.io.StringReader;
 
-import javax.xml.XMLConstants;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
@@ -61,7 +60,7 @@ public final class XdmParserSchemaTest
 
   private static Schema _schema () throws SAXException
   {
-    return SchemaFactory.newInstance (XMLConstants.W3C_XML_SCHEMA_NS_URI)
+    return SchemaFactory.newDefaultInstance ()
                         .newSchema (new StreamSource (new StringReader (XSD)));
   }
 

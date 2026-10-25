@@ -67,7 +67,7 @@ public final class XSLT30CatalogReader
   {
     try
     {
-      final DocumentBuilderFactory aFactory = DocumentBuilderFactory.newInstance ();
+      final DocumentBuilderFactory aFactory = DocumentBuilderFactory.newDefaultInstance ();
       aFactory.setNamespaceAware (true);
       aFactory.setValidating (false);
       aFactory.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);

@@ -101,7 +101,7 @@ public final class Qt3ParseSmokeTest
   @NonNull
   private static Document _load (@NonNull final File aFile) throws Exception
   {
-    final DocumentBuilderFactory aDBF = DocumentBuilderFactory.newInstance ();
+    final DocumentBuilderFactory aDBF = DocumentBuilderFactory.newDefaultInstance ();
     aDBF.setNamespaceAware (true);
     final DocumentBuilder aDB = aDBF.newDocumentBuilder ();
     return aDB.parse (aFile);

@@ -26,8 +26,36 @@ import org.jspecify.annotations.NonNull;
  */
 public class XdmValidationException extends XdmParseException
 {
+  private final boolean m_bDocumentConstraint;
+
   public XdmValidationException (@NonNull final String sMessage, @NonNull final Throwable aCause)
   {
+    this (sMessage, aCause, false);
+  }
+
+  /**
+   * @param sMessage
+   *        Message.
+   * @param aCause
+   *        Cause.
+   * @param bDocumentConstraint
+   *        <code>true</code> if a document-level constraint (ID uniqueness,
+   *        IDREF target) is violated.
+   */
+  public XdmValidationException (@NonNull final String sMessage,
+                                 @NonNull final Throwable aCause,
+                                 final boolean bDocumentConstraint)
+  {
     super (sMessage, aCause);
+    m_bDocumentConstraint = bDocumentConstraint;
+  }
+
+  /**
+   * @return <code>true</code> if a document-level constraint (ID uniqueness,
+   *         IDREF target) is violated, as opposed to the validity of a node.
+   */
+  public boolean isDocumentConstraint ()
+  {
+    return m_bDocumentConstraint;
   }
 }

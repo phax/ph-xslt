@@ -53,7 +53,7 @@ public final class XdmTreeBuilderBaseUriTest
     Files.writeString (aDir.resolve ("sub/ent.xml"), "<a><b/></a><?p x?>", StandardCharsets.UTF_8);
 
     // A plain parser: XdmParser blocks external entities under secure processing
-    final SAXParserFactory aFactory = SAXParserFactory.newInstance ();
+    final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
     aFactory.setNamespaceAware (true);
     final XMLReader aReader = aFactory.newSAXParser ().getXMLReader ();
     final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();

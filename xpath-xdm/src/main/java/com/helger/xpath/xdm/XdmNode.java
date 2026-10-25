@@ -439,6 +439,21 @@ public final class XdmNode implements IXdmItem
     m_aChildren.add (aChild);
   }
 
+  /**
+   * Remove a child node. The document order must be assigned again afterwards
+   * if the tree was numbered.
+   *
+   * @param aChild
+   *        The child to remove. May not be <code>null</code>.
+   */
+  public void removeChild (@NonNull final XdmNode aChild)
+  {
+    ValueEnforcer.notNull (aChild, "Child");
+    if (aChild.m_aParent != this || m_aChildren == null || !m_aChildren.removeObject (aChild).isChanged ())
+      throw new IllegalArgumentException ("Not a child of this node");
+    aChild.m_aParent = null;
+  }
+
   public void addAttribute (@NonNull final XdmNode aAttribute)
   {
     ValueEnforcer.notNull (aAttribute, "Attribute");
