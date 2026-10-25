@@ -206,7 +206,7 @@ public final class ControlInstructions
   @NonNull
   private static IInstruction _compileCallTemplate (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
-    final XdmQName aName = aCtx.resolveQName (aEl, aEl.getAttr ("name"), false);
+    final XdmQName aName = aCtx.getCompiler ().mapOriginalName (aEl, aCtx.resolveQName (aEl, aEl.getAttr ("name"), false));
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
     final ICommonsList <XdmQName> aNonTunnel = new CommonsArrayList <> ();
     for (final VariableDef aParam : aParams)

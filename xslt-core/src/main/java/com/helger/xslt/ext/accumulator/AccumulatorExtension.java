@@ -56,6 +56,7 @@ import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.Mode;
+import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.SequenceOutput;
@@ -174,7 +175,7 @@ public final class AccumulatorExtension implements IXsltExtension
 
   private static void _compileAccumulator (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
-    final XdmQName aName = aCtx.resolveQName (aEl, aEl.getAttr ("name"), false);
+    final XdmQName aName = PackageModel.qualify (aEl, aCtx.resolveQName (aEl, aEl.getAttr ("name"), false));
     final XPathExpr aInitial = aCtx.compileRequiredExpression (aEl, "initial-value");
     final String sAs = aEl.getAttr ("as");
     final SeqType aAs = sAs == null ? null : aCtx.compileSequenceType (aEl, sAs);
@@ -274,7 +275,7 @@ public final class AccumulatorExtension implements IXsltExtension
           ret.add (null);
         }
         else
-          ret.add (aCtx.resolveQName (aEl, sToken, false));
+          ret.add (PackageModel.qualify (aEl, aCtx.resolveQName (aEl, sToken, false)));
     }
     return ret;
   }
@@ -600,8 +601,11 @@ public final class AccumulatorExtension implements IXsltExtension
     final XsltContext aCtx = XsltContext.of (aDyn);
     if (aCtx == null)
       throw new XPathException ("XTDE3340", "There is no accumulator named '" + sName + "'");
-    final XdmQName aName = _resolveName (aDyn, sName);
     final CompiledStylesheet aSheet = aCtx.getEngine ().getStylesheet ();
+    XdmQName aName = _resolveName (aDyn, sName);
+    // Accumulators are local to a package
+    if (aSheet.isMultiPackage ())
+      aName = aSheet.getPackages ().qualifyForScope (aDyn.getStaticContext ().getFunctionLibrary (), aName);
     final ICommonsMap <XdmQName, Accumulator> aByName = (ICommonsMap <XdmQName, Accumulator>) aSheet.getExtensionData (KEY_BY_NAME);
     final Accumulator aAcc = aByName == null ? null : aByName.get (aName);
     if (aAcc == null)

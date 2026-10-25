@@ -18,6 +18,7 @@ package com.helger.xpath.context;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
@@ -64,7 +65,7 @@ public final class DynamicContext
     private Object m_aHost = null;
     private ICommonsOrderedMap <String, String> m_aEnvironmentVariables = new CommonsLinkedHashMap <> ();
     private String m_sDefaultLanguage = DEFAULT_LANGUAGE;
-    private Function <XdmQName, XdmSequence> m_aGlobalVariableResolver = null;
+    private BiFunction <DynamicContext, XdmQName, XdmSequence> m_aGlobalVariableResolver = null;
   }
 
   /** The default language unless set otherwise. */
@@ -255,8 +256,8 @@ public final class DynamicContext
     for (VarBinding aCur = m_aVars; aCur != null; aCur = aCur.next ())
       if (aCur.name ().equals (aName))
         return aCur.value ();
-    final Function <XdmQName, XdmSequence> aResolver = m_aRun.m_aGlobalVariableResolver;
-    return aResolver == null ? null : aResolver.apply (aName);
+    final BiFunction <DynamicContext, XdmQName, XdmSequence> aResolver = m_aRun.m_aGlobalVariableResolver;
+    return aResolver == null ? null : aResolver.apply (this, aName);
   }
 
   /**
@@ -269,6 +270,20 @@ public final class DynamicContext
    *        known. May be <code>null</code> to have none.
    */
   public void setGlobalVariableResolver (@Nullable final Function <XdmQName, XdmSequence> aResolver)
+  {
+    m_aRun.m_aGlobalVariableResolver = aResolver == null ? null : (aCtx, aName) -> aResolver.apply (aName);
+  }
+
+  /**
+   * Like {@link #setGlobalVariableResolver(Function)}, but the resolver also
+   * receives the context in which the variable is referenced (e.g. to find
+   * the XSLT package of the referencing expression from its static context).
+   *
+   * @param aResolver
+   *        Returns the value of a variable or <code>null</code> if it is not
+   *        known. May be <code>null</code> to have none.
+   */
+  public void setContextGlobalVariableResolver (@Nullable final BiFunction <DynamicContext, XdmQName, XdmSequence> aResolver)
   {
     m_aRun.m_aGlobalVariableResolver = aResolver;
   }

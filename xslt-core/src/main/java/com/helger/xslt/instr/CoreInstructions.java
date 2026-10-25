@@ -269,7 +269,7 @@ public final class CoreInstructions
     if (s != null)
       for (final String sToken : XsltNames.tokenize (s))
       {
-        final XdmQName aName = aCtx.resolveQName (aEl, sToken, false);
+        final XdmQName aName = aCtx.getCompiler ().mapAttributeSetName (aEl, aCtx.resolveQName (aEl, sToken, false));
         ret.add (aName);
         aCtx.getCompiler ().registerAttributeSetRef (aEl, aName);
       }
@@ -281,7 +281,7 @@ public final class CoreInstructions
   {
     final StylesheetCompiler aCompiler = aCtx.getCompiler ();
     final XdmQName aSrcName = aEl.getName ();
-    final StylesheetCompiler.NamespaceAlias aNameAlias = aCompiler.getNamespaceAlias (aSrcName.namespaceUri ());
+    final StylesheetCompiler.NamespaceAlias aNameAlias = aCompiler.getNamespaceAlias (aEl, aSrcName.namespaceUri ());
     final XdmQName aName = aNameAlias == null ? aSrcName
                                               : new XdmQName (aNameAlias.resultUri (),
                                                               aSrcName.localName (),
@@ -295,14 +295,15 @@ public final class CoreInstructions
       final String sUri = aEntry.getValue ();
       if ("xml".equals (sPrefix))
         continue;
-      final StylesheetCompiler.NamespaceAlias aAlias = aCompiler.getNamespaceAlias (sUri);
+      final StylesheetCompiler.NamespaceAlias aAlias = aCompiler.getNamespaceAlias (aEl, sUri);
       if (aAlias != null)
       {
         if (!aAlias.resultUri ().isEmpty ())
           aNamespaces.put (aAlias.resultPrefix (), aAlias.resultUri ());
         continue;
       }
-      if (aExcluded.contains (sUri))
+      // The result namespace of an xsl:namespace-alias is not excluded
+      if (aExcluded.contains (sUri) && !aCompiler.isNamespaceAliasResult (aEl, sUri))
         continue;
       aNamespaces.put (sPrefix, sUri);
     }
@@ -314,7 +315,7 @@ public final class CoreInstructions
       final XdmQName aAttrName = aEntry.getKey ();
       if (XsltNames.NS_XSL.equals (aAttrName.namespaceUri ()))
         continue;
-      final StylesheetCompiler.NamespaceAlias aAlias = aAttrName.hasNamespace () ? aCompiler.getNamespaceAlias (aAttrName.namespaceUri ())
+      final StylesheetCompiler.NamespaceAlias aAlias = aAttrName.hasNamespace () ? aCompiler.getNamespaceAlias (aEl, aAttrName.namespaceUri ())
                                                                                  : null;
       aAttrNames.add (aAlias == null ? aAttrName
                                      : new XdmQName (aAlias.resultUri (),

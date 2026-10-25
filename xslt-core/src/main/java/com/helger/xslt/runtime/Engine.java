@@ -53,6 +53,7 @@ import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
+import com.helger.xslt.compile.StylesheetCompiler;
 import com.helger.xslt.model.AttributeSet;
 import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.EOnNoMatch;
@@ -63,6 +64,8 @@ import com.helger.xslt.model.SpaceRules;
 import com.helger.xslt.model.Template;
 import com.helger.xslt.model.TemplateRule;
 import com.helger.xslt.model.VariableDef;
+import com.helger.xslt.pkg.PackageModel;
+import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 
@@ -87,25 +90,10 @@ public final class Engine
   /** Default maximum nesting depth of templates and functions. */
   public static final int DEFAULT_MAX_DEPTH = 10_000;
 
-  @Nullable
-  private XdmSequence _resolveGlobal (@NonNull final XdmQName aName)
-  {
-    final XdmSequence aStatic = m_aSheet.staticValues ().get (aName);
-    if (aStatic != null)
-      return aStatic;
-    final XdmSequence aKnown = m_aGlobalValues.get (aName);
-    if (aKnown != null)
-      return aKnown;
-    final VariableDef aDef = m_aSheet.globals ().get (aName);
-    if (aDef == null)
-      return null;
-    return getGlobalValue (aDef);
-  }
-
   // NaN equals nothing: a unique key that is never searched for
   private static final Object NAN_KEY = new Object ();
 
-  private record KeyIndexId (@NonNull XdmQName name, @NonNull XdmNode root)
+  private record KeyIndexId (@NonNull XdmQName name, @NonNull XdmNode root, @Nullable PackageUnit unit)
   {}
 
   private final CompiledStylesheet m_aSheet;
@@ -115,6 +103,8 @@ public final class Engine
   private IXdmItem m_aGlobalContextItem;
   private final ICommonsMap <XdmQName, XdmSequence> m_aGlobalValues = new CommonsHashMap <> ();
   private final ICommonsSet <XdmQName> m_aGlobalsInProgress = new CommonsHashSet <> ();
+  private final ICommonsMap <VariableDef, XdmSequence> m_aOriginalValues = new CommonsHashMap <> ();
+  private final ICommonsSet <VariableDef> m_aOriginalsInProgress = new CommonsHashSet <> ();
   private final ICommonsMap <KeyIndexId, ICommonsMap <Object, ICommonsList <XdmNode>>> m_aKeyIndexes = new CommonsHashMap <> ();
   private final ICommonsSet <XdmQName> m_aKeysInProgress = new CommonsHashSet <> ();
   private final ICommonsList <String> m_aMessages = new CommonsArrayList <> ();
@@ -145,7 +135,7 @@ public final class Engine
       aDyn.setCurrentDateTime (aRequest.getCurrentDateTime ());
     aDyn.setInterrupt (aRequest.getInterrupt ());
     aDyn.setResourceResolver (new StrippingResolver (aRequest.getResolver ()));
-    aDyn.setGlobalVariableResolver (this::_resolveGlobal);
+    aDyn.setContextGlobalVariableResolver (this::_resolveGlobal);
     final String sOutputUri = aRequest.getBaseOutputUri ();
     XsltState aState = XsltState.EMPTY;
     // Always set, so that its absence marks temporary output state
@@ -291,6 +281,85 @@ public final class Engine
     return (T) m_aRunData.computeIfAbsent (aKey, k -> aFactory.get ());
   }
 
+  @NonNull
+  private XdmSequence _computeGlobal (@NonNull final VariableDef aDef)
+  {
+    final XdmQName aName = aDef.getName ();
+    final String sVisibility = aDef.getElement ().getAttr ("visibility");
+    if (sVisibility != null && "abstract".equals (sVisibility.trim ()))
+      throw XsltException.at (aDef.getElement (), "XTDE3052", "The abstract variable $" + aName.getEQName () + " was not overridden");
+    XsltContext aCtx = createRootContext ().withState (XsltState.EMPTY);
+    // A global of a used library package has no global context item
+    if (m_aGlobalContextItem != null && (!m_aSheet.isMultiPackage () || m_aSheet.getPackages ().isInPrincipal (aDef.getElement ())))
+    {
+      // The global context item is the focus, but there is no current item
+      aCtx = new XsltContext (this, aCtx.withFocus (m_aGlobalContextItem, 1, 1).getDynamicContext ().withCurrentItem (null));
+    }
+    final VariableDef aOriginal = m_aSheet.originalVariables ().get (aDef);
+    if (aOriginal != null)
+      aCtx = aCtx.withVariable (StylesheetCompiler.XSL_ORIGINAL, _getOriginalValue (aOriginal));
+    XdmSequence aValue = null;
+    if (aDef.getKind () == VariableDef.EKind.GLOBAL_PARAM)
+    {
+      final XdmSequence aSupplied = m_aRequest.params ().get (aName);
+      if (aSupplied != null)
+        aValue = aDef.convert (aSupplied, aCtx);
+      else
+        if (aDef.isRequired ())
+          throw XsltException.at (aDef.getElement (), "XTDE0050", "No value was supplied for the required parameter $" + aName.getEQName ());
+    }
+    if (aValue == null)
+      aValue = aDef.evaluate (aCtx);
+    return aValue;
+  }
+
+  @NonNull
+  private XdmSequence _getOriginalValue (@NonNull final VariableDef aDef)
+  {
+    final XdmSequence aKnown = m_aOriginalValues.get (aDef);
+    if (aKnown != null)
+      return aKnown;
+    if (!m_aOriginalsInProgress.add (aDef))
+      throw XsltException.at (aDef.getElement (), "XTDE0640", "Circular definition of the global variable $" + aDef.getName ().getEQName ());
+    try
+    {
+      final XdmSequence ret = _computeGlobal (aDef);
+      m_aOriginalValues.put (aDef, ret);
+      return ret;
+    }
+    catch (final XPathException ex)
+    {
+      throw XsltException.locate (ex, aDef.getElement ());
+    }
+    finally
+    {
+      m_aOriginalsInProgress.remove (aDef);
+    }
+  }
+
+  @Nullable
+  private XdmSequence _resolveGlobal (@NonNull final DynamicContext aDyn, @NonNull final XdmQName aName)
+  {
+    if (m_aSheet.packageGlobals ().isNotEmpty ())
+    {
+      final PackageUnit aUnit = m_aSheet.getPackages ().getUnitForScope (aDyn.getStaticContext ().getFunctionLibrary ());
+      final ICommonsMap <XdmQName, VariableDef> aOwn = m_aSheet.packageGlobals ().get (aUnit);
+      final VariableDef aDef = aOwn == null ? null : aOwn.get (aName);
+      if (aDef != null)
+        return _getOriginalValue (aDef);
+    }
+    final XdmSequence aStatic = m_aSheet.staticValues ().get (aName);
+    if (aStatic != null)
+      return aStatic;
+    final XdmSequence aKnown = m_aGlobalValues.get (aName);
+    if (aKnown != null)
+      return aKnown;
+    final VariableDef aDef = m_aSheet.globals ().get (aName);
+    if (aDef == null)
+      return null;
+    return getGlobalValue (aDef);
+  }
+
   /**
    * @param aDef
    *        A global variable or parameter.
@@ -310,24 +379,7 @@ public final class Engine
       throw XsltException.at (aDef.getElement (), "XTDE0640", "Circular definition of the global variable $" + aName.getEQName ());
     try
     {
-      XsltContext aCtx = createRootContext ().withState (XsltState.EMPTY);
-      if (m_aGlobalContextItem != null)
-      {
-        // The global context item is the focus, but there is no current item
-        aCtx = new XsltContext (this, aCtx.withFocus (m_aGlobalContextItem, 1, 1).getDynamicContext ().withCurrentItem (null));
-      }
-      XdmSequence aValue = null;
-      if (aDef.getKind () == VariableDef.EKind.GLOBAL_PARAM)
-      {
-        final XdmSequence aSupplied = m_aRequest.params ().get (aName);
-        if (aSupplied != null)
-          aValue = aDef.convert (aSupplied, aCtx);
-        else
-          if (aDef.isRequired ())
-            throw XsltException.at (aDef.getElement (), "XTDE0050", "No value was supplied for the required parameter $" + aName.getEQName ());
-      }
-      if (aValue == null)
-        aValue = aDef.evaluate (aCtx);
+      final XdmSequence aValue = _computeGlobal (aDef);
       m_aGlobalValues.put (aName, aValue);
       return aValue;
     }
@@ -796,6 +848,9 @@ public final class Engine
                             @NonNull final List <ParamValue> aParams,
                             @NonNull final IXsltOutput aOut)
   {
+    final String sVisibility = aTemplate.getElement ().getAttr ("visibility");
+    if (sVisibility != null && "abstract".equals (sVisibility.trim ()))
+      throw new XPathException ("XTDE3052", "The abstract template " + aTemplate.getName ().getEQName () + " was not overridden");
     final XsltContext aBase = aCaller.withoutFocusAndVariables ()
                                      .withFocus (aCaller.getContextItem (), aCaller.getPosition (), aCaller.getSize ())
                                      .withState (aCaller.getState ().forTemplateCall ());
@@ -818,6 +873,9 @@ public final class Engine
     final XsltContext aSetCtx = aCtx.withoutFocusAndVariables ().withFocus (aCtx.getContextItem (), aCtx.getPosition (), aCtx.getSize ());
     for (final AttributeSet.Decl aDecl : aSet.decls ())
     {
+      final String sVisibility = aDecl.element ().getAttr ("visibility");
+      if (sVisibility != null && "abstract".equals (sVisibility.trim ()))
+        throw new XPathException ("XTDE3052", "The abstract attribute set " + aName.getEQName () + " was not overridden");
       for (final XdmQName aUse : aDecl.uses ())
         _applyAttributeSet (aUse, aCtx, aOut, aActive);
       aDecl.body ().execute (aSetCtx, aOut);
@@ -959,11 +1017,22 @@ public final class Engine
                                    @NonNull final XdmSequence aValues,
                                    @NonNull final XdmNode aTop)
   {
-    final ICommonsList <KeyDefinition> aDefs = m_aSheet.getKey (aName);
+    ICommonsList <KeyDefinition> aDefs = m_aSheet.getKey (aName);
+    PackageUnit aUnit = null;
+    if (aDefs != null && m_aSheet.isMultiPackage ())
+    {
+      // Keys are local to a package
+      final PackageModel aPackages = m_aSheet.getPackages ();
+      final PackageUnit aCaller = aPackages.getUnitForScope (aCtx.getDynamicContext ().getStaticContext ().getFunctionLibrary ());
+      aUnit = aCaller;
+      aDefs = aDefs.getAll (x -> aPackages.getUnit (x.getElement ()) == aCaller);
+      if (aDefs.isEmpty ())
+        aDefs = null;
+    }
     if (aDefs == null)
       throw new XPathException ("XTDE1260", "There is no key named " + aName.getEQName ());
     final XdmNode aRoot = aTop.getRoot ();
-    final KeyIndexId aId = new KeyIndexId (aName, aRoot);
+    final KeyIndexId aId = new KeyIndexId (aName, aRoot, aUnit);
     ICommonsMap <Object, ICommonsList <XdmNode>> aIndex = m_aKeyIndexes.get (aId);
     if (aIndex == null)
     {

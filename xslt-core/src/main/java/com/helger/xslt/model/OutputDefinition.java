@@ -31,6 +31,7 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
+import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -153,7 +154,8 @@ public final class OutputDefinition
           m_aSuppressIndentation.addAll (_resolveNames (aEl, sAttr, sValue, true));
           continue;
         case "use-character-maps":
-          m_aUseCharacterMaps.addAll (_resolveNames (aEl, sAttr, sValue, false));
+          for (final XdmQName aName : _resolveNames (aEl, sAttr, sValue, false))
+            m_aUseCharacterMaps.add (PackageModel.qualify (aEl, aName));
           continue;
         default:
           break;

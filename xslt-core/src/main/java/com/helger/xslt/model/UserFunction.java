@@ -206,6 +206,8 @@ public final class UserFunction implements IXPathFunction
   @NonNull
   public XdmSequence invoke (@NonNull final XsltContext aCaller, @NonNull final List <XdmSequence> aArgs)
   {
+    if ("abstract".equals (m_sVisibility))
+      throw new XPathException ("XTDE3052", "The abstract function " + m_aName.getEQName () + "#" + getArity () + " was not overridden");
     if (m_bMemoize)
     {
       final ICommonsList <Object> aKey = _getMemoKey (aArgs);

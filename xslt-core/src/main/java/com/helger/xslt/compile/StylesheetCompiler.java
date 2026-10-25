@@ -62,6 +62,10 @@ import com.helger.xslt.model.Template;
 import com.helger.xslt.model.TemplateRule;
 import com.helger.xslt.model.UserFunction;
 import com.helger.xslt.model.VariableDef;
+import com.helger.xslt.pkg.PackageChecks;
+import com.helger.xslt.pkg.PackageComponent;
+import com.helger.xslt.pkg.PackageModel;
+import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 import com.helger.xslt.tree.XslNode;
@@ -94,7 +98,12 @@ public final class StylesheetCompiler
   private record FunctionEntry (@NonNull UserFunction function, int precedence)
   {}
 
+  private record FunctionSignature (@NonNull ICommonsList <SeqType> paramTypes, @NonNull SeqType returnType)
+  {}
+
   private static final XdmQName INITIAL_TEMPLATE = new XdmQName (XsltNames.NS_XSL, "initial-template");
+  /** The name xsl:original, by which an overriding component refers to the one it overrides. */
+  public static final XdmQName XSL_ORIGINAL = new XdmQName (XsltNames.NS_XSL, "original");
 
   private final XsltCompileOptions m_aOptions;
   private final XsltExtensionRegistry m_aRegistry;
@@ -103,7 +112,8 @@ public final class StylesheetCompiler
   private final ICommonsMap <XdmQName, Integer> m_aGlobalPrecedences = new CommonsHashMap <> ();
   private FormatDecimalFormat m_aDefaultDecimalFormat;
   private final ICommonsMap <XdmQName, FormatDecimalFormat> m_aDecimalFormats = new CommonsHashMap <> ();
-  private final ICommonsMap <String, NamespaceAlias> m_aAliases = new CommonsHashMap <> ();
+  private final ICommonsMap <PackageUnit, ICommonsMap <String, NamespaceAlias>> m_aAliases = new CommonsHashMap <> ();
+  private final ICommonsMap <PackageUnit, Object []> m_aDecimalFormatsByUnit = new CommonsHashMap <> ();
   private final ICommonsMap <String, FunctionEntry> m_aFunctionsByKey = new CommonsHashMap <> ();
   private final ICommonsMap <XslElement, UserFunction> m_aFunctionsByElement = new CommonsHashMap <> ();
   private final ICommonsList <CallTemplateRef> m_aCallTemplateRefs = new CommonsArrayList <> ();
@@ -113,6 +123,16 @@ public final class StylesheetCompiler
   private final ICommonsSet <XslModule> m_aGlobalContextItemModules = new CommonsHashSet <> ();
   private final ICommonsList <XslElement> m_aExposes = new CommonsArrayList <> ();
   private String m_sGlobalContextItemAs;
+  private PackageModel m_aPackages;
+  private final ICommonsMap <UserFunction, FunctionSignature> m_aFunctionSignatures = new CommonsHashMap <> ();
+  private final ICommonsMap <XslElement, UserFunction> m_aOriginalFunctions = new CommonsHashMap <> ();
+  private final ICommonsMap <PackageUnit, FunctionLibrary> m_aUnitLibraries = new CommonsHashMap <> ();
+  private final ICommonsMap <XslElement, FunctionLibrary> m_aDeclLibraries = new CommonsHashMap <> ();
+  private final ICommonsMap <XslElement, XdmQName> m_aOriginalNames = new CommonsHashMap <> ();
+  private final ICommonsMap <XdmQName, VariableDef> m_aLastGlobals = new CommonsHashMap <> ();
+  private final ICommonsList <VariableDef> m_aAllGlobals = new CommonsArrayList <> ();
+  private final ICommonsSet <XdmQName> m_aLocalAttributeSets = new CommonsHashSet <> ();
+  private int m_nOriginalCounter;
 
   private StylesheetCompiler (@NonNull final XsltCompileOptions aOptions)
   {
@@ -124,6 +144,13 @@ public final class StylesheetCompiler
   public CompiledStylesheet getStylesheet ()
   {
     return m_aStylesheet;
+  }
+
+  /** @return The packages taking part, <code>null</code> before loading. */
+  @Nullable
+  public PackageModel getPackages ()
+  {
+    return m_aPackages;
   }
 
   @NonNull
@@ -165,7 +192,214 @@ public final class StylesheetCompiler
   @Nullable
   public NamespaceAlias getNamespaceAlias (@NonNull final String sStylesheetUri)
   {
-    return m_aAliases.get (sStylesheetUri);
+    final ICommonsMap <String, NamespaceAlias> aMap = m_aAliases.get (m_aPackages.getPrincipal ());
+    return aMap == null ? null : aMap.get (sStylesheetUri);
+  }
+
+  /**
+   * @param aEl
+   *        The literal result element (namespace aliases are local to a
+   *        package).
+   * @param sStylesheetUri
+   *        A namespace URI used in the stylesheet.
+   * @return The alias for it or <code>null</code>.
+   */
+  @Nullable
+  public NamespaceAlias getNamespaceAlias (@NonNull final XslElement aEl, @NonNull final String sStylesheetUri)
+  {
+    final ICommonsMap <String, NamespaceAlias> aMap = m_aAliases.get (m_aPackages.getUnit (aEl));
+    return aMap == null ? null : aMap.get (sStylesheetUri);
+  }
+
+  /**
+   * @param aEl
+   *        A literal result element.
+   * @param sUri
+   *        A namespace URI.
+   * @return <code>true</code> if an xsl:namespace-alias of the element's
+   *         package has this URI as its result namespace.
+   */
+  public boolean isNamespaceAliasResult (@NonNull final XslElement aEl, @NonNull final String sUri)
+  {
+    final ICommonsMap <String, NamespaceAlias> aMap = m_aAliases.get (m_aPackages.getUnit (aEl));
+    if (aMap != null)
+      for (final NamespaceAlias aAlias : aMap.values ())
+        if (aAlias.resultUri ().equals (sUri))
+          return true;
+    return false;
+  }
+
+  /**
+   * @param aEl
+   *        An element.
+   * @return The unnamed decimal format for expressions on it (decimal formats
+   *         are local to a package).
+   */
+  @Nullable
+  public FormatDecimalFormat getDefaultDecimalFormat (@NonNull final XslElement aEl)
+  {
+    final Object [] aFormats = m_aDecimalFormatsByUnit.get (m_aPackages.getUnit (aEl));
+    return aFormats == null ? m_aDefaultDecimalFormat : (FormatDecimalFormat) aFormats[0];
+  }
+
+  /**
+   * @param aEl
+   *        An element.
+   * @return The named decimal formats for expressions on it.
+   */
+  @NonNull
+  @SuppressWarnings ("unchecked")
+  public ICommonsMap <XdmQName, FormatDecimalFormat> getDecimalFormats (@NonNull final XslElement aEl)
+  {
+    final Object [] aFormats = m_aDecimalFormatsByUnit.get (m_aPackages.getUnit (aEl));
+    return aFormats == null ? m_aDecimalFormats : (ICommonsMap <XdmQName, FormatDecimalFormat>) aFormats[1];
+  }
+
+  @NonNull
+  private static XslElement _getDeclaration (@NonNull final XslElement aEl)
+  {
+    XslElement ret = aEl;
+    while (ret.getParent () != null && ret.getParent ().getParent () != null && !ret.getParent ().isXsl ("override"))
+      ret = ret.getParent ();
+    return ret;
+  }
+
+  /**
+   * @param aEl
+   *        An element.
+   * @return The functions visible to expressions on that element: in a
+   *         package that uses other packages without their hidden functions,
+   *         in an overriding function with xsl:original.
+   */
+  @NonNull
+  public FunctionLibrary getFunctionLibraryFor (@NonNull final XslElement aEl)
+  {
+    if (m_aDeclLibraries.isNotEmpty ())
+    {
+      final FunctionLibrary aLib = m_aDeclLibraries.get (_getDeclaration (aEl));
+      if (aLib != null)
+        return aLib;
+    }
+    if (m_aUnitLibraries.isNotEmpty ())
+    {
+      final FunctionLibrary aLib = m_aUnitLibraries.get (m_aPackages.getUnit (aEl));
+      if (aLib != null)
+        return aLib;
+    }
+    return m_aStylesheet.getFunctionLibrary ();
+  }
+
+  /**
+   * @param aEl
+   *        An element.
+   * @param aName
+   *        A global variable.
+   * @return <code>true</code> if the code at the element cannot see the
+   *         variable because a used package hides it.
+   */
+  public boolean isGlobalVariableHidden (@NonNull final XslElement aEl, @NonNull final XdmQName aName)
+  {
+    return m_aPackages != null && m_aPackages.isHidden (aEl, PackageComponent.getSymbolicName ("variable", aName, 0));
+  }
+
+  /**
+   * Map the name xsl:original in a reference to a template or attribute set
+   * inside an overriding declaration to the name under which the overridden
+   * component is kept.
+   *
+   * @param aEl
+   *        The referring element.
+   * @param aName
+   *        The referenced name.
+   * @return The name to use.
+   */
+  @NonNull
+  public XdmQName mapOriginalName (@NonNull final XslElement aEl, @NonNull final XdmQName aName)
+  {
+    if (!XSL_ORIGINAL.equals (aName) || m_aOriginalNames.isEmpty ())
+      return aName;
+    final XdmQName ret = m_aOriginalNames.get (_getDeclaration (aEl));
+    return ret != null ? ret : aName;
+  }
+
+  /**
+   * Map the name in a reference to an attribute set: a private attribute set
+   * whose name is declared in several packages is local to its package.
+   *
+   * @param aEl
+   *        The referring element.
+   * @param aName
+   *        The referenced name.
+   * @return The name to use.
+   */
+  @NonNull
+  public XdmQName mapAttributeSetName (@NonNull final XslElement aEl, @NonNull final XdmQName aName)
+  {
+    if (m_aLocalAttributeSets.isEmpty ())
+      return aName;
+    final XdmQName aQualified = PackageModel.qualify (aEl, aName);
+    return m_aLocalAttributeSets.contains (aQualified) ? aQualified : aName;
+  }
+
+  private void _findLocalAttributeSets (@NonNull final ICommonsList <XslElement> aDecls)
+  {
+    final ICommonsMap <XdmQName, ICommonsSet <PackageUnit>> aUnits = new CommonsHashMap <> ();
+    for (final XslElement aEl : aDecls)
+      if (aEl.isXsl ("attribute-set") && !PackageModel.isOverride (aEl))
+      {
+        final PackageComponent aComp = PackageChecks.getComponent (aEl);
+        if (aComp != null)
+          aUnits.computeIfAbsent (aComp.name (), k -> new CommonsHashSet <> ()).add (m_aPackages.getUnit (aEl));
+      }
+    for (final XslElement aEl : aDecls)
+      if (aEl.isXsl ("attribute-set") && !PackageModel.isOverride (aEl))
+      {
+        final PackageComponent aComp = PackageChecks.getComponent (aEl);
+        if (aComp == null || aUnits.get (aComp.name ()).size () < 2)
+          continue;
+        final PackageChecks.Exposure aExposure = m_aPackages.getExposure (PackageChecks.getModuleRoot (aEl));
+        final String sVisibility = aExposure != null && aExposure.byElement ().containsKey (aEl) ? aExposure.byElement ().get (aEl)
+                                                                                                   : aComp.visibility ();
+        if ("private".equals (sVisibility))
+          m_aLocalAttributeSets.add (PackageModel.qualify (aEl, aComp.name ()));
+      }
+  }
+
+  @NonNull
+  private XdmQName _createOriginalName (@NonNull final XslElement aDecl)
+  {
+    final XdmQName ret = new XdmQName (XsltNames.NS_XSL, "original-" + (++m_nOriginalCounter));
+    m_aOriginalNames.put (aDecl, ret);
+    return ret;
+  }
+
+  private void _buildPackageFunctionScopes ()
+  {
+    // In a compilation with several packages each package has its own
+    // function scope; the scope also identifies the package of an expression
+    // at run time (keys are local to a package)
+    if (m_aPackages.isMultiPackage ())
+      for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      {
+        final FunctionLibrary aLib = m_aStylesheet.getFunctionLibrary ().createChild ();
+        m_aPackages.registerScope (aLib, aUnit);
+        for (final FunctionEntry aEntry : m_aFunctionsByKey.values ())
+        {
+          final UserFunction aFunc = aEntry.function ();
+          if (aUnit.hidden ().contains (PackageComponent.getSymbolicName ("function", aFunc.getName (), aFunc.getArity ())))
+            aLib.hide (aFunc.getName (), aFunc.getArity ());
+        }
+        m_aUnitLibraries.put (aUnit, aLib);
+      }
+    for (final Map.Entry <XslElement, UserFunction> aEntry : m_aOriginalFunctions.entrySet ())
+    {
+      final FunctionLibrary aBase = m_aUnitLibraries.get (m_aPackages.getUnit (aEntry.getKey ()));
+      final FunctionLibrary aLib = (aBase != null ? aBase : m_aStylesheet.getFunctionLibrary ()).createChild ();
+      final FunctionSignature aSig = m_aFunctionSignatures.get (aEntry.getValue ());
+      aLib.registerParsed (XSL_ORIGINAL, aSig.paramTypes (), aSig.returnType (), aEntry.getValue (), false);
+      m_aPackages.registerScope (aLib, m_aPackages.getUnit (aEntry.getKey ()));
+      m_aDeclLibraries.put (aEntry.getKey (), aLib);
+    }
   }
 
   /** @return A compile context with only global variables in scope. */
@@ -285,11 +519,12 @@ public final class StylesheetCompiler
     final NamespaceAlias aAlias = new NamespaceAlias ("#default".equals (sResPrefix) ? "" : sResPrefix,
                                                       sResUri == null ? "" : sResUri,
                                                       aEl.getPrecedence ());
-    final NamespaceAlias aPrev = m_aAliases.get (sKey);
+    final ICommonsMap <String, NamespaceAlias> aAliases = m_aAliases.computeIfAbsent (m_aPackages.getUnit (aEl), k -> new CommonsHashMap <> ());
+    final NamespaceAlias aPrev = aAliases.get (sKey);
     if (aPrev != null && aPrev.precedence () == aAlias.precedence () && !aPrev.resultUri ().equals (aAlias.resultUri ()))
       throw XsltException.at (aEl, "XTSE0810", "Conflicting xsl:namespace-alias declarations for '" + sStyPrefix + "'");
     if (aPrev == null || aPrev.precedence () <= aAlias.precedence ())
-      m_aAliases.put (sKey, aAlias);
+      aAliases.put (sKey, aAlias);
   }
 
   private static int _firstCodePoint (@NonNull final String s)
@@ -418,15 +653,14 @@ public final class StylesheetCompiler
       throw XsltException.at (aEl, "XTSE0770", "Duplicate function " + aName.getEQName () + "#" + aParams.size ());
     aFunc.setMemoize (XsltNames.isXsltTrue (aEl.getAttr ("cache")) || "no".equals (aEl.getAttr ("new-each-time")));
     m_aFunctionsByElement.put (aEl, aFunc);
+    final SeqType aReturnType = aAs != null ? aAs : aCtx.compileSequenceType (aEl, "item()*");
+    m_aFunctionSignatures.put (aFunc, new FunctionSignature (aParamTypes, aReturnType));
+    if (aPrev != null && PackageModel.isOverride (aEl))
+      m_aOriginalFunctions.put (aEl, aPrev.function ());
     if (aPrev == null || aPrev.precedence () < aEl.getPrecedence ())
     {
       m_aFunctionsByKey.put (sKey, new FunctionEntry (aFunc, aEl.getPrecedence ()));
-      m_aStylesheet.getFunctionLibrary ()
-                   .registerParsed (aName,
-                                    aParamTypes,
-                                    aAs != null ? aAs : aCtx.compileSequenceType (aEl, "item()*"),
-                                    aFunc,
-                                    false);
+      m_aStylesheet.getFunctionLibrary ().registerParsed (aName, aParamTypes, aReturnType, aFunc, false);
     }
   }
 
@@ -576,6 +810,13 @@ public final class StylesheetCompiler
       aTemplate.addParam (aParam);
       aCtx = aCtx.withVariable (aParam.getName ());
     }
+    if (aName != null && PackageModel.isOverride (aEl))
+    {
+      // xsl:call-template name="xsl:original" calls the overridden template
+      final Template aOriginal = m_aStylesheet.getNamedTemplate (aName);
+      if (aOriginal != null)
+        m_aStylesheet.namedTemplates ().put (_createOriginalName (aEl), aOriginal);
+    }
     aTemplate.setBody (aCtx.compileContent (aEl));
     m_aStylesheet.addTemplate (aTemplate);
     if (aName != null)
@@ -611,12 +852,109 @@ public final class StylesheetCompiler
     m_aStylesheet.addTemplate (aTemplate);
   }
 
+  private static boolean _mentionsOriginal (@NonNull final XslElement aEl)
+  {
+    final ICommonsList <XslElement> aStack = new CommonsArrayList <> (aEl);
+    while (aStack.isNotEmpty ())
+    {
+      final XslElement aCur = aStack.removeLast ();
+      for (final String sValue : aCur.getAllAttributes ().values ())
+        if (sValue.contains ("original"))
+          return true;
+      for (final XslNode aChild : aCur.getChildren ())
+        if (aChild instanceof final XslElement aChildEl)
+          aStack.add (aChildEl);
+    }
+    return false;
+  }
+
+  @Nullable
+  private VariableDef _getOwnGlobal (@NonNull final PackageUnit aUnit, @NonNull final XdmQName aName)
+  {
+    VariableDef ret = null;
+    for (final VariableDef aVar : m_aAllGlobals)
+      if (aVar.getName ().equals (aName) &&
+          m_aPackages.getUnit (aVar.getElement ()) == aUnit &&
+          (ret == null || aVar.getElement ().getPrecedence () >= ret.getElement ().getPrecedence ()))
+        ret = aVar;
+    return ret;
+  }
+
+  @Nullable
+  private VariableDef _getGlobalViewDown (@NonNull final PackageUnit aUnit, @NonNull final XdmQName aName, final int nDepth)
+  {
+    final VariableDef ret = _getOwnGlobal (aUnit, aName);
+    if (ret != null || nDepth > m_aPackages.getUnits ().size ())
+      return ret;
+    for (final PackageUnit.Use aUse : aUnit.uses ())
+    {
+      final VariableDef aSub = _getGlobalViewDown (aUse.used (), aName, nDepth + 1);
+      if (aSub != null)
+        return aSub;
+    }
+    return null;
+  }
+
+  /**
+   * With several packages, a package may see another declaration of a global
+   * variable than the one with the highest import precedence: its own
+   * override when two packages override one used package differently, or the
+   * declaration of the package it uses when two used packages declare the same
+   * name.
+   */
+  private void _computePackageGlobals ()
+  {
+    final ICommonsMap <PackageUnit, PackageUnit.Use> aUsers = new CommonsHashMap <> ();
+    final ICommonsMap <PackageUnit.Use, PackageUnit> aUserUnits = new CommonsHashMap <> ();
+    for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      for (final PackageUnit.Use aUse : aUnit.uses ())
+      {
+        aUsers.put (aUse.used (), aUse);
+        aUserUnits.put (aUse, aUnit);
+      }
+    final ICommonsSet <XdmQName> aNames = new CommonsHashSet <> ();
+    final ICommonsSet <XdmQName> aMulti = new CommonsHashSet <> ();
+    for (final VariableDef aVar : m_aAllGlobals)
+      if (!aNames.add (aVar.getName ()))
+        aMulti.add (aVar.getName ());
+    for (final XdmQName aName : aMulti)
+    {
+      final VariableDef aWinner = m_aStylesheet.globals ().get (aName);
+      for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      {
+        VariableDef aView = _getGlobalViewDown (aUnit, aName, 0);
+        // An override by a using package replaces the declaration
+        PackageUnit aCur = aUnit;
+        int nGuard = 0;
+        while (aUsers.containsKey (aCur) && nGuard++ < m_aPackages.getUnits ().size ())
+        {
+          final PackageUnit.Use aUse = aUsers.get (aCur);
+          for (final XslElement aOverride : aUse.element ().getXslChildren ("override"))
+            for (final VariableDef aVar : m_aAllGlobals)
+              if (aVar.getName ().equals (aName) && aVar.getElement ().getParent () == aOverride)
+                aView = aVar;
+          aCur = aUserUnits.get (aUse);
+        }
+        if (aView != null && aView != aWinner)
+          m_aStylesheet.packageGlobals ().computeIfAbsent (aUnit, k -> new CommonsHashMap <> ()).put (aName, aView);
+      }
+    }
+  }
+
   private void _compileGlobal (@NonNull final XslElement aEl, final boolean bParam)
   {
     final XdmQName aOwnName = createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false);
-    final VariableDef aVar = createGlobalContext ().withoutGlobalVariable (aOwnName).compileVariable (aEl,
-                                                                      bParam ? VariableDef.EKind.GLOBAL_PARAM
-                                                                             : VariableDef.EKind.GLOBAL_VARIABLE);
+    CompileContext aCtx = createGlobalContext ().withoutGlobalVariable (aOwnName);
+    // Only bound if it may be referenced: evaluating it could fail (an
+    // abstract variable has no value)
+    final VariableDef aOriginal = PackageModel.isOverride (aEl) && _mentionsOriginal (aEl) ? m_aLastGlobals.get (aOwnName) : null;
+    if (aOriginal != null)
+      aCtx = aCtx.withVariable (XSL_ORIGINAL);
+    final VariableDef aVar = aCtx.compileVariable (aEl, bParam ? VariableDef.EKind.GLOBAL_PARAM : VariableDef.EKind.GLOBAL_VARIABLE);
+    if (aOriginal != null)
+      m_aStylesheet.originalVariables ().put (aVar, aOriginal);
+    m_aLastGlobals.put (aOwnName, aVar);
+    m_aAllGlobals.add (aVar);
     final Integer aWinner = m_aGlobalPrecedences.get (aVar.getName ());
     if (aWinner != null && aWinner.intValue () == aEl.getPrecedence ())
       m_aStylesheet.globals ().put (aVar.getName (), aVar);
@@ -656,6 +994,8 @@ public final class StylesheetCompiler
     if (aPrev != null)
       for (final KeyDefinition aOther : aPrev)
       {
+        if (m_aPackages.getUnit (aOther.getElement ()) != m_aPackages.getUnit (aEl))
+          continue;
         if (!aOther.getCollation ().equals (sCollation))
           throw XsltException.at (aEl, "XTSE1220", "The declarations of key " + aName.getEQName () + " use different collations");
         if (aOther.isComposite () != bComposite)
@@ -720,7 +1060,14 @@ public final class StylesheetCompiler
   {
     final ICommonsMap <String, String> aAttrs = new CommonsHashMap <> ();
     final String sName = aEl.getAttr ("name");
-    final OutputDefinition aDef = sName != null ? m_aStylesheet.getOrCreateNamedOutput (createGlobalContext ().resolveQName (aEl, sName, false))
+    // Only the unnamed xsl:output of the principal package describes the
+    // principal result; named outputs are local to a package
+    if (sName == null && !m_aPackages.isInPrincipal (aEl))
+      return;
+    final OutputDefinition aDef = sName != null ? m_aStylesheet.getOrCreateNamedOutput (PackageModel.qualify (aEl,
+                                                                                                             createGlobalContext ().resolveQName (aEl,
+                                                                                                                                                  sName,
+                                                                                                                                                  false)))
                                                 : m_aStylesheet.getOutput ();
     _readParameterDocument (aEl, aAttrs, aDef);
     for (final String sAttr : OutputDefinition.ATTRIBUTES)
@@ -780,13 +1127,26 @@ public final class StylesheetCompiler
   private void _compileAttributeSet (@NonNull final XslElement aEl)
   {
     final CompileContext aCtx = createGlobalContext ();
-    final XdmQName aName = aCtx.resolveQName (aEl, aEl.getAttr ("name"), false);
+    final XdmQName aName = mapAttributeSetName (aEl, aCtx.resolveQName (aEl, aEl.getAttr ("name"), false));
+    if (PackageModel.isOverride (aEl))
+    {
+      // An overriding attribute set replaces the overridden one, which stays
+      // reachable as xsl:original
+      final AttributeSet aOriginal = m_aStylesheet.attributeSets ().remove (aName);
+      if (aOriginal != null)
+      {
+        final XdmQName aOriginalName = _createOriginalName (aEl);
+        final AttributeSet aRenamed = new AttributeSet (aOriginalName);
+        aRenamed.decls ().addAll (aOriginal.decls ());
+        m_aStylesheet.attributeSets ().put (aOriginalName, aRenamed);
+      }
+    }
     final ICommonsList <XdmQName> aUses = new CommonsArrayList <> ();
     final String sUses = aEl.getAttr ("use-attribute-sets");
     if (sUses != null)
       for (final String sToken : XsltNames.tokenize (sUses))
       {
-        final XdmQName aUse = aCtx.resolveQName (aEl, sToken, false);
+        final XdmQName aUse = mapAttributeSetName (aEl, mapOriginalName (aEl, aCtx.resolveQName (aEl, sToken, false)));
         aUses.add (aUse);
         registerAttributeSetRef (aEl, aUse);
       }
@@ -855,10 +1215,11 @@ public final class StylesheetCompiler
       {
         if (!aEl.getParent ().isXsl ("package"))
           throw XsltException.at (aEl, "XTSE0010", "xsl:expose is only allowed in xsl:package");
-        m_aExposes.add (aEl);
+        // The xsl:expose of a used package is applied by the package model
+        if (m_aPackages.isInPrincipal (aEl))
+          m_aExposes.add (aEl);
       }
       case "import-schema" -> throw XsltException.at (aEl, "XTSE1650", "xsl:import-schema requires a schema-aware processor");
-      case "use-package" -> throw XsltException.at (aEl, "XTSE3000", "xsl:use-package is not supported");
       default ->
       {
         final IDeclarationCompiler aCompiler = m_aRegistry.getDeclarationCompiler (sLocal);
@@ -994,7 +1355,7 @@ public final class StylesheetCompiler
     for (final CallTemplateRef aRef : m_aCallTemplateRefs)
     {
       final Template aTemplate = m_aStylesheet.getNamedTemplate (aRef.name ());
-      if (aTemplate == null)
+      if (aTemplate == null || m_aPackages.isHidden (aRef.element (), PackageComponent.getSymbolicName ("template", aRef.name (), 0)))
         throw XsltException.at (aRef.element (), "XTSE0650", "No template named " + aRef.name ().getEQName ());
       for (final XdmQName aParamName : aRef.nonTunnelParams ())
       {
@@ -1014,7 +1375,8 @@ public final class StylesheetCompiler
                                   "The required parameter $" + aParam.getName ().getEQName () + " is not supplied");
     }
     for (final AttributeSetRef aRef : m_aAttributeSetRefs)
-      if (m_aStylesheet.getAttributeSet (aRef.name ()) == null)
+      if (m_aStylesheet.getAttributeSet (aRef.name ()) == null ||
+          m_aPackages.isHidden (aRef.element (), PackageComponent.getSymbolicName ("attribute-set", aRef.name (), 0)))
         throw XsltException.at (aRef.element (), "XTSE0710", "No attribute set named " + aRef.name ().getEQName ());
     // Circular attribute sets (XTSE0720)
     for (final AttributeSet aSet : m_aStylesheet.attributeSets ().values ())
@@ -1058,10 +1420,13 @@ public final class StylesheetCompiler
           sInputTypeAnnotations = s.trim ();
         }
       }
+    m_aPackages = aLoader.getPackages ();
+    m_aPackages.analyse ();
 
     final FunctionLibrary aLib = FunctionLibrary.createDefault ();
     m_aRegistry.contributeFunctions (aLib);
     m_aStylesheet = new CompiledStylesheet (aLib, aPrincipal);
+    m_aStylesheet.setPackages (m_aPackages);
     m_aStylesheet.modules ().addAll (aLoader.getAllModules ());
     for (final Map.Entry <XdmQName, XdmSequence> aEntry : aLoader.getStaticValues ().entrySet ())
       m_aStylesheet.staticValues ().put (aEntry.getKey (), aEntry.getValue ());
@@ -1086,7 +1451,21 @@ public final class StylesheetCompiler
             // later
           }
         }
-    _prepareDecimalFormats (aDecimalFormats);
+    if (m_aPackages.isMultiPackage ())
+    {
+      for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      {
+        m_aDefaultDecimalFormat = null;
+        m_aDecimalFormats.clear ();
+        _prepareDecimalFormats (aDecimalFormats.getAll (x -> m_aPackages.getUnit (x) == aUnit));
+        m_aDecimalFormatsByUnit.put (aUnit, new Object [] { m_aDefaultDecimalFormat, new CommonsHashMap <> (m_aDecimalFormats) });
+      }
+      final Object [] aPrincipalFormats = m_aDecimalFormatsByUnit.get (m_aPackages.getPrincipal ());
+      m_aDefaultDecimalFormat = (FormatDecimalFormat) aPrincipalFormats[0];
+      m_aDecimalFormats.clear ();
+    }
+    else
+      _prepareDecimalFormats (aDecimalFormats);
     for (final XslElement aEl : aAll)
       if (aEl.isXsl ("function"))
         _prepareFunction (aEl);
@@ -1100,6 +1479,9 @@ public final class StylesheetCompiler
                                   "XTSE0545",
                                   "Conflicting xsl:mode/@" + aAttr.getKey () + " declarations for mode " + aEntry.getKey ());
 
+    _buildPackageFunctionScopes ();
+    if (m_aPackages.isMultiPackage ())
+      _findLocalAttributeSets (aAll);
     for (final XslElement aEl : aAll)
       _compileDeclaration (aEl);
 
@@ -1108,11 +1490,26 @@ public final class StylesheetCompiler
       // nothing to do: xsl:initial-template is optional
     }
     _buildModes ();
+    if (m_aPackages.isMultiPackage ())
+      _computePackageGlobals ();
+    for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      if (aUnit.getRoot () != null && aUnit.getRoot ().isXsl ("package"))
+        _checkPackage (aUnit.getRoot (), aUnit.modules ());
     if (aPrincipal.getRoot ().isXsl ("package"))
     {
       m_aStylesheet.setPackage (true);
-      _checkPackage (aPrincipal.getRoot (), aLoader.getAllModules ());
+      final ICommonsList <XslElement> aRoots = new CommonsArrayList <> ();
+      for (final XslModule aModule : m_aPackages.getPrincipal ().modules ())
+        if (aModule.getRoot () != null && !aModule.isSimplified ())
+          aRoots.add (aModule.getRoot ());
+      PackageChecks.checkOwnAbstract (aRoots);
       ExposeChecker.check (createGlobalContext (), m_aExposes);
+      // A mode used only implicitly that xsl:expose makes private
+      final PackageChecks.Exposure aExposure = m_aPackages.getExposure (aPrincipal.getRoot ());
+      if (aExposure != null)
+        for (final Map.Entry <XdmQName, String> aEntry : aExposure.implicitModes ().entrySet ())
+          if ("private".equals (aEntry.getValue ()))
+            m_aStylesheet.privateModes ().add (aEntry.getKey ());
     }
     _checkReferences ();
     final CompileContext aGlobal = createGlobalContext ();

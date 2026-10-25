@@ -41,6 +41,7 @@ import com.helger.xslt.model.Mode;
 import com.helger.xslt.model.OutputDefinition;
 import com.helger.xslt.model.Template;
 import com.helger.xslt.model.UserFunction;
+import com.helger.xslt.pkg.PackageComponent;
 import com.helger.xslt.tree.XsltNames;
 
 /**
@@ -81,6 +82,12 @@ public final class XsltTransformer
   {
     if (!m_aSheet.isPackage ())
       return true;
+    // A template of a used package is an entry point only if the principal
+    // package accepted it explicitly
+    if (m_aSheet.isMultiPackage () &&
+        !m_aSheet.getPackages ().isInPrincipal (aTemplate.getElement ()) &&
+        !m_aSheet.getPackages ().isAcceptedExplicitly (PackageComponent.getSymbolicName ("template", aTemplate.getName (), 0)))
+      return false;
     final String sVis = aTemplate.getElement ().getAttr ("visibility");
     if (sVis != null)
       return "public".equals (sVis.trim ()) || "final".equals (sVis.trim ());
