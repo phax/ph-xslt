@@ -17,6 +17,7 @@
 package com.helger.xslt.fn;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -36,6 +37,7 @@ import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
@@ -265,7 +267,11 @@ public final class XsltFunctions
       throw new XPathException ("XTDE1260", "'" + sName + "' is not a valid key name");
     final XdmNode aTop;
     if (aArgs.size () > 2)
+    {
       aTop = (XdmNode) aArgs.get (2).get (0);
+      if (!aTop.getRoot ().isDocument ())
+        throw new XPathException ("XTDE1270", "The third argument of key() is not in a tree rooted at a document node");
+    }
     else
     {
       if (!(aCtx.getContextItem () instanceof final XdmNode aNode))
@@ -390,6 +396,73 @@ public final class XsltFunctions
     return ret.build ();
   }
 
+  @NonNull
+  private static XdmNode _snapshotNode (@NonNull final XdmNode aNode)
+  {
+    // Copy the ancestors shallowly (with their attributes and namespaces) and
+    // the node deeply; return the copy of the node
+    final ICommonsList <XdmNode> aAncestors = new CommonsArrayList <> ();
+    final XdmNode aStart = aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE ? aNode.getParent ()
+                                                                                                             : aNode;
+    if (aStart == null)
+    {
+      final XdmNode ret = NodeCopier.copyDeep (aNode, true);
+      NamespaceFixup.finish (ret);
+      return ret;
+    }
+    for (XdmNode aCur = aStart.getParent (); aCur != null; aCur = aCur.getParent ())
+      aAncestors.add (0, aCur);
+    XdmNode aParentCopy = null;
+    XdmNode aRoot = null;
+    for (final XdmNode aAnc : aAncestors)
+    {
+      final XdmNode aCopy = NodeCopier.copyShallow (aAnc);
+      if (aAnc.isElement ())
+      {
+        NodeCopier.copyNamespaces (aAnc, aCopy, aParentCopy == null);
+        for (int i = 0; i < aAnc.getAttributeCount (); ++i)
+          aCopy.addAttribute (NodeCopier.copyShallow (aAnc.getAttributeAtIndex (i)));
+      }
+      if (aParentCopy != null)
+        aParentCopy.appendChild (aCopy);
+      else
+        aRoot = aCopy;
+      aParentCopy = aCopy;
+    }
+    final XdmNode aStartCopy = NodeCopier.copyDeep (aStart, true);
+    if (aParentCopy != null)
+      aParentCopy.appendChild (aStartCopy);
+    else
+      aRoot = aStartCopy;
+    NamespaceFixup.finish (aRoot);
+    if (aStart == aNode)
+      return aStartCopy;
+    if (aNode.isAttribute ())
+      return aStartCopy.getAttribute (aNode.getName ().namespaceUri (), aNode.getName ().localName ());
+    for (final XdmNode aNS : aStartCopy.getNamespaceNodes ())
+      if (aNS.getStringValue ().equals (aNode.getStringValue ()) && Objects.equals (aNS.getName (), aNode.getName ()))
+        return aNS;
+    return aStartCopy;
+  }
+
+  @NonNull
+  private static XdmSequence _snapshot (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
+  {
+    final XdmSequence aInput;
+    if (aArgs.isEmpty ())
+    {
+      if (aCtx.getContextItem () == null)
+        throw new XPathException ("XPDY0002", "The context item is absent");
+      aInput = XdmSequence.of (aCtx.getContextItem ());
+    }
+    else
+      aInput = aArgs.get (0);
+    final XdmSequence.Builder ret = new XdmSequence.Builder ();
+    for (final IXdmItem aItem : aInput)
+      ret.add (aItem instanceof final XdmNode aNode ? _snapshotNode (aNode) : aItem);
+    return ret.build ();
+  }
+
   /**
    * Register the XSLT functions available during a transformation (including
    * the static ones).
@@ -413,7 +486,7 @@ public final class XsltFunctions
     aLib.register (NS, "unparsed-entity-public-id", "(xs:string, node()) as xs:string", XsltFunctions::_unparsedEntity);
     aLib.register (NS, "copy-of", "() as item()*", XsltFunctions::_copyOf, true);
     aLib.register (NS, "copy-of", "(item()*) as item()*", XsltFunctions::_copyOf);
-    aLib.register (NS, "snapshot", "() as item()*", XsltFunctions::_copyOf, true);
-    aLib.register (NS, "snapshot", "(item()*) as item()*", XsltFunctions::_copyOf);
+    aLib.register (NS, "snapshot", "() as item()*", XsltFunctions::_snapshot, true);
+    aLib.register (NS, "snapshot", "(item()*) as item()*", XsltFunctions::_snapshot);
   }
 }

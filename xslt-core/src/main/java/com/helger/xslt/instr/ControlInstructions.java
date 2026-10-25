@@ -47,7 +47,6 @@ import com.helger.xslt.model.Mode;
 import com.helger.xslt.model.Template;
 import com.helger.xslt.model.VariableDef;
 import com.helger.xslt.runtime.BufferedOutput;
-import com.helger.xslt.runtime.ContentOutput;
 import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.ParamValue;
 import com.helger.xslt.runtime.SequenceOutput;
@@ -262,6 +261,8 @@ public final class ControlInstructions
       final XdmSequence aInput = Atomizer.atomize (aSelect.evaluate (c));
       if (aInput.size () > 1)
         throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string returns more than one item");
+      if (aInput.isSingleton () && !((XdmAtomic) aInput.get (0)).isStringLike ())
+        throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string must return a string");
       final String sInput = aInput.isEmpty () ? "" : Atomizer.getStringValue (aInput.get (0));
       final String sRegex = aRegex.evaluate (c);
       final String sFlags = aFlags == null ? "" : aFlags.evaluate (c);
@@ -275,8 +276,6 @@ public final class ControlInstructions
         throw new XPathException ("FORX0001".equals (ex.getCode ()) ? "XTDE1145" : "XTDE1140",
                                   "Invalid regular expression or flags: " + ex.getDescription ());
       }
-      if (aCompiled.matchesEmptyString ())
-        throw new XPathException ("XTDE1150", "The regular expression '" + sRegex + "' matches a zero-length string");
       // Collect the parts first: position and size refer to all of them
       final ICommonsList <String> aTexts = new CommonsArrayList <> ();
       final ICommonsList <String []> aGroups = new CommonsArrayList <> ();
@@ -344,6 +343,44 @@ public final class ControlInstructions
   }
 
   @NonNull
+  private static String _messageText (@NonNull final XdmSequence aValue)
+  {
+    final SerializationParams aParams = new SerializationParams ();
+    aParams.setOmitXmlDeclaration (true);
+    final StringBuilder aSB = new StringBuilder ();
+    boolean bLastAtomic = false;
+    for (final IXdmItem aItem : aValue)
+    {
+      if (aItem instanceof final XdmAtomic aAtomic)
+      {
+        if (bLastAtomic)
+          aSB.append (' ');
+        aSB.append (aAtomic.getLexical ());
+        bLastAtomic = true;
+        continue;
+      }
+      bLastAtomic = false;
+      if (aItem instanceof final XdmNode aNode)
+      {
+        if (aNode.isAttribute ())
+          aSB.append (aNode.getName ().getLexicalName ()).append ("=\"").append (aNode.getValue ()).append ('"');
+        else
+          if (aNode.getKind () == ENodeKind.NAMESPACE)
+            aSB.append (aNode.getValue ());
+          else
+            aSB.append (XdmSerializer.serialize (XdmSequence.of (aNode), aParams));
+      }
+      else
+      {
+        final SerializationParams aAdaptive = new SerializationParams ();
+        aAdaptive.setMethod (SerializationParams.METHOD_ADAPTIVE);
+        aSB.append (XdmSerializer.serialize (XdmSequence.of (aItem), aAdaptive));
+      }
+    }
+    return aSB.toString ();
+  }
+
+  @NonNull
   private static IInstruction _compileMessage (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
@@ -351,15 +388,24 @@ public final class ControlInstructions
     final Avt aTerminate = aCtx.compileOptionalAvt (aEl, "terminate");
     final Avt aErrorCode = aCtx.compileOptionalAvt (aEl, "error-code");
     return new CompiledInstruction (aEl, (c, o) -> {
-      final XdmNode aDoc = XdmNode.createDocument ();
-      final ContentOutput aContent = new ContentOutput (aDoc);
-      if (aSelect != null)
-        aContent.appendAll (aSelect.evaluate (c));
-      aBody.execute (c, aContent);
-      aContent.finishTree ();
-      final SerializationParams aParams = new SerializationParams ();
-      aParams.setOmitXmlDeclaration (true);
-      final String sMessage = XdmSerializer.serialize (XdmSequence.of (aDoc), aParams);
+      // The message is the sequence of the select value and the content; a
+      // dynamic error in it does not end the transformation
+      final BufferedOutput aContent = new BufferedOutput ();
+      XdmSequence aValue;
+      String sMessage;
+      try
+      {
+        if (aSelect != null)
+          aContent.appendAll (aSelect.evaluate (c));
+        aBody.execute (c, aContent);
+        aValue = aContent.getSequence ();
+        sMessage = _messageText (aValue);
+      }
+      catch (final XPathException ex)
+      {
+        aValue = XdmSequence.EMPTY;
+        sMessage = "Error in xsl:message: " + ex.getMessage ();
+      }
       c.getEngine ().addMessage (sMessage);
       boolean bTerminate = false;
       if (aTerminate != null)
@@ -380,7 +426,7 @@ public final class ControlInstructions
             throw new XPathException ("XTDE1390", "'" + s + "' is not a valid error code");
           aCode = aResolved;
         }
-        throw new XPathException (aCode, sMessage, XdmSequence.of (aDoc));
+        throw new XPathException (aCode, sMessage, aValue);
       }
     });
   }

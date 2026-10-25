@@ -260,16 +260,16 @@ public final class XsltState
 
   /**
    * @return The state at the start of a template invocation: tunnel
-   *         parameters kept, regex groups and the slots that do not survive
+   *         parameters and regex groups kept, the slots that do not survive
    *         template calls cleared. Rule and mode are set by the caller.
    */
   @NonNull
   public XsltState forTemplateCall ()
   {
     final Slot aSlots = _filterSlots (m_aSlots, true);
-    if (m_aRegexGroups == null && aSlots == m_aSlots)
+    if (aSlots == m_aSlots)
       return this;
-    return new XsltState (m_aCurrentRule, m_aCurrentMode, m_aTunnel, null, aSlots);
+    return new XsltState (m_aCurrentRule, m_aCurrentMode, m_aTunnel, m_aRegexGroups, aSlots);
   }
 
   /**

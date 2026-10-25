@@ -185,13 +185,20 @@ public final class XsltTransformer
         else
         {
           XdmQName aModeName = m_aRequest.getInitialMode ();
-          if (aModeName == null)
-            aModeName = m_aSheet.getDefaultModeName ();
+          boolean bExplicitMode = aModeName != null;
+          if (aModeName != null && !aModeName.hasNamespace () && "#unnamed".equals (aModeName.localName ()))
+            aModeName = Mode.UNNAMED;
+          else
+            if (aModeName == null || !aModeName.hasNamespace () && "#default".equals (aModeName.localName ()))
+            {
+              aModeName = m_aSheet.getDefaultModeName ();
+              bExplicitMode = false;
+            }
           final Mode aMode = m_aSheet.getMode (aModeName);
           if (aMode == null)
             throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " does not exist", null, 0, 0);
           final String sVis = aMode.getVisibility ();
-          if (m_aRequest.getInitialMode () != null && !aMode.isUnnamed () && ("private".equals (sVis) || "abstract".equals (sVis)))
+          if (bExplicitMode && !aMode.isUnnamed () && ("private".equals (sVis) || "abstract".equals (sVis)))
             throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not public", null, 0, 0);
           aEngine.applyTemplates (aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)),
                                   aMatchSelection,

@@ -22,6 +22,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.xslt.instr.SimpleContent;
 import com.helger.xslt.runtime.XsltContext;
 
 /**
@@ -35,15 +36,29 @@ import com.helger.xslt.runtime.XsltContext;
 public final class Avt
 {
   private final Object [] m_aParts;
+  private final boolean m_bTextValueTemplate;
 
   /**
    * @param aParts
    *        The parts: {@link String} for fixed text, {@link XPathExpr} for
    *        expressions.
+   * @param bTextValueTemplate
+   *        <code>true</code> for a text value template, whose expression
+   *        values are converted by the rules for simple content (adjacent
+   *        text nodes are merged before the items are joined with spaces).
    */
-  public Avt (@NonNull final List <Object> aParts)
+  public Avt (@NonNull final List <Object> aParts, final boolean bTextValueTemplate)
   {
     m_aParts = aParts.toArray ();
+    m_bTextValueTemplate = bTextValueTemplate;
+  }
+
+  @NonNull
+  private String _evaluatePart (@NonNull final XPathExpr aExpr, @NonNull final XsltContext aCtx)
+  {
+    if (m_bTextValueTemplate)
+      return SimpleContent.join (aExpr.evaluate (aCtx), " ");
+    return aExpr.evaluateString (aCtx, " ");
   }
 
   /** @return <code>true</code> if the template contains no expression. */
@@ -76,11 +91,11 @@ public final class Avt
   public String evaluate (@NonNull final XsltContext aCtx)
   {
     if (m_aParts.length == 1)
-      return m_aParts[0] instanceof final XPathExpr aExpr ? aExpr.evaluateString (aCtx, " ") : (String) m_aParts[0];
+      return m_aParts[0] instanceof final XPathExpr aExpr ? _evaluatePart (aExpr, aCtx) : (String) m_aParts[0];
     final StringBuilder aSB = new StringBuilder ();
     for (final Object aPart : m_aParts)
       if (aPart instanceof final XPathExpr aExpr)
-        aSB.append (aExpr.evaluateString (aCtx, " "));
+        aSB.append (_evaluatePart (aExpr, aCtx));
       else
         aSB.append ((String) aPart);
     return aSB.toString ();

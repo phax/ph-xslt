@@ -135,7 +135,7 @@ public final class CoreInstructions
           continue;
         if (CompileContext.isExpandText (aText))
         {
-          final Avt aAvt = aCur.compileAvt (aParent, aText.getValue ());
+          final Avt aAvt = aCur.compileTextValueTemplate (aParent, aText.getValue ());
           if (aAvt.isConstant ())
             aInstrs.add (new LiteralText (aText, aAvt.getConstantValue ()));
           else
@@ -340,8 +340,8 @@ public final class CoreInstructions
         aContent.appendNew (XdmNode.createAttribute (aAttrNames.get (i), aAttrValues.get (i).evaluate (c)));
       aBody.execute (c, aContent);
       if (bNoInherit)
-        NamespaceFixup.applyNoInherit (aElement);
-      o.appendNew (aElement);
+        NamespaceFixup.applyNoInherit (aContent.getParent ());
+      o.appendNew (aContent.getParent ());
     });
   }
 

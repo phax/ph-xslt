@@ -108,7 +108,7 @@ public final class NodeInstructions
     final String sText = aSB.toString ();
     if (CompileContext.isExpandText (aEl))
     {
-      final Avt aAvt = aCtx.compileAvt (aEl, sText);
+      final Avt aAvt = aCtx.compileTextValueTemplate (aEl, sText);
       if (!aAvt.isConstant ())
         return new CompiledInstruction (aEl, (c, o) -> o.appendNew (XdmNode.createText (aAvt.evaluate (c))));
       return new LiteralText (aEl, aAvt.getConstantValue ());
@@ -197,8 +197,8 @@ public final class NodeInstructions
         c.getEngine ().applyAttributeSets (aSets, c, aContent);
       aBody.execute (c, aContent);
       if (bNoInherit)
-        NamespaceFixup.applyNoInherit (aElement);
-      o.appendNew (aElement);
+        NamespaceFixup.applyNoInherit (aContent.getParent ());
+      o.appendNew (aContent.getParent ());
     });
   }
 
@@ -345,8 +345,8 @@ public final class NodeInstructions
             aCtx2.getEngine ().applyAttributeSets (aSets, aCtx2, aContent);
           aBody.execute (aCtx2, aContent);
           if (bNoInherit)
-            NamespaceFixup.applyNoInherit (aCopy);
-          o.appendNew (aCopy);
+            NamespaceFixup.applyNoInherit (aContent.getParent ());
+          o.appendNew (aContent.getParent ());
           break;
         }
         default:

@@ -22,6 +22,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.xpath.XPathException;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmNode;
@@ -136,7 +137,7 @@ public final class XsltTestHelper
     {
       transform (sSheet, sSource, null);
     }
-    catch (final com.helger.xpath.XPathException ex)
+    catch (final XPathException ex)
     {
       return ex.getCode ();
     }

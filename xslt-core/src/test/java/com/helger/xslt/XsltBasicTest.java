@@ -16,9 +16,9 @@
  */
 package com.helger.xslt;
 
-import static org.junit.Assert.assertEquals;
-
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * First end-to-end tests.

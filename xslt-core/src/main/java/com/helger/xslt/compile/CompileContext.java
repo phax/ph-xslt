@@ -190,17 +190,8 @@ public final class CompileContext
     return s == null ? null : compileExpression (aEl, s);
   }
 
-  /**
-   * Compile an attribute value template (or text value template).
-   *
-   * @param aEl
-   *        The element for the static context.
-   * @param sText
-   *        The template text.
-   * @return The compiled template.
-   */
   @NonNull
-  public Avt compileAvt (@NonNull final XslElement aEl, @NonNull final String sText)
+  private Avt _compileAvt (@NonNull final XslElement aEl, @NonNull final String sText, final boolean bTvt)
   {
     final ICommonsList <Object> aParts;
     try
@@ -217,7 +208,37 @@ public final class CompileContext
         aCompiled.add (compileExpression (aEl, aExpr.text ()));
       else
         aCompiled.add (aPart);
-    return new Avt (aCompiled);
+    return new Avt (aCompiled, bTvt);
+  }
+
+  /**
+   * Compile an attribute value template (or text value template).
+   *
+   * @param aEl
+   *        The element for the static context.
+   * @param sText
+   *        The template text.
+   * @return The compiled template.
+   */
+  @NonNull
+  public Avt compileAvt (@NonNull final XslElement aEl, @NonNull final String sText)
+  {
+    return _compileAvt (aEl, sText, false);
+  }
+
+  /**
+   * Compile a text value template (XSLT 3.0 section 5.6.2).
+   *
+   * @param aEl
+   *        The element for the static context.
+   * @param sText
+   *        The text.
+   * @return The compiled template.
+   */
+  @NonNull
+  public Avt compileTextValueTemplate (@NonNull final XslElement aEl, @NonNull final String sText)
+  {
+    return _compileAvt (aEl, sText, true);
   }
 
   /**

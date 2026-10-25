@@ -17,6 +17,7 @@
 package com.helger.xslt.runtime;
 
 import java.util.ArrayDeque;
+import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -48,7 +49,7 @@ import com.helger.xpath.xdm.XdmQName;
 @NotThreadSafe
 public final class ContentOutput implements IXsltOutput
 {
-  private final XdmNode m_aParent;
+  private XdmNode m_aParent;
   private final boolean m_bDocument;
   private boolean m_bHasChildren;
   private boolean m_bLastAtomic;
@@ -69,7 +70,11 @@ public final class ContentOutput implements IXsltOutput
       m_aLastText = aParent.getChildAtIndex (nChildren - 1);
   }
 
-  /** @return The node being filled. */
+  /**
+   * @return The node being filled. Use this (not the node passed to the
+   *         constructor) when the content is complete: namespace fixup may
+   *         have replaced an element with one that has another prefix.
+   */
   @NonNull
   public XdmNode getParent ()
   {
@@ -118,6 +123,36 @@ public final class ContentOutput implements IXsltOutput
       m_aParent.addAttribute (NodeCopier.createAttribute (aFixed, aAttr.getValue ()));
   }
 
+  /**
+   * Namespace fixup: a namespace node claims the prefix of the element name, so
+   * the element gets another prefix. It has no children yet (namespaces come
+   * before them), so it is rebuilt with its attributes and namespaces.
+   */
+  private void _renameElementPrefix ()
+  {
+    final XdmQName aOld = m_aParent.getName ();
+    final Map <String, String> aDeclared = m_aParent.getDeclaredNamespaces ();
+    final String sBase = aOld.prefix ().isEmpty () ? "ns" : aOld.prefix ();
+    int n = 0;
+    String sNew;
+    do
+    {
+      sNew = sBase + "_" + n++;
+    } while (aDeclared.containsKey (sNew));
+    final XdmNode aNew = XdmNode.createElement (new XdmQName (aOld.namespaceUri (), aOld.localName (), sNew));
+    for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
+      if (!aEntry.getKey ().equals (aOld.prefix ()))
+        aNew.declareNamespace (aEntry.getKey (), aEntry.getValue ());
+    aNew.declareNamespace (sNew, aOld.namespaceUri ());
+    for (int i = 0; i < m_aParent.getAttributeCount (); ++i)
+    {
+      final XdmNode aAttr = m_aParent.getAttributeAtIndex (i);
+      aNew.addAttribute (NodeCopier.createAttribute (aAttr.getName (), aAttr.getValue ()));
+    }
+    aNew.setBaseUri (m_aParent.getBaseUri ());
+    m_aParent = aNew;
+  }
+
   private void _addNamespace (@NonNull final XdmNode aNS)
   {
     _checkAttributeOrNamespace ("namespace");
@@ -132,11 +167,7 @@ public final class ContentOutput implements IXsltOutput
                                             aElName.getLexicalName () +
                                             ", which is in no namespace");
     if (aElName.prefix ().equals (sPrefix) && !aElName.namespaceUri ().equals (sUri))
-      throw new XPathException ("XTDE0430",
-                                "The namespace node for prefix '" +
-                                            sPrefix +
-                                            "' conflicts with the name of the element " +
-                                            aElName.getLexicalName ());
+      _renameElementPrefix ();
     final String sOwn = m_aParent.getDeclaredNamespaces ().get (sPrefix);
     if (sOwn != null && !sOwn.equals (sUri))
       throw new XPathException ("XTDE0430",
@@ -167,6 +198,9 @@ public final class ContentOutput implements IXsltOutput
       default:
       {
         final XdmNode aChild = bNew && aNode.getParent () == null ? aNode : NodeCopier.copyDeep (aNode, true);
+        // As content its base URI follows from its new position
+        if (aChild.isElement ())
+          aChild.setBaseUri (null);
         m_aParent.appendChild (aChild);
         m_aLastText = null;
         m_bHasChildren = true;

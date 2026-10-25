@@ -60,6 +60,17 @@ public final class SerializationChecks
     return aVersion == null || aVersion.compareTo (BigDecimal.valueOf (5)) >= 0;
   }
 
+  private static boolean _hasC1 (@NonNull final String s)
+  {
+    for (int i = 0; i < s.length (); ++i)
+    {
+      final char c = s.charAt (i);
+      if (c >= 0x7F && c <= 0x9F)
+        return true;
+    }
+    return false;
+  }
+
   /**
    * @param aParams
    *        The effective parameters.
@@ -123,14 +134,4 @@ public final class SerializationChecks
     }
   }
 
-  private static boolean _hasC1 (@NonNull final String s)
-  {
-    for (int i = 0; i < s.length (); ++i)
-    {
-      final char c = s.charAt (i);
-      if (c >= 0x7F && c <= 0x9F)
-        return true;
-    }
-    return false;
-  }
 }

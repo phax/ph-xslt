@@ -308,7 +308,10 @@ public final class Engine
     {
       XsltContext aCtx = createRootContext ().withState (XsltState.EMPTY);
       if (m_aGlobalContextItem != null)
-        aCtx = aCtx.withFocus (m_aGlobalContextItem, 1, 1);
+      {
+        // The global context item is the focus, but there is no current item
+        aCtx = new XsltContext (this, aCtx.withFocus (m_aGlobalContextItem, 1, 1).getDynamicContext ().withCurrentItem (null));
+      }
       XdmSequence aValue = null;
       if (aDef.getKind () == VariableDef.EKind.GLOBAL_PARAM)
       {
@@ -642,8 +645,9 @@ public final class Engine
         {
           final XdmNode aCopy = NodeCopier.copyShallow (aNode);
           NodeCopier.copyNamespaces (aNode, aCopy, true);
-          _applyToChildren (aNode, true, aMode, aCtx, aParams, new ContentOutput (aCopy));
-          aOut.appendNew (aCopy);
+          final ContentOutput aContent = new ContentOutput (aCopy);
+          _applyToChildren (aNode, true, aMode, aCtx, aParams, aContent);
+          aOut.appendNew (aContent.getParent ());
         }
         else
           if (eKind == ENodeKind.DOCUMENT)

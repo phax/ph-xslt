@@ -25,6 +25,7 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.collation.CollationRegistry;
@@ -833,6 +834,12 @@ public final class ElementValidator
       default:
         break;
     }
+
+    // Only the first xsl:sort may have a stable attribute (XTSE1017)
+    final ICommonsList <XslElement> aSorts = aEl.getXslChildren ("sort");
+    for (int i = 1; i < aSorts.size (); ++i)
+      if (aSorts.get (i).hasAttr ("stable"))
+        throw XsltException.at (aSorts.get (i), "XTSE1017", "Only the first xsl:sort may have a stable attribute");
 
     // Duplicate with-param (XTSE0670) and param (XTSE0580) names
     final ICommonsSet <XdmQName> aWithParams = new CommonsHashSet <> ();

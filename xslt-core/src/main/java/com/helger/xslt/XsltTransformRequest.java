@@ -90,7 +90,11 @@ public final class XsltTransformRequest
     return this;
   }
 
-  /** @return The initial mode, <code>null</code> for the default mode. */
+  /**
+   * @return The initial mode, <code>null</code> for the default mode. The
+   *         names <code>#unnamed</code> and <code>#default</code> (in no
+   *         namespace) stand for the unnamed and the default mode.
+   */
   @Nullable
   public XdmQName getInitialMode ()
   {

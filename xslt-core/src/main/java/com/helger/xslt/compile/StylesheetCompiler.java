@@ -31,16 +31,16 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedSet;
 import com.helger.collection.commons.ICommonsSet;
-import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.fn.FnUri;
-import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.pattern.CompiledXsltPattern;
 import com.helger.xpath.pattern.XsltPattern;
+import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
@@ -54,7 +54,6 @@ import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.EOnNoMatch;
 import com.helger.xslt.model.KeyDefinition;
 import com.helger.xslt.model.Mode;
-import com.helger.xslt.model.OutputDefinition;
 import com.helger.xslt.model.OutputDefinition;
 import com.helger.xslt.model.SpaceRules;
 import com.helger.xslt.model.Template;
@@ -456,7 +455,18 @@ public final class StylesheetCompiler
       final String v = aEl.getAttr (sAttr);
       if (v == null)
         continue;
-      final String sValue = v.trim ();
+      String sValue = v.trim ();
+      if ("streamable".equals (sAttr) || sAttr.startsWith ("warning-"))
+        sValue = XsltNames.isXsltTrue (sValue) ? "yes" : "no";
+      else
+        if ("use-accumulators".equals (sAttr))
+        {
+          final ICommonsList <String> aNames = new CommonsArrayList <> ();
+          for (final String sToken : XsltNames.tokenize (sValue))
+            aNames.add (sToken.startsWith ("#") ? sToken : createGlobalContext ().resolveQName (aEl, sToken, false).getEQName ());
+          aNames.sort (String::compareTo);
+          sValue = String.join (" ", aNames);
+        }
       final Object [] aPrev = aAttrs.get (sAttr);
       if (aPrev != null)
       {
@@ -464,9 +474,13 @@ public final class StylesheetCompiler
         if (nPrevPrec > aEl.getPrecedence ())
           continue;
         if (nPrevPrec == aEl.getPrecedence () && !aPrev[0].equals (sValue))
-          throw XsltException.at (aEl, "XTSE0545", "Conflicting xsl:mode/@" + sAttr + " declarations for mode " + aMode);
+        {
+          // A conflict, unless a declaration with higher precedence follows
+          aPrev[2] = aEl;
+          continue;
+        }
       }
-      aAttrs.put (sAttr, new Object [] { sValue, Integer.valueOf (aEl.getPrecedence ()) });
+      aAttrs.put (sAttr, new Object [] { sValue, Integer.valueOf (aEl.getPrecedence ()), null });
       switch (sAttr)
       {
         case "on-no-match" -> aMode.setOnNoMatch (EOnNoMatch.getFromIDOrNull (sValue));
@@ -511,7 +525,7 @@ public final class StylesheetCompiler
     if (sPriority != null)
     {
       final String s = sPriority.trim ();
-      if (!XsltNames.isDecimalLexical (s) && !s.matches ("[+-]?(\\d+(\\.\\d*)?|\\.\\d+)[eE][+-]?\\d+"))
+      if (!XsltNames.isDecimalLexical (s))
         throw XsltException.at (aEl, "XTSE0530", "priority='" + sPriority + "' is not a valid number");
       aPriority = Double.valueOf (s);
     }
@@ -982,6 +996,12 @@ public final class StylesheetCompiler
       else
         if (aEl.isXsl ("mode"))
           _prepareMode (aEl, aModeAttrs);
+    for (final Map.Entry <Mode, ICommonsMap <String, Object []>> aEntry : aModeAttrs.entrySet ())
+      for (final Map.Entry <String, Object []> aAttr : aEntry.getValue ().entrySet ())
+        if (aAttr.getValue ()[2] != null)
+          throw XsltException.at ((XslElement) aAttr.getValue ()[2],
+                                  "XTSE0545",
+                                  "Conflicting xsl:mode/@" + aAttr.getKey () + " declarations for mode " + aEntry.getKey ());
 
     for (final XslElement aEl : aAll)
       _compileDeclaration (aEl);
