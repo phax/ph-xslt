@@ -58,6 +58,7 @@ public final class FunctionLibrary
     private final String m_sSignature;
     private final IXPathFunction m_aImpl;
     private final boolean m_bFocusDependent;
+    private volatile IXPathFunction m_aDynamicCallImpl;
     private volatile List <SeqType> m_aParamTypes;
     private volatile SeqType m_aReturnType;
 
@@ -136,6 +137,19 @@ public final class FunctionLibrary
     public IXPathFunction getImpl ()
     {
       return m_aImpl;
+    }
+
+    /**
+     * @return The implementation used when the function is called through a
+     *         function item (dynamic function call). Normally the same as
+     *         {@link #getImpl()}; XSLT functions such as current-group() whose
+     *         context is not available in a dynamic call register their own.
+     */
+    @NonNull
+    public IXPathFunction getDynamicCallImpl ()
+    {
+      final IXPathFunction ret = m_aDynamicCallImpl;
+      return ret != null ? ret : m_aImpl;
     }
 
     /**
@@ -250,6 +264,42 @@ public final class FunctionLibrary
     synchronized (m_aMap)
     {
       m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), new FunctionDef (aName, sSignature, aImpl, bFocusDependent));
+    }
+    return this;
+  }
+
+  /**
+   * Register a function with a separate implementation for dynamic function
+   * calls (calls through a function item, e.g. <code>current-group#0</code>).
+   *
+   * @param sNamespaceUri
+   *        Function namespace.
+   * @param sLocalName
+   *        Local name.
+   * @param sSignature
+   *        Signature as in the F&amp;O spec, without parameter names.
+   * @param aImpl
+   *        Implementation for static calls.
+   * @param bFocusDependent
+   *        <code>true</code> if the implementation reads the focus.
+   * @param aDynamicCallImpl
+   *        Implementation for dynamic calls.
+   * @return this for chaining
+   */
+  @NonNull
+  public FunctionLibrary register (@NonNull final String sNamespaceUri,
+                                   @NonNull final String sLocalName,
+                                   @NonNull final String sSignature,
+                                   @NonNull final IXPathFunction aImpl,
+                                   final boolean bFocusDependent,
+                                   @NonNull final IXPathFunction aDynamicCallImpl)
+  {
+    ValueEnforcer.notNull (aDynamicCallImpl, "DynamicCallImpl");
+    register (sNamespaceUri, sLocalName, sSignature, aImpl, bFocusDependent);
+    final int nArity = _countParams (sSignature);
+    synchronized (m_aMap)
+    {
+      m_aMap.get (_key (sNamespaceUri, sLocalName, nArity)).m_aDynamicCallImpl = aDynamicCallImpl;
     }
     return this;
   }
