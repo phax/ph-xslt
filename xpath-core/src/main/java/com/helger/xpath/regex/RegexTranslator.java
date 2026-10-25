@@ -24,9 +24,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
-import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
-import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.XPathException;
 
 /**
@@ -46,43 +44,6 @@ final class RegexTranslator
 {
   /** Maximum nesting of parenthesised groups and character classes */
   static final int MAX_NESTING = 1_000;
-
-  private static final ICommonsSet <String> CATEGORIES = new CommonsHashSet <> ("L",
-                                                                               "Lu",
-                                                                               "Ll",
-                                                                               "Lt",
-                                                                               "Lm",
-                                                                               "Lo",
-                                                                               "M",
-                                                                               "Mn",
-                                                                               "Mc",
-                                                                               "Me",
-                                                                               "N",
-                                                                               "Nd",
-                                                                               "Nl",
-                                                                               "No",
-                                                                               "P",
-                                                                               "Pc",
-                                                                               "Pd",
-                                                                               "Ps",
-                                                                               "Pe",
-                                                                               "Pi",
-                                                                               "Pf",
-                                                                               "Po",
-                                                                               "Z",
-                                                                               "Zs",
-                                                                               "Zl",
-                                                                               "Zp",
-                                                                               "S",
-                                                                               "Sm",
-                                                                               "Sc",
-                                                                               "Sk",
-                                                                               "So",
-                                                                               "C",
-                                                                               "Cc",
-                                                                               "Cf",
-                                                                               "Co",
-                                                                               "Cn");
 
   /** XML 1.0 (5th edition) NameStartChar as ranges */
   private static final int [] NAME_START = { ':',
@@ -232,7 +193,17 @@ final class RegexTranslator
     aSB.append ("\\x{").append (Integer.toHexString (c).toUpperCase (Locale.ROOT)).append ('}');
   }
 
-  private static void _appendRange (@NonNull final StringBuilder aSB, final int nLow, final int nHigh)
+  /**
+   * Append a code point range in Java class syntax.
+   *
+   * @param aSB
+   *        The target.
+   * @param nLow
+   *        First code point.
+   * @param nHigh
+   *        Last code point.
+   */
+  static void appendRange (@NonNull final StringBuilder aSB, final int nLow, final int nHigh)
   {
     _appendHex (aSB, nLow);
     if (nHigh != nLow)
@@ -245,7 +216,7 @@ final class RegexTranslator
   private static void _appendRanges (@NonNull final StringBuilder aSB, @NonNull final int [] aRanges)
   {
     for (int i = 0; i < aRanges.length; i += 2)
-      _appendRange (aSB, aRanges[i], aRanges[i + 1]);
+      appendRange (aSB, aRanges[i], aRanges[i + 1]);
   }
 
   /**
@@ -357,9 +328,9 @@ final class RegexTranslator
         aSB.append (']');
       return;
     }
-    if (!CATEGORIES.contains (sName))
+    if (!UnicodeCategories.isCategory (sName))
       throw _error ("\\p{" + sName + "}: unknown category");
-    aSB.append (bNegated ? "\\P{" : "\\p{").append (sName).append ('}');
+    aSB.append (UnicodeCategories.getClassExpression (sName, bNegated));
   }
 
   /**
@@ -414,16 +385,22 @@ final class RegexTranslator
         aSB.append ("[^" + XML_SPACE + "]");
         return true;
       case 'd':
-        aSB.append ("\\p{Nd}");
+        aSB.append (UnicodeCategories.getClassExpression ("Nd", false));
         return true;
       case 'D':
-        aSB.append ("\\P{Nd}");
+        aSB.append (UnicodeCategories.getClassExpression ("Nd", true));
         return true;
       case 'w':
-        aSB.append ("[^\\p{P}\\p{Z}\\p{C}]");
+        aSB.append ("[^")
+           .append (UnicodeCategories.getClassExpression ("P", false))
+           .append (UnicodeCategories.getClassExpression ("Z", false))
+           .append (UnicodeCategories.getClassExpression ("C", false))
+           .append (']');
         return true;
       case 'W':
-        aSB.append ("\\p{P}\\p{Z}\\p{C}");
+        aSB.append (UnicodeCategories.getClassExpression ("P", false))
+           .append (UnicodeCategories.getClassExpression ("Z", false))
+           .append (UnicodeCategories.getClassExpression ("C", false));
         return true;
       case 'i':
         _appendRanges (aSB, NAME_START);
