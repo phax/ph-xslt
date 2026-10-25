@@ -156,6 +156,9 @@ public final class ArithSpecTest
          err ("xs:yearMonthDuration('P1Y') + xs:gYear('2000')", "XPTY0004"),
          err ("xs:date('2000-01-01') * xs:dayTimeDuration('P1D')", "XPTY0004"),
          err ("xs:date('2000-01-01') + xs:duration('P1D')", "XPTY0004"),
+         // op:add-dayTimeDuration-to-dateTime returns an xs:dateTime, also for an xs:dateTimeStamp operand
+         ok ("(xs:dateTimeStamp('2000-01-01T00:00:00Z') + xs:dayTimeDuration('P1D')) instance of xs:dateTimeStamp", "false"),
+         ok ("(current-dateTime() + xs:dayTimeDuration('P1D')) instance of xs:dateTime", "true"),
          err ("xs:dayTimeDuration('P1D') - xs:date('2000-01-01')", "XPTY0004"),
     // Differences of date/time values are dayTimeDurations (§10.8.1–3).
          ok ("xs:date('2000-03-01') - xs:date('2000-02-01') eq xs:dayTimeDuration('P29D')", "true"),
