@@ -130,6 +130,7 @@ public final class StylesheetCompiler
   private final ICommonsMap <XslElement, FunctionLibrary> m_aDeclLibraries = new CommonsHashMap <> ();
   private final ICommonsMap <XslElement, XdmQName> m_aOriginalNames = new CommonsHashMap <> ();
   private final ICommonsMap <XdmQName, VariableDef> m_aLastGlobals = new CommonsHashMap <> ();
+  private final ICommonsList <VariableDef> m_aAllGlobals = new CommonsArrayList <> ();
   private int m_nOriginalCounter;
 
   private StylesheetCompiler (@NonNull final XsltCompileOptions aOptions)
@@ -805,6 +806,79 @@ public final class StylesheetCompiler
     return false;
   }
 
+  @Nullable
+  private VariableDef _getOwnGlobal (@NonNull final PackageUnit aUnit, @NonNull final XdmQName aName)
+  {
+    VariableDef ret = null;
+    for (final VariableDef aVar : m_aAllGlobals)
+      if (aVar.getName ().equals (aName) &&
+          m_aPackages.getUnit (aVar.getElement ()) == aUnit &&
+          (ret == null || aVar.getElement ().getPrecedence () >= ret.getElement ().getPrecedence ()))
+        ret = aVar;
+    return ret;
+  }
+
+  @Nullable
+  private VariableDef _getGlobalViewDown (@NonNull final PackageUnit aUnit, @NonNull final XdmQName aName, final int nDepth)
+  {
+    final VariableDef ret = _getOwnGlobal (aUnit, aName);
+    if (ret != null || nDepth > m_aPackages.getUnits ().size ())
+      return ret;
+    for (final PackageUnit.Use aUse : aUnit.uses ())
+    {
+      final VariableDef aSub = _getGlobalViewDown (aUse.used (), aName, nDepth + 1);
+      if (aSub != null)
+        return aSub;
+    }
+    return null;
+  }
+
+  /**
+   * With several packages, a package may see another declaration of a global
+   * variable than the one with the highest import precedence: its own
+   * override when two packages override one used package differently, or the
+   * declaration of the package it uses when two used packages declare the same
+   * name.
+   */
+  private void _computePackageGlobals ()
+  {
+    final ICommonsMap <PackageUnit, PackageUnit.Use> aUsers = new CommonsHashMap <> ();
+    final ICommonsMap <PackageUnit.Use, PackageUnit> aUserUnits = new CommonsHashMap <> ();
+    for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      for (final PackageUnit.Use aUse : aUnit.uses ())
+      {
+        aUsers.put (aUse.used (), aUse);
+        aUserUnits.put (aUse, aUnit);
+      }
+    final ICommonsSet <XdmQName> aNames = new CommonsHashSet <> ();
+    final ICommonsSet <XdmQName> aMulti = new CommonsHashSet <> ();
+    for (final VariableDef aVar : m_aAllGlobals)
+      if (!aNames.add (aVar.getName ()))
+        aMulti.add (aVar.getName ());
+    for (final XdmQName aName : aMulti)
+    {
+      final VariableDef aWinner = m_aStylesheet.globals ().get (aName);
+      for (final PackageUnit aUnit : m_aPackages.getUnits ())
+      {
+        VariableDef aView = _getGlobalViewDown (aUnit, aName, 0);
+        // An override by a using package replaces the declaration
+        PackageUnit aCur = aUnit;
+        int nGuard = 0;
+        while (aUsers.containsKey (aCur) && nGuard++ < m_aPackages.getUnits ().size ())
+        {
+          final PackageUnit.Use aUse = aUsers.get (aCur);
+          for (final XslElement aOverride : aUse.element ().getXslChildren ("override"))
+            for (final VariableDef aVar : m_aAllGlobals)
+              if (aVar.getName ().equals (aName) && aVar.getElement ().getParent () == aOverride)
+                aView = aVar;
+          aCur = aUserUnits.get (aUse);
+        }
+        if (aView != null && aView != aWinner)
+          m_aStylesheet.packageGlobals ().computeIfAbsent (aUnit, k -> new CommonsHashMap <> ()).put (aName, aView);
+      }
+    }
+  }
+
   private void _compileGlobal (@NonNull final XslElement aEl, final boolean bParam)
   {
     final XdmQName aOwnName = createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false);
@@ -818,6 +892,7 @@ public final class StylesheetCompiler
     if (aOriginal != null)
       m_aStylesheet.originalVariables ().put (aVar, aOriginal);
     m_aLastGlobals.put (aOwnName, aVar);
+    m_aAllGlobals.add (aVar);
     final Integer aWinner = m_aGlobalPrecedences.get (aVar.getName ());
     if (aWinner != null && aWinner.intValue () == aEl.getPrecedence ())
       m_aStylesheet.globals ().put (aVar.getName (), aVar);
@@ -1351,6 +1426,8 @@ public final class StylesheetCompiler
       // nothing to do: xsl:initial-template is optional
     }
     _buildModes ();
+    if (m_aPackages.isMultiPackage ())
+      _computePackageGlobals ();
     for (final PackageUnit aUnit : m_aPackages.getUnits ())
       if (aUnit.getRoot () != null && aUnit.getRoot ().isXsl ("package"))
         _checkPackage (aUnit.getRoot (), aUnit.modules ());
@@ -1363,6 +1440,12 @@ public final class StylesheetCompiler
           aRoots.add (aModule.getRoot ());
       PackageChecks.checkOwnAbstract (aRoots);
       ExposeChecker.check (createGlobalContext (), m_aExposes);
+      // A mode used only implicitly that xsl:expose makes private
+      final PackageChecks.Exposure aExposure = m_aPackages.getExposure (aPrincipal.getRoot ());
+      if (aExposure != null)
+        for (final Map.Entry <XdmQName, String> aEntry : aExposure.implicitModes ().entrySet ())
+          if ("private".equals (aEntry.getValue ()))
+            m_aStylesheet.privateModes ().add (aEntry.getKey ());
     }
     _checkReferences ();
     final CompileContext aGlobal = createGlobalContext ();

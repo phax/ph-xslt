@@ -391,6 +391,10 @@ public final class StylesheetLoader
       aRoot = _getDocumentElement (aDoc);
     if (aRoot == null)
       throw XsltException.at (aIncludeEl, "XTSE0165", "The stylesheet module '" + sUri + "' has no document element");
+    if (XsltNames.NS_XSL.equals (aRoot.getName ().namespaceUri ()) && "package".equals (aRoot.getName ().localName ()))
+      throw XsltException.at (aIncludeEl,
+                              "XTSE0165",
+                              "'" + sUri + "' is an xsl:package, which cannot be the target of xsl:" + aIncludeEl.getLocalName ());
     m_aLoadStack.add (sKey);
     m_aGroupStack.add (aIncludeEl.isXsl ("import") || m_aGroupStack.isEmpty () ? new Object () : m_aGroupStack.getLast ());
     try

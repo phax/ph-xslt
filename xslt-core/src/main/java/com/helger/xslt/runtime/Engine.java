@@ -91,8 +91,16 @@ public final class Engine
   public static final int DEFAULT_MAX_DEPTH = 10_000;
 
   @Nullable
-  private XdmSequence _resolveGlobal (@NonNull final XdmQName aName)
+  private XdmSequence _resolveGlobal (@NonNull final DynamicContext aDyn, @NonNull final XdmQName aName)
   {
+    if (m_aSheet.packageGlobals ().isNotEmpty ())
+    {
+      final PackageUnit aUnit = m_aSheet.getPackages ().getUnitForScope (aDyn.getStaticContext ().getFunctionLibrary ());
+      final ICommonsMap <XdmQName, VariableDef> aOwn = m_aSheet.packageGlobals ().get (aUnit);
+      final VariableDef aDef = aOwn == null ? null : aOwn.get (aName);
+      if (aDef != null)
+        return _getOriginalValue (aDef);
+    }
     final XdmSequence aStatic = m_aSheet.staticValues ().get (aName);
     if (aStatic != null)
       return aStatic;
@@ -150,7 +158,7 @@ public final class Engine
       aDyn.setCurrentDateTime (aRequest.getCurrentDateTime ());
     aDyn.setInterrupt (aRequest.getInterrupt ());
     aDyn.setResourceResolver (new StrippingResolver (aRequest.getResolver ()));
-    aDyn.setGlobalVariableResolver (this::_resolveGlobal);
+    aDyn.setContextGlobalVariableResolver (this::_resolveGlobal);
     final String sOutputUri = aRequest.getBaseOutputUri ();
     XsltState aState = XsltState.EMPTY;
     // Always set, so that its absence marks temporary output state
