@@ -90,29 +90,6 @@ public final class Engine
   /** Default maximum nesting depth of templates and functions. */
   public static final int DEFAULT_MAX_DEPTH = 10_000;
 
-  @Nullable
-  private XdmSequence _resolveGlobal (@NonNull final DynamicContext aDyn, @NonNull final XdmQName aName)
-  {
-    if (m_aSheet.packageGlobals ().isNotEmpty ())
-    {
-      final PackageUnit aUnit = m_aSheet.getPackages ().getUnitForScope (aDyn.getStaticContext ().getFunctionLibrary ());
-      final ICommonsMap <XdmQName, VariableDef> aOwn = m_aSheet.packageGlobals ().get (aUnit);
-      final VariableDef aDef = aOwn == null ? null : aOwn.get (aName);
-      if (aDef != null)
-        return _getOriginalValue (aDef);
-    }
-    final XdmSequence aStatic = m_aSheet.staticValues ().get (aName);
-    if (aStatic != null)
-      return aStatic;
-    final XdmSequence aKnown = m_aGlobalValues.get (aName);
-    if (aKnown != null)
-      return aKnown;
-    final VariableDef aDef = m_aSheet.globals ().get (aName);
-    if (aDef == null)
-      return null;
-    return getGlobalValue (aDef);
-  }
-
   // NaN equals nothing: a unique key that is never searched for
   private static final Object NAN_KEY = new Object ();
 
@@ -358,6 +335,29 @@ public final class Engine
     {
       m_aOriginalsInProgress.remove (aDef);
     }
+  }
+
+  @Nullable
+  private XdmSequence _resolveGlobal (@NonNull final DynamicContext aDyn, @NonNull final XdmQName aName)
+  {
+    if (m_aSheet.packageGlobals ().isNotEmpty ())
+    {
+      final PackageUnit aUnit = m_aSheet.getPackages ().getUnitForScope (aDyn.getStaticContext ().getFunctionLibrary ());
+      final ICommonsMap <XdmQName, VariableDef> aOwn = m_aSheet.packageGlobals ().get (aUnit);
+      final VariableDef aDef = aOwn == null ? null : aOwn.get (aName);
+      if (aDef != null)
+        return _getOriginalValue (aDef);
+    }
+    final XdmSequence aStatic = m_aSheet.staticValues ().get (aName);
+    if (aStatic != null)
+      return aStatic;
+    final XdmSequence aKnown = m_aGlobalValues.get (aName);
+    if (aKnown != null)
+      return aKnown;
+    final VariableDef aDef = m_aSheet.globals ().get (aName);
+    if (aDef == null)
+      return null;
+    return getGlobalValue (aDef);
   }
 
   /**

@@ -269,7 +269,7 @@ public final class CoreInstructions
     if (s != null)
       for (final String sToken : XsltNames.tokenize (s))
       {
-        final XdmQName aName = aCtx.resolveQName (aEl, sToken, false);
+        final XdmQName aName = aCtx.getCompiler ().mapAttributeSetName (aEl, aCtx.resolveQName (aEl, sToken, false));
         ret.add (aName);
         aCtx.getCompiler ().registerAttributeSetRef (aEl, aName);
       }
