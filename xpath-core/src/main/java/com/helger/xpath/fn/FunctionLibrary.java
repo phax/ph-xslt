@@ -176,6 +176,7 @@ public final class FunctionLibrary
   private static final SimpleReadWriteLock DEFAULT_LOCK = new SimpleReadWriteLock ();
   private static volatile FunctionLibrary s_aDefault;
 
+  private final SimpleReadWriteLock m_aRWLock = new SimpleReadWriteLock ();
   private final ICommonsMap <String, FunctionDef> m_aMap = new CommonsHashMap <> ();
   // Variadic functions (fn:concat): name key to the registration data
   private final ICommonsMap <String, Object []> m_aVariadic = new CommonsHashMap <> ();
@@ -279,10 +280,8 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aImpl, "Impl");
     final int nArity = _countParams (sSignature);
     final XdmQName aName = new XdmQName (sNamespaceUri, sLocalName);
-    synchronized (m_aMap)
-    {
-      m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), new FunctionDef (aName, sSignature, aImpl, bFocusDependent));
-    }
+    final FunctionDef aDef = new FunctionDef (aName, sSignature, aImpl, bFocusDependent);
+    m_aRWLock.writeLocked ( () -> m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), aDef));
     return this;
   }
 
@@ -315,10 +314,7 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aDynamicCallImpl, "DynamicCallImpl");
     register (sNamespaceUri, sLocalName, sSignature, aImpl, bFocusDependent);
     final int nArity = _countParams (sSignature);
-    synchronized (m_aMap)
-    {
-      m_aMap.get (_key (sNamespaceUri, sLocalName, nArity)).m_aDynamicCallImpl = aDynamicCallImpl;
-    }
+    m_aRWLock.readLockedGet ( () -> m_aMap.get (_key (sNamespaceUri, sLocalName, nArity))).m_aDynamicCallImpl = aDynamicCallImpl;
     return this;
   }
 
@@ -352,10 +348,7 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
-    synchronized (m_aMap)
-    {
-      m_aMap.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
-    }
+    m_aRWLock.writeLocked ( () -> m_aMap.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef));
     return this;
   }
 
@@ -393,11 +386,8 @@ public final class FunctionLibrary
     ValueEnforcer.notEmpty (sParamType, "ParamType");
     ValueEnforcer.notEmpty (sReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
-    synchronized (m_aMap)
-    {
-      m_aVariadic.put ("{" + sNamespaceUri + "}" + sLocalName,
-                       new Object [] { Integer.valueOf (nMinArity), sParamType, sReturnType, aImpl });
-    }
+    final Object [] aData = new Object [] { Integer.valueOf (nMinArity), sParamType, sReturnType, aImpl };
+    m_aRWLock.writeLocked ( () -> m_aVariadic.put ("{" + sNamespaceUri + "}" + sLocalName, aData));
     return this;
   }
 
@@ -412,30 +402,36 @@ public final class FunctionLibrary
   public FunctionDef getFunction (@NonNull final XdmQName aName, final int nArity)
   {
     final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
-    synchronized (m_aMap)
+    final FunctionDef aOwn = m_aRWLock.readLockedGet ( () -> m_aMap.get (sKey));
+    if (aOwn != null)
+      return aOwn;
+    // The parent is called without holding this library's lock
+    if (m_aParent != null)
+      return m_aRWLock.readLockedBoolean ( () -> m_aHidden.contains (sKey)) ? null : m_aParent.getFunction (aName,
+                                                                                                         nArity);
+    final Object [] aVar = m_aRWLock.readLockedGet ( () -> m_aVariadic.get ("{" +
+                                                                            aName.namespaceUri () +
+                                                                            "}" +
+                                                                            aName.localName ()));
+    if (aVar == null || nArity < ((Integer) aVar[0]).intValue ())
+      return null;
+    final StringBuilder aSB = new StringBuilder ("(");
+    for (int i = 0; i < nArity; ++i)
     {
-      FunctionDef ret = m_aMap.get (sKey);
-      if (ret == null && m_aParent != null)
-        return m_aHidden.contains (sKey) ? null : m_aParent.getFunction (aName, nArity);
-      if (ret == null)
-      {
-        final Object [] aVar = m_aVariadic.get ("{" + aName.namespaceUri () + "}" + aName.localName ());
-        if (aVar != null && nArity >= ((Integer) aVar[0]).intValue ())
-        {
-          final StringBuilder aSB = new StringBuilder ("(");
-          for (int i = 0; i < nArity; ++i)
-          {
-            if (i > 0)
-              aSB.append (", ");
-            aSB.append ((String) aVar[1]);
-          }
-          aSB.append (") as ").append ((String) aVar[2]);
-          ret = new FunctionDef (aName, aSB.toString (), (IXPathFunction) aVar[3], false);
-          m_aMap.put (sKey, ret);
-        }
-      }
-      return ret;
+      if (i > 0)
+        aSB.append (", ");
+      aSB.append ((String) aVar[1]);
     }
+    aSB.append (") as ").append ((String) aVar[2]);
+    final FunctionDef aNew = new FunctionDef (aName, aSB.toString (), (IXPathFunction) aVar[3], false);
+    return m_aRWLock.writeLockedGet ( () -> {
+      // Another thread may have created it in the meantime
+      final FunctionDef aExisting = m_aMap.get (sKey);
+      if (aExisting != null)
+        return aExisting;
+      m_aMap.put (sKey, aNew);
+      return aNew;
+    });
   }
 
   /**
@@ -446,36 +442,46 @@ public final class FunctionLibrary
   public boolean containsName (@NonNull final XdmQName aName)
   {
     final String sPrefix = "{" + aName.namespaceUri () + "}" + aName.localName () + "#";
-    synchronized (m_aMap)
-    {
-      if (m_aVariadic.containsKey ("{" + aName.namespaceUri () + "}" + aName.localName ()))
+    final String sVariadicKey = "{" + aName.namespaceUri () + "}" + aName.localName ();
+    if (m_aRWLock.readLockedBoolean ( () -> {
+      if (m_aVariadic.containsKey (sVariadicKey))
         return true;
       for (final String sKey : m_aMap.keySet ())
         if (sKey.startsWith (sPrefix))
           return true;
-      if (m_aParent != null)
-        for (final FunctionDef aDef : m_aParent.getAllFunctions ())
-          if (aDef.getName ().equals (aName) && !m_aHidden.contains (_key (aName.namespaceUri (), aName.localName (), aDef.getArity ())))
+      return false;
+    }))
+      return true;
+    // The parent is called without holding this library's lock
+    if (m_aParent != null)
+      for (final FunctionDef aDef : m_aParent.getAllFunctions ())
+        if (aDef.getName ().equals (aName))
+        {
+          final String sKey = _key (aName.namespaceUri (), aName.localName (), aDef.getArity ());
+          if (!m_aRWLock.readLockedBoolean ( () -> m_aHidden.contains (sKey)))
             return true;
-    }
+        }
     return false;
   }
 
   @NonNull
   public ICommonsList <FunctionDef> getAllFunctions ()
   {
-    synchronized (m_aMap)
+    final ICommonsList <FunctionDef> ret = m_aRWLock.readLockedGet ( () -> new CommonsArrayList <> (m_aMap.values ()));
+    if (m_aParent != null)
     {
-      final ICommonsList <FunctionDef> ret = new CommonsArrayList <> (m_aMap.values ());
-      if (m_aParent != null)
-        for (final FunctionDef aDef : m_aParent.getAllFunctions ())
+      // The parent is called without holding this library's lock
+      final ICommonsList <FunctionDef> aParentDefs = m_aParent.getAllFunctions ();
+      m_aRWLock.readLocked ( () -> {
+        for (final FunctionDef aDef : aParentDefs)
         {
           final String sKey = _key (aDef.getName ().namespaceUri (), aDef.getName ().localName (), aDef.getArity ());
           if (!m_aMap.containsKey (sKey) && !m_aHidden.contains (sKey))
             ret.add (aDef);
         }
-      return ret;
+      });
     }
+    return ret;
   }
 
   /**
@@ -504,11 +510,11 @@ public final class FunctionLibrary
   public FunctionLibrary hide (@NonNull final XdmQName aName, final int nArity)
   {
     ValueEnforcer.notNull (aName, "Name");
-    synchronized (m_aMap)
-    {
-      m_aHidden.add (_key (aName.namespaceUri (), aName.localName (), nArity));
-      m_aMap.remove (_key (aName.namespaceUri (), aName.localName (), nArity));
-    }
+    final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
+    m_aRWLock.writeLocked ( () -> {
+      m_aHidden.add (sKey);
+      m_aMap.remove (sKey);
+    });
     return this;
   }
 

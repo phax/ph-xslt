@@ -27,6 +27,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.wrapper.Wrapper;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.DynamicContext;
@@ -46,6 +47,8 @@ public final class XPathRegex
   /** Stack size of the fallback thread for deeply recursing matches */
   private static final long LARGE_STACK_SIZE = 512L * 1024 * 1024;
 
+  // A get reorders the access-ordered map, so every access takes the write lock
+  private static final SimpleReadWriteLock CACHE_LOCK = new SimpleReadWriteLock ();
   private static final Map <String, XPathRegex> CACHE = new LinkedHashMap <> (64, 0.75f, true)
   {
     @Override
@@ -216,17 +219,11 @@ public final class XPathRegex
   {
     final String sRealFlags = sFlags == null ? "" : sFlags;
     final String sKey = (bXsd11Classes ? "1" : "0") + sRealFlags + '\u0000' + sPattern;
-    synchronized (CACHE)
-    {
-      final XPathRegex ret = CACHE.get (sKey);
-      if (ret != null)
-        return ret;
-    }
+    final XPathRegex aCached = CACHE_LOCK.writeLockedGet ( () -> CACHE.get (sKey));
+    if (aCached != null)
+      return aCached;
     final XPathRegex ret = _compile (sPattern, sRealFlags, bXsd11Classes);
-    synchronized (CACHE)
-    {
-      CACHE.put (sKey, ret);
-    }
+    CACHE_LOCK.writeLocked ( () -> CACHE.put (sKey, ret));
     return ret;
   }
 

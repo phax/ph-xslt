@@ -25,6 +25,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
@@ -210,6 +211,7 @@ public final class CollationRegistry
 
   private static final ICollation QT3_CASE_BLIND = new CaseBlindCollation (QT3_CASE_BLIND_URI);
 
+  private static final SimpleReadWriteLock UCA_CACHE_LOCK = new SimpleReadWriteLock ();
   private static final ICommonsMap <String, ICollation> UCA_CACHE = new CommonsHashMap <> ();
 
   @PresentForCodeCoverage
@@ -261,19 +263,16 @@ public final class CollationRegistry
     }
     if (sUri.equals (UCA_URI) || sUri.startsWith (UCA_URI + "?"))
     {
-      synchronized (UCA_CACHE)
-      {
-        final ICollation ret = UCA_CACHE.get (sUri);
-        if (ret != null)
-          return ret;
-      }
+      final ICollation aCached = UCA_CACHE_LOCK.readLockedGet ( () -> UCA_CACHE.get (sUri));
+      if (aCached != null)
+        return aCached;
+      // Created outside the lock: it initialises the JDK collators
       final ICollation ret = UcaCollation.create (sUri);
-      synchronized (UCA_CACHE)
-      {
+      UCA_CACHE_LOCK.writeLocked ( () -> {
         if (UCA_CACHE.size () >= CACHE_SIZE)
           UCA_CACHE.clear ();
         UCA_CACHE.put (sUri, ret);
-      }
+      });
       return ret;
     }
     throw XPathException.of ("FOCH0002", "Unsupported collation '" + sUri + "'");

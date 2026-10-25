@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
@@ -87,7 +88,10 @@ public final class XsltExtensionRegistry
 
   private static final Logger LOGGER = LoggerFactory.getLogger (XsltExtensionRegistry.class);
 
+  private static final SimpleReadWriteLock INSTANCE_LOCK = new SimpleReadWriteLock ();
   private static volatile XsltExtensionRegistry s_aInstance;
+
+  private final SimpleReadWriteLock m_aRWLock = new SimpleReadWriteLock ();
 
   private final ICommonsMap <String, IInstructionCompiler> m_aInstructions = new CommonsHashMap <> ();
   private final ICommonsMap <String, IDeclarationCompiler> m_aDeclarations = new CommonsHashMap <> ();
@@ -133,15 +137,18 @@ public final class XsltExtensionRegistry
   @NonNull
   public static XsltExtensionRegistry getInstance ()
   {
-    XsltExtensionRegistry ret = s_aInstance;
-    if (ret == null)
-      synchronized (XsltExtensionRegistry.class)
-      {
-        ret = s_aInstance;
-        if (ret == null)
-          s_aInstance = ret = _create ();
-      }
-    return ret;
+    final XsltExtensionRegistry ret = s_aInstance;
+    if (ret != null)
+      return ret;
+    // Created without holding the lock, because it loads and initialises the
+    // extension classes; if two threads race, the first published one wins
+    final XsltExtensionRegistry aNew = _create ();
+    return INSTANCE_LOCK.writeLockedGet ( () -> {
+      XsltExtensionRegistry aCurrent = s_aInstance;
+      if (aCurrent == null)
+        s_aInstance = aCurrent = aNew;
+      return aCurrent;
+    });
   }
 
   /**
@@ -156,14 +163,16 @@ public final class XsltExtensionRegistry
    *         if the instruction is already registered
    */
   @NonNull
-  public synchronized XsltExtensionRegistry registerInstruction (@NonNull final String sLocalName,
-                                                                 @NonNull final IInstructionCompiler aCompiler)
+  public XsltExtensionRegistry registerInstruction (@NonNull final String sLocalName,
+                                                    @NonNull final IInstructionCompiler aCompiler)
   {
     ValueEnforcer.notEmpty (sLocalName, "LocalName");
     ValueEnforcer.notNull (aCompiler, "Compiler");
-    if (m_aInstructions.containsKey (sLocalName))
-      throw new IllegalStateException ("The instruction xsl:" + sLocalName + " is already registered");
-    m_aInstructions.put (sLocalName, aCompiler);
+    m_aRWLock.writeLocked ( () -> {
+      if (m_aInstructions.containsKey (sLocalName))
+        throw new IllegalStateException ("The instruction xsl:" + sLocalName + " is already registered");
+      m_aInstructions.put (sLocalName, aCompiler);
+    });
     return this;
   }
 
@@ -178,12 +187,12 @@ public final class XsltExtensionRegistry
    * @return this for chaining
    */
   @NonNull
-  public synchronized XsltExtensionRegistry replaceInstruction (@NonNull final String sLocalName,
-                                                                @NonNull final IInstructionCompiler aCompiler)
+  public XsltExtensionRegistry replaceInstruction (@NonNull final String sLocalName,
+                                                   @NonNull final IInstructionCompiler aCompiler)
   {
     ValueEnforcer.notEmpty (sLocalName, "LocalName");
     ValueEnforcer.notNull (aCompiler, "Compiler");
-    m_aInstructions.put (sLocalName, aCompiler);
+    m_aRWLock.writeLocked ( () -> m_aInstructions.put (sLocalName, aCompiler));
     return this;
   }
 
@@ -197,14 +206,16 @@ public final class XsltExtensionRegistry
    * @return this for chaining
    */
   @NonNull
-  public synchronized XsltExtensionRegistry registerDeclaration (@NonNull final String sLocalName,
-                                                                 @NonNull final IDeclarationCompiler aCompiler)
+  public XsltExtensionRegistry registerDeclaration (@NonNull final String sLocalName,
+                                                    @NonNull final IDeclarationCompiler aCompiler)
   {
     ValueEnforcer.notEmpty (sLocalName, "LocalName");
     ValueEnforcer.notNull (aCompiler, "Compiler");
-    if (m_aDeclarations.containsKey (sLocalName))
-      throw new IllegalStateException ("The declaration xsl:" + sLocalName + " is already registered");
-    m_aDeclarations.put (sLocalName, aCompiler);
+    m_aRWLock.writeLocked ( () -> {
+      if (m_aDeclarations.containsKey (sLocalName))
+        throw new IllegalStateException ("The declaration xsl:" + sLocalName + " is already registered");
+      m_aDeclarations.put (sLocalName, aCompiler);
+    });
     return this;
   }
 
@@ -217,26 +228,26 @@ public final class XsltExtensionRegistry
    * @return this for chaining
    */
   @NonNull
-  public synchronized XsltExtensionRegistry registerFunctions (@NonNull final Consumer <FunctionLibrary> aContributor)
+  public XsltExtensionRegistry registerFunctions (@NonNull final Consumer <FunctionLibrary> aContributor)
   {
     ValueEnforcer.notNull (aContributor, "Contributor");
-    m_aFunctionContributors.add (aContributor);
+    m_aRWLock.writeLocked ( () -> m_aFunctionContributors.add (aContributor));
     return this;
   }
 
   @NonNull
-  public synchronized XsltExtensionRegistry registerOutputCustomizer (@NonNull final IOutputCustomizer aCustomizer)
+  public XsltExtensionRegistry registerOutputCustomizer (@NonNull final IOutputCustomizer aCustomizer)
   {
     ValueEnforcer.notNull (aCustomizer, "Customizer");
-    m_aOutputCustomizers.add (aCustomizer);
+    m_aRWLock.writeLocked ( () -> m_aOutputCustomizers.add (aCustomizer));
     return this;
   }
 
   @NonNull
-  public synchronized XsltExtensionRegistry registerCompileFinisher (@NonNull final ICompileFinisher aFinisher)
+  public XsltExtensionRegistry registerCompileFinisher (@NonNull final ICompileFinisher aFinisher)
   {
     ValueEnforcer.notNull (aFinisher, "Finisher");
-    m_aFinishers.add (aFinisher);
+    m_aRWLock.writeLocked ( () -> m_aFinishers.add (aFinisher));
     return this;
   }
 
@@ -249,22 +260,22 @@ public final class XsltExtensionRegistry
    * @return this for chaining
    */
   @NonNull
-  public synchronized XsltExtensionRegistry registerSystemPropertyYes (@NonNull final String sLocalName)
+  public XsltExtensionRegistry registerSystemPropertyYes (@NonNull final String sLocalName)
   {
-    m_aSystemPropertiesYes.add (sLocalName);
+    m_aRWLock.writeLocked ( () -> m_aSystemPropertiesYes.add (sLocalName));
     return this;
   }
 
   @Nullable
-  public synchronized IInstructionCompiler getInstructionCompiler (@NonNull final String sLocalName)
+  public IInstructionCompiler getInstructionCompiler (@NonNull final String sLocalName)
   {
-    return m_aInstructions.get (sLocalName);
+    return m_aRWLock.readLockedGet ( () -> m_aInstructions.get (sLocalName));
   }
 
   @Nullable
-  public synchronized IDeclarationCompiler getDeclarationCompiler (@NonNull final String sLocalName)
+  public IDeclarationCompiler getDeclarationCompiler (@NonNull final String sLocalName)
   {
-    return m_aDeclarations.get (sLocalName);
+    return m_aRWLock.readLockedGet ( () -> m_aDeclarations.get (sLocalName));
   }
 
   /**
@@ -273,9 +284,10 @@ public final class XsltExtensionRegistry
    * @return <code>true</code> if the processor implements it (instruction or
    *         declaration), for element-available().
    */
-  public synchronized boolean isImplemented (@NonNull final String sLocalName)
+  public boolean isImplemented (@NonNull final String sLocalName)
   {
-    if (m_aInstructions.containsKey (sLocalName) || m_aDeclarations.containsKey (sLocalName))
+    if (m_aRWLock.readLockedBoolean ( () -> m_aInstructions.containsKey (sLocalName) ||
+                                           m_aDeclarations.containsKey (sLocalName)))
       return true;
     for (final String s : CORE_DECLARATIONS)
       if (s.equals (sLocalName))
@@ -283,9 +295,9 @@ public final class XsltExtensionRegistry
     return false;
   }
 
-  public synchronized boolean isSystemPropertyYes (@NonNull final String sLocalName)
+  public boolean isSystemPropertyYes (@NonNull final String sLocalName)
   {
-    return m_aSystemPropertiesYes.contains (sLocalName);
+    return m_aRWLock.readLockedBoolean ( () -> m_aSystemPropertiesYes.contains (sLocalName));
   }
 
   /**
@@ -294,26 +306,23 @@ public final class XsltExtensionRegistry
    */
   public void contributeFunctions (@NonNull final FunctionLibrary aLibrary)
   {
-    final ICommonsList <Consumer <FunctionLibrary>> aList;
-    synchronized (this)
-    {
-      aList = m_aFunctionContributors.getClone ();
-    }
+    // The contributors are called without holding the lock
+    final ICommonsList <Consumer <FunctionLibrary>> aList = m_aRWLock.readLockedGet (m_aFunctionContributors::getClone);
     for (final Consumer <FunctionLibrary> aContributor : aList)
       aContributor.accept (aLibrary);
   }
 
   @NonNull
   @ReturnsMutableCopy
-  public synchronized ICommonsList <IOutputCustomizer> getAllOutputCustomizers ()
+  public ICommonsList <IOutputCustomizer> getAllOutputCustomizers ()
   {
-    return m_aOutputCustomizers.getClone ();
+    return m_aRWLock.readLockedGet (m_aOutputCustomizers::getClone);
   }
 
   @NonNull
   @ReturnsMutableCopy
-  public synchronized ICommonsList <ICompileFinisher> getAllCompileFinishers ()
+  public ICommonsList <ICompileFinisher> getAllCompileFinishers ()
   {
-    return m_aFinishers.getClone ();
+    return m_aRWLock.readLockedGet (m_aFinishers::getClone);
   }
 }
