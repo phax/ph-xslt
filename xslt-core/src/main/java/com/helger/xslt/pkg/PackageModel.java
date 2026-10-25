@@ -338,7 +338,59 @@ public final class PackageModel
         if (!aExported.contains (aComp.getSymbolicName ()))
           ret.hidden ().add (aComp.getSymbolicName ());
       }
+    // So is what the used package accepts from its own used packages without
+    // exposing it (section 3.5.3.2: accepted as private there), and what is
+    // hidden from the used package itself
+    // (an overriding component with an exposed visibility replaces it)
+    for (final PackageUnit.Use aSubUse : aUse.used ().uses ())
+    {
+      final ICommonsSet <String> aOverridden = new CommonsHashSet <> ();
+      for (final XslElement aOverride : aSubUse.element ().getXslChildren ("override"))
+        for (final XslElement aDecl : aOverride.getElementChildren ())
+        {
+          final PackageComponent aComp = PackageChecks.getComponent (aDecl);
+          if (aComp != null && PackageChecks.isExposed (aComp.visibility ()))
+            aOverridden.add (aComp.getSymbolicName ());
+        }
+      for (final PackageComponent aComp : getExports (aSubUse.used ()))
+        if (!"variable".equals (aComp.kind ()) || aComp.element () == null || !aComp.element ().isXsl ("param"))
+          if (!aExported.contains (aComp.getSymbolicName ()) && !aOverridden.contains (aComp.getSymbolicName ()))
+            ret.hidden ().add (aComp.getSymbolicName ());
+    }
+    for (final String sSym : aUse.used ().hidden ())
+      if (!aExported.contains (sSym))
+        ret.hidden ().add (sSym);
     return ret;
+  }
+
+  /**
+   * A component of a used package that a using package accepts as hidden
+   * while another package it uses makes a homonym visible: a reference in the
+   * using package means the visible one (section 3.5.3.2), so this one must
+   * not take the place of the flattened component.
+   *
+   * @param aDecl
+   *        The declaration of the component.
+   * @param aComp
+   *        The component.
+   * @return <code>true</code> if a visible homonym wins.
+   */
+  public boolean isShadowedByVisibleHomonym (@NonNull final XslElement aDecl, @NonNull final PackageComponent aComp)
+  {
+    if (!isMultiPackage ())
+      return false;
+    final PackageUnit aOwner = getUnit (aDecl);
+    final String sSym = aComp.getSymbolicName ();
+    for (final PackageUnit aUser : m_aUnits)
+      for (final PackageUnit.Use aUse : aUser.uses ())
+        if (aUse.used () == aOwner && "hidden".equals (PackageChecks.getAcceptedVisibility (aUse.element (), aComp)))
+          for (final PackageUnit.Use aOther : aUser.uses ())
+            if (aOther.used () != aOwner)
+              for (final PackageComponent aExported : getExports (aOther.used ()))
+                if (aExported.getSymbolicName ().equals (sSym) &&
+                    !"hidden".equals (PackageChecks.getAcceptedVisibility (aOther.element (), aExported)))
+                  return true;
+    return false;
   }
 
   @NonNull

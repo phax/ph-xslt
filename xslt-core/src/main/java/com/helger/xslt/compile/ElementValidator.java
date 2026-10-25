@@ -153,6 +153,7 @@ public final class ElementValidator
     BOOL_ATTRS.put ("function", new CommonsHashSet <> ("override", "override-extension-function", "cache", "identity-sensitive"));
     BOOL_AVT_ATTRS.put ("message", new CommonsHashSet <> ("terminate"));
     BOOL_AVT_ATTRS.put ("assert", new CommonsHashSet <> ("terminate"));
+    BOOL_AVT_ATTRS.put ("sort", new CommonsHashSet <> ("stable"));
 
     SELECT_EXCLUSIVE.put ("attribute", new Object [] { "XTSE0840", new CommonsHashSet <> () });
     SELECT_EXCLUSIVE.put ("value-of", new Object [] { "XTSE0870", new CommonsHashSet <> () });
