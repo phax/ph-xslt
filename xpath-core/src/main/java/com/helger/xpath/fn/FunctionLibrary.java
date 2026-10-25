@@ -25,8 +25,10 @@ import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
+import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.eval.SequenceTypeMatcher;
@@ -175,6 +177,20 @@ public final class FunctionLibrary
   private final ICommonsMap <String, FunctionDef> m_aMap = new CommonsHashMap <> ();
   // Variadic functions (fn:concat): name key to the registration data
   private final ICommonsMap <String, Object []> m_aVariadic = new CommonsHashMap <> ();
+  // A library created by createChild: functions not found here are looked up
+  // in the parent, unless hidden here
+  private final FunctionLibrary m_aParent;
+  private final ICommonsSet <String> m_aHidden = new CommonsHashSet <> ();
+
+  public FunctionLibrary ()
+  {
+    this (null);
+  }
+
+  private FunctionLibrary (@Nullable final FunctionLibrary aParent)
+  {
+    m_aParent = aParent;
+  }
 
   @NonNull
   private static String _key (@NonNull final String sNamespaceUri, @NonNull final String sLocalName, final int nArity)
@@ -397,6 +413,8 @@ public final class FunctionLibrary
     synchronized (m_aMap)
     {
       FunctionDef ret = m_aMap.get (sKey);
+      if (ret == null && m_aParent != null)
+        return m_aHidden.contains (sKey) ? null : m_aParent.getFunction (aName, nArity);
       if (ret == null)
       {
         final Object [] aVar = m_aVariadic.get ("{" + aName.namespaceUri () + "}" + aName.localName ());
@@ -433,6 +451,10 @@ public final class FunctionLibrary
       for (final String sKey : m_aMap.keySet ())
         if (sKey.startsWith (sPrefix))
           return true;
+      if (m_aParent != null)
+        for (final FunctionDef aDef : m_aParent.getAllFunctions ())
+          if (aDef.getName ().equals (aName) && !m_aHidden.contains (_key (aName.namespaceUri (), aName.localName (), aDef.getArity ())))
+            return true;
     }
     return false;
   }
@@ -442,8 +464,50 @@ public final class FunctionLibrary
   {
     synchronized (m_aMap)
     {
-      return new CommonsArrayList <> (m_aMap.values ());
+      final ICommonsList <FunctionDef> ret = new CommonsArrayList <> (m_aMap.values ());
+      if (m_aParent != null)
+        for (final FunctionDef aDef : m_aParent.getAllFunctions ())
+        {
+          final String sKey = _key (aDef.getName ().namespaceUri (), aDef.getName ().localName (), aDef.getArity ());
+          if (!m_aMap.containsKey (sKey) && !m_aHidden.contains (sKey))
+            ret.add (aDef);
+        }
+      return ret;
     }
+  }
+
+  /**
+   * Create a library that sees all functions of this one, except those hidden
+   * in it with {@link #hide(XdmQName, int)}; functions registered in it take
+   * precedence. Used for the function scope of an XSLT package.
+   *
+   * @return A new child library.
+   */
+  @NonNull
+  public FunctionLibrary createChild ()
+  {
+    return new FunctionLibrary (this);
+  }
+
+  /**
+   * Make a function of the parent library invisible in this child library.
+   *
+   * @param aName
+   *        Expanded function name.
+   * @param nArity
+   *        Arity.
+   * @return this for chaining
+   */
+  @NonNull
+  public FunctionLibrary hide (@NonNull final XdmQName aName, final int nArity)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    synchronized (m_aMap)
+    {
+      m_aHidden.add (_key (aName.namespaceUri (), aName.localName (), nArity));
+      m_aMap.remove (_key (aName.namespaceUri (), aName.localName (), nArity));
+    }
+    return this;
   }
 
   /**

@@ -72,6 +72,7 @@ public final class CompiledStylesheet implements XsltExecutable
   private final ICommonsSet <XdmQName> m_aExposedTemplates = new CommonsHashSet <> ();
   private final ICommonsSet <XdmQName> m_aPrivateModes = new CommonsHashSet <> ();
   private PackageModel m_aPackages;
+  private final ICommonsMap <VariableDef, VariableDef> m_aOriginalVariables = new CommonsHashMap <> ();
 
   public CompiledStylesheet (@NonNull final FunctionLibrary aFunctions, @NonNull final XslModule aPrincipalModule)
   {
@@ -120,6 +121,16 @@ public final class CompiledStylesheet implements XsltExecutable
   public void setPackages (@Nullable final PackageModel aPackages)
   {
     m_aPackages = aPackages;
+  }
+
+  /**
+   * @return The global variables and parameters declared in xsl:override,
+   *         mapped to the declaration they override ($xsl:original).
+   */
+  @NonNull
+  public ICommonsMap <VariableDef, VariableDef> originalVariables ()
+  {
+    return m_aOriginalVariables;
   }
 
   /** @return <code>true</code> if more than one package takes part. */

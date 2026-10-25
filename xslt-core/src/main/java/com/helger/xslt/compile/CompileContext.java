@@ -149,11 +149,14 @@ public final class CompileContext
   @NonNull
   public StaticContext createStaticContext (@NonNull final XslElement aEl)
   {
+    final ICommonsOrderedSet <XdmQName> aVariables = getVariablesInScope ();
+    if (m_aCompiler.getPackages () != null && m_aCompiler.getPackages ().isMultiPackage ())
+      aVariables.removeIf (x -> m_aCompiler.isGlobalVariableHidden (aEl, x));
     return StaticContexts.create (aEl,
-                                  getFunctionLibrary (),
-                                  getVariablesInScope (),
-                                  m_aCompiler.getDefaultDecimalFormat (),
-                                  m_aCompiler.getDecimalFormats ());
+                                  m_aCompiler.getFunctionLibraryFor (aEl),
+                                  aVariables,
+                                  m_aCompiler.getDefaultDecimalFormat (aEl),
+                                  m_aCompiler.getDecimalFormats (aEl));
   }
 
   /**

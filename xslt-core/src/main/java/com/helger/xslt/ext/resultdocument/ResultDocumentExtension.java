@@ -49,6 +49,7 @@ import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.OutputDefinition;
+import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.runtime.BufferedOutput;
 import com.helger.xslt.runtime.ContentOutput;
 import com.helger.xslt.runtime.Engine;
@@ -142,7 +143,7 @@ public final class ResultDocumentExtension implements IXsltExtension
           final XdmQName aName = aEl.resolveQName (sFormat, false);
           if (aName == null)
             throw new XPathException ("XTDE1460", "The format '" + sFormat + "' is not a valid QName with a bound prefix");
-          final OutputDefinition aNamed = aSheet.getNamedOutput (aName);
+          final OutputDefinition aNamed = aSheet.getNamedOutput (PackageModel.qualify (aEl, aName));
           if (aNamed == null)
             throw new XPathException ("XTDE1460", "There is no xsl:output declaration named " + aName.getEQName ());
           return aNamed.getClone ();

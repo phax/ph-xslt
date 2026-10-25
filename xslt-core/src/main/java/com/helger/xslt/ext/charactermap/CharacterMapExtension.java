@@ -39,6 +39,7 @@ import com.helger.xslt.compile.IXsltExtension;
 import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.OutputDefinition;
+import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 import com.helger.xslt.tree.XsltNames;
@@ -91,14 +92,14 @@ public final class CharacterMapExtension implements IXsltExtension
           throw XsltException.at (aEl,
                                   "XTSE0280",
                                   "'" + sToken + "' in use-character-maps is not a valid QName with a bound prefix");
-        ret.add (aName);
+        ret.add (PackageModel.qualify (aEl, aName));
       }
     return ret;
   }
 
   private static void _compileCharacterMap (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
-    final XdmQName aName = aCtx.resolveQNameAttr (aEl, "name", false);
+    final XdmQName aName = PackageModel.qualify (aEl, aCtx.resolveQNameAttr (aEl, "name", false));
     final ICommonsMap <XdmQName, CharacterMap> aMaps = _getMaps (aCtx.getStylesheet ());
     final CharacterMap aPrev = aMaps.get (aName);
     if (aPrev != null && aPrev.precedence () == aEl.getPrecedence ())

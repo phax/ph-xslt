@@ -33,6 +33,7 @@ public final class XslModule
   private final XdmNode m_aSourceDocument;
   private XslElement m_aRoot;
   private boolean m_bSimplified;
+  private String m_sPackageQualifier = "";
 
   public XslModule (@Nullable final String sUri, @NonNull final XdmNode aSourceDocument)
   {
@@ -82,6 +83,23 @@ public final class XslModule
   public void setSimplified (final boolean bSimplified)
   {
     m_bSimplified = bSimplified;
+  }
+
+  /**
+   * @return The qualifier of the package the module belongs to: empty for the
+   *         principal package, else distinct per used package. Names of
+   *         package-local declarations (outputs, character maps) are
+   *         qualified with it.
+   */
+  @NonNull
+  public String getPackageQualifier ()
+  {
+    return m_sPackageQualifier;
+  }
+
+  public void setPackageQualifier (@NonNull final String sPackageQualifier)
+  {
+    m_sPackageQualifier = sPackageQualifier;
   }
 
   @Override

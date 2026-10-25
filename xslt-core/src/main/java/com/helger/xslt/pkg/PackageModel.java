@@ -57,6 +57,7 @@ public final class PackageModel
   private final ICommonsMap <String, ICommonsList <PackageComponent>> m_aExports = new CommonsHashMap <> ();
   private final ICommonsSet <String> m_aAcceptedExplicit = new CommonsHashSet <> ();
   private final ICommonsMap <XslElement, PackageChecks.Exposure> m_aExposures = new CommonsHashMap <> ();
+  private final ICommonsMap <Object, PackageUnit> m_aScopes = new CommonsHashMap <> ();
 
   /**
    * @param sKey
@@ -81,8 +82,56 @@ public final class PackageModel
    */
   public void addModule (@NonNull final PackageUnit aUnit, @NonNull final XslModule aModule)
   {
+    if (!aUnit.isPrincipal ())
+      aModule.setPackageQualifier (Integer.toString (m_aUnits.indexOf (aUnit)));
     aUnit.modules ().add (aModule);
     m_aByModule.put (aModule, aUnit);
+  }
+
+  /**
+   * Record an object that identifies the package of an expression at run
+   * time (its function library).
+   *
+   * @param aScope
+   *        The object.
+   * @param aUnit
+   *        The package.
+   */
+  public void registerScope (@NonNull final Object aScope, @NonNull final PackageUnit aUnit)
+  {
+    m_aScopes.put (aScope, aUnit);
+  }
+
+  /**
+   * @param aScope
+   *        An object registered with {@link #registerScope(Object, PackageUnit)}.
+   * @return The package, the principal one for an unknown object.
+   */
+  @NonNull
+  public PackageUnit getUnitForScope (@Nullable final Object aScope)
+  {
+    final PackageUnit ret = aScope == null ? null : m_aScopes.get (aScope);
+    return ret != null ? ret : getPrincipal ();
+  }
+
+  /**
+   * Qualify the name of a package-local declaration (named xsl:output,
+   * xsl:character-map) or of a reference to one with the package it is
+   * written in, so that equal names in different packages differ.
+   *
+   * @param aNode
+   *        The declaration or reference.
+   * @param aName
+   *        The name.
+   * @return The qualified name, the name itself in the principal package.
+   */
+  @NonNull
+  public static XdmQName qualify (@NonNull final XslNode aNode, @NonNull final XdmQName aName)
+  {
+    final String sQualifier = aNode.getModule ().getPackageQualifier ();
+    if (sQualifier.isEmpty ())
+      return aName;
+    return new XdmQName (aName.namespaceUri () + "\u001F" + sQualifier, aName.localName (), aName.prefix ());
   }
 
   /** @return All packages, the principal one first. */
