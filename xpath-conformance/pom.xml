@@ -47,6 +47,12 @@
       <groupId>com.helger.commons</groupId>
       <artifactId>ph-collection</artifactId>
     </dependency>
+    <!-- fn:transform: the XSLT engine is found through the service loader -->
+    <dependency>
+      <groupId>com.helger.xpath</groupId>
+      <artifactId>xslt-core</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>

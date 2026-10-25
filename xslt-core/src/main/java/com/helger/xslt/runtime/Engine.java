@@ -123,17 +123,18 @@ public final class Engine
   private OutputDefinition m_aPrincipalOutputDefinition;
   private int m_nPrincipalSealedSize = -1;
   private final ICommonsMap <Object, Object> m_aRunData = new CommonsHashMap <> ();
-  private final long m_nMaxSteps;
-  private final int m_nMaxDepth;
-  private long m_nSteps;
-  private int m_nDepth;
+  private final ExecutionBudget m_aBudget;
 
   public Engine (@NonNull final CompiledStylesheet aSheet, @NonNull final XsltTransformRequest aRequest)
   {
     m_aSheet = aSheet;
     m_aRequest = aRequest;
-    m_nMaxSteps = aRequest.getMaxSteps () > 0 ? aRequest.getMaxSteps () : DEFAULT_MAX_STEPS;
-    m_nMaxDepth = aRequest.getMaxDepth () > 0 ? Math.min (aRequest.getMaxDepth (), DEFAULT_MAX_DEPTH) : DEFAULT_MAX_DEPTH;
+    if (aRequest.getSharedBudget () != null)
+      m_aBudget = aRequest.getSharedBudget ();
+    else
+      m_aBudget = new ExecutionBudget (aRequest.getMaxSteps () > 0 ? aRequest.getMaxSteps () : DEFAULT_MAX_STEPS,
+                                       aRequest.getMaxDepth () > 0 ? Math.min (aRequest.getMaxDepth (), DEFAULT_MAX_DEPTH)
+                                                                   : DEFAULT_MAX_DEPTH);
     final StaticContext aSC = new StaticContext ();
     aSC.setFunctionLibrary (aSheet.getFunctionLibrary ());
     final XslModule aPrincipal = aSheet.getPrincipalModule ();
@@ -215,9 +216,7 @@ public final class Engine
    */
   public void step ()
   {
-    if (++m_nSteps > m_nMaxSteps)
-      throw new XPathException ("XPDY0130", "The transformation executed more than " + m_nMaxSteps + " instructions");
-    if ((m_nSteps & 1023) == 0)
+    if (m_aBudget.step ())
       m_aRootDyn.checkInterrupt ();
   }
 
@@ -229,16 +228,22 @@ public final class Engine
    */
   public void enterDepth ()
   {
-    if (++m_nDepth > m_nMaxDepth)
-    {
-      m_nDepth--;
-      throw new XPathException ("XPDY0130", "Templates and functions are nested more than " + m_nMaxDepth + " levels deep");
-    }
+    m_aBudget.enterDepth ();
   }
 
   public void leaveDepth ()
   {
-    m_nDepth--;
+    m_aBudget.leaveDepth ();
+  }
+
+  /**
+   * @return The execution budget of this transformation (shared with the
+   *         transformations it starts with fn:transform).
+   */
+  @NonNull
+  public ExecutionBudget getBudget ()
+  {
+    return m_aBudget;
   }
 
   /**

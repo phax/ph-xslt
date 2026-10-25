@@ -421,12 +421,15 @@ public final class StylesheetCompiler
     if (aPrev == null || aPrev.precedence () < aEl.getPrecedence ())
     {
       m_aFunctionsByKey.put (sKey, new FunctionEntry (aFunc, aEl.getPrecedence ()));
+      // Registered as context dependent, so that a function item (f#1)
+      // captures the transformation it was created in: it may be called after
+      // that transformation ended (fn:transform returning a function item)
       m_aStylesheet.getFunctionLibrary ()
                    .registerParsed (aName,
                                     aParamTypes,
                                     aAs != null ? aAs : aCtx.compileSequenceType (aEl, "item()*"),
                                     aFunc,
-                                    false);
+                                    true);
     }
   }
 

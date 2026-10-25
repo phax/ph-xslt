@@ -45,6 +45,15 @@ public final class LargeStackRunner
   private LargeStackRunner ()
   {}
 
+  /** The worker threads, so that a nested run (fn:transform) stays on its thread. */
+  private static final class WorkerThread extends Thread
+  {
+    WorkerThread (@NonNull final Runnable aRunnable, @NonNull final String sName)
+    {
+      super (null, aRunnable, sName, STACK_SIZE);
+    }
+  }
+
   /**
    * @param aAction
    *        The action.
@@ -56,9 +65,13 @@ public final class LargeStackRunner
    */
   public static <T> T run (@NonNull final Supplier <T> aAction, @NonNull final String sThreadName)
   {
+    // Already on a worker thread (a transformation started by fn:transform):
+    // run in place; the shared depth budget bounds the nesting
+    if (Thread.currentThread () instanceof WorkerThread)
+      return aAction.get ();
     final Wrapper <T> aResult = new Wrapper <> ();
     final Wrapper <Throwable> aError = new Wrapper <> ();
-    final Thread aThread = new Thread (null, () -> {
+    final Thread aThread = new WorkerThread ( () -> {
       try
       {
         aResult.set (aAction.get ());
@@ -71,7 +84,7 @@ public final class LargeStackRunner
       {
         aError.set (t);
       }
-    }, sThreadName, STACK_SIZE);
+    }, sThreadName);
     aThread.setDaemon (true);
     aThread.start ();
     try

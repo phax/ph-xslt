@@ -471,6 +471,7 @@ public final class FunctionLibrary
     FnArray.register (ret);
     FnJson.register (ret);
     FnResource.register (ret);
+    FnTransform.register (ret);
     FnError.register (ret);
     FnConstructor.register (ret);
     return ret;

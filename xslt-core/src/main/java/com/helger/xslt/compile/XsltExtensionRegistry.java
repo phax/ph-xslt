@@ -65,7 +65,8 @@ public final class XsltExtensionRegistry
                                                           "com.helger.xslt.ext.sourcedocument.SourceDocumentExtension",
                                                           "com.helger.xslt.ext.assertion.AssertExtension",
                                                           "com.helger.xslt.ext.fork.ForkExtension",
-                                                          "com.helger.xslt.ext.charactermap.CharacterMapExtension" };
+                                                          "com.helger.xslt.ext.charactermap.CharacterMapExtension",
+                                                          "com.helger.xslt.ext.transform.TransformExtension" };
 
   /** Declarations the stylesheet compiler handles itself. */
   public static final String [] CORE_DECLARATIONS = { "attribute-set",

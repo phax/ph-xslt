@@ -44,6 +44,8 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.XdmParseException;
+import com.helger.xpath.xdm.XdmParser;
 
 /**
  * Resolves the URIs an environment declares (sources with a <code>uri</code>,
@@ -64,7 +66,7 @@ public final class QT3ResourceResolver implements IResourceResolver
   private final ICommonsMap <String, String> m_aEncodingByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, ICommonsList <Path>> m_aCollections = new CommonsHashMap <> ();
   private final ICommonsList <Path> m_aSchemaFiles = new CommonsArrayList <> ();
-  // Sources of this environment that were validated, by file
+  // Sources of this environment that were validated or carry a declared URI, by file
   private final ICommonsMap <Path, XdmNode> m_aValidated = new CommonsHashMap <> ();
 
   /**
@@ -296,6 +298,27 @@ public final class QT3ResourceResolver implements IResourceResolver
           m_aValidated.put (aPath, aDoc);
           return aDoc;
         }
+      }
+    }
+    if (aSource.role ().startsWith ("$") && !aSource.uri ().isEmpty ())
+    {
+      // A variable-bound source with a declared URI is the document known by
+      // that URI: its document URI is the declared one (fn:transform takes the
+      // static base URI of a stylesheet node from it, fn-transform-42), and
+      // fn:doc of either URI returns this same node. Like Go.
+      final XdmNode aCached = m_aDocs.getDocument (aPath);
+      if (aCached == null)
+        return null;
+      try
+      {
+        final XdmNode aDoc = new XdmParser ().parse (aPath);
+        aDoc.setDocumentUri (aSource.uri ());
+        m_aValidated.put (aPath, aDoc);
+        return aDoc;
+      }
+      catch (final XdmParseException ex)
+      {
+        return null;
       }
     }
     return m_aDocs.getDocument (aPath);
