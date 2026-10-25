@@ -323,8 +323,10 @@ public final class DateTimeOps
         aRes = _addToDateTime (aValue, aD.getMonths (), aD.getSeconds ());
         break;
     }
-    // A dateTimeStamp stays a dateTimeStamp (the timezone is kept)
-    return XdmAtomic.of (aDT.getType (), aRes);
+    // op:add-*-to-dateTime returns an xs:dateTime, also for an
+    // xs:dateTimeStamp operand such as fn:current-dateTime() (F&O 3.1 section
+    // 10.8)
+    return XdmAtomic.of (eDT, aRes);
   }
 
   /**

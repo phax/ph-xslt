@@ -225,8 +225,9 @@ public final class DateTimeOpsTest
     assertEquals ("date:0000-02-29", _op (ADD, _date ("0000-01-31"), _ymd ("P1M")));
     // Commutative addition
     assertEquals ("dateTime:2001-12-30T11:12:00Z", _op (ADD, _ymd ("P1Y2M"), _dt ("2000-10-30T11:12:00Z")));
-    // dateTimeStamp stays dateTimeStamp
-    assertEquals ("dateTimeStamp:2000-10-31T11:12:00Z",
+    // op:add-dayTimeDuration-to-dateTime returns an xs:dateTime, also for an
+    // xs:dateTimeStamp operand (F&O 3.1 section 10.8.10)
+    assertEquals ("dateTime:2000-10-31T11:12:00Z",
                   _op (ADD, _a (EAtomicType.DATE_TIME_STAMP, "2000-10-30T11:12:00Z"), _dtd ("P1D")));
     // xs:time wraps around midnight
     assertEquals ("time:12:27:00", _op (ADD, _time ("11:12:00"), _dtd ("P3DT1H15M")));

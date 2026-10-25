@@ -19,7 +19,6 @@ package com.helger.xpath.spec;
 import static com.helger.xpath.spec.SpecTestHelper.ok;
 import static com.helger.xpath.spec.SpecTestHelper.run;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -70,8 +69,7 @@ public final class FnSpecFixesSpecTest
   }
 
   @Test
-  @Ignore ("format-date: default presentation of F, ignored maximum width and name padding not fixed yet (date/time functions are another workstream)")
-  public void formatDateWidthAndDefaultsOpen ()
+  public void formatDateDefaultsAndPadding ()
   {
     run (
       // §9.8.4.1 table: the default presentation modifier of F is n.
@@ -100,8 +98,7 @@ public final class FnSpecFixesSpecTest
   }
 
   @Test
-  @Ignore ("op:add-dayTimeDuration-to-dateTime keeps xs:dateTimeStamp; not fixed yet (date/time arithmetic is another workstream)")
-  public void currentDateTimeIsDateTimeStampOpen ()
+  public void currentDateTimePlusDurationIsDateTime ()
   {
     // §15.3 / §10.8.10: adding a duration to an xs:dateTimeStamp gives a
     // plain xs:dateTime.
