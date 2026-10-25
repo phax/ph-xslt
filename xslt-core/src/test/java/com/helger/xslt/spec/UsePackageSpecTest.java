@@ -24,8 +24,6 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -53,8 +51,6 @@ import com.helger.xslt.compile.FileResourceResolver;
  */
 public final class UsePackageSpecTest
 {
-  private static final Pattern IMPORT = Pattern.compile ("<xsl:import [^>]*/>");
-
   static final String PKA_NS = "xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"";
 
   /** pkALib is a library package with one public component of every kind. */
@@ -125,19 +121,11 @@ public final class UsePackageSpecTest
   @NonNull
   static String pkAMain (@NonNull final String sBody)
   {
-    // go-xslt places the body after xsl:output, also xsl:import, which §3.11.3
-    // requires before all other children (XTSE0200); an import is moved to
-    // the front here
-    final StringBuilder aImports = new StringBuilder ();
-    final Matcher aMatcher = IMPORT.matcher (sBody);
-    while (aMatcher.find ())
-      aImports.append (aMatcher.group ());
     return "<xsl:stylesheet version=\"3.0\" " +
            PKA_NS +
            " xmlns:l=\"urn:pkA:l\" exclude-result-prefixes=\"#all\">" +
-           aImports +
            "<xsl:output method=\"text\"/>" +
-           IMPORT.matcher (sBody).replaceAll ("") +
+           sBody +
            "</xsl:stylesheet>";
   }
 

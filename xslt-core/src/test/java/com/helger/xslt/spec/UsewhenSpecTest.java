@@ -22,8 +22,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -60,14 +58,13 @@ import com.helger.xslt.compile.FileResourceResolver;
  */
 public final class UsewhenSpecTest
 {
-  static final String SWB_START = """
+  static final String SWB_HEAD = """
       <xsl:stylesheet version="3.0"
         xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
         xmlns:xs="http://www.w3.org/2001/XMLSchema"
         xmlns:my="urn:my">
+      <xsl:output method="text"/>
       """;
-  static final String SWB_OUTPUT = "<xsl:output method=\"text\"/>\n";
-  private static final Pattern IMPORT = Pattern.compile ("<xsl:import [^>]*/>");
 
   /**
    * One case: name, declarations, expected output or error code, and the host
@@ -120,14 +117,7 @@ public final class UsewhenSpecTest
   @NonNull
   static String swBSheet (@NonNull final String sDecls)
   {
-    // go-xslt places the declarations after xsl:output, also xsl:import, which
-    // §3.11.3 requires before all other children (XTSE0200); the imports are
-    // moved to the front here
-    final StringBuilder aImports = new StringBuilder ();
-    final Matcher aMatcher = IMPORT.matcher (sDecls);
-    while (aMatcher.find ())
-      aImports.append (aMatcher.group ()).append ('\n');
-    return SWB_START + aImports + SWB_OUTPUT + IMPORT.matcher (sDecls).replaceAll ("") + "\n</xsl:stylesheet>";
+    return SWB_HEAD + sDecls + "\n</xsl:stylesheet>";
   }
 
   /**

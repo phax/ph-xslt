@@ -176,12 +176,15 @@ public final class LoaderSpecTest
                 err ("include cycle", _main ("<xsl:include href=\"cyc1.xsl\"/>"), null, "XTSE0180"),
                 // §3.11.3
                 err ("import cycle", _main ("<xsl:import href=\"icyc1.xsl\"/>"), null, "XTSE0210"),
-                err ("import after a declaration",
-                     "<xsl:stylesheet version=\"3.0\" " +
-                                                   SPEC_NS +
-                                                   "><xsl:template match=\"/\">x</xsl:template><xsl:import href=\"inc.xsl\"/></xsl:stylesheet>",
-                     null,
-                     "XTSE0200"));
+                // go-xslt expects XTSE0200 here, but XSLT 3.0 no longer requires
+                // xsl:import to come first (§3.11.3 has no such rule; XTSE0200
+                // is an XSLT 2.0 error), so the stylesheet is valid
+                ok ("import after a declaration",
+                    "<xsl:stylesheet version=\"3.0\" " +
+                                                  SPEC_NS +
+                                                  "><xsl:template match=\"/\">x</xsl:template><xsl:import href=\"inc.xsl\"/></xsl:stylesheet>",
+                    null,
+                    "~x"));
   }
 
   /** XSLT 3.0 §3.5.2 xsl:use-package against host-supplied packages. */

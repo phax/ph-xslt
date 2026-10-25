@@ -341,11 +341,22 @@ public final class PackageModel
     // So is what the used package accepts from its own used packages without
     // exposing it (section 3.5.3.2: accepted as private there), and what is
     // hidden from the used package itself
+    // (an overriding component with an exposed visibility replaces it)
     for (final PackageUnit.Use aSubUse : aUse.used ().uses ())
+    {
+      final ICommonsSet <String> aOverridden = new CommonsHashSet <> ();
+      for (final XslElement aOverride : aSubUse.element ().getXslChildren ("override"))
+        for (final XslElement aDecl : aOverride.getElementChildren ())
+        {
+          final PackageComponent aComp = PackageChecks.getComponent (aDecl);
+          if (aComp != null && PackageChecks.isExposed (aComp.visibility ()))
+            aOverridden.add (aComp.getSymbolicName ());
+        }
       for (final PackageComponent aComp : getExports (aSubUse.used ()))
         if (!"variable".equals (aComp.kind ()) || aComp.element () == null || !aComp.element ().isXsl ("param"))
-          if (!aExported.contains (aComp.getSymbolicName ()))
+          if (!aExported.contains (aComp.getSymbolicName ()) && !aOverridden.contains (aComp.getSymbolicName ()))
             ret.hidden ().add (aComp.getSymbolicName ());
+    }
     for (final String sSym : aUse.used ().hidden ())
       if (!aExported.contains (sSym))
         ret.hidden ().add (sSym);

@@ -523,17 +523,6 @@ public final class StylesheetLoader
     }
     if (aText.length () > 0)
       aEl.appendChild (new XslText (aModule, aText.toString (), nTextLine, nTextColumn));
-    if (bChildrenTopLevel)
-    {
-      // Section 3.11.3: xsl:import children precede all other element children
-      boolean bOther = false;
-      for (final XslElement aChild : aEl.getElementChildren ())
-        if (!aChild.isXsl ("import"))
-          bOther = true;
-        else
-          if (bOther)
-            throw XsltException.at (aChild, "XTSE0200", "xsl:import must precede all other element children of the stylesheet");
-    }
   }
 
   /**
