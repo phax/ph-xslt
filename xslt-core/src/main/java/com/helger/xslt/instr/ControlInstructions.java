@@ -446,7 +446,8 @@ public final class ControlInstructions
         }
         return false;
       }
-      if (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE)
+      // A zero-length namespace node stays, so that it raises its error
+      if (aNode.getKind () == ENodeKind.NAMESPACE)
         return true;
       return !aNode.getValue ().isEmpty ();
     }

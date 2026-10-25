@@ -35,6 +35,7 @@ import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
+import com.helger.xpath.XPathException;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
@@ -269,6 +270,10 @@ final class MarkupWriter
    */
   private void _appendChar (@NonNull final StringBuilder aSB, final int cp)
   {
+    // The C0 controls (bar tab, LF and CR) cannot be written in XML 1.0 in any
+    // form (Serialization 3.1 section 4)
+    if (!m_bXml11 && !m_bHtml && cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD)
+      throw XPathException.of ("SERE0006", "The character #x" + Integer.toHexString (cp).toUpperCase (Locale.ROOT) + " cannot be serialized as XML 1.0");
     if (m_bXml11 && (cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD || cp >= 0x7F && cp <= 0x9F) ||
         (m_bHtml || m_bXhtml) && cp >= 0x80 && cp <= 0x9F ||
         !m_aCharset.canEncode (cp))

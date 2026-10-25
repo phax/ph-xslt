@@ -32,6 +32,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.value.XdmSequence;
@@ -108,6 +109,97 @@ public final class CoreInstructions
     return nIndex > 0 && aSiblings.get (nIndex - 1) instanceof final XslElement aPrev && aPrev.isXsl ("catch");
   }
 
+  private static boolean _isNameChar (final char c)
+  {
+    return Character.isLetterOrDigit (c) || c == '_' || c == '-' || c == '.' || c == '·' || c > 0x7f;
+  }
+
+  /**
+   * Find "$" [Q{...}] [prefix ":"] local, not followed by a further name
+   * character, anywhere in the text.
+   */
+  private static boolean _textMentionsVar (@NonNull final String sText, @NonNull final String sLocal)
+  {
+    int nIdx = sText.indexOf ('$');
+    while (nIdx >= 0)
+    {
+      String sRest = sText.substring (nIdx + 1).stripLeading ();
+      if (sRest.startsWith ("Q{"))
+      {
+        final int nClose = sRest.indexOf ('}');
+        if (nClose >= 0)
+          sRest = sRest.substring (nClose + 1);
+      }
+      else
+      {
+        final int nColon = sRest.indexOf (':');
+        if (nColon > 0 && nColon < sRest.length () - 1 && sRest.charAt (nColon + 1) != ':')
+        {
+          boolean bNCName = true;
+          for (int i = 0; i < nColon && bNCName; ++i)
+            bNCName = _isNameChar (sRest.charAt (i));
+          if (bNCName)
+            sRest = sRest.substring (nColon + 1);
+        }
+      }
+      if (sRest.startsWith (sLocal) &&
+          (sRest.length () == sLocal.length () || !_isNameChar (sRest.charAt (sLocal.length ()))))
+        return true;
+      nIdx = sText.indexOf ('$', nIdx + 1);
+    }
+    return false;
+  }
+
+  /**
+   * Conservative check whether anything in the given nodes or their
+   * descendants (attribute values and text) could refer to a variable with the
+   * given local name, whatever namespace it resolves to. Iterative.
+   */
+  private static boolean _mentionsVar (@NonNull final List <XslNode> aNodes, @NonNull final String sLocal)
+  {
+    final ICommonsList <XslNode> aStack = new CommonsArrayList <> (aNodes);
+    while (aStack.isNotEmpty ())
+    {
+      final XslNode aNode = aStack.removeLast ();
+      if (aNode instanceof final XslText aText)
+      {
+        if (_textMentionsVar (aText.getValue (), sLocal))
+          return true;
+      }
+      else
+        if (aNode instanceof final XslElement aEl)
+        {
+          for (final String sValue : aEl.getAllAttributes ().values ())
+            if (_textMentionsVar (sValue, sLocal))
+              return true;
+          aStack.addAll (aEl.getChildren ());
+        }
+    }
+    return false;
+  }
+
+  /**
+   * A local xsl:variable whose value is a bare variable reference and that no
+   * following sibling (or its descendants) can refer to is never evaluated:
+   * XSLT evaluates variables lazily, and param-0301 relies on such an unused
+   * variable inside a function that a global variable calls not tripping the
+   * circularity check. Only a bare variable reference without "as" qualifies,
+   * since evaluating a richer expression can surface an error a test expects
+   * to be reported.
+   */
+  private static boolean _isUnusedLocalVariable (@NonNull final VariableDef aDef,
+                                                 @NonNull final List <XslNode> aChildren,
+                                                 final int nIndex)
+  {
+    final XPathExpr aSelect = aDef.getSelect ();
+    if (aSelect == null ||
+        !(aSelect.getExpression () instanceof IExpr.VarRefExpr) ||
+        aDef.getAs () != null ||
+        aDef.getElement ().getChildCount () > 0)
+      return false;
+    return !_mentionsVar (aChildren.subList (nIndex + 1, aChildren.size ()), aDef.getName ().localName ());
+  }
+
   /**
    * Compile a sequence constructor (see
    * {@link CompileContext#compileSequenceConstructor(XslElement, List)}).
@@ -128,8 +220,9 @@ public final class CoreInstructions
     final ICommonsList <IInstruction> aInstrs = new CommonsArrayList <> ();
     CompileContext aCur = aCtx;
     boolean bHasMarker = false;
-    for (final XslNode aNode : aChildren)
+    for (int nIndex = 0; nIndex < aChildren.size (); ++nIndex)
     {
+      final XslNode aNode = aChildren.get (nIndex);
       if (aNode instanceof final XslText aText)
       {
         if (aText.isWhitespaceOnly () && (!aText.isXmlSpacePreserve () || _isStrippedDespitePreserve (aText)))
@@ -150,7 +243,8 @@ public final class CoreInstructions
       if (aEl.isXsl ("variable") || aEl.isXsl ("param"))
       {
         final VariableDef aDef = aCur.compileVariable (aEl, VariableDef.EKind.LOCAL_VARIABLE);
-        aInstrs.add (new LocalVariable (aDef));
+        if (!_isUnusedLocalVariable (aDef, aChildren, nIndex))
+          aInstrs.add (new LocalVariable (aDef));
         aCur = aCur.withVariable (aDef.getName ());
         continue;
       }

@@ -363,10 +363,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
   @Override
   public void ignorableWhitespace (final char [] aChars, final int nStart, final int nLength)
   {
-    // A schema validator reports whitespace in element-only content this way;
-    // XDM construction from a PSVI drops it
-    if (m_aTypeInfoProvider == null)
-      m_aText.append (aChars, nStart, nLength);
+    // A schema validator, and the parser for an element declared with element
+    // content in the DTD, report whitespace in element-only content this way.
+    // XDM 3.1 section 6.7.3 drops it: such a text node has empty content and
+    // is discarded
   }
 
   @Override

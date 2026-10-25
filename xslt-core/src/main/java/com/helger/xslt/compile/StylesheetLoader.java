@@ -81,6 +81,8 @@ public final class StylesheetLoader
   // the stack holds the groups of the modules being loaded (import ancestors)
   private final ICommonsList <Object> m_aGroupStack = new CommonsArrayList <> ();
   private final ICommonsMap <XdmQName, Object> m_aStaticGroups = new CommonsHashMap <> ();
+  // "variable" or "param" per static name
+  private final ICommonsMap <XdmQName, String> m_aStaticKinds = new CommonsHashMap <> ();
 
   public StylesheetLoader (@NonNull final XsltCompileOptions aOptions)
   {
@@ -266,13 +268,18 @@ public final class StylesheetLoader
       // precedence and stays in effect
       if (aPrevGroup != aGroup && m_aGroupStack.contains (aPrevGroup))
         return;
-      // An earlier declaration with lower import precedence must agree
+      // An earlier declaration with lower import precedence must agree, in
+      // kind (variable or param) as well as in value
       if (aPrevGroup != aGroup)
       {
         boolean bSame;
         try
         {
-          bSame = AtomicComparator.deepEqual (m_aStaticValues.get (aName), aValue, null, new DynamicContext (_createStaticContext (aEl)));
+          bSame = aEl.getLocalName ().equals (m_aStaticKinds.get (aName)) &&
+                  AtomicComparator.deepEqual (m_aStaticValues.get (aName),
+                                              aValue,
+                                              null,
+                                              new DynamicContext (_createStaticContext (aEl)));
         }
         catch (final XPathException ex)
         {
@@ -286,6 +293,7 @@ public final class StylesheetLoader
     }
     m_aStaticValues.put (aName, aValue);
     m_aStaticGroups.put (aName, aGroup);
+    m_aStaticKinds.put (aName, aEl.getLocalName ());
   }
 
   @NonNull
