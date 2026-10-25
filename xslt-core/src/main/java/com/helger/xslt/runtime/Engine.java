@@ -1040,26 +1040,30 @@ public final class Engine
       sDocUri = sUri.substring (0, nHash);
       sFragment = sUri.substring (nHash + 1);
     }
-    XdmNode aDoc = sDocUri.isEmpty () ? m_aSheet.getPrincipalModule ().getSourceDocument () : null;
-    for (final XslModule aModule : m_aSheet.modules ())
-      if (sDocUri.equals (aModule.getUri ()))
-      {
-        aDoc = aModule.getSourceDocument ();
-        break;
-      }
-    if (aDoc == null)
+    XdmNode aDoc;
+    final String sKey = "fn:doc#" + sDocUri;
+    final ICommonsMap <String, Object> aCache = m_aRootDyn.getRunCache ();
+    if (aCache.get (sKey) instanceof final XdmNode aCached)
+      aDoc = aCached;
+    else
     {
-      final String sKey = "fn:doc#" + sDocUri;
-      final ICommonsMap <String, Object> aCache = m_aRootDyn.getRunCache ();
-      if (aCache.get (sKey) instanceof final XdmNode aCached)
-        aDoc = aCached;
+      // document('') and the URI of a stylesheet module give the module
+      aDoc = sDocUri.isEmpty () ? m_aSheet.getPrincipalModule ().getSourceDocument () : null;
+      for (final XslModule aModule : m_aSheet.modules ())
+        if (sDocUri.equals (aModule.getUri ()))
+        {
+          aDoc = aModule.getSourceDocument ();
+          break;
+        }
+      if (aDoc != null)
+        aDoc = stripWhitespace (aDoc);
       else
       {
         aDoc = m_aRootDyn.getResourceResolver ().resolveDocument (sDocUri);
         if (aDoc == null)
           throw new XPathException ("FODC0002", "The document '" + sDocUri + "' cannot be retrieved");
-        aCache.put (sKey, aDoc);
       }
+      aCache.put (sKey, aDoc);
     }
     if (sFragment == null || sFragment.isEmpty ())
       return aDoc;

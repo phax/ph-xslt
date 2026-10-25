@@ -131,7 +131,9 @@ public final class NodeCopier
   public static XdmNode copyDeep (@NonNull final XdmNode aNode, final boolean bCopyNamespaces)
   {
     final XdmNode ret = copyShallow (aNode);
-    if (aNode.isDocument () || aNode.isElement ())
+    // The copy keeps the base URI of the original, unless it has an xml:base
+    // attribute of its own
+    if (aNode.isDocument () || aNode.isElement () && aNode.getAttribute (XdmConstants.NS_XML, "base") == null)
     {
       final String sBase = FnAccessor.getBaseUri (aNode);
       if (sBase != null)

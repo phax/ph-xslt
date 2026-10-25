@@ -23,6 +23,7 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.fn.FnAccessor;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmConstants;
@@ -338,6 +339,7 @@ public final class NodeInstructions
         case ELEMENT:
         {
           final XdmNode aCopy = NodeCopier.copyShallow (aNode);
+          aCopy.setBaseUri (FnAccessor.getBaseUri (aNode));
           if (bCopyNamespaces)
             NodeCopier.copyNamespaces (aNode, aCopy, true);
           final ContentOutput aContent = new ContentOutput (aCopy);
@@ -361,10 +363,16 @@ public final class NodeInstructions
   {
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
     final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") || XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
+    final String sStaticBase = aEl.getStaticBaseUri ();
     return new CompiledInstruction (aEl, (c, o) -> {
       for (final IXdmItem aItem : aSelect.evaluate (c))
         if (aItem instanceof final XdmNode aNode)
-          o.appendNew (NodeCopier.copyDeep (aNode, bCopyNamespaces));
+        {
+          final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces);
+          if (aCopy.isElement () && aCopy.getBaseUri () == null)
+            aCopy.setBaseUri (sStaticBase);
+          o.appendNew (aCopy);
+        }
         else
           o.append (aItem);
     });

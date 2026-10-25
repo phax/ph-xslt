@@ -547,7 +547,14 @@ public final class StylesheetCompiler
     if (aContextItems.isNotEmpty ())
     {
       final XslElement aCI = aContextItems.getFirst ();
-      if (!aEl.getElementChildren ().getFirst ().equals (aCI))
+      XslNode aFirst = null;
+      for (final XslNode aNode : aEl.getChildren ())
+        if (aNode instanceof XslElement || !((XslText) aNode).isWhitespaceOnly ())
+        {
+          aFirst = aNode;
+          break;
+        }
+      if (aFirst != aCI)
         throw XsltException.at (aCI, "XTSE0010", "xsl:context-item must be the first child of xsl:template");
       final String sUse = aCI.getAttr ("use") == null ? "optional" : aCI.getAttr ("use").trim ();
       if (!"required".equals (sUse) && !"optional".equals (sUse) && !"absent".equals (sUse))
