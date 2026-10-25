@@ -145,8 +145,11 @@ public final class FnFormat
   {
     final StaticContext aStatic = aCtx.getStaticContext ();
     final String sFormatName = _stringArg (aArgs, 2);
-    final FormatDecimalFormat aDF = sFormatName == null ? aStatic.getDefaultDecimalFormat ()
-                                                        : resolveDecimalFormat (aStatic, sFormatName);
+    // A zero-length name means the unnamed decimal format, like an absent one
+    // (F&O 3.1 section 4.7.2: a name is only used "if present and non-empty")
+    final FormatDecimalFormat aDF = sFormatName == null || sFormatName.isEmpty () ? aStatic.getDefaultDecimalFormat ()
+                                                                                  : resolveDecimalFormat (aStatic,
+                                                                                                          sFormatName);
     final String sPicture = _stringArg (aArgs, 1);
     return _string (FormatNumber.format (_arg (aArgs, 0), sPicture == null ? "" : sPicture, aDF));
   }
