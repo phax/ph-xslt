@@ -194,7 +194,10 @@ public final class ControlInstructions
     final Mode aMode = _resolveApplyMode (aCtx, aEl);
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
+    final boolean bDefaultSelect = !aEl.hasAttr ("select");
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      if (bDefaultSelect && aRtCtx.getContextItem () != null && !(aRtCtx.getContextItem () instanceof XdmNode))
+        throw new XPathException ("XTTE0510", "xsl:apply-templates without select needs a node as context item");
       XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
         aItems = SortKeyDef.sort (aSorts, aItems, aRtCtx);

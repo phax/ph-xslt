@@ -193,8 +193,12 @@ public final class ExposeChecker
               throw XsltException.at (aEl, "XTSE3010", "xsl:expose conflicts with the declared visibility of " + aCompName.getEQName ());
           if ("mode".equals (aComp.kind ()) && "private".equals (sVisibility) && !bWildcard)
             aSheet.privateModes ().add (aCompName);
+          if ("mode".equals (aComp.kind ()) && ("public".equals (sVisibility) || "final".equals (sVisibility)))
+            aSheet.exposedModes ().add (aCompName);
           if ("template".equals (aComp.kind ()) && ("public".equals (sVisibility) || "final".equals (sVisibility)))
             aSheet.exposedTemplates ().add (aCompName);
+          if ("template".equals (aComp.kind ()) && "private".equals (sVisibility) && !bWildcard)
+            aSheet.privateTemplates ().add (aCompName);
         }
         if (!bFound && !bWildcard)
           throw XsltException.at (aEl, "XTSE3020", "xsl:expose names '" + sToken + "', which matches no " + sComponent + " of the package");
