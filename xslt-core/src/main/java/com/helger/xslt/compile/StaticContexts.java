@@ -93,6 +93,7 @@ public final class StaticContexts
                                       @Nullable final Map <XdmQName, FormatDecimalFormat> aDecimalFormats)
   {
     final StaticContext ret = new StaticContext ();
+    ret.removeAllNamespacesExceptXml ();
     for (final Map.Entry <String, String> aEntry : aEl.getInScopeNamespaces ().entrySet ())
       if (!aEntry.getKey ().isEmpty () && !"xml".equals (aEntry.getKey ()))
         ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());

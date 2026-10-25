@@ -111,6 +111,7 @@ public final class StylesheetCompiler
   private final ICommonsMap <XdmQName, Integer> m_aNamedTemplatePrecedence = new CommonsHashMap <> ();
   private int m_nOrder;
   private final ICommonsSet <XslModule> m_aGlobalContextItemModules = new CommonsHashSet <> ();
+  private final ICommonsList <XslElement> m_aExposes = new CommonsArrayList <> ();
   private String m_sGlobalContextItemAs;
 
   private StylesheetCompiler (@NonNull final XsltCompileOptions aOptions)
@@ -415,6 +416,7 @@ public final class StylesheetCompiler
     final FunctionEntry aPrev = m_aFunctionsByKey.get (sKey);
     if (aPrev != null && aPrev.precedence () == aEl.getPrecedence ())
       throw XsltException.at (aEl, "XTSE0770", "Duplicate function " + aName.getEQName () + "#" + aParams.size ());
+    aFunc.setMemoize (XsltNames.isXsltTrue (aEl.getAttr ("cache")) || "no".equals (aEl.getAttr ("new-each-time")));
     m_aFunctionsByElement.put (aEl, aFunc);
     if (aPrev == null || aPrev.precedence () < aEl.getPrecedence ())
     {
@@ -853,16 +855,7 @@ public final class StylesheetCompiler
       {
         if (!aEl.getParent ().isXsl ("package"))
           throw XsltException.at (aEl, "XTSE0010", "xsl:expose is only allowed in xsl:package");
-        // Only the visibility of named templates is used (initial template)
-        final String sComponent = aEl.getAttr ("component").trim ();
-        final String sVisibility = aEl.getAttr ("visibility").trim ();
-        if ("template".equals (sComponent) && ("public".equals (sVisibility) || "final".equals (sVisibility)))
-          for (final String sToken : XsltNames.tokenize (aEl.getAttr ("names")))
-            if ("*".equals (sToken))
-              m_aStylesheet.exposedTemplates ().add (null);
-            else
-              if (!sToken.contains ("*"))
-                m_aStylesheet.exposedTemplates ().add (createGlobalContext ().resolveQName (aEl, sToken, false));
+        m_aExposes.add (aEl);
       }
       case "import-schema" -> throw XsltException.at (aEl, "XTSE1650", "xsl:import-schema requires a schema-aware processor");
       case "use-package" -> throw XsltException.at (aEl, "XTSE3000", "xsl:use-package is not supported");
@@ -1119,6 +1112,7 @@ public final class StylesheetCompiler
     {
       m_aStylesheet.setPackage (true);
       _checkPackage (aPrincipal.getRoot (), aLoader.getAllModules ());
+      ExposeChecker.check (createGlobalContext (), m_aExposes);
     }
     _checkReferences ();
     final CompileContext aGlobal = createGlobalContext ();

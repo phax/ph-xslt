@@ -217,7 +217,8 @@ public final class XsltTransformer
           if (bExplicitMode &&
               !aMode.isUnnamed () &&
               !aModeName.equals (m_aSheet.getDefaultModeName ()) &&
-              ("private".equals (sVis) ||
+              (m_aSheet.privateModes ().contains (aModeName) ||
+               "private".equals (sVis) ||
                "abstract".equals (sVis) ||
                sVis == null && m_aSheet.isPackage () && aMode.getDeclaration () != null))
             throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not public", null, 0, 0);

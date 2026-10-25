@@ -69,6 +69,7 @@ public final class CompiledStylesheet implements XsltExecutable
   private final ICommonsList <XslModule> m_aModules = new CommonsArrayList <> ();
   private boolean m_bPackage;
   private final ICommonsSet <XdmQName> m_aExposedTemplates = new CommonsHashSet <> ();
+  private final ICommonsSet <XdmQName> m_aPrivateModes = new CommonsHashSet <> ();
 
   public CompiledStylesheet (@NonNull final FunctionLibrary aFunctions, @NonNull final XslModule aPrincipalModule)
   {
@@ -111,6 +112,13 @@ public final class CompiledStylesheet implements XsltExecutable
   public ICommonsSet <XdmQName> exposedTemplates ()
   {
     return m_aExposedTemplates;
+  }
+
+  /** @return The modes an xsl:expose makes private (not eligible as initial mode). */
+  @NonNull
+  public ICommonsSet <XdmQName> privateModes ()
+  {
+    return m_aPrivateModes;
   }
 
   /** @return All stylesheet modules (for document('')). */

@@ -22,13 +22,19 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.fn.IXPathFunction;
+import com.helger.xpath.ops.AtomicComparator;
+import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.instr.SequenceConstructor;
@@ -52,6 +58,7 @@ public final class UserFunction implements IXPathFunction
   private final SeqType m_aAs;
   private final String m_sVisibility;
   private SequenceConstructor m_aBody = SequenceConstructor.EMPTY;
+  private boolean m_bMemoize;
 
   public UserFunction (@NonNull final XslElement aElement,
                        @NonNull final XdmQName aName,
@@ -108,17 +115,57 @@ public final class UserFunction implements IXPathFunction
   }
 
   /**
-   * Call the function with arguments that were already converted to the
-   * parameter types.
-   *
-   * @param aCaller
-   *        The context of the caller.
-   * @param aArgs
-   *        The arguments.
-   * @return The converted result.
+   * @param bMemoize
+   *        <code>true</code> if results are cached by argument values
+   *        (cache="yes" or new-each-time="no").
    */
+  public void setMemoize (final boolean bMemoize)
+  {
+    m_bMemoize = bMemoize;
+  }
+
+  /** Identity of a node as part of a memo key. */
+  private record NodeKey (@NonNull XdmNode node)
+  {
+    @Override
+    public boolean equals (final Object o)
+    {
+      return o instanceof final NodeKey aOther && aOther.node == node;
+    }
+
+    @Override
+    public int hashCode ()
+    {
+      return System.identityHashCode (node);
+    }
+  }
+
+  /**
+   * @return The memo key of the arguments, or <code>null</code> if they cannot
+   *         be used as a key (function items).
+   */
+  @Nullable
+  private static ICommonsList <Object> _getMemoKey (@NonNull final List <XdmSequence> aArgs)
+  {
+    final ICommonsList <Object> ret = new CommonsArrayList <> ();
+    for (final XdmSequence aArg : aArgs)
+    {
+      final ICommonsList <Object> aItems = new CommonsArrayList <> ();
+      for (final IXdmItem aItem : aArg)
+        if (aItem instanceof final XdmAtomic aAtomic)
+          aItems.add (aAtomic.getType ().getQualifiedName () + " " + AtomicComparator.getMapKey (aAtomic));
+        else
+          if (aItem instanceof final XdmNode aNode)
+            aItems.add (new NodeKey (aNode));
+          else
+            return null;
+      ret.add (aItems);
+    }
+    return ret;
+  }
+
   @NonNull
-  public XdmSequence invoke (@NonNull final XsltContext aCaller, @NonNull final List <XdmSequence> aArgs)
+  private XdmSequence _invoke (@NonNull final XsltContext aCaller, @NonNull final List <XdmSequence> aArgs)
   {
     XsltContext aCtx = aCaller.withoutFocusAndVariables ().withState (aCaller.getState ().forFunctionCall ());
     for (int i = 0; i < m_aParams.size (); ++i)
@@ -144,6 +191,37 @@ public final class UserFunction implements IXPathFunction
     {
       throw XsltException.locate (ex, m_aElement);
     }
+  }
+
+  /**
+   * Call the function with arguments that were already converted to the
+   * parameter types.
+   *
+   * @param aCaller
+   *        The context of the caller.
+   * @param aArgs
+   *        The arguments.
+   * @return The converted result.
+   */
+  @NonNull
+  public XdmSequence invoke (@NonNull final XsltContext aCaller, @NonNull final List <XdmSequence> aArgs)
+  {
+    if (m_bMemoize)
+    {
+      final ICommonsList <Object> aKey = _getMemoKey (aArgs);
+      if (aKey != null)
+      {
+        final ICommonsMap <ICommonsList <Object>, XdmSequence> aMemo = aCaller.getEngine ()
+                                                                               .getRunData (this, CommonsHashMap::new);
+        final XdmSequence aCached = aMemo.get (aKey);
+        if (aCached != null)
+          return aCached;
+        final XdmSequence ret = _invoke (aCaller, aArgs);
+        aMemo.put (aKey, ret);
+        return ret;
+      }
+    }
+    return _invoke (aCaller, aArgs);
   }
 
   @NonNull
