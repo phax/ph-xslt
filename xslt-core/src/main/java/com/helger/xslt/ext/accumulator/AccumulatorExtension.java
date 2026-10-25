@@ -43,6 +43,7 @@ import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
+import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.compile.CompileContext;
 import com.helger.xslt.compile.CompiledPattern;
 import com.helger.xslt.compile.IInstructionCompiler;
@@ -563,6 +564,34 @@ public final class AccumulatorExtension implements IXsltExtension
     return new XdmQName (sUri, s.substring (nColon + 1), sPrefix);
   }
 
+  @Nullable
+  private static Mode _getInitialMode (@NonNull final Engine aEngine)
+  {
+    final CompiledStylesheet aSheet = aEngine.getStylesheet ();
+    final XdmQName aName = aEngine.getRequest ().getInitialMode ();
+    if (aName == null || !aName.hasNamespace () && "#default".equals (aName.localName ()))
+      return aSheet.getMode (aSheet.getDefaultModeName ());
+    if (!aName.hasNamespace () && "#unnamed".equals (aName.localName ()))
+      return aSheet.getMode (Mode.UNNAMED);
+    return aSheet.getMode (aName);
+  }
+
+  private static boolean _isInitialMatchTree (@NonNull final Engine aEngine, @NonNull final XdmNode aRoot)
+  {
+    final XsltTransformRequest aRequest = aEngine.getRequest ();
+    if (aRequest.getInitialTemplate () != null)
+      return false;
+    final XdmSequence aSelection = aRequest.getInitialMatchSelection ();
+    if (aSelection != null)
+    {
+      for (final IXdmItem aItem : aSelection)
+        if (aItem instanceof final XdmNode aNode && aNode.getRoot () == aRoot)
+          return true;
+      return false;
+    }
+    return aEngine.getGlobalContextItem () instanceof final XdmNode aGlobal && aGlobal.getRoot () == aRoot;
+  }
+
   @SuppressWarnings ("unchecked")
   @NonNull
   private static XdmSequence _lookup (@NonNull final DynamicContext aDyn, @NonNull final String sName, final boolean bAfter)
@@ -584,14 +613,7 @@ public final class AccumulatorExtension implements IXsltExtension
         aNode.getKind () == ENodeKind.NAMESPACE)
       throw new XPathException ("XTTE3360",
                                 "accumulator-" + (bAfter ? "after" : "before") + "() requires a context node other than an attribute or namespace node");
-    // xsl:mode/@use-accumulators of the current mode
     final ICommonsMap <Mode, ICommonsSet <XdmQName>> aModes = (ICommonsMap <Mode, ICommonsSet <XdmQName>>) aSheet.getExtensionData (KEY_MODES);
-    if (aModes != null && !aModes.isEmpty ())
-    {
-      final ICommonsSet <XdmQName> aAllowed = aModes.get (ControlInstructions.getCurrentMode (aCtx));
-      if (aAllowed != null && !aAllowed.contains (aName))
-        throw new XPathException ("XTDE3362", "The accumulator " + aName.getEQName () + " is not applicable in the current mode");
-    }
     final RunData aData = _getRunData (aCtx.getEngine ());
     final XdmNode aOrigin = _originOf (aData, aNode);
     final XdmNode aRoot = aOrigin.getRoot ();
@@ -604,6 +626,19 @@ public final class AccumulatorExtension implements IXsltExtension
         throw new XPathException ("XTDE3362",
                                   "The accumulator " + aName.getEQName () + " is not streamable but the document is streamed");
     }
+    else
+      if (aModes != null)
+      {
+        // The tree of the initial match selection: the use-accumulators of the
+        // initial mode apply (XSLT 3.0 section 18.2.2), none if it does not say
+        if (_isInitialMatchTree (aCtx.getEngine (), aRoot))
+        {
+          final ICommonsSet <XdmQName> aAllowed = aModes.get (_getInitialMode (aCtx.getEngine ()));
+          if (aAllowed == null || !aAllowed.contains (aName))
+            throw new XPathException ("XTDE3362",
+                                      "The accumulator " + aName.getEQName () + " is not applicable to the principal source document");
+        }
+      }
     final Map <XdmNode, TreeValues> aTrees = aData.m_aValues.computeIfAbsent (aAcc, k -> new IdentityHashMap <> ());
     TreeValues aValues = aTrees.get (aRoot);
     if (aValues == null)

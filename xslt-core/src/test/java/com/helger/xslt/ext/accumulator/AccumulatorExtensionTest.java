@@ -31,7 +31,7 @@ public final class AccumulatorExtensionTest
 {
   private static final String ACC = "<xsl:accumulator name='n' initial-value='0' as='xs:integer'>" +
                                     "<xsl:accumulator-rule match='b' select='$value + 1'/>" +
-                                    "</xsl:accumulator>";
+                                    "</xsl:accumulator><xsl:mode use-accumulators='#all'/>";
 
   @Test
   public void testBeforeAfter ()
@@ -49,6 +49,7 @@ public final class AccumulatorExtensionTest
     assertEquals ("0 3",
                   XsltTestHelper.text ("<xsl:accumulator name='c' initial-value='0'>" +
                                        "<xsl:accumulator-rule match='*' phase='end' select='$value + 1'/></xsl:accumulator>" +
+                                       "<xsl:mode use-accumulators='c'/>" +
                                        "<xsl:template match='/'><xsl:value-of select=\"/a/accumulator-before('c'), /a/accumulator-after('c')\"/></xsl:template>",
                                        "<a><b/><b/></a>"));
   }
@@ -62,14 +63,27 @@ public final class AccumulatorExtensionTest
                                             "<a/>"));
     assertEquals ("XTSE3350", XsltTestHelper.errorCode (XsltTestHelper.SHEET + ACC + ACC + XsltTestHelper.END, "<a/>"));
     assertEquals ("XTSE3300",
-                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + ACC + "<xsl:mode use-accumulators='zz'/>" + XsltTestHelper.END, "<a/>"));
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + ACC + "<xsl:mode name='m' use-accumulators='zz'/>" + XsltTestHelper.END, "<a/>"));
     assertEquals ("XTDE3400",
                   XsltTestHelper.errorCode (XsltTestHelper.SHEET +
                                             "<xsl:accumulator name='r' initial-value='0'>" +
                                             "<xsl:accumulator-rule match='b' select=\"$value + accumulator-after('r')\"/></xsl:accumulator>" +
+                                            "<xsl:mode use-accumulators='r'/>" +
                                             "<xsl:template match='/'><xsl:value-of select=\"/accumulator-after('r')\"/></xsl:template>" +
                                             XsltTestHelper.END,
                                             "<a><b/></a>"));
+  }
+
+  @Test
+  public void testNotApplicable ()
+  {
+    // The initial mode does not list the accumulator for the principal source
+    assertEquals ("XTDE3362",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET +
+                                            "<xsl:accumulator name='n' initial-value='0'><xsl:accumulator-rule match='b' select='$value + 1'/></xsl:accumulator>" +
+                                            "<xsl:template match='/'><xsl:value-of select=\"accumulator-after('n')\"/></xsl:template>" +
+                                            XsltTestHelper.END,
+                                            "<a/>"));
   }
 
   @Test
