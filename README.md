@@ -62,6 +62,11 @@ v0.1.0 - work in progress
 * Whitespace in DTD element-only content is no longer kept in the tree (XDM 3.1 section 6.7.3); serializing a C0 control character as XML 1.0 raises SERE0006
 * Whitespace stripping applies to all trees of the global context item and the initial match selection; shallow copies keep the base URI
 * The XSLT 3.0 conformance harness fails on any failing case not documented in `xslt-conformance/docs/accepted-failures/xslt30.md`
+* Added about 5,500 specification-based unit test cases for XPath 3.1, F&O 3.1 and XSLT 3.0, ported from go-xslt
+* Fixed format-date `[F]`, width and padding handling, the type of dateTimeStamp arithmetic results, regex multi-digit back-references, UCA `caseFirst` below tertiary strength, adaptive serialization type names and the case of JSON control escapes
+* Corrected XSLT error codes for forwards-compatible unknown instructions, static attribute values, `key()`, the principal result, parameter documents, `xsl:message` error codes, typed modes and loader errors
+* Package visibility follows XSLT 3.0: `xsl:expose` decides entry points, the `xsl:accept` visibility table applies, and private or hidden components are hidden from the packages that use them
+* Replaced all `synchronized` blocks with read-write locks; fixed a lock-order deadlock between the `fn:transform` handler lookup and the default function library
 * `XdmParser.setLoadExternalEntities(true)` now really reads the external DTD subset and external entities; secure processing had blocked every external access
 
 # Contributing
