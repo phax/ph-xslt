@@ -586,7 +586,10 @@ public final class StylesheetLoader
     }
     aModule.setRoot (aRoot);
     _expandShadowAttributes (aRoot);
-    if (!bPrincipal && _isUseWhenFalse (aRoot))
+    // Section 3.13.1: use-when false on the outermost element excludes all its
+    // children (but not the element or its attributes) - on the principal
+    // module too
+    if ((!bPrincipal || !aModule.isSimplified ()) && _isUseWhenFalse (aRoot))
       return aModule;
     _buildChildren (aModule, aRootSrc, aRoot);
     return aModule;
