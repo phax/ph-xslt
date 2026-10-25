@@ -42,6 +42,7 @@ import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xslt.compile.XsltElementSpecs;
 import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.NamespaceFixup;
@@ -181,11 +182,18 @@ public final class XsltFunctions
   {
     final String sName = _getString (aArgs.get (0));
     final StaticContext aSC = aCtx.getStaticContext ();
-    final XdmQName aName = _resolveName (aSC, sName, aSC.getDefaultElementNamespace ());
+    // XSLT 3.0 section 24.2.2: an unprefixed name is in the default namespace
+    // in scope (xmlns), not in the default element namespace
+    final XdmQName aName = _resolveName (aSC, sName, aSC.getInScopeDefaultNamespace ());
     if (aName == null)
       throw new XPathException ("XTDE1440", "'" + sName + "' is not a valid QName with a bound prefix");
+    // Every XSLT element is available (catalog-006 checks all names used in
+    // the suite, xsl:transform and xsl:when included), except
+    // xsl:import-schema, as this processor is not schema-aware
+    final String sLocal = aName.localName ();
     final boolean bRet = XsltNames.NS_XSL.equals (aName.namespaceUri ()) &&
-                         XsltExtensionRegistry.getInstance ().isImplemented (aName.localName ());
+                         (XsltElementSpecs.isKnown (sLocal) && !"import-schema".equals (sLocal) ||
+                          XsltExtensionRegistry.getInstance ().isImplemented (sLocal));
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }
 
@@ -437,7 +445,21 @@ public final class XsltFunctions
         aRoot = aCopy;
       aParentCopy = aCopy;
     }
-    final XdmNode aStartCopy = NodeCopier.copyDeep (aStart, true);
+    final XdmNode aStartCopy;
+    if (aStart == aNode)
+      aStartCopy = NodeCopier.copyDeep (aStart, true);
+    else
+    {
+      // An attribute or namespace node is grafted to a copy of its parent
+      // that has the parent's attributes and namespaces, but no children
+      aStartCopy = NodeCopier.copyShallow (aStart);
+      NodeCopier.copyNamespaces (aStart, aStartCopy, aParentCopy == null);
+      for (int i = 0; i < aStart.getAttributeCount (); ++i)
+        aStartCopy.addAttribute (NodeCopier.copyShallow (aStart.getAttributeAtIndex (i)));
+      final String sBase = FnAccessor.getBaseUri (aStart);
+      if (sBase != null)
+        aStartCopy.setBaseUri (sBase);
+    }
     if (aParentCopy != null)
       aParentCopy.appendChild (aStartCopy);
     else

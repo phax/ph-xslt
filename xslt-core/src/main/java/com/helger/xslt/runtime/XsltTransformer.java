@@ -17,17 +17,21 @@
 package com.helger.xslt.runtime;
 
 import java.util.Locale;
+import java.util.Objects;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.serialize.XdmSerializer;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
@@ -112,26 +116,98 @@ public final class XsltTransformer
     return SerializationParams.METHOD_XML;
   }
 
+  /**
+   * @return The node of the stripped tree that corresponds to a node of the
+   *         original tree, or <code>null</code> if the node itself was
+   *         stripped. Stripping only removes whitespace-only text nodes, whose
+   *         siblings are never text nodes: a kept one faces a text node in the
+   *         copy, a removed one does not.
+   */
+  @Nullable
+  private static XdmNode _mapToStripped (@NonNull final XdmNode aRoot,
+                                         @NonNull final XdmNode aStrippedRoot,
+                                         @NonNull final XdmNode aNode)
+  {
+    final ICommonsList <XdmNode> aPath = new CommonsArrayList <> ();
+    for (XdmNode aCur = aNode; aCur != null && aCur != aRoot; aCur = aCur.getParent ())
+      aPath.add (aCur);
+    XdmNode aOrig = aRoot;
+    XdmNode aCopy = aStrippedRoot;
+    for (int nLevel = aPath.size () - 1; nLevel >= 0; --nLevel)
+    {
+      final XdmNode aWanted = aPath.get (nLevel);
+      XdmNode aFound = null;
+      if (aWanted.isAttribute ())
+        aFound = aCopy.getAttribute (aWanted.getName ().namespaceUri (), aWanted.getName ().localName ());
+      else
+        if (aWanted.getKind () == ENodeKind.NAMESPACE)
+        {
+          for (final XdmNode aNS : aCopy.getNamespaceNodes ())
+            if (Objects.equals (aNS.getName (), aWanted.getName ()))
+              aFound = aNS;
+        }
+        else
+        {
+          int nCopyIdx = 0;
+          for (int i = 0; i < aOrig.getChildCount (); ++i)
+          {
+            final XdmNode aChild = aOrig.getChildAtIndex (i);
+            final boolean bKept = !aChild.isText () ||
+                                  nCopyIdx < aCopy.getChildCount () && aCopy.getChildAtIndex (nCopyIdx).isText ();
+            if (aChild == aWanted)
+            {
+              if (bKept && nCopyIdx < aCopy.getChildCount ())
+                aFound = aCopy.getChildAtIndex (nCopyIdx);
+              break;
+            }
+            if (bKept)
+              nCopyIdx++;
+          }
+        }
+      if (aFound == null)
+        return null;
+      aOrig = aWanted;
+      aCopy = aFound;
+    }
+    return aCopy;
+  }
+
+  @Nullable
+  private static XdmNode _toStripped (@NonNull final Engine aEngine,
+                                      @NonNull final ICommonsMap <XdmNode, XdmNode> aStrippedRoots,
+                                      @NonNull final XdmNode aNode)
+  {
+    final XdmNode aRoot = aNode.getRoot ();
+    if (!aRoot.isDocument ())
+      return aNode;
+    final XdmNode aStripped = aStrippedRoots.computeIfAbsent (aRoot, aEngine::stripWhitespace);
+    if (aStripped == aRoot)
+      return aNode;
+    return _mapToStripped (aRoot, aStripped, aNode);
+  }
+
   @NonNull
   private XsltTransformResult _run ()
   {
     final Engine aEngine = new Engine (m_aSheet, m_aRequest);
+    // Whitespace stripping applies to the trees of the global context item
+    // and of the initial match selection; a node that is stripped itself is
+    // gone (strip-space-023, mode-1802)
+    final ICommonsMap <XdmNode, XdmNode> aStrippedRoots = new CommonsHashMap <> ();
     IXdmItem aGlobalItem = m_aRequest.getGlobalContextItem ();
+    if (aGlobalItem instanceof final XdmNode aNode)
+      aGlobalItem = _toStripped (aEngine, aStrippedRoots, aNode);
     XdmSequence aMatchSelection = m_aRequest.getInitialMatchSelection ();
-    if (aGlobalItem instanceof final XdmNode aNode && aNode.isDocument ())
+    if (aMatchSelection != null)
     {
-      final XdmNode aStripped = aEngine.stripWhitespace (aNode);
-      if (aStripped != aNode)
+      final XdmSequence.Builder aNew = new XdmSequence.Builder ();
+      for (final IXdmItem aItem : aMatchSelection)
       {
-        aGlobalItem = aStripped;
-        if (aMatchSelection != null)
-        {
-          final XdmSequence.Builder aNew = new XdmSequence.Builder ();
-          for (final IXdmItem aItem : aMatchSelection)
-            aNew.add (aItem == aNode ? aStripped : aItem);
-          aMatchSelection = aNew.build ();
-        }
+        final IXdmItem aMapped = aItem instanceof final XdmNode aNode ? _toStripped (aEngine, aStrippedRoots, aNode) : aItem;
+        if (aMapped != null)
+          aNew.add (aMapped);
       }
+      aMatchSelection = aNew.build ();
     }
     final CompiledStylesheet.GlobalContextItem aGCI = m_aSheet.getGlobalContextItem ();
     if (aGCI != null)
@@ -215,6 +291,15 @@ public final class XsltTransformer
           final Mode aMode = m_aSheet.getMode (aModeName);
           if (aMode == null)
             throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " does not exist", null, 0, 0);
+          // A named initial mode must be declared, by xsl:mode or by the mode
+          // attribute of a template rule (not mode="#all", WG bug 3690); a
+          // reference from xsl:apply-templates only does not count
+          if (bExplicitMode &&
+              !aMode.isUnnamed () &&
+              !aModeName.equals (m_aSheet.getDefaultModeName ()) &&
+              aMode.getDeclaration () == null &&
+              aMode.rules ().containsNone (x -> !x.getTemplate ().isAllModes ()))
+            throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not declared", null, 0, 0);
           final String sVis = aMode.getVisibility ();
           if (bExplicitMode &&
               !aMode.isUnnamed () &&

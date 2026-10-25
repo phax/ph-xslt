@@ -45,6 +45,7 @@ public final class Mode
   private boolean m_bWarningOnNoMatch;
   private boolean m_bWarningOnMultipleMatch;
   private String m_sVisibility;
+  private String m_sTyped;
   private XslElement m_aDeclaration;
   private final ICommonsList <TemplateRule> m_aRules = new CommonsArrayList <> ();
 
@@ -116,6 +117,21 @@ public final class Mode
   public void setVisibility (@Nullable final String s)
   {
     m_sVisibility = s;
+  }
+
+  /**
+   * @return The declared value of the typed attribute (yes, no, strict, lax,
+   *         unspecified) or <code>null</code>.
+   */
+  @Nullable
+  public String getTyped ()
+  {
+    return m_sTyped;
+  }
+
+  public void setTyped (@Nullable final String s)
+  {
+    m_sTyped = s;
   }
 
   /** @return The (highest precedence) xsl:mode declaration or <code>null</code>. */

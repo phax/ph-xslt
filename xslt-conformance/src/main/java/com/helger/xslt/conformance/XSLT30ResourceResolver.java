@@ -37,6 +37,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.conformance.QT3ResourceResolver;
 import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 
 /**
@@ -59,6 +60,9 @@ public final class XSLT30ResourceResolver implements IResourceResolver
   private final ICommonsMap <String, Path> m_aByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, String> m_aEncodingByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, ICommonsList <Path>> m_aCollections = new CommonsHashMap <> ();
+  // Per declared collection URI: the fragment identifier of each member
+  // (null for a whole document), parallel to m_aCollections
+  private final ICommonsMap <String, ICommonsList <String>> m_aCollectionFragments = new CommonsHashMap <> ();
 
   /**
    * @param aEnv
@@ -103,6 +107,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     for (final XSLT30Environment.Collection aCol : aEnv.collections ())
     {
       final ICommonsList <Path> aPaths = new CommonsArrayList <> ();
+      final ICommonsList <String> aFragments = new CommonsArrayList <> ();
       for (final XSLT30Environment.Source aSrc : aCol.sources ())
       {
         // The content lives in @file; @uri is what the stylesheet sees
@@ -112,14 +117,22 @@ public final class XSLT30ResourceResolver implements IResourceResolver
         if (sFile.isEmpty () || sFile.indexOf (':') >= 0)
           continue;
         final int nHash = sFile.indexOf ('#');
+        String sFragment = null;
         if (nHash >= 0)
+        {
+          sFragment = sFile.substring (nHash + 1);
           sFile = sFile.substring (0, nHash);
+        }
         final Path aPath = getAbsolutePath (aBaseDir, sFile);
         aPaths.add (aPath);
+        aFragments.add (sFragment);
         m_aByUri.putIfAbsent (getFileUri (aPath), aPath);
       }
       for (final String sUri : _getUriForms (aCol.uri (), aSetDir))
+      {
         m_aCollections.putIfAbsent (sUri, aPaths);
+        m_aCollectionFragments.putIfAbsent (sUri, aFragments);
+      }
     }
   }
 
@@ -275,6 +288,27 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     return ret;
   }
 
+  /** The element with the given xml:id or id attribute, or <code>null</code>. */
+  @Nullable
+  private static XdmNode _findById (@NonNull final XdmNode aRoot, @NonNull final String sID)
+  {
+    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> (aRoot);
+    while (aStack.isNotEmpty ())
+    {
+      final XdmNode aCur = aStack.removeLast ();
+      if (aCur.isElement ())
+      {
+        final XdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
+        final XdmNode aId = aCur.getAttribute ("", "id");
+        if (aXmlId != null && sID.equals (aXmlId.getValue ().trim ()) || aId != null && sID.equals (aId.getValue ().trim ()))
+          return aCur;
+      }
+      for (int i = aCur.getChildCount () - 1; i >= 0; --i)
+        aStack.add (aCur.getChildAtIndex (i));
+    }
+    return null;
+  }
+
   @Nullable
   @ReturnsMutableCopy
   public ICommonsList <XdmNode> resolveCollection (@NonNull final String sUri)
@@ -282,12 +316,25 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     final ICommonsList <Path> aPaths = _getCollectionPaths (sUri);
     if (aPaths == null)
       return null;
+    ICommonsList <String> aFragments = m_aCollectionFragments.get (sUri);
+    if (aFragments == null)
+      aFragments = m_aCollectionFragments.get (sUri.endsWith ("/") ? sUri.substring (0, sUri.length () - 1) : sUri + "/");
     final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
-    for (final Path aPath : aPaths)
+    for (int i = 0; i < aPaths.size (); ++i)
     {
-      final XdmNode aDoc = m_aDocs.getDocument (aPath);
-      if (aDoc != null)
+      final XdmNode aDoc = m_aDocs.getDocument (aPaths.get (i));
+      if (aDoc == null)
+        continue;
+      // A member "file#id" is the element with that ID (collection-004)
+      final String sFragment = aFragments != null && aFragments.size () == aPaths.size () ? aFragments.get (i) : null;
+      if (sFragment == null)
         ret.add (aDoc);
+      else
+      {
+        final XdmNode aElement = _findById (aDoc, sFragment);
+        if (aElement != null)
+          ret.add (aElement);
+      }
     }
     return ret;
   }

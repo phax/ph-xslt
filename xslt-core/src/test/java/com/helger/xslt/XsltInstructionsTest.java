@@ -320,4 +320,51 @@ public final class XsltInstructionsTest
                                                                   .setInitialMode (new XdmQName ("m"));
     assertTrue (aExec.transform (aReq2).principalSerialized ().endsWith ("M"));
   }
+
+  @Test
+  public void testResidualConformanceFixes ()
+  {
+    // An unreferenced local variable is not evaluated (param-0301)
+    assertEquals ("3",
+                  text ("<xsl:variable name='x' select='f:f(1)' xmlns:f='urn:f'/>" +
+                        "<xsl:function name='f:f' xmlns:f='urn:f'><xsl:param name='a'/><xsl:variable name='b' select='$x'/>" +
+                        "<xsl:sequence select='$a + 2'/></xsl:function>" +
+                        "<xsl:template name='xsl:initial-template'><xsl:value-of select='$x'/></xsl:template>",
+                        null));
+    // xsl:where-populated drops a zero-length attribute (coco-016)
+    assertTrue (transform (SHEET +
+                           "<xsl:template name='xsl:initial-template'><r><xsl:where-populated>" +
+                           "<xsl:attribute name='x' select='17'/><xsl:attribute name='x' select=\"''\"/>" +
+                           "</xsl:where-populated></r></xsl:template>" +
+                           END,
+                           null,
+                           null).contains (" x=\"17\""));
+    // element-available: the default namespace in scope, every XSLT element
+    // but xsl:import-schema
+    assertEquals ("true true false false",
+                  text ("<xsl:template name='xsl:initial-template'>" +
+                        "<xsl:variable name='v' xmlns='http://www.w3.org/1999/XSL/Transform' select=\"element-available('value-of')\"/>" +
+                        "<xsl:value-of select=\"$v, element-available('xsl:transform'), element-available('xsl:import-schema'), element-available('value-of')\"/>" +
+                        "</xsl:template>",
+                        null));
+    // fn:stream-available without a URI
+    assertEquals ("false", text ("<xsl:template name='xsl:initial-template'><xsl:value-of select='stream-available(())'/></xsl:template>", null));
+    // XML 1.1 characters in codepoints-to-string, but not serializable as XML
+    // 1.0 (SERE0006)
+    assertEquals ("SERE0006",
+                  errorCode (SHEET + "<xsl:template name='xsl:initial-template'><r><xsl:value-of select='codepoints-to-string(7)'/></r></xsl:template>" + END,
+                             null));
+    // xsl:context-item in a template rule
+    assertTrue (transform (SHEET +
+                           "<xsl:template match='doc'><xsl:context-item use='required' as='element(doc)'/><ok/></xsl:template>" +
+                           END,
+                           "<doc/>",
+                           null).contains ("<ok"));
+    assertEquals ("XTSE0020",
+                  errorCode (SHEET + "<xsl:template match='doc'><xsl:context-item use='absent'/><ok/></xsl:template>" + END, "<doc/>"));
+    // typed='yes' with untyped nodes (mode-1439)
+    assertEquals ("XTTE3100",
+                  errorCode (SHEET + "<xsl:mode typed='yes'/><xsl:template match='/'><xsl:apply-templates select='*'/></xsl:template>" + END,
+                             "<doc/>"));
+  }
 }

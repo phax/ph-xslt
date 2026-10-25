@@ -195,8 +195,9 @@ public final class XSLT30AssertionCheckerTest
     assertEquals ("assert-eval", _check (_a ("assert", "/h:html"), _out ("<html/>")).reason ());
     // $result is the raw result, here the result tree
     assertTrue (_check (_a ("assert", "$result instance of document-node()"), _out ("<a/>")).isPass ());
-    // Several roots are parsed inside a wrapper
-    assertTrue (_check (_a ("assert", "count(/*/*) = 2"), _out ("<a/><b/>")).isPass ());
+    // Several roots are the children of one document node, as in the result
+    // tree
+    assertTrue (_check (_a ("assert", "count(/*) = 2"), _out ("<a/><b/>")).isPass ());
     // An HTML result with unclosed void elements
     assertTrue (_check (_a ("assert", "/html/body/br"), _out ("<html><body><br>&nbsp;</body></html>")).isPass ());
   }

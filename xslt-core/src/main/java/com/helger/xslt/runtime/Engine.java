@@ -38,6 +38,7 @@ import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.eval.NodeSorter;
 import com.helger.xpath.eval.SequenceTypeMatcher;
+import com.helger.xpath.fn.FnAccessor;
 import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.IXdmFunction;
@@ -65,6 +66,7 @@ import com.helger.xslt.model.TemplateRule;
 import com.helger.xslt.model.VariableDef;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
+import com.helger.xslt.tree.XsltNames;
 
 /**
  * The state of one transformation: global variables (evaluated on first use,
@@ -90,13 +92,15 @@ public final class Engine
   @Nullable
   private XdmSequence _resolveGlobal (@NonNull final XdmQName aName)
   {
+    final VariableDef aDef = m_aSheet.globals ().get (aName);
+    // A non-static declaration with higher import precedence than a static
+    // one of the same name is in effect at run time (static-027)
     final XdmSequence aStatic = m_aSheet.staticValues ().get (aName);
-    if (aStatic != null)
+    if (aStatic != null && (aDef == null || XsltNames.isXsltTrue (aDef.getElement ().getAttr ("static"))))
       return aStatic;
     final XdmSequence aKnown = m_aGlobalValues.get (aName);
     if (aKnown != null)
       return aKnown;
-    final VariableDef aDef = m_aSheet.globals ().get (aName);
     if (aDef == null)
       return null;
     return getGlobalValue (aDef);
@@ -648,6 +652,10 @@ public final class Engine
         if (eKind == ENodeKind.ELEMENT)
         {
           final XdmNode aCopy = NodeCopier.copyShallow (aNode);
+          // Like xsl:copy, the copy keeps the base URI (base-uri-053)
+          final String sBase = FnAccessor.getBaseUri (aNode);
+          if (sBase != null)
+            aCopy.setBaseUri (sBase);
           NodeCopier.copyNamespaces (aNode, aCopy, true);
           final ContentOutput aContent = new ContentOutput (aCopy);
           _applyToChildren (aNode, true, aMode, aCtx, aParams, aContent);
@@ -662,6 +670,9 @@ public final class Engine
             else
             {
               final XdmNode aDoc = XdmNode.createDocument ();
+              final String sBase = FnAccessor.getBaseUri (aNode);
+              if (sBase != null)
+                aDoc.setBaseUri (sBase);
               _applyToChildren (aNode, false, aMode, aCtx, aParams, new ContentOutput (aDoc));
               aOut.appendNew (aDoc);
             }
@@ -676,6 +687,37 @@ public final class Engine
         else
           if (eKind == ENodeKind.TEXT || eKind == ENodeKind.ATTRIBUTE)
             aOut.appendText (aNode.getStringValue ());
+        break;
+    }
+  }
+
+  /**
+   * XSLT 3.0 section 6.6.3: typed="yes", "strict" and "lax" require the
+   * elements and attributes a mode processes to be typed (XTTE3100), typed="no"
+   * requires them to be untyped (XTTE3110).
+   */
+  private static void _checkTypedMode (@NonNull final Mode aMode, @NonNull final IXdmItem aItem)
+  {
+    final String sTyped = aMode.getTyped ();
+    if (sTyped == null || !(aItem instanceof final XdmNode aNode) || !aNode.isElement () && !aNode.isAttribute ())
+      return;
+    final XdmQName aType = aNode.getTypeAnnotation ();
+    final boolean bTyped = aType != null &&
+                           !(XdmConstants.NS_XS.equals (aType.namespaceUri ()) &&
+                             ("untyped".equals (aType.localName ()) || "untypedAtomic".equals (aType.localName ())));
+    switch (sTyped)
+    {
+      case "yes", "strict", "lax":
+        if (!bTyped)
+          throw new XPathException ("XTTE3100",
+                                    "The mode is declared typed='" + sTyped + "' but the node " + aNode.getName ().getLexicalName () + " is untyped");
+        break;
+      case "no":
+        if (bTyped)
+          throw new XPathException ("XTTE3110",
+                                    "The mode is declared typed='no' but the node " + aNode.getName ().getLexicalName () + " has a type annotation");
+        break;
+      default:
         break;
     }
   }
@@ -705,6 +747,7 @@ public final class Engine
     for (int i = 0; i < nSize; ++i)
     {
       final IXdmItem aItem = aItems.get (i);
+      _checkTypedMode (aMode, aItem);
       final TemplateRule aRule = findRule (aMode, aItem, aCaller);
       if (aRule != null)
         _invokeRule (aRule, aMode, aCaller, aItem, i + 1, nSize, aParams, aOut);

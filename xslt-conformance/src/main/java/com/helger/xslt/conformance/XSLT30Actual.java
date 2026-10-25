@@ -26,6 +26,8 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.serialize.XdmSerializer;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.XdmNode;
 import com.helger.xslt.XsltTransformResult;
 
 /**
@@ -59,6 +61,12 @@ import com.helger.xslt.XsltTransformResult;
  *        <code>true</code> if the output is an <code>xsl:message</code>: then
  *        <code>assert</code> is evaluated on the message as a document node,
  *        which may have several element children or none.
+ * @param treeXml
+ *        The principal result tree serialized as XML when the test did not ask
+ *        for serialization and the output method is html or xhtml, else
+ *        <code>null</code>. <code>assert-xml</code> compares the result tree,
+ *        and the Content-Type <code>meta</code> element those methods add
+ *        (include-content-type) is not part of it.
  * @author Philip Helger
  */
 public record XSLT30Actual (@NonNull String output,
@@ -69,7 +77,8 @@ public record XSLT30Actual (@NonNull String output,
                             @NonNull String resultVar,
                             @Nullable String baseUri,
                             @Nullable String indentedMethod,
-                            boolean message)
+                            boolean message,
+                            @Nullable String treeXml)
 {
   /** The default name of the result variable. */
   public static final String DEFAULT_RESULT_VAR = "result";
@@ -100,7 +109,7 @@ public record XSLT30Actual (@NonNull String output,
                        @NonNull final String resultVar,
                        @Nullable final String baseUri)
   {
-    this (output, error, secondaries, messages, rawValue, resultVar, baseUri, null, false);
+    this (output, error, secondaries, messages, rawValue, resultVar, baseUri, null, false, null);
   }
 
   /**
@@ -142,6 +151,16 @@ public record XSLT30Actual (@NonNull String output,
     return ofResult (aResult, bInitialFunction, sResultVar, true);
   }
 
+  private static boolean _isAllNodes (@NonNull final XdmSequence aSeq)
+  {
+    if (aSeq.isEmpty ())
+      return false;
+    for (final IXdmItem aItem : aSeq)
+      if (!(aItem instanceof XdmNode))
+        return false;
+    return true;
+  }
+
   /**
    * @param aResult
    *        The transformation result.
@@ -170,11 +189,26 @@ public record XSLT30Actual (@NonNull String output,
       aRaw = XdmSequence.of (aResult.principalTree ());
     String sOutput = aResult.principalSerialized ();
     final String sMethod = aResult.principalMethod ();
+    if (!bSerialize && (SerializationParams.METHOD_JSON.equals (sMethod) || SerializationParams.METHOD_ADAPTIVE.equals (sMethod)))
+    {
+      if (aResult.principalTree () != null)
+        sOutput = XdmSerializer.serialize (XdmSequence.of (aResult.principalTree ()),
+                                           new SerializationParams ().setMethod (SerializationParams.METHOD_XML));
+      else
+        if (!bInitialFunction && _isAllNodes (aRaw))
+        {
+          // No tree was built (build-tree defaults to "no" for these
+          // methods), but the raw result is nodes only: the tree assertions
+          // see them as XML
+          sOutput = XdmSerializer.serialize (aRaw, new SerializationParams ().setMethod (SerializationParams.METHOD_XML));
+        }
+    }
+    String sTreeXml = null;
     if (!bSerialize &&
         aResult.principalTree () != null &&
-        (SerializationParams.METHOD_JSON.equals (sMethod) || SerializationParams.METHOD_ADAPTIVE.equals (sMethod)))
-      sOutput = XdmSerializer.serialize (XdmSequence.of (aResult.principalTree ()),
-                                         new SerializationParams ().setMethod (SerializationParams.METHOD_XML));
+        (SerializationParams.METHOD_HTML.equals (sMethod) || SerializationParams.METHOD_XHTML.equals (sMethod)))
+      sTreeXml = XdmSerializer.serialize (XdmSequence.of (aResult.principalTree ()),
+                                          new SerializationParams ().setMethod (SerializationParams.METHOD_XML));
     return new XSLT30Actual (sOutput,
                              null,
                              aResult.secondaryResults (),
@@ -183,6 +217,7 @@ public record XSLT30Actual (@NonNull String output,
                              sResultVar,
                              null,
                              aResult.principalIndent () ? sMethod : null,
-                             false);
+                             false,
+                             sTreeXml);
   }
 }

@@ -25,8 +25,8 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
 /**
  * Command line runner for the xslt30-test suite; configured with the same
  * system properties as {@link XSLT30Settings}. Exits with 1 if the suite is
- * missing or, with <code>xslt30.checkAccepted=true</code>, if a failing case is
- * not documented.
+ * missing or, unless <code>xslt30.checkAccepted=false</code>, if a failing
+ * case is not documented.
  *
  * @author Philip Helger
  */

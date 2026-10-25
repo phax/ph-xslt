@@ -494,9 +494,10 @@ public final class StylesheetCompiler
         case "warning-on-no-match" -> aMode.setWarningOnNoMatch (XsltNames.isXsltTrue (sValue));
         case "warning-on-multiple-match" -> aMode.setWarningOnMultipleMatch (XsltNames.isXsltTrue (sValue));
         case "visibility" -> aMode.setVisibility (sValue);
+        case "typed" -> aMode.setTyped (sValue);
         default ->
         {
-          // streamable, typed and use-accumulators have no effect here
+          // streamable and use-accumulators have no effect here
         }
       }
     }
@@ -563,8 +564,9 @@ public final class StylesheetCompiler
         throw XsltException.at (aCI, "XTSE0020", "use='" + sUse + "' is not allowed on xsl:context-item");
       if ("absent".equals (sUse) && aCI.hasAttr ("as"))
         throw XsltException.at (aCI, "XTSE3089", "use='absent' cannot be combined with an as attribute");
-      if (aName == null)
-        throw XsltException.at (aCI, "XTSE0010", "xsl:context-item is only allowed in a named template");
+      // A template rule always has a context item
+      if (aName == null && "absent".equals (sUse))
+        throw XsltException.at (aCI, "XTSE0020", "use='absent' is not allowed on xsl:context-item of a template without a name");
       final String sCIAs = aCI.getAttr ("as");
       aTemplate.setContextItem (new Template.ContextItemDecl (sCIAs == null ? null : aGlobal.compileSequenceType (aCI, sCIAs),
                                                               sUse));
