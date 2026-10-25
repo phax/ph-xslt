@@ -142,7 +142,6 @@ public final class FnRegexTest
                                                  "[a-\\d]",
                                                  "[z-a]",
                                                  "[--z]",
-                                                 "[a-c-1-4]",
                                                  "[-[a]]",
                                                  "[a-z-[aeiou]b]",
                                                  "\\b",
@@ -157,6 +156,8 @@ public final class FnRegexTest
                                                  "\\0",
                                                  "a\\" })
       assertError ("FORX0002", "matches('a', '" + sPattern + "')");
+    // XSD 1.1 character class grammar unless XSD 1.0 is declared
+    assertEquals ("true", eval ("matches('-', '^[a-c-1-4]$')"));
   }
 
   @Test
