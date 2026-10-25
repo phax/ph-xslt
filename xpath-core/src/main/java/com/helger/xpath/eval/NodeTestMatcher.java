@@ -256,13 +256,15 @@ public final class NodeTestMatcher
 
   /**
    * Resolve the type name of a kind test to the built-in schema type hierarchy
-   * used by the subtype judgement: the atomic types and the four special types.
+   * used by the subtype judgement: the atomic types, the four special types and
+   * the built-in list types.
    *
    * @param aTypeName
    *        Type name, may be <code>null</code>.
    * @return The chain position: an {@link EAtomicType} for atomic types, or one
    *         of the strings <code>anyType</code>, <code>anySimpleType</code>,
-   *         <code>untyped</code>; <code>null</code> for an unknown type.
+   *         <code>untyped</code>, <code>NMTOKENS</code>, <code>IDREFS</code>,
+   *         <code>ENTITIES</code>; <code>null</code> for an unknown type.
    */
   @Nullable
   static Object resolveSchemaType (@Nullable final XdmQName aTypeName)
@@ -275,6 +277,9 @@ public final class NodeTestMatcher
       case "anyType":
       case "anySimpleType":
       case "untyped":
+      case "NMTOKENS":
+      case "IDREFS":
+      case "ENTITIES":
         return sLocal;
       default:
         return EAtomicType.getFromLocalName (sLocal);
@@ -299,9 +304,9 @@ public final class NodeTestMatcher
     if ("anyType".equals (aBase))
       return true;
     if ("anySimpleType".equals (aBase))
-      return "anySimpleType".equals (aDerived) || aDerived instanceof EAtomicType;
-    if ("untyped".equals (aBase))
-      return "untyped".equals (aDerived);
+      return !"anyType".equals (aDerived) && !"untyped".equals (aDerived);
+    if (aBase instanceof String)
+      return aBase.equals (aDerived);
     if (aBase instanceof final EAtomicType eBase && aDerived instanceof final EAtomicType eDerived)
       return eDerived.isDerivedFrom (eBase);
     return false;

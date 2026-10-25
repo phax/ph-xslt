@@ -235,7 +235,8 @@ public final class AtomicComparatorTest
                                                  _seq (_qn ("urn:p", "a", "other")),
                                                  null,
                                                  aCtx));
-    assertError ("FORG0001",
+    // An unbound prefix is FONS0004, as for any cast to xs:QName
+    assertError ("FONS0004",
                  () -> AtomicComparator.generalCompare (EComparisonOp.GENERAL_EQ,
                                                         _seq (untyped ("zz:a")),
                                                         _seq (_qn ("urn:p", "a", "p")),
