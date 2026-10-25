@@ -134,6 +134,12 @@ public final class WhitespaceStripper
     if (aRoot.isElement ())
       NodeCopier.copyNamespaces (aRoot, ret, true);
     ret.setDocumentUri (aRoot.getDocumentUri ());
+    if (aRoot.isDocument ())
+      for (final String sName : aRoot.getAllUnparsedEntityNames ())
+      {
+        final String [] aEntity = aRoot.getUnparsedEntity (sName);
+        ret.addUnparsedEntity (sName, aEntity[0], aEntity[1]);
+      }
     final ArrayDeque <Job> aStack = new ArrayDeque <> ();
     aStack.push (new Job (aRoot, ret, false));
     while (!aStack.isEmpty ())

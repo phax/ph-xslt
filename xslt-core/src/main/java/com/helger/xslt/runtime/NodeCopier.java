@@ -116,6 +116,25 @@ public final class NodeCopier
   }
 
   /**
+   * Copy the unparsed entities of a document node to another document node.
+   *
+   * @param aSource
+   *        Source node (nothing happens unless it is a document node).
+   * @param aTarget
+   *        Target node (nothing happens unless it is a document node).
+   */
+  public static void copyUnparsedEntities (@NonNull final XdmNode aSource, @NonNull final XdmNode aTarget)
+  {
+    if (!aSource.isDocument () || !aTarget.isDocument ())
+      return;
+    for (final String sName : aSource.getAllUnparsedEntityNames ())
+    {
+      final String [] aEntity = aSource.getUnparsedEntity (sName);
+      aTarget.addUnparsedEntity (sName, aEntity[0], aEntity[1]);
+    }
+  }
+
+  /**
    * Deep copy of a node.
    *
    * @param aNode
@@ -143,6 +162,7 @@ public final class NodeCopier
       return ret;
     if (aNode.isElement () && bCopyNamespaces)
       copyNamespaces (aNode, ret, true);
+    copyUnparsedEntities (aNode, ret);
     final ArrayDeque <Job> aStack = new ArrayDeque <> ();
     aStack.push (new Job (aNode, ret));
     while (!aStack.isEmpty ())

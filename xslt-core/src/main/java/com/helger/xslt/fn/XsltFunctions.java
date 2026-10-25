@@ -354,21 +354,29 @@ public final class XsltFunctions
   }
 
   @NonNull
-  private static XdmSequence _unparsedEntity (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
+  private static XdmSequence _unparsedEntity (@NonNull final DynamicContext aCtx,
+                                              @NonNull final List <XdmSequence> aArgs,
+                                              final boolean bPublicId)
   {
-    // The tree model does not keep unparsed entities
+    final String sCode = bPublicId ? "XTDE1380" : "XTDE1370";
     final XdmNode aNode;
     if (aArgs.size () > 1)
       aNode = (XdmNode) aArgs.get (1).get (0);
     else
     {
       if (!(aCtx.getContextItem () instanceof final XdmNode aCtxNode))
-        throw new XPathException ("XTDE1370", "unparsed-entity-uri() requires a node as context item");
+        throw new XPathException (sCode, "The function requires a node as context item");
       aNode = aCtxNode;
     }
-    if (!aNode.getRoot ().isDocument ())
-      throw new XPathException ("XTDE1370", "The node is not in a tree rooted at a document node");
-    return XdmSequence.of (XdmAtomic.string (""));
+    final XdmNode aRoot = aNode.getRoot ();
+    if (!aRoot.isDocument ())
+      throw new XPathException (sCode, "The node is not in a tree rooted at a document node");
+    final String [] aEntity = aRoot.getUnparsedEntity (_getString (aArgs.get (0)));
+    if (aEntity == null)
+      return XdmSequence.of (bPublicId ? XdmAtomic.string ("") : XdmAtomic.anyUri (""));
+    if (bPublicId)
+      return XdmSequence.of (XdmAtomic.string (aEntity[1] == null ? "" : aEntity[1]));
+    return XdmSequence.of (XdmAtomic.anyUri (aEntity[0]));
   }
 
   @NonNull
@@ -480,10 +488,10 @@ public final class XsltFunctions
     aLib.register (NS, "document", "(item()*, node()) as node()*", XsltFunctions::_document);
     aLib.register (NS, "regex-group", "(xs:integer) as xs:string", XsltFunctions::_regexGroup);
     aLib.register (NS, "current-output-uri", "() as xs:anyURI?", XsltFunctions::_currentOutputUri, true);
-    aLib.register (NS, "unparsed-entity-uri", "(xs:string) as xs:anyURI", XsltFunctions::_unparsedEntity, true);
-    aLib.register (NS, "unparsed-entity-uri", "(xs:string, node()) as xs:anyURI", XsltFunctions::_unparsedEntity);
-    aLib.register (NS, "unparsed-entity-public-id", "(xs:string) as xs:string", XsltFunctions::_unparsedEntity, true);
-    aLib.register (NS, "unparsed-entity-public-id", "(xs:string, node()) as xs:string", XsltFunctions::_unparsedEntity);
+    aLib.register (NS, "unparsed-entity-uri", "(xs:string) as xs:anyURI", (c, a) -> _unparsedEntity (c, a, false), true);
+    aLib.register (NS, "unparsed-entity-uri", "(xs:string, node()) as xs:anyURI", (c, a) -> _unparsedEntity (c, a, false));
+    aLib.register (NS, "unparsed-entity-public-id", "(xs:string) as xs:string", (c, a) -> _unparsedEntity (c, a, true), true);
+    aLib.register (NS, "unparsed-entity-public-id", "(xs:string, node()) as xs:string", (c, a) -> _unparsedEntity (c, a, true));
     aLib.register (NS, "copy-of", "() as item()*", XsltFunctions::_copyOf, true);
     aLib.register (NS, "copy-of", "(item()*) as item()*", XsltFunctions::_copyOf);
     aLib.register (NS, "snapshot", "() as item()*", XsltFunctions::_snapshot, true);

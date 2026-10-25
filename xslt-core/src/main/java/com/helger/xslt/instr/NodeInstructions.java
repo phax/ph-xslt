@@ -331,6 +331,7 @@ public final class NodeInstructions
           else
           {
             final XdmNode aDoc = XdmNode.createDocument ();
+            NodeCopier.copyUnparsedEntities (aNode, aDoc);
             aBody.execute (aCtx2, new ContentOutput (aDoc));
             o.appendNew (aDoc);
           }

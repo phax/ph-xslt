@@ -181,6 +181,7 @@ public final class ContentOutput implements IXsltOutput
     {
       case DOCUMENT:
       {
+        NodeCopier.copyUnparsedEntities (aNode, m_aParent);
         final int nChildren = aNode.getChildCount ();
         for (int i = 0; i < nChildren; ++i)
           _appendNode (aNode.getChildAtIndex (i), false);
