@@ -190,7 +190,11 @@ final class AdaptiveWriter
             }
             else
             {
-              m_aSB.append (eType.getQualifiedName ()).append ('(');
+              // Serialization 3.1 §10: "xs:TYPE" names the primitive type
+              EAtomicType ePrimitive = eType;
+              while (ePrimitive.getParent () != null && ePrimitive.getParent () != EAtomicType.ANY_ATOMIC_TYPE)
+                ePrimitive = ePrimitive.getParent ();
+              m_aSB.append (ePrimitive.getQualifiedName ()).append ('(');
               _appendQuoted (m_aSB, aAtomic.getLexical ());
               m_aSB.append (')');
             }
