@@ -147,7 +147,7 @@ public final class FnAnalyzeStringSpecTest
     if (aErrors.isNotEmpty ())
       fail (aErrors.size () + " of " + CASES.length + " cases failed:\n  " + String.join ("\n  ", aErrors));
 
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                               ok ("namespace-uri(analyze-string(\"a\", \"a\"))", NS_FN),
                               ok ("namespace-uri(analyze-string(\"a\", \"a\")/*)", NS_FN),
                               ok ("analyze-string(\"a\", \"(a)\")//@nr/string()", "1"),

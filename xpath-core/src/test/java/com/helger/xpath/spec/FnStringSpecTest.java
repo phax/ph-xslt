@@ -38,7 +38,7 @@ public final class FnStringSpecTest
   @Test
   public void testStrContainsToken ()
   {
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                               ok ("contains-token(\"red green blue \", \"red\")", "true"),
                               ok ("contains-token((\"red\", \"green\", \"blue\"), \" red \")", "true"),
                               ok ("contains-token(\"red, green, blue\", \"red\")", "false"),
@@ -63,7 +63,7 @@ public final class FnStringSpecTest
   @Test
   public void testStrCodepoints ()
   {
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                               ok ("codepoints-to-string((66, 65, 67, 72))", "BACH"),
                               ok ("codepoints-to-string((2309, 2358, 2378, 2325))", "अशॊक"),
                               ok ("codepoints-to-string(())", ""),
@@ -81,10 +81,10 @@ public final class FnStringSpecTest
                               err ("codepoint-equal(1, \"1\")", "XPTY0004"),
                               err ("codepoint-equal(\"1\", 1)", "XPTY0004"));
     // #x8 is a Char in XML 1.1 but not in XML 1.0.
-    CoreRenderSpecHelper.run (env ().staticSetup (x -> x.setXmlVersion (EXmlVersion.V10)),
+    FnCoreTestHelper.coreRun (env ().staticSetup (x -> x.setXmlVersion (EXmlVersion.V10)),
                               err ("codepoints-to-string(8)", "FOCH0001"),
                               ok ("string-to-codepoints(codepoints-to-string((9, 10, 13, 32)))", "9|10|13|32"));
-    CoreRenderSpecHelper.run (env ().staticSetup (x -> x.setXmlVersion (EXmlVersion.V11)),
+    FnCoreTestHelper.coreRun (env ().staticSetup (x -> x.setXmlVersion (EXmlVersion.V11)),
                               ok ("string-to-codepoints(codepoints-to-string(8))", "8"));
   }
 
@@ -95,7 +95,7 @@ public final class FnStringSpecTest
   @Test
   public void testStrCompare ()
   {
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                               ok ("compare('abc', 'abc')", "0"),
                               ok ("compare('abc', 'abd')", "-1"),
                               ok ("compare('b', 'a')", "1"),
@@ -111,7 +111,7 @@ public final class FnStringSpecTest
                               err ("compare(1, 'a')", "XPTY0004"),
                               err ("compare('a', 1)", "XPTY0004"),
                               err ("compare('a', 'b', 'http://example.com/unknown')", "FOCH0002"));
-    CoreRenderSpecHelper.run (env ().staticSetup (x -> x.setDefaultCollation (HTML_CI)),
+    FnCoreTestHelper.coreRun (env ().staticSetup (x -> x.setDefaultCollation (HTML_CI)),
                               ok ("compare('ABC', 'abc')", "0"));
   }
 
@@ -122,7 +122,7 @@ public final class FnStringSpecTest
   @Test
   public void testStrNormalizeUnicode ()
   {
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                               ok ("string-to-codepoints(normalize-unicode(codepoints-to-string((101, 769))))", "233"),
                               ok ("string-to-codepoints(normalize-unicode(codepoints-to-string((101, 769)), 'NFC'))", "233"),
                               ok ("string-to-codepoints(normalize-unicode(codepoints-to-string(233), 'NFD'))", "101|769"),
@@ -147,7 +147,7 @@ public final class FnStringSpecTest
   @Test
   public void testStrCollationKey ()
   {
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                               ok ("collation-key(\"abc\") eq collation-key(\"abc\")", "true"),
                               ok ("collation-key(\"abc\") eq collation-key(\"abd\")", "false"),
                               ok ("collation-key(\"abc\") instance of xs:base64Binary", "true"),
@@ -178,7 +178,7 @@ public final class FnStringSpecTest
   @Test
   public void testStrGenerateID ()
   {
-    CoreRenderSpecHelper.run (env ("<r xmlns:p=\"urn:p\"><a/><a/></r>"),
+    FnCoreTestHelper.coreRun (env ("<r xmlns:p=\"urn:p\"><a/><a/></r>"),
                               ok ("generate-id(/r) eq generate-id(/r)", "true"),
                               ok ("generate-id(/r/a[1]) ne generate-id(/r/a[2])", "true"),
                               ok ("generate-id(/r) ne generate-id(/)", "true"),
@@ -188,6 +188,6 @@ public final class FnStringSpecTest
                               ok ("generate-id(())", ""),
                               err ("generate-id(1)", "XPTY0004"),
                               err ("generate-id(/r/a)", "XPTY0004"));
-    CoreRenderSpecHelper.run (env ().noContext (), err ("generate-id()", "XPDY0002"));
+    FnCoreTestHelper.coreRun (env ().noContext (), err ("generate-id()", "XPDY0002"));
   }
 }

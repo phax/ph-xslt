@@ -50,7 +50,7 @@ public final class FnUriSpecTest
   @Test
   public void testURIEncodingFunctions ()
   {
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                              ok ("encode-for-uri(\"http://www.example.com/00/Weather/CA/Los%20Angeles#ocean\")", "http%3A%2F%2Fwww.example.com%2F00%2FWeather%2FCA%2FLos%2520Angeles%23ocean"),
                              ok ("concat(\"http://www.example.com/\", encode-for-uri(\"~bébé\"))", "http://www.example.com/~b%C3%A9b%C3%A9"),
                              ok ("concat(\"http://www.example.com/\", encode-for-uri(\"100% organic\"))", "http://www.example.com/100%25%20organic"),
@@ -78,7 +78,7 @@ public final class FnUriSpecTest
   @Test
   public void testURIResolve ()
   {
-    CoreRenderSpecHelper.run (env (),
+    FnCoreTestHelper.coreRun (env (),
                              // §5.4.1 normal examples
                              _rfc ("g:h", "g:h"),
                              _rfc ("g", "http://a/b/c/g"),
@@ -138,7 +138,7 @@ public final class FnUriSpecTest
                              err ("resolve-uri(\"g\", \"http://a/b#frag\")", "FORG0002"),
                              err ("resolve-uri(\"g\", \"http://a/%zz\")", "FORG0002"));
     // The one-argument form resolves against the static base URI.
-    CoreRenderSpecHelper.run (env ().staticSetup (x -> x.setBaseUri ("http://a/b/c/d;p?q")),
+    FnCoreTestHelper.coreRun (env ().staticSetup (x -> x.setBaseUri ("http://a/b/c/d;p?q")),
                                                                                                 ok ("resolve-uri(\"../g\")", "http://a/b/g"),
                                                                                                 ok ("resolve-uri(\"http://x/y\")", "http://x/y"));
   }
@@ -154,7 +154,7 @@ public final class FnUriSpecTest
     // go-xslt's context base URI is also the document's base URI here
     final XdmNode aDoc = SpecTestHelper.parse ("<r xml:base=\"x/\"><t/></r>");
     aDoc.setBaseUri ("http://h/doc.xml");
-    CoreRenderSpecHelper.run (env ("<r xml:base=\"http://ex.com/a/\"><s xml:base=\"sub/\" a=\"1\"><t>x<!--c--><?pi d?></t></s><u xml:base=\"/top/\"/></r>"),
+    FnCoreTestHelper.coreRun (env ("<r xml:base=\"http://ex.com/a/\"><s xml:base=\"sub/\" a=\"1\"><t>x<!--c--><?pi d?></t></s><u xml:base=\"/top/\"/></r>"),
                              ok ("base-uri(/r)", "http://ex.com/a/"),
                              ok ("base-uri(//t)", "http://ex.com/a/sub/"),
                              ok ("base-uri(//s/@a)", "http://ex.com/a/sub/"),
@@ -164,7 +164,7 @@ public final class FnUriSpecTest
                              ok ("base-uri(//u)", "http://ex.com/top/"),
                              ok ("base-uri(//t) instance of xs:anyURI", "true"),
                              ok ("base-uri(())", "()"));
-    CoreRenderSpecHelper.run (env ().contextItem (aDoc).staticSetup (x -> x.setBaseUri ("http://h/doc.xml")),
+    FnCoreTestHelper.coreRun (env ().contextItem (aDoc).staticSetup (x -> x.setBaseUri ("http://h/doc.xml")),
                              ok ("base-uri(//t)", "http://h/x/"),
                              ok ("base-uri(/)", "http://h/doc.xml"));
   }

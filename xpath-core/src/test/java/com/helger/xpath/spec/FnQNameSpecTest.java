@@ -37,7 +37,7 @@ public final class FnQNameSpecTest
   @Test
   public void testQNameFunctionsSpec ()
   {
-    CoreRenderSpecHelper.run (env ("<r xmlns:p=\"urn:p\" xmlns=\"urn:d\"><c xmlns=\"\"><e xmlns:q=\"urn:q\" a=\"1\"/></c></r>"),
+    FnCoreTestHelper.coreRun (env ("<r xmlns:p=\"urn:p\" xmlns=\"urn:d\"><c xmlns=\"\"><e xmlns:q=\"urn:q\" a=\"1\"/></c></r>"),
                              // §10.1.2 fn:QName
                              ok ("namespace-uri-from-QName(QName(\"http://www.example.com/example\", \"person\"))", "http://www.example.com/example"),
                              ok ("prefix-from-QName(QName(\"http://www.example.com/example\", \"ht:person\"))", "ht"),
