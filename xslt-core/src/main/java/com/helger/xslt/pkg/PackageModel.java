@@ -114,6 +114,14 @@ public final class PackageModel
     return ret != null ? ret : getPrincipal ();
   }
 
+  @NonNull
+  private static XdmQName _qualify (@NonNull final String sQualifier, @NonNull final XdmQName aName)
+  {
+    if (sQualifier.isEmpty ())
+      return aName;
+    return new XdmQName (aName.namespaceUri () + "\u001F" + sQualifier, aName.localName (), aName.prefix ());
+  }
+
   /**
    * Qualify the name of a package-local declaration (named xsl:output,
    * xsl:character-map) or of a reference to one with the package it is
@@ -128,10 +136,24 @@ public final class PackageModel
   @NonNull
   public static XdmQName qualify (@NonNull final XslNode aNode, @NonNull final XdmQName aName)
   {
-    final String sQualifier = aNode.getModule ().getPackageQualifier ();
-    if (sQualifier.isEmpty ())
-      return aName;
-    return new XdmQName (aName.namespaceUri () + "\u001F" + sQualifier, aName.localName (), aName.prefix ());
+    return _qualify (aNode.getModule ().getPackageQualifier (), aName);
+  }
+
+  /**
+   * Like {@link #qualify(XslNode, XdmQName)} for a name used at run time by an
+   * expression.
+   *
+   * @param aScope
+   *        The function library of the expression's static context.
+   * @param aName
+   *        The name.
+   * @return The qualified name.
+   */
+  @NonNull
+  public XdmQName qualifyForScope (@Nullable final Object aScope, @NonNull final XdmQName aName)
+  {
+    final XslModule aModule = getUnitForScope (aScope).getPackageModule ();
+    return aModule == null ? aName : _qualify (aModule.getPackageQualifier (), aName);
   }
 
   /** @return All packages, the principal one first. */
