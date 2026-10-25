@@ -21,10 +21,13 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsLinkedHashMap;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -35,9 +38,26 @@ import com.helger.xpath.xdm.XdmQName;
 @NotThreadSafe
 public final class XsltCompileOptions
 {
+  /**
+   * A library package made available to xsl:use-package (XSLT 3.0 section
+   * 3.5): either its text or its parsed root, with the URI it was read from.
+   * Packages are not implemented yet; the options only carry them.
+   *
+   * @param text
+   *        The package source text, or <code>null</code> if a node is given.
+   * @param node
+   *        The parsed package (document or xsl:package element), or
+   *        <code>null</code> if the text is given.
+   * @param baseUri
+   *        The URI of the package module, or <code>null</code>.
+   */
+  public record PackageSource (@Nullable String text, @Nullable XdmNode node, @Nullable String baseUri)
+  {}
+
   private String m_sBaseUri;
   private IResourceResolver m_aResolver;
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticParams = new CommonsLinkedHashMap <> ();
+  private final ICommonsList <PackageSource> m_aPackages = new CommonsArrayList <> ();
 
   /** @return The stylesheet's own URI, against which import/include hrefs resolve. */
   @Nullable
@@ -84,6 +104,26 @@ public final class XsltCompileOptions
     ValueEnforcer.notNull (aName, "Name");
     ValueEnforcer.notNull (aValue, "Value");
     m_aStaticParams.put (aName, aValue);
+    return this;
+  }
+
+  /** @return The library packages available to xsl:use-package (modifiable). */
+  @NonNull
+  public ICommonsList <PackageSource> packages ()
+  {
+    return m_aPackages;
+  }
+
+  /**
+   * @param aPackage
+   *        A library package to make available to xsl:use-package.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions addPackage (@NonNull final PackageSource aPackage)
+  {
+    ValueEnforcer.notNull (aPackage, "Package");
+    m_aPackages.add (aPackage);
     return this;
   }
 }
