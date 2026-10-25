@@ -22,6 +22,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.ThreadSafe;
+import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
@@ -172,6 +173,7 @@ public final class FunctionLibrary
     }
   }
 
+  private static final SimpleReadWriteLock DEFAULT_LOCK = new SimpleReadWriteLock ();
   private static volatile FunctionLibrary s_aDefault;
 
   private final ICommonsMap <String, FunctionDef> m_aMap = new CommonsHashMap <> ();
@@ -535,6 +537,7 @@ public final class FunctionLibrary
     FnArray.register (ret);
     FnJson.register (ret);
     FnResource.register (ret);
+    FnTransform.register (ret);
     FnError.register (ret);
     FnConstructor.register (ret);
     return ret;
@@ -544,14 +547,14 @@ public final class FunctionLibrary
   @NonNull
   public static FunctionLibrary getDefault ()
   {
-    FunctionLibrary ret = s_aDefault;
-    if (ret == null)
-      synchronized (FunctionLibrary.class)
-      {
-        ret = s_aDefault;
-        if (ret == null)
-          s_aDefault = ret = createDefault ();
-      }
-    return ret;
+    final FunctionLibrary ret = s_aDefault;
+    if (ret != null)
+      return ret;
+    return DEFAULT_LOCK.writeLockedGet ( () -> {
+      FunctionLibrary aLib = s_aDefault;
+      if (aLib == null)
+        s_aDefault = aLib = createDefault ();
+      return aLib;
+    });
   }
 }

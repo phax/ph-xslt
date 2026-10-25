@@ -166,23 +166,18 @@ public final class PackageRegistry
   }
 
   /**
-   * Resolve the package an xsl:use-package names.
+   * Find a package by name and package-version ranges.
    *
-   * @param aUse
-   *        The xsl:use-package element.
-   * @return The package with the highest version that matches.
-   * @throws XsltException
-   *         XTSE0020 for invalid package-version ranges, XTSE3000 if no
-   *         package matches
+   * @param sName
+   *        The package name.
+   * @param aRanges
+   *        The acceptable versions.
+   * @return The package with the highest version that matches or
+   *         <code>null</code> if none matches.
    */
-  @NonNull
-  public ResolvedPackage resolve (@NonNull final XslElement aUse)
+  @Nullable
+  public ResolvedPackage find (@NonNull final String sName, @NonNull final PackageVersionRanges aRanges)
   {
-    final String sName = aUse.getAttr ("name") == null ? "" : aUse.getAttr ("name").trim ();
-    final String sRanges = aUse.getAttr ("package-version") == null ? "*" : aUse.getAttr ("package-version").trim ();
-    final PackageVersionRanges aRanges = PackageVersionRanges.parse (sRanges);
-    if (aRanges == null)
-      throw XsltException.at (aUse, "XTSE0020", "'" + sRanges + "' is not a valid package-version range");
     Entry aBest = null;
     PackageVersion aBestVersion = null;
     for (final Entry aEntry : m_aEntries)
@@ -201,11 +196,35 @@ public final class PackageRegistry
       }
     }
     if (aBest == null)
-      throw XsltException.at (aUse,
-                              "XTSE3000",
-                              "No package named '" + sName + "' with a version matching '" + sRanges + "' is available");
+      return null;
     final String sBaseUri = aBest.m_aSource.baseUri () != null ? aBest.m_aSource.baseUri () : aBest.m_aRoot.getRoot ().getDocumentUri ();
     final String sKey = sBaseUri != null ? sBaseUri : "#package" + aBest.m_nIndex;
     return new ResolvedPackage (sKey, sName, aBestVersion, aBest.m_aRoot, sBaseUri);
+  }
+
+  /**
+   * Resolve the package an xsl:use-package names.
+   *
+   * @param aUse
+   *        The xsl:use-package element.
+   * @return The package with the highest version that matches.
+   * @throws XsltException
+   *         XTSE0020 for invalid package-version ranges, XTSE3000 if no
+   *         package matches
+   */
+  @NonNull
+  public ResolvedPackage resolve (@NonNull final XslElement aUse)
+  {
+    final String sName = aUse.getAttr ("name") == null ? "" : aUse.getAttr ("name").trim ();
+    final String sRanges = aUse.getAttr ("package-version") == null ? "*" : aUse.getAttr ("package-version").trim ();
+    final PackageVersionRanges aRanges = PackageVersionRanges.parse (sRanges);
+    if (aRanges == null)
+      throw XsltException.at (aUse, "XTSE0020", "'" + sRanges + "' is not a valid package-version range");
+    final ResolvedPackage ret = find (sName, aRanges);
+    if (ret == null)
+      throw XsltException.at (aUse,
+                              "XTSE3000",
+                              "No package named '" + sName + "' with a version matching '" + sRanges + "' is available");
+    return ret;
   }
 }

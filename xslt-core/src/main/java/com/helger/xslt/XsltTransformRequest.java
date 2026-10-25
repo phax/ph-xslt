@@ -31,6 +31,7 @@ import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xslt.runtime.ExecutionBudget;
 
 /**
  * One invocation of a compiled stylesheet (XSLT 3.0 section 2.3). Exactly one
@@ -61,6 +62,8 @@ public final class XsltTransformRequest
   private BooleanSupplier m_aInterrupt;
   private long m_nMaxSteps;
   private int m_nMaxDepth;
+  private ExecutionBudget m_aSharedBudget;
+  private boolean m_bRawDelivery;
 
   /** @return The global context item (normally the source document node). */
   @Nullable
@@ -249,6 +252,57 @@ public final class XsltTransformRequest
   public XsltTransformRequest setMaxDepth (final int nMaxDepth)
   {
     m_nMaxDepth = nMaxDepth;
+    return this;
+  }
+
+  /**
+   * @return The execution budget this transformation spends from instead of
+   *         its own, or <code>null</code> for an own budget.
+   */
+  @Nullable
+  public ExecutionBudget getSharedBudget ()
+  {
+    return m_aSharedBudget;
+  }
+
+  /**
+   * @param aBudget
+   *        The execution budget of a calling transformation (fn:transform):
+   *        steps and nesting depth are then counted against it, and
+   *        {@link #getMaxSteps()} and {@link #getMaxDepth()} are ignored.
+   *        <code>null</code> for an own budget.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setSharedBudget (@Nullable final ExecutionBudget aBudget)
+  {
+    m_aSharedBudget = aBudget;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if the principal result is only wanted raw: no
+   *         result tree is built and nothing is serialized. Default
+   *         <code>false</code>.
+   */
+  public boolean isRawDelivery ()
+  {
+    return m_bRawDelivery;
+  }
+
+  /**
+   * @param bRawDelivery
+   *        <code>true</code> to deliver the principal result only raw, as the
+   *        sequence the initial template, mode or function returned (e.g.
+   *        fn:transform with delivery-format raw); the result tree is then
+   *        <code>null</code> and the serialized result empty, so a result
+   *        containing function items or maps is no error.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setRawDelivery (final boolean bRawDelivery)
+  {
+    m_bRawDelivery = bRawDelivery;
     return this;
   }
 }

@@ -80,6 +80,22 @@ public final class PackageVersionTest
     assertFalse (_matches ("1.0 to 2.0", "2.1"));
     assertTrue (_matches ("to 2.0", "0.1"));
     assertTrue (_matches ("1.0, 3.0", "3.0"));
+    assertTrue (_matches ("1.2.3.0", "1.2.3"));
+    assertTrue (_matches ("1.*", "1.2.3"));
+    assertTrue (_matches ("to 1.2.*", "1.2.3"));
+    assertFalse (_matches ("to 1.2", "1.2.3"));
+    // The examples of XSLT 3.0 section 3.5.1
+    assertTrue (_matches ("to 4.0", "4.0-beta"));
+    assertFalse (_matches ("to 4.0", "4.0.1"));
+    assertTrue (_matches ("to 3.3.*", "3.3.4621"));
+    assertTrue (_matches ("to 3.3.*", "2.0.6"));
+    assertFalse (_matches ("to 3.3.*", "3.4.0"));
+    assertFalse (_matches ("to 3.3.*", "3.4.0-beta"));
+    assertFalse (_matches ("1 to 5", "5.1"));
+    assertTrue (_matches ("1 to 5.*", "5.7.2"));
+    assertFalse (_matches ("1 to 5.*", "6.0-beta"));
+    assertFalse (_matches ("1.3+", "1.2.3"));
+    assertTrue (_matches ("2.0, 1.2.3", "1.2.3"));
     assertNull (PackageVersionRanges.parse (""));
     assertNull (PackageVersionRanges.parse ("to"));
     assertNull (PackageVersionRanges.parse ("x+"));

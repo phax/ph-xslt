@@ -1,32 +1,18 @@
 # QT3 (`qt3tests`, XPath 3.1 / F&O 3.1): failing cases
 
-22,328 of 22,478 applicable cases pass, 150 fail. Measured offline, on JDK 21 and 25.
+22,412 of 22,478 applicable cases pass, 66 fail. Measured offline, on JDK 21 and 25.
 
 Every failing case is named here in backticks under a heading with its status and reason. `QT3Test` fails on any
 failing case that is not named here, so a regression is loud and a newly accepted failure needs a written reason.
 Remove an entry when its case passes. Status **Open** means winnable later; **Accepted** means a decision not to.
 
-### fn:transform
-`fn-function-lookup-765`, `fn-function-lookup-766a`, `fn-transform-1`, `fn-transform-1a`, `fn-transform-1b`,
-`fn-transform-1c`, `fn-transform-1d`, `fn-transform-1e`, `fn-transform-3`, `fn-transform-3a`, `fn-transform-4`,
-`fn-transform-5`, `fn-transform-6`, `fn-transform-7`, `fn-transform-7a`, `fn-transform-7b`, `fn-transform-7c`,
-`fn-transform-7d`, `fn-transform-7e`, `fn-transform-8`, `fn-transform-9`, `fn-transform-10`, `fn-transform-11`,
-`fn-transform-12`, `fn-transform-13`, `fn-transform-13a`, `fn-transform-14`, `fn-transform-15`, `fn-transform-16`,
-`fn-transform-17`, `fn-transform-18`, `fn-transform-20`, `fn-transform-21`, `fn-transform-22`, `fn-transform-23`,
-`fn-transform-24`, `fn-transform-25`, `fn-transform-26`, `fn-transform-27`, `fn-transform-28`, `fn-transform-29`,
-`fn-transform-30`, `fn-transform-31`, `fn-transform-32`, `fn-transform-33`, `fn-transform-34`, `fn-transform-35`,
-`fn-transform-36`, `fn-transform-36a`, `fn-transform-37`, `fn-transform-38`, `fn-transform-39`, `fn-transform-40`,
-`fn-transform-41`, `fn-transform-42`, `fn-transform-43`, `fn-transform-44`, `fn-transform-45`, `fn-transform-46`,
-`fn-transform-47`, `fn-transform-48`, `fn-transform-50`, `fn-transform-51`, `fn-transform-52`, `fn-transform-53`,
-`fn-transform-54`, `fn-transform-55`, `fn-transform-56`, `fn-transform-57`, `fn-transform-58`, `fn-transform-60`,
-`fn-transform-61`, `fn-transform-62`, `fn-transform-63`, `fn-transform-64`, `fn-transform-65`, `fn-transform-66`,
-`fn-transform-67`, `fn-transform-82a`, `fn-transform-82b`, `fn-transform-82c`, `fn-transform-82d`,
-`fn-transform-83`, `fn-transform-84`, `fn-transform-88`, `fn-transform-err-8`, `fn-transform-err-9a`
+### fn:transform unavailable
+`fn-transform-901`, `fn-transform-902`, `fn-transform-err-14`
 
-**Status:** Open (needs the XSLT engine).
-They call `fn:transform`, which needs an XSLT 3.0 processor (`fn-function-lookup-765/766a` look it up). go-xslt passes
-them. `fn:transform` is deliberately not registered as a stub: `fn-transform-901/902/err-14` expect it to be
-unavailable and pass today.
+**Status:** Accepted (decision).
+They depend on the feature `fn-transform-XSLT` (901, 902) or `fn-transform-XSLT30` (err-14) being *not* satisfied and
+expect `fn:transform` to report that no (XSLT 3.0) processor is available. With xslt-core on the class path
+`fn:transform` is a real XSLT 3.0 processor, which necessarily contradicts them. go-xslt accepts the same cases.
 
 ### XQuery modules
 `fn-function-lookup-760`, `fn-load-xquery-module-014`, `fn-load-xquery-module-015`, `fn-load-xquery-module-018`,

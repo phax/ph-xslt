@@ -32,9 +32,12 @@ import com.helger.xslt.tree.XsltNames;
  * <pre>
  * PackageVersionRanges ::= PackageVersionRange ("," PackageVersionRange)*
  * PackageVersionRange  ::= "*" | PackageVersion | PackageVersion ".*"
- *                        | PackageVersion "to" PackageVersion
- *                        | "to" PackageVersion | PackageVersion "+"
+ *                        | PackageVersion "to" (PackageVersion | PackageVersion ".*")
+ *                        | "to" (PackageVersion | PackageVersion ".*") | PackageVersion "+"
  * </pre>
+ *
+ * An upper bound "to V.*" admits every version that is less than or equal to
+ * some version matching the prefix V.*.
  *
  * @author Philip Helger
  */
@@ -45,7 +48,8 @@ public final class PackageVersionRanges
                         long @Nullable [] prefix,
                         @Nullable PackageVersion exact,
                         @Nullable PackageVersion lo,
-                        @Nullable PackageVersion hi)
+                        @Nullable PackageVersion hi,
+                        boolean hiIsPrefix)
   {
     boolean matches (@NonNull final PackageVersion aVersion)
     {
@@ -57,7 +61,11 @@ public final class PackageVersionRanges
         return aVersion.compareTo (exact) == 0;
       if (lo != null && aVersion.compareTo (lo) < 0)
         return false;
-      return hi == null || aVersion.compareTo (hi) <= 0;
+      if (hi == null)
+        return true;
+      if (hiIsPrefix && aVersion.startsWith (hi.getParts ()))
+        return true;
+      return aVersion.compareTo (hi) <= 0;
     }
   }
 
@@ -74,7 +82,7 @@ public final class PackageVersionRanges
     if (sToken.isEmpty ())
       return null;
     if ("*".equals (sToken))
-      return new Range (true, null, null, null, null);
+      return new Range (true, null, null, null, null, false);
     final String [] aFields = XsltNames.tokenize (sToken);
     for (int i = 0; i < aFields.length; ++i)
       if ("to".equals (aFields[i]))
@@ -83,6 +91,7 @@ public final class PackageVersionRanges
         final String sHi = String.join ("", Arrays.copyOfRange (aFields, i + 1, aFields.length));
         PackageVersion aLo = null;
         PackageVersion aHi = null;
+        boolean bHiIsPrefix = false;
         if (!sLo.isEmpty ())
         {
           aLo = PackageVersion.parse (sLo);
@@ -91,13 +100,14 @@ public final class PackageVersionRanges
         }
         if (!sHi.isEmpty ())
         {
-          aHi = PackageVersion.parse (sHi);
-          if (aHi == null)
+          bHiIsPrefix = sHi.endsWith (".*");
+          aHi = PackageVersion.parse (bHiIsPrefix ? sHi.substring (0, sHi.length () - 2) : sHi);
+          if (aHi == null || (bHiIsPrefix && aHi.hasSuffix ()))
             return null;
         }
         if (aLo == null && aHi == null)
           return null;
-        return new Range (false, null, null, aLo, aHi);
+        return new Range (false, null, null, aLo, aHi, bHiIsPrefix);
       }
     if (aFields.length != 1)
       return null;
@@ -105,15 +115,15 @@ public final class PackageVersionRanges
     if (s.endsWith ("+"))
     {
       final PackageVersion aLo = PackageVersion.parse (s.substring (0, s.length () - 1));
-      return aLo == null ? null : new Range (false, null, null, aLo, null);
+      return aLo == null ? null : new Range (false, null, null, aLo, null, false);
     }
     if (s.endsWith (".*"))
     {
       final PackageVersion aHead = PackageVersion.parse (s.substring (0, s.length () - 2));
-      return aHead == null || aHead.hasSuffix () ? null : new Range (false, aHead.getParts (), null, null, null);
+      return aHead == null || aHead.hasSuffix () ? null : new Range (false, aHead.getParts (), null, null, null, false);
     }
     final PackageVersion aExact = PackageVersion.parse (s);
-    return aExact == null ? null : new Range (false, null, aExact, null, null);
+    return aExact == null ? null : new Range (false, null, aExact, null, null, false);
   }
 
   /**

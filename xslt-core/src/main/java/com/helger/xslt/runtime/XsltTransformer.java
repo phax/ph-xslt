@@ -335,7 +335,9 @@ public final class XsltTransformer
     final OutputDefinition aOutputDef = aEngine.getPrincipalOutputDefinition () != null ? aEngine.getPrincipalOutputDefinition ()
                                                                                          : m_aSheet.getOutput ();
     final String sDeclaredMethod = aOutputDef.getMethod ();
-    final boolean bBuildTree = aOutputDef.isBuildTree (sDeclaredMethod != null ? sDeclaredMethod : SerializationParams.METHOD_XML);
+    final boolean bRawOnly = m_aRequest.isRawDelivery ();
+    final boolean bBuildTree = !bRawOnly &&
+                               aOutputDef.isBuildTree (sDeclaredMethod != null ? sDeclaredMethod : SerializationParams.METHOD_XML);
     final XdmSequence aRaw;
     XdmNode aTree = null;
     if (bBuildTree)
@@ -354,6 +356,14 @@ public final class XsltTransformer
     else
       aRaw = aBuffer.getSequence ();
     final String sMethod = sDeclaredMethod != null ? sDeclaredMethod : _detectMethod (aTree);
+    if (bRawOnly)
+      return new XsltTransformResult (aRaw,
+                                      null,
+                                      "",
+                                      aEngine.getSecondaryResults ().getClone (),
+                                      aEngine.getMessages ().getClone (),
+                                      sMethod,
+                                      false);
     final SerializationParams aParams = aOutputDef.createSerializationParams (sMethod);
     for (final IOutputCustomizer aCustomizer : XsltExtensionRegistry.getInstance ().getAllOutputCustomizers ())
       aCustomizer.customize (m_aSheet, aOutputDef, aParams);
