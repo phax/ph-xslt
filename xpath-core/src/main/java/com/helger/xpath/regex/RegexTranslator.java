@@ -664,7 +664,9 @@ final class RegexTranslator
       if (sDigits.length () <= 9)
       {
         final int n = Integer.parseInt (sDigits);
-        if (n <= m_nTotalGroups)
+        // A further digit joins the reference only if the group's opening
+        // parenthesis precedes it (F&O 3.1 section 5.6.1.4)
+        if (n <= m_nTotalGroups && (nLen == 1 || n <= m_nGroups))
         {
           nGroup = n;
           break;
