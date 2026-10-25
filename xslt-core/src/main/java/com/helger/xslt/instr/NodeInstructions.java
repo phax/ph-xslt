@@ -96,7 +96,7 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
-    return new CompiledInstruction (aEl, (c, o) -> o.appendNew (XdmNode.createText (_evaluateValue (c, aSelect, aBody, aSep, false))));
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> aRtOut.appendNew (XdmNode.createText (_evaluateValue (aRtCtx, aSelect, aBody, aSep, false))));
   }
 
   @NonNull
@@ -111,7 +111,7 @@ public final class NodeInstructions
     {
       final Avt aAvt = aCtx.compileTextValueTemplate (aEl, sText);
       if (!aAvt.isConstant ())
-        return new CompiledInstruction (aEl, (c, o) -> o.appendNew (XdmNode.createText (aAvt.evaluate (c))));
+        return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> aRtOut.appendNew (XdmNode.createText (aAvt.evaluate (aRtCtx))));
       return new LiteralText (aEl, aAvt.getConstantValue ());
     }
     return new LiteralText (aEl, sText);
@@ -190,16 +190,16 @@ public final class NodeInstructions
     final ICommonsList <XdmQName> aSets = CoreInstructions.getUseAttributeSets (aCtx, aEl, false);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final boolean bNoInherit = aEl.hasAttr ("inherit-namespaces") && !XsltNames.isXsltTrue (aEl.getAttr ("inherit-namespaces"));
-    return new CompiledInstruction (aEl, (c, o) -> {
-      final XdmQName aQName = _computeName (c, aEl, aName, aNamespace, true);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final XdmQName aQName = _computeName (aRtCtx, aEl, aName, aNamespace, true);
       final XdmNode aElement = XdmNode.createElement (aQName);
       final ContentOutput aContent = new ContentOutput (aElement);
       if (aSets.isNotEmpty ())
-        c.getEngine ().applyAttributeSets (aSets, c, aContent);
-      aBody.execute (c, aContent);
+        aRtCtx.getEngine ().applyAttributeSets (aSets, aRtCtx, aContent);
+      aBody.execute (aRtCtx, aContent);
       if (bNoInherit)
         NamespaceFixup.applyNoInherit (aContent.getParent ());
-      o.appendNew (aContent.getParent ());
+      aRtOut.appendNew (aContent.getParent ());
     });
   }
 
@@ -211,10 +211,10 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
-    return new CompiledInstruction (aEl, (c, o) -> {
-      final XdmQName aQName = _computeName (c, aEl, aName, aNamespace, false);
-      final String sValue = _evaluateValue (c, aSelect, aBody, aSep, false);
-      o.appendNew (XdmNode.createAttribute (aQName, sValue));
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final XdmQName aQName = _computeName (aRtCtx, aEl, aName, aNamespace, false);
+      final String sValue = _evaluateValue (aRtCtx, aSelect, aBody, aSep, false);
+      aRtOut.appendNew (XdmNode.createAttribute (aQName, sValue));
     });
   }
 
@@ -223,13 +223,13 @@ public final class NodeInstructions
   {
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
-    return new CompiledInstruction (aEl, (c, o) -> {
-      String s = _evaluateValue (c, aSelect, aBody, null, true);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      String s = _evaluateValue (aRtCtx, aSelect, aBody, null, true);
       while (s.contains ("--"))
         s = s.replace ("--", "- -");
       if (s.endsWith ("-"))
         s = s + " ";
-      o.appendNew (XdmNode.createComment (s));
+      aRtOut.appendNew (XdmNode.createComment (s));
     });
   }
 
@@ -239,18 +239,18 @@ public final class NodeInstructions
     final Avt aName = aCtx.compileAvt (aEl, aEl.getAttr ("name"));
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
-    return new CompiledInstruction (aEl, (c, o) -> {
-      final String sName = XsltNames.trimXmlWhitespace (aName.evaluate (c));
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final String sName = XsltNames.trimXmlWhitespace (aName.evaluate (aRtCtx));
       if (!XsltNames.isNCName (sName) || "xml".equalsIgnoreCase (sName))
-        throw new XPathException ("XTDE0890", "'" + sName + "' is not a valid processing instruction name");
-      String s = _evaluateValue (c, aSelect, aBody, null, true);
+        throw new XPathException ("XTDE0890", "'" + sName + "' is not aFnArgs valid processing instruction name");
+      String s = _evaluateValue (aRtCtx, aSelect, aBody, null, true);
       int nStart = 0;
       while (nStart < s.length () && " \t\r\n".indexOf (s.charAt (nStart)) >= 0)
         nStart++;
       s = s.substring (nStart);
       while (s.contains ("?>"))
         s = s.replace ("?>", "? >");
-      o.appendNew (XdmNode.createProcessingInstruction (sName, s));
+      aRtOut.appendNew (XdmNode.createProcessingInstruction (sName, s));
     });
   }
 
@@ -260,18 +260,18 @@ public final class NodeInstructions
     final Avt aName = aCtx.compileAvt (aEl, aEl.getAttr ("name"));
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
-    return new CompiledInstruction (aEl, (c, o) -> {
-      final String sPrefix = XsltNames.trimXmlWhitespace (aName.evaluate (c));
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final String sPrefix = XsltNames.trimXmlWhitespace (aName.evaluate (aRtCtx));
       if (!sPrefix.isEmpty () && !XsltNames.isNCName (sPrefix) || "xmlns".equals (sPrefix))
-        throw new XPathException ("XTDE0920", "'" + sPrefix + "' is not a valid namespace prefix");
-      final String sUri = _evaluateValue (c, aSelect, aBody, null, true);
+        throw new XPathException ("XTDE0920", "'" + sPrefix + "' is not aFnArgs valid namespace prefix");
+      final String sUri = _evaluateValue (aRtCtx, aSelect, aBody, null, true);
       if (sUri.isEmpty ())
         throw new XPathException ("XTDE0930", "The namespace URI of xsl:namespace is empty");
       if (NS_XMLNS.equals (sUri))
         throw new XPathException ("XTDE0905", "The namespace '" + sUri + "' is reserved");
       if ("xml".equals (sPrefix) != XdmConstants.NS_XML.equals (sUri))
         throw new XPathException ("XTDE0925", "The xml prefix and the XML namespace must be used together");
-      o.appendNew (XdmNode.createNamespace (sPrefix, sUri));
+      aRtOut.appendNew (XdmNode.createNamespace (sPrefix, sUri));
     });
   }
 
@@ -280,12 +280,12 @@ public final class NodeInstructions
   {
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final String sBase = aEl.getStaticBaseUri ();
-    return new CompiledInstruction (aEl, (c, o) -> {
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmNode aDoc = XdmNode.createDocument ();
       if (sBase != null)
         aDoc.setBaseUri (sBase);
-      aBody.execute (c, new ContentOutput (aDoc));
-      o.appendNew (aDoc);
+      aBody.execute (aRtCtx, new ContentOutput (aDoc));
+      aRtOut.appendNew (aDoc);
     });
   }
 
@@ -297,35 +297,35 @@ public final class NodeInstructions
     final ICommonsList <XdmQName> aSets = CoreInstructions.getUseAttributeSets (aCtx, aEl, false);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final boolean bNoInherit = aEl.hasAttr ("inherit-namespaces") && !XsltNames.isXsltTrue (aEl.getAttr ("inherit-namespaces"));
-    return new CompiledInstruction (aEl, (c, o) -> {
-      XsltContext aCtx2 = c;
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      XsltContext aCtx2 = aRtCtx;
       final IXdmItem aItem;
       if (aSelect != null)
       {
-        final XdmSequence aSeq = aSelect.evaluate (c);
+        final XdmSequence aSeq = aSelect.evaluate (aRtCtx);
         if (aSeq.isEmpty ())
           return;
         if (aSeq.size () > 1)
           throw new XPathException ("XTTE3180", "The select expression of xsl:copy returns more than one item");
         aItem = aSeq.get (0);
-        aCtx2 = c.withFocus (aItem, 1, 1);
+        aCtx2 = aRtCtx.withFocus (aItem, 1, 1);
       }
       else
       {
-        aItem = c.getContextItem ();
+        aItem = aRtCtx.getContextItem ();
         if (aItem == null)
           throw new XPathException ("XTTE0945", "xsl:copy is used while the context item is absent");
       }
       if (!(aItem instanceof final XdmNode aNode))
       {
-        o.append (aItem);
+        aRtOut.append (aItem);
         return;
       }
       switch (aNode.getKind ())
       {
         case DOCUMENT:
         {
-          final IXsltOutput aDocOut = o.getDocumentContentOutput ();
+          final IXsltOutput aDocOut = aRtOut.getDocumentContentOutput ();
           if (aDocOut != null)
             aBody.execute (aCtx2, aDocOut);
           else
@@ -333,7 +333,7 @@ public final class NodeInstructions
             final XdmNode aDoc = XdmNode.createDocument ();
             NodeCopier.copyUnparsedEntities (aNode, aDoc);
             aBody.execute (aCtx2, new ContentOutput (aDoc));
-            o.appendNew (aDoc);
+            aRtOut.appendNew (aDoc);
           }
           break;
         }
@@ -349,11 +349,11 @@ public final class NodeInstructions
           aBody.execute (aCtx2, aContent);
           if (bNoInherit)
             NamespaceFixup.applyNoInherit (aContent.getParent ());
-          o.appendNew (aContent.getParent ());
+          aRtOut.appendNew (aContent.getParent ());
           break;
         }
         default:
-          o.appendNew (NodeCopier.copyShallow (aNode));
+          aRtOut.appendNew (NodeCopier.copyShallow (aNode));
           break;
       }
     });
@@ -365,17 +365,17 @@ public final class NodeInstructions
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
     final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") || XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
     final String sStaticBase = aEl.getStaticBaseUri ();
-    return new CompiledInstruction (aEl, (c, o) -> {
-      for (final IXdmItem aItem : aSelect.evaluate (c))
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
         if (aItem instanceof final XdmNode aNode)
         {
           final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces);
           if (aCopy.isElement () && aCopy.getBaseUri () == null)
             aCopy.setBaseUri (sStaticBase);
-          o.appendNew (aCopy);
+          aRtOut.appendNew (aCopy);
         }
         else
-          o.append (aItem);
+          aRtOut.append (aItem);
     });
   }
 

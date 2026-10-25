@@ -114,9 +114,9 @@ public static IInstruction compile (final CompileContext aCtx, final XslElement 
 {
   final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
   final SequenceConstructor aBody = aCtx.compileContent (aEl);
-  return new CompiledInstruction (aEl, (c, o) -> {
-    for (final IXdmItem aItem : aSelect.evaluate (c))
-      aBody.execute (c.withFocus (aItem, 1, 1), o);
+  return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+    for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
+      aBody.execute (aRtCtx.withFocus (aItem, 1, 1), aRtOut);
   });
 }
 ```

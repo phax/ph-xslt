@@ -140,7 +140,7 @@ public final class CoreInstructions
           if (aAvt.isConstant ())
             aInstrs.add (new LiteralText (aText, aAvt.getConstantValue ()));
           else
-            aInstrs.add (new CompiledInstruction (aParent, (c, o) -> o.appendNew (XdmNode.createText (aAvt.evaluate (c)))));
+            aInstrs.add (new CompiledInstruction (aParent, (aRtCtx, aRtOut) -> aRtOut.appendNew (XdmNode.createText (aAvt.evaluate (aRtCtx)))));
         }
         else
           aInstrs.add (new LiteralText (aText, aText.getValue ()));
@@ -185,15 +185,15 @@ public final class CoreInstructions
   {
     final ICommonsList <XslElement> aFallbacks = aEl.getXslChildren ("fallback");
     if (aFallbacks.isEmpty ())
-      return new CompiledInstruction (aEl, (c, o) -> {
+      return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
         throw new XPathException ("XTDE1450", sWhat + " <" + aEl.getName ().getLexicalName () + "> is not available and has no xsl:fallback");
       });
     final ICommonsList <SequenceConstructor> aBodies = new CommonsArrayList <> ();
     for (final XslElement aFallback : aFallbacks)
       aBodies.add (aCtx.compileSequenceConstructor (aFallback, aFallback.getChildren ()));
-    return new CompiledInstruction (aEl, (c, o) -> {
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       for (final SequenceConstructor aBody : aBodies)
-        aBody.execute (c, o);
+        aBody.execute (aRtCtx, aRtOut);
     });
   }
 
@@ -327,7 +327,7 @@ public final class CoreInstructions
     final String sBase = aEl.getStaticBaseUri ();
     final String sInherit = aEl.getAttribute (XsltNames.NS_XSL, "inherit-namespaces");
     final boolean bNoInherit = sInherit != null && !XsltNames.isXsltTrue (sInherit);
-    return new CompiledInstruction (aEl, (c, o) -> {
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmNode aElement = XdmNode.createElement (aName);
       for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
         if (!aEntry.getKey ().equals (aName.prefix ()) || aEntry.getValue ().equals (aName.namespaceUri ()))
@@ -336,13 +336,13 @@ public final class CoreInstructions
         aElement.setBaseUri (sBase);
       final ContentOutput aContent = new ContentOutput (aElement);
       if (aSets.isNotEmpty ())
-        c.getEngine ().applyAttributeSets (aSets, c, aContent);
+        aRtCtx.getEngine ().applyAttributeSets (aSets, aRtCtx, aContent);
       for (int i = 0; i < aAttrNames.size (); ++i)
-        aContent.appendNew (XdmNode.createAttribute (aAttrNames.get (i), aAttrValues.get (i).evaluate (c)));
-      aBody.execute (c, aContent);
+        aContent.appendNew (XdmNode.createAttribute (aAttrNames.get (i), aAttrValues.get (i).evaluate (aRtCtx)));
+      aBody.execute (aRtCtx, aContent);
       if (bNoInherit)
         NamespaceFixup.applyNoInherit (aContent.getParent ());
-      o.appendNew (aContent.getParent ());
+      aRtOut.appendNew (aContent.getParent ());
     });
   }
 
@@ -379,7 +379,7 @@ public final class CoreInstructions
   public static IInstruction compileInstruction (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
     if (_isBackwardsCompatible (aEl))
-      return new CompiledInstruction (aEl, (c, o) -> {
+      return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
         throw new XPathException ("XTDE0160", "Backwards compatible processing is not supported");
       });
     if (aEl.isXsl ())

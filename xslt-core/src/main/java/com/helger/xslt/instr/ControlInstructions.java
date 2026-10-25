@@ -80,9 +80,9 @@ public final class ControlInstructions
   {
     final XPathExpr aTest = aCtx.compileRequiredExpression (aEl, "test");
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
-    return new CompiledInstruction (aEl, (c, o) -> {
-      if (aTest.evaluateBoolean (c))
-        aBody.execute (c, o);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      if (aTest.evaluateBoolean (aRtCtx))
+        aBody.execute (aRtCtx, aRtOut);
     });
   }
 
@@ -102,14 +102,14 @@ public final class ControlInstructions
         if (aChild.isXsl ("otherwise"))
           aOtherwise = aCtx.compileContent (aChild);
     final SequenceConstructor aFinalOtherwise = aOtherwise;
-    return new CompiledInstruction (aEl, (c, o) -> {
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       for (int i = 0; i < aTests.size (); ++i)
       {
         final XPathExpr aTest = aTests.get (i);
         final boolean bTrue;
         try
         {
-          bTrue = aTest.evaluateBoolean (c);
+          bTrue = aTest.evaluateBoolean (aRtCtx);
         }
         catch (final XPathException ex)
         {
@@ -117,12 +117,12 @@ public final class ControlInstructions
         }
         if (bTrue)
         {
-          aBodies.get (i).execute (c, o);
+          aBodies.get (i).execute (aRtCtx, aRtOut);
           return;
         }
       }
       if (aFinalOtherwise != null)
-        aFinalOtherwise.execute (c, o);
+        aFinalOtherwise.execute (aRtCtx, aRtOut);
     });
   }
 
@@ -132,14 +132,14 @@ public final class ControlInstructions
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
-    return new CompiledInstruction (aEl, (c, o) -> {
-      XdmSequence aItems = aSelect.evaluate (c);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
-        aItems = SortKeyDef.sort (aSorts, aItems, c);
-      final XsltContext aBase = c.withState (c.getState ().withCurrentRule (null, c.getState ().getCurrentMode ()));
+        aItems = SortKeyDef.sort (aSorts, aItems, aRtCtx);
+      final XsltContext aBase = aRtCtx.withState (aRtCtx.getState ().withCurrentRule (null, aRtCtx.getState ().getCurrentMode ()));
       final int nSize = aItems.size ();
       for (int i = 0; i < nSize; ++i)
-        aBody.execute (aBase.withFocus (aItems.get (i), i + 1, nSize), o);
+        aBody.execute (aBase.withFocus (aItems.get (i), i + 1, nSize), aRtOut);
     });
   }
 
@@ -194,12 +194,12 @@ public final class ControlInstructions
     final Mode aMode = _resolveApplyMode (aCtx, aEl);
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
-    return new CompiledInstruction (aEl, (c, o) -> {
-      XdmSequence aItems = aSelect.evaluate (c);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
-        aItems = SortKeyDef.sort (aSorts, aItems, c);
-      final ICommonsList <ParamValue> aValues = ParamValue.evaluate (aParams, c);
-      c.getEngine ().applyTemplates (c, aItems, aMode != null ? aMode : getCurrentMode (c), aValues, o);
+        aItems = SortKeyDef.sort (aSorts, aItems, aRtCtx);
+      final ICommonsList <ParamValue> aValues = ParamValue.evaluate (aParams, aRtCtx);
+      aRtCtx.getEngine ().applyTemplates (aRtCtx, aItems, aMode != null ? aMode : getCurrentMode (aRtCtx), aValues, aRtOut);
     });
   }
 
@@ -213,12 +213,12 @@ public final class ControlInstructions
       if (!aParam.isTunnel ())
         aNonTunnel.add (aParam.getName ());
     aCtx.getCompiler ().registerCallTemplate (aEl, aName, aNonTunnel);
-    return new CompiledInstruction (aEl, (c, o) -> {
-      final Engine aEngine = c.getEngine ();
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final Engine aEngine = aRtCtx.getEngine ();
       final Template aTemplate = aEngine.getStylesheet ().getNamedTemplate (aName);
       if (aTemplate == null)
         throw new XPathException ("XTSE0650", "No template named " + aName.getEQName ());
-      aEngine.callTemplate (c, aTemplate, ParamValue.evaluate (aParams, c), o);
+      aEngine.callTemplate (aRtCtx, aTemplate, ParamValue.evaluate (aParams, aRtCtx), aRtOut);
     });
   }
 
@@ -229,7 +229,7 @@ public final class ControlInstructions
   {
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
     return new CompiledInstruction (aEl,
-                                    (c, o) -> c.getEngine ().applyNextMatch (c, bImports, ParamValue.evaluate (aParams, c), o));
+                                    (aRtCtx, aRtOut) -> aRtCtx.getEngine ().applyNextMatch (aRtCtx, bImports, ParamValue.evaluate (aParams, aRtCtx), aRtOut));
   }
 
   @NonNull
@@ -237,7 +237,7 @@ public final class ControlInstructions
   {
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     if (aSelect != null)
-      return new CompiledInstruction (aEl, (c, o) -> o.appendAll (aSelect.evaluate (c)));
+      return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> aRtOut.appendAll (aSelect.evaluate (aRtCtx)));
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     return new CompiledInstruction (aEl, aBody::execute);
   }
@@ -258,15 +258,15 @@ public final class ControlInstructions
           aNonMatching = aCtx.compileContent (aChild);
     final SequenceConstructor aFinalMatching = aMatching;
     final SequenceConstructor aFinalNonMatching = aNonMatching;
-    return new CompiledInstruction (aEl, (c, o) -> {
-      final XdmSequence aInput = Atomizer.atomize (aSelect.evaluate (c));
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final XdmSequence aInput = Atomizer.atomize (aSelect.evaluate (aRtCtx));
       if (aInput.size () > 1)
         throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string returns more than one item");
       if (aInput.isSingleton () && !((XdmAtomic) aInput.get (0)).isStringLike ())
-        throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string must return a string");
+        throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string must return aFnArgs string");
       final String sInput = aInput.isEmpty () ? "" : Atomizer.getStringValue (aInput.get (0));
-      final String sRegex = aRegex.evaluate (c);
-      final String sFlags = aFlags == null ? "" : aFlags.evaluate (c);
+      final String sRegex = aRegex.evaluate (aRtCtx);
+      final String sFlags = aFlags == null ? "" : aFlags.evaluate (aRtCtx);
       final XPathRegex aCompiled;
       try
       {
@@ -280,7 +280,7 @@ public final class ControlInstructions
       // Collect the parts first: position and size refer to all of them
       final ICommonsList <String> aTexts = new CommonsArrayList <> ();
       final ICommonsList <String []> aGroups = new CommonsArrayList <> ();
-      final Matcher aMatcher = aCompiled.matcher (c.getDynamicContext (), sInput);
+      final Matcher aMatcher = aCompiled.matcher (aRtCtx.getDynamicContext (), sInput);
       int nLast = 0;
       final int nGroupCount = aCompiled.getGroupCount ();
       while (aMatcher.find ())
@@ -301,7 +301,7 @@ public final class ControlInstructions
         aTexts.add (aMatcher.group ());
         aGroups.add (aMatchGroups);
         nLast = aMatcher.end ();
-        c.getDynamicContext ().checkInterrupt ();
+        aRtCtx.getDynamicContext ().checkInterrupt ();
       }
       if (nLast < sInput.length ())
       {
@@ -309,16 +309,16 @@ public final class ControlInstructions
         aGroups.add (null);
       }
       final int nSize = aTexts.size ();
-      final XsltState aState = c.getState ().withCurrentRule (null, c.getState ().getCurrentMode ());
+      final XsltState aState = aRtCtx.getState ().withCurrentRule (null, aRtCtx.getState ().getCurrentMode ());
       for (int i = 0; i < nSize; ++i)
       {
         final String [] aMatchGroups = aGroups.get (i);
         final SequenceConstructor aBody = aMatchGroups != null ? aFinalMatching : aFinalNonMatching;
         if (aBody == null)
           continue;
-        final XsltContext aPartCtx = c.withState (aState.withRegexGroups (aMatchGroups))
+        final XsltContext aPartCtx = aRtCtx.withState (aState.withRegexGroups (aMatchGroups))
                                       .withFocus (XdmAtomic.string (aTexts.get (i)), i + 1, nSize);
-        aBody.execute (aPartCtx, o);
+        aBody.execute (aPartCtx, aRtOut);
       }
     });
   }
@@ -329,17 +329,17 @@ public final class ControlInstructions
     final XPathExpr aSelect = aCtx.compileOptionalExpression (aEl, "select");
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
-    return new CompiledInstruction (aEl, (c, o) -> {
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmSequence aItems;
       if (aSelect != null)
-        aItems = aSelect.evaluate (c);
+        aItems = aSelect.evaluate (aRtCtx);
       else
       {
         final SequenceOutput aOut = new SequenceOutput ();
-        aBody.execute (c, aOut);
+        aBody.execute (aRtCtx, aOut);
         aItems = aOut.getSequence ();
       }
-      o.appendAll (SortKeyDef.sort (aSorts, aItems, c));
+      aRtOut.appendAll (SortKeyDef.sort (aSorts, aItems, aRtCtx));
     });
   }
 
@@ -388,8 +388,8 @@ public final class ControlInstructions
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final Avt aTerminate = aCtx.compileOptionalAvt (aEl, "terminate");
     final Avt aErrorCode = aCtx.compileOptionalAvt (aEl, "error-code");
-    return new CompiledInstruction (aEl, (c, o) -> {
-      // The message is the sequence of the select value and the content; a
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      // The message is the sequence of the select value and the content; aFnArgs
       // dynamic error in it does not end the transformation
       final BufferedOutput aContent = new BufferedOutput ();
       XdmSequence aValue;
@@ -397,8 +397,8 @@ public final class ControlInstructions
       try
       {
         if (aSelect != null)
-          aContent.appendAll (aSelect.evaluate (c));
-        aBody.execute (c, aContent);
+          aContent.appendAll (aSelect.evaluate (aRtCtx));
+        aBody.execute (aRtCtx, aContent);
         aValue = aContent.getSequence ();
         sMessage = _messageText (aValue);
       }
@@ -407,11 +407,11 @@ public final class ControlInstructions
         aValue = XdmSequence.EMPTY;
         sMessage = "Error in xsl:message: " + ex.getMessage ();
       }
-      c.getEngine ().addMessage (sMessage);
+      aRtCtx.getEngine ().addMessage (sMessage);
       boolean bTerminate = false;
       if (aTerminate != null)
       {
-        final String s = aTerminate.evaluate (c);
+        final String s = aTerminate.evaluate (aRtCtx);
         if (!XsltNames.isXsltBooleanLexical (s))
           throw new XPathException ("XTDE0030", "terminate='" + s + "' is not yes or no");
         bTerminate = XsltNames.isXsltTrue (s);
@@ -421,10 +421,10 @@ public final class ControlInstructions
         XdmQName aCode = XTMM9000;
         if (aErrorCode != null)
         {
-          final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (c));
+          final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (aRtCtx));
           final XdmQName aResolved = aEl.resolveQName (s, false);
           if (aResolved == null)
-            throw new XPathException ("XTDE1390", "'" + s + "' is not a valid error code");
+            throw new XPathException ("XTDE1390", "'" + s + "' is not aFnArgs valid error code");
           aCode = aResolved;
         }
         throw new XPathException (aCode, sMessage, aValue);
@@ -467,12 +467,12 @@ public final class ControlInstructions
   private static IInstruction _compileWherePopulated (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
-    return new CompiledInstruction (aEl, (c, o) -> {
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final BufferedOutput aBuffer = new BufferedOutput ();
-      aBody.execute (c, aBuffer);
+      aBody.execute (aRtCtx, aBuffer);
       for (int i = 0; i < aBuffer.size (); ++i)
         if (_isPopulated (aBuffer.get (i)))
-          aBuffer.replay (i, o);
+          aBuffer.replay (i, aRtOut);
     });
   }
 
@@ -497,14 +497,14 @@ public final class ControlInstructions
     aRegistry.registerInstruction ("for-each", ControlInstructions::_compileForEach);
     aRegistry.registerInstruction ("apply-templates", ControlInstructions::_compileApplyTemplates);
     aRegistry.registerInstruction ("call-template", ControlInstructions::_compileCallTemplate);
-    aRegistry.registerInstruction ("apply-imports", (c, e) -> _compileNextMatch (c, e, true));
-    aRegistry.registerInstruction ("next-match", (c, e) -> _compileNextMatch (c, e, false));
+    aRegistry.registerInstruction ("apply-imports", (aCC, aElem) -> _compileNextMatch (aCC, aElem, true));
+    aRegistry.registerInstruction ("next-match", (aCC, aElem) -> _compileNextMatch (aCC, aElem, false));
     aRegistry.registerInstruction ("sequence", ControlInstructions::_compileSequence);
     aRegistry.registerInstruction ("analyze-string", ControlInstructions::_compileAnalyzeString);
     aRegistry.registerInstruction ("perform-sort", ControlInstructions::_compilePerformSort);
     aRegistry.registerInstruction ("message", ControlInstructions::_compileMessage);
     aRegistry.registerInstruction ("where-populated", ControlInstructions::_compileWherePopulated);
-    aRegistry.registerInstruction ("on-empty", (c, e) -> _compileOnEmpty (c, e, false));
-    aRegistry.registerInstruction ("on-non-empty", (c, e) -> _compileOnEmpty (c, e, true));
+    aRegistry.registerInstruction ("on-empty", (aCC, aElem) -> _compileOnEmpty (aCC, aElem, false));
+    aRegistry.registerInstruction ("on-non-empty", (aCC, aElem) -> _compileOnEmpty (aCC, aElem, true));
   }
 }

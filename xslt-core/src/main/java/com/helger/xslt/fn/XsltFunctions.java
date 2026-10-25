@@ -488,10 +488,10 @@ public final class XsltFunctions
     aLib.register (NS, "document", "(item()*, node()) as node()*", XsltFunctions::_document);
     aLib.register (NS, "regex-group", "(xs:integer) as xs:string", XsltFunctions::_regexGroup);
     aLib.register (NS, "current-output-uri", "() as xs:anyURI?", XsltFunctions::_currentOutputUri, true);
-    aLib.register (NS, "unparsed-entity-uri", "(xs:string) as xs:anyURI", (c, a) -> _unparsedEntity (c, a, false), true);
-    aLib.register (NS, "unparsed-entity-uri", "(xs:string, node()) as xs:anyURI", (c, a) -> _unparsedEntity (c, a, false));
-    aLib.register (NS, "unparsed-entity-public-id", "(xs:string) as xs:string", (c, a) -> _unparsedEntity (c, a, true), true);
-    aLib.register (NS, "unparsed-entity-public-id", "(xs:string, node()) as xs:string", (c, a) -> _unparsedEntity (c, a, true));
+    aLib.register (NS, "unparsed-entity-uri", "(xs:string) as xs:anyURI", (aRtCtx, aFnArgs) -> _unparsedEntity (aRtCtx, aFnArgs, false), true);
+    aLib.register (NS, "unparsed-entity-uri", "(xs:string, node()) as xs:anyURI", (aRtCtx, aFnArgs) -> _unparsedEntity (aRtCtx, aFnArgs, false));
+    aLib.register (NS, "unparsed-entity-public-id", "(xs:string) as xs:string", (aRtCtx, aFnArgs) -> _unparsedEntity (aRtCtx, aFnArgs, true), true);
+    aLib.register (NS, "unparsed-entity-public-id", "(xs:string, node()) as xs:string", (aRtCtx, aFnArgs) -> _unparsedEntity (aRtCtx, aFnArgs, true));
     aLib.register (NS, "copy-of", "() as item()*", XsltFunctions::_copyOf, true);
     aLib.register (NS, "copy-of", "(item()*) as item()*", XsltFunctions::_copyOf);
     aLib.register (NS, "snapshot", "() as item()*", XsltFunctions::_snapshot, true);
