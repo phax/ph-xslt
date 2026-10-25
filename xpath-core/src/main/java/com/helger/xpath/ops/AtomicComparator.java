@@ -399,7 +399,8 @@ public final class AtomicComparator
     }
     catch (final XPathException ex)
     {
-      if ("FORG0001".equals (ex.getCode ()))
+      // A prefix not bound in the static context stays FONS0004 (F&O 3.1, casting to xs:QName)
+      if ("FORG0001".equals (ex.getCode ()) || "FONS0004".equals (ex.getCode ()))
         throw ex;
       throw new XPathException ("FORG0001",
                                 "Cannot convert '" +
