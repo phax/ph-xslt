@@ -235,4 +235,30 @@ public final class XsdBridgeSpecTest
     aSet.validateElement (aValid, null, true);
     assertEquals (EIDKind.ID, aValid.getChildAtIndex (0).getAttribute ("http://www.w3.org/XML/1998/namespace", "id").getIDKind ());
   }
+
+  /** The xsi:type of an element no declaration governs supplies its type. */
+  @Test
+  public void testLaxAssessedXsiType () throws XdmValidationException
+  {
+    final IXdmSchemaSet aSet = XsdSchemaProvider.createSchemaSet (XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText ("""
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="root"><xs:complexType><xs:sequence><xs:any processContents="lax" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+</xs:schema>""", null)), EXsdVersion.V10, null));
+    final String sHead = "<root xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">";
+    final XdmNode aValid = _parseElement (sHead + "<e xsi:type=\"xs:int\">5</e></root>");
+    aSet.validateElement (aValid, null, true);
+    assertEquals ("int", aValid.getChildAtIndex (0).getSchemaType ().getName ().localName ());
+    for (final String sBad : new String [] { "<e xsi:type=\"xs:int\">x</e>",
+                                             "<e xsi:type=\"xs:IDREF\">dangling</e>",
+                                             "<e xsi:type=\"xs:nope\"/>" })
+      try
+      {
+        aSet.validateElement (_parseElement (sHead + sBad + "</root>"), null, true);
+        fail (sBad);
+      }
+      catch (final XdmValidationException ex)
+      {
+        // expected
+      }
+  }
 }

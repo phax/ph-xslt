@@ -680,8 +680,7 @@ final class XsdInstanceValidator
    * attribute wildcard is lax (XSD 1.0 section 3.4.4): an attribute with a
    * global declaration is validated against it, which is how an xml:id or an
    * ID arriving this way is counted and bound. The xsi attributes are left
-   * alone, as are attributes without a declaration. Not in go-xslt, which
-   * leaves them unassessed.
+   * alone, as are attributes without a declaration.
    */
   private static void _laxAssessAttributes (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aElement)
   {
@@ -702,6 +701,28 @@ final class XsdInstanceValidator
       aRun.annotateAssertType (aAttr, aGlobal.m_aType);
       aRun.noteNodeType (aAttr, aGlobal.m_aType);
     }
+  }
+
+  /**
+   * Lax assessment of an element no declaration governs: an explicit
+   * <code>xsi:type</code> supplies the type it is assessed against (validation
+   * "as a type", like an undeclared document element), otherwise its
+   * attributes are assessed. Not in go-xslt, which assesses neither.
+   *
+   * @return <code>true</code> if the children are to be assessed as well,
+   *         <code>false</code> if an <code>xsi:type</code> governs the whole
+   *         element.
+   */
+  private static boolean _laxAssessOwn (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aElement)
+  {
+    final String sXsiType = XsdNodes.attrNS (aElement, XsdConstants.NS_XSI, "type");
+    if (sXsiType != null)
+    {
+      validateAsType (aRun, resolveInstanceType (aRun, aElement, sXsiType), aElement);
+      return false;
+    }
+    _laxAssessAttributes (aRun, aElement);
+    return true;
   }
 
   /** One level of the iterative walk of {@link #_laxAssessSubtree}: an element and the next child to look at. */
@@ -729,7 +750,8 @@ final class XsdInstanceValidator
                                          @NonNull final XdmNode aRoot,
                                          @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
-    _laxAssessAttributes (aRun, aRoot);
+    if (!_laxAssessOwn (aRun, aRoot))
+      return;
     final ICommonsList <LaxFrame> aStack = new CommonsArrayList <> ();
     aStack.add (new LaxFrame (aRoot));
     while (aStack.isNotEmpty ())
@@ -747,10 +769,8 @@ final class XsdInstanceValidator
       if (aGlobal != null)
         validateElementAgainst (aRun, aGlobal, aKid, aScopes, null);
       else
-      {
-        _laxAssessAttributes (aRun, aKid);
-        aStack.add (new LaxFrame (aKid));
-      }
+        if (_laxAssessOwn (aRun, aKid))
+          aStack.add (new LaxFrame (aKid));
     }
   }
 
