@@ -208,4 +208,31 @@ public final class XsdBridgeSpecTest
       assertTrue (ex instanceof IllegalArgumentException);
     }
   }
+
+  /**
+   * An element no declaration governs is laxly assessed, and its attributes
+   * with a global declaration are validated: a duplicate xml:id is an error.
+   */
+  @Test
+  public void testLaxAssessedAttributes () throws XdmValidationException
+  {
+    final IXdmSchemaSet aSet = XsdSchemaProvider.createSchemaSet (XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText ("""
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.w3.org/XML/1998/namespace">
+  <xs:attribute name="id" type="xs:ID"/>
+</xs:schema>""", null)), EXsdVersion.V10, null));
+    final String sHead = "<doc xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" xsi:type=\"xs:anyType\">";
+    aSet.validateElement (_parseElement (sHead + "<e xml:id=\"a\"/><f xml:id=\"b\"><g xml:id=\"c\"/></f></doc>"), null, true);
+    try
+    {
+      aSet.validateElement (_parseElement (sHead + "<e xml:id=\"a\"/><f><g xml:id=\"a\"/></f></doc>"), null, true);
+      fail ("a duplicate xml:id");
+    }
+    catch (final XdmValidationException ex)
+    {
+      assertTrue (ex.isDocumentConstraint ());
+    }
+    final XdmNode aValid = _parseElement (sHead + "<e xml:id=\"a\"/></doc>");
+    aSet.validateElement (aValid, null, true);
+    assertEquals (EIDKind.ID, aValid.getChildAtIndex (0).getAttribute ("http://www.w3.org/XML/1998/namespace", "id").getIDKind ());
+  }
 }
