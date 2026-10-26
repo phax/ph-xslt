@@ -72,7 +72,7 @@ v0.1.0 - work in progress
 * Added `StaticContext.setStaticTyping` to opt in to the narrow part of the optional Static Typing Feature: axis steps that provably select nothing raise XPST0005
 * Added XSLT 3.0 patterns (`XsltPatternParser`, `CompiledXsltPattern`): predicate and selection patterns, rooted patterns, union/intersect/except, default priorities and union alternatives
 * Added the XML and XSD version (`StaticContext.setXmlVersion`/`setXsdVersion`) and the default language (`DynamicContext.setDefaultLanguage`) settings
-* Added schema-validated input with the JDK validator: `XdmParser.setSchema` annotates the tree (`XdmSchemaType`, nilled, schema IDs), which gives typed values, `fn:nilled`, schema-based `fn:id`/`fn:element-with-id`/`fn:idref` and `element(N, T)`/`attribute(N, T)` tests; invalid documents raise `XdmValidationException`
+* Added schema-validated input: `XdmParser.setSchemaSet` validates the parsed tree in place (`IXdmSchemaSet.validateDocument`) and annotates it (`XdmSchemaType`, nilled, schema IDs), which gives typed values, `fn:nilled`, schema-based `fn:id`/`fn:element-with-id`/`fn:idref` and `element(N, T)`/`attribute(N, T)` tests; invalid documents raise `XdmValidationException`
 * `XdmParser` always uses the JDK parser, also when another JAXP implementation such as Apache Xerces is on the class path
 * Added the module `xslt-core` with the XSLT 3.0 compiler and engine (`XsltCompiler`, `XsltExecutable`): include/import, static processing (use-when, static parameters, shadow attributes), template rules and modes, all basic instructions, stylesheet functions, keys, attribute sets, the XSLT functions, step and depth budgets, and an extension API for instruction families (`xslt-core/INSTRAPI.md`)
 * Added `xsl:number`: `level` single/multiple/any, `count`/`from` patterns, `value`, `select`, `start-at`; format tokens for any Unicode decimal digit family, alphabetic, Roman, Greek and Unicode numbering sequences, and words (English, German, French, Italian) with ordinals and grouping
@@ -102,6 +102,8 @@ v0.1.0 - work in progress
 * Added the schema API `com.helger.xpath.xdm.schema` (`XdmSchemaSupport`, `IXdmSchemaSet`, ...) and `StaticContext.setSchemaSet`
 * `fn:json-to-xml` supports `validate=true` when the schema for its namespace is in scope
 * `xsl:strip-space` now also applies to typed elements with element-only or mixed content
+* The schema SPI (`com.helger.xpath.xdm.schema`) is independent of JAXP: `XdmSchemaType` holds `IXdmTypeDefinition`s, and JAXP is only used inside the providers
+* Added `com.helger.xpath.xdm.jaxp.JdkSchemaProvider`: schema-validated input on the JDK's own validator without Apache Xerces-J (no schema component model)
 * Added the module `xsd-conformance` that runs the W3C XML Schema test suite (xsdtests) against a pluggable validator; the first one is Apache Xerces-J 2.12.2 (XSD 1.0: 39,145 of 39,401 applicable cases pass; XSD 1.1 is reported as unsupported). Every failing case is documented with its reason in `xsd-conformance/docs/accepted-failures/xsd.md`, and an undocumented failure fails the build
 
 # Contributing
