@@ -52,7 +52,13 @@
       <groupId>com.helger.commons</groupId>
       <artifactId>ph-collection</artifactId>
     </dependency>
-    <!-- Schema processor of the schema-aware run (-Dxslt30.schemaAware=true) -->
+    <!-- Schema processors of the schema-aware run (-Dxslt30.schemaAware=true): the native validator is the default,
+         Xerces-J the alternative (-Dxdm.schemaProvider=xerces) -->
+    <dependency>
+      <groupId>com.helger.xpath</groupId>
+      <artifactId>xsd-core</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>xerces</groupId>
       <artifactId>xercesImpl</artifactId>
