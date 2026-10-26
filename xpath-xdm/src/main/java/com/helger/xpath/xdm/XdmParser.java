@@ -62,13 +62,15 @@ public class XdmParser
    * processing defaults differ between JDK versions (JDK 25 allows only 2,500
    * entity expansions, JDK 21 64,000). The values are the JDK 21 defaults.
    * They refuse the usual expansion attacks (billion laughs, quadratic
-   * blow-up, parameter entities) on every supported JDK.
+   * blow-up, parameter entities) on every supported JDK. The attributes per
+   * element are limited the same way (JDK 25 allows 200, JDK 21 10,000).
    */
   private static final String [] [] ENTITY_LIMITS = { { "entityExpansionLimit", "64000" },
                                                       { "totalEntitySizeLimit", "50000000" },
                                                       { "maxGeneralEntitySizeLimit", "0" },
                                                       { "maxParameterEntitySizeLimit", "1000000" },
-                                                      { "entityReplacementLimit", "3000000" } };
+                                                      { "entityReplacementLimit", "3000000" },
+                                                      { "elementAttributeLimit", "10000" } };
 
   private boolean m_bLoadExternalEntities = DEFAULT_LOAD_EXTERNAL_ENTITIES;
   private int m_nMaxElementDepth = DEFAULT_MAX_ELEMENT_DEPTH;
