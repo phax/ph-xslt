@@ -582,22 +582,22 @@ final class XsdContentMatcher
    *        The element children.
    * @param aOpenContent
    *        The open content.
-   * @return The indices of the children attributed to the open content; empty
-   *         when not applicable (no interleave wildcard, no model, too many
-   *         children).
+   * @return The indices of the children attributed to the open content;
+   *         <code>null</code> when not applicable (no interleave wildcard, no
+   *         model, too many children), like go-xslt's nil map.
    */
-  @NonNull
+  @Nullable
   static BitSet greedyOpenAttribution (@NonNull final XsdSchema aSchema,
                                        @Nullable final XsdParticle aParticle,
                                        @NonNull final List <XdmNode> aKids,
                                        @NonNull final XsdOpenContent aOpenContent)
   {
-    final BitSet aOpen = new BitSet ();
     if (aOpenContent.m_aWildcard == null ||
         !XsdOpenContent.MODE_INTERLEAVE.equals (aOpenContent.m_sMode) ||
         aParticle == null ||
         aKids.size () > MAX_NFA_CHILDREN)
-      return aOpen;
+      return null;
+    final BitSet aOpen = new BitSet ();
     final XsdName [] aNames = namesOf (aKids);
     final BitSet aForceOpen = new BitSet ();
     final BitSet aForceModel = new BitSet ();

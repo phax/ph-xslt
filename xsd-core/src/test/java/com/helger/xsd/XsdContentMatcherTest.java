@@ -19,6 +19,7 @@ package com.helger.xsd;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -292,12 +293,11 @@ public final class XsdContentMatcherTest
     assertFalse (aOpen.get (1));
     assertTrue (aOpen.get (2));
     // Not applicable
-    assertTrue (XsdContentMatcher.greedyOpenAttribution (aSchema,
+    assertNull (XsdContentMatcher.greedyOpenAttribution (aSchema,
                                                          aModel,
                                                          _kids (_of ("a", "a")),
-                                                         _open (XsdOpenContent.MODE_SUFFIX, XsdWildcard.NS_ANY))
-                                 .isEmpty ());
-    assertTrue (XsdContentMatcher.greedyOpenAttribution (aSchema, null, _kids (_of ("a")), aInterleave).isEmpty ());
+                                                         _open (XsdOpenContent.MODE_SUFFIX, XsdWildcard.NS_ANY)));
+    assertNull (XsdContentMatcher.greedyOpenAttribution (aSchema, null, _kids (_of ("a")), aInterleave));
 
     final XsdSchema aRepeat = _compile ("<xs:sequence><xs:element name=\"a\" minOccurs=\"0\" maxOccurs=\"unbounded\"/></xs:sequence>",
                                         "",
