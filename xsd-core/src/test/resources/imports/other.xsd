@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:o" xmlns:o="urn:o" elementFormDefault="qualified">
+  <xs:complexType name="T">
+    <xs:sequence><xs:element name="n" type="xs:int"/></xs:sequence>
+  </xs:complexType>
+  <xs:element name="thing" type="o:T"/>
+  <xs:attribute name="flag" type="xs:boolean"/>
+</xs:schema>

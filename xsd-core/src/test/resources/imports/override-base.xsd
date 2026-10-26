@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!-- Overridden by the xs:override tests (XSD 1.1 §4.2.5); it includes a
+     further document, which the override reaches transitively. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:include schemaLocation="override-inc.xsd"/>
+  <xs:element name="e" type="xs:int"/>
+  <xs:simpleType name="S">
+    <xs:restriction base="xs:string"><xs:maxLength value="2"/></xs:restriction>
+  </xs:simpleType>
+  <xs:element name="s" type="S"/>
+  <xs:complexType name="P">
+    <xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence>
+  </xs:complexType>
+  <xs:element name="p" type="P"/>
+  <xs:group name="G"><xs:sequence><xs:element name="x"/></xs:sequence></xs:group>
+  <xs:element name="g"><xs:complexType><xs:group ref="G"/></xs:complexType></xs:element>
+  <xs:attributeGroup name="AG"><xs:attribute name="u" type="xs:int"/></xs:attributeGroup>
+  <xs:attribute name="ga" type="xs:int"/>
+  <xs:element name="ag"><xs:complexType><xs:attributeGroup ref="AG"/></xs:complexType></xs:element>
+</xs:schema>
