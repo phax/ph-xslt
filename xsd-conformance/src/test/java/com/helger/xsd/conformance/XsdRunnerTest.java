@@ -116,7 +116,8 @@ public final class XsdRunnerTest
   @NonNull
   private XsdRunResult _run (@NonNull final EXsdVersion eVersion) throws IOException
   {
-    final XsdSettings aSettings = new XsdSettings (m_aRoot,
+    final XsdSettings aSettings = new XsdSettings (EXsdTestValidatorKind.XERCES,
+                                                   m_aRoot,
                                                    "",
                                                    new CommonsArrayList <> (eVersion),
                                                    false,

@@ -45,6 +45,7 @@ public final class XsdRunResult
   private static final int TOP_SETS = 25;
 
   private final EXsdVersion m_eVersion;
+  private final String m_sFilePrefix;
   private final String m_sValidatorName;
   private final boolean m_bVersionSupported;
   private final ICommonsList <XsdSetResult> m_aSets;
@@ -52,6 +53,8 @@ public final class XsdRunResult
   /**
    * @param eVersion
    *        The version that was run.
+   * @param sFilePrefix
+   *        The prefix of the output files, e.g. <code>xsd</code>.
    * @param sValidatorName
    *        Display name of the validator.
    * @param bVersionSupported
@@ -60,11 +63,13 @@ public final class XsdRunResult
    *        The per test-set results in suite order.
    */
   public XsdRunResult (@NonNull final EXsdVersion eVersion,
+                       @NonNull final String sFilePrefix,
                        @NonNull final String sValidatorName,
                        final boolean bVersionSupported,
                        @NonNull final ICommonsList <XsdSetResult> aSets)
   {
     m_eVersion = eVersion;
+    m_sFilePrefix = sFilePrefix;
     m_sValidatorName = sValidatorName;
     m_bVersionSupported = bVersionSupported;
     m_aSets = aSets.getClone ();
@@ -184,6 +189,17 @@ public final class XsdRunResult
                                Integer.valueOf (nUnsupported),
                                Integer.valueOf (getSkip ()),
                                Integer.valueOf (getQueried ())));
+    final int nSchemaPass = _sum (XsdSetResult::getSchemaPass);
+    final int nSchemaFail = _sum (XsdSetResult::getSchemaFail);
+    final int nSchemaUnsupported = _sum (XsdSetResult::getSchemaUnsupported);
+    aSB.append (String.format (Locale.ROOT,
+                               "schema tests: pass %d, fail %d, unsupported %d | instance tests: pass %d, fail %d, unsupported %d%n",
+                               Integer.valueOf (nSchemaPass),
+                               Integer.valueOf (nSchemaFail),
+                               Integer.valueOf (nSchemaUnsupported),
+                               Integer.valueOf (nPass - nSchemaPass),
+                               Integer.valueOf (nFail - nSchemaFail),
+                               Integer.valueOf (nUnsupported - nSchemaUnsupported)));
     if (!m_bVersionSupported)
       aSB.append ("XSD ")
          .append (m_eVersion.getID ())
@@ -229,7 +245,7 @@ public final class XsdRunResult
   @NonNull
   public String getFailFileName ()
   {
-    return "xsd" + m_eVersion.getFileSuffix () + "-fails.txt";
+    return m_sFilePrefix + m_eVersion.getFileSuffix () + "-fails.txt";
   }
 
   /**
@@ -249,7 +265,7 @@ public final class XsdRunResult
     for (final String sName : getFailNames ())
       aSB.append (sName).append ('\n');
     Files.writeString (aOutDir.resolve (getFailFileName ()), aSB.toString (), StandardCharsets.UTF_8);
-    Files.writeString (aOutDir.resolve ("xsd" + m_eVersion.getFileSuffix () + "-byset.csv"),
+    Files.writeString (aOutDir.resolve (m_sFilePrefix + m_eVersion.getFileSuffix () + "-byset.csv"),
                        getBySetCsv (),
                        StandardCharsets.UTF_8);
   }

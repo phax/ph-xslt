@@ -282,6 +282,9 @@ public final class XsdRunner
     }
     final String sSchemaHref = aSchemaTest.documents ().getFirstOrNull ();
 
+    final int nPassBefore = aResult.getPass ();
+    final int nFailBefore = aResult.getFail ();
+    final int nUnsupportedBefore = aResult.getUnsupported ();
     final XsdCompileResult aCompiled;
     try
     {
@@ -290,6 +293,7 @@ public final class XsdRunner
     catch (final RuntimeException | StackOverflowError ex)
     {
       _fail (aResult, aSchemaTest.name (), sSchemaExpected, sSchemaHref, _crashMessage (ex));
+      aResult.addSchemaTestOutcome (0, 1, 0);
       return;
     }
     if (XsdSuiteRules.isQueried (aSchemaTest.currentStatuses ()))
@@ -299,6 +303,9 @@ public final class XsdRunner
     }
     else
       _score (aResult, aSchemaTest.name (), sSchemaExpected, sSchemaHref, aCompiled.verdict ());
+    aResult.addSchemaTestOutcome (aResult.getPass () - nPassBefore,
+                                  aResult.getFail () - nFailBefore,
+                                  aResult.getUnsupported () - nUnsupportedBefore);
 
     // Instance tests only make sense when the schema is expected to be valid
     if (!XsdSuiteRules.VALID.equals (sSchemaExpected))
@@ -402,7 +409,11 @@ public final class XsdRunner
     {
       aExecutor.shutdownNow ();
     }
-    return new XsdRunResult (eVersion, aInfo.getDisplayName (), aInfo.isVersionSupported (eVersion), aResults);
+    return new XsdRunResult (eVersion,
+                             m_aSettings.validator ().getFilePrefix (),
+                             aInfo.getDisplayName (),
+                             aInfo.isVersionSupported (eVersion),
+                             aResults);
   }
 
   /**

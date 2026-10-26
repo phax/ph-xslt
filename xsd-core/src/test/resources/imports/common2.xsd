@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!-- Included by common.xsd, which it includes back: include cycles are
+     harmless (each document is included once). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:include schemaLocation="common.xsd"/>
+  <xs:element name="code2" type="Code"/>
+</xs:schema>

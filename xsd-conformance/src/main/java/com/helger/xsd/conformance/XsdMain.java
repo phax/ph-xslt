@@ -25,8 +25,9 @@ import com.helger.collection.commons.ICommonsSortedSet;
 import com.helger.xpath.conformance.QT3AcceptedFailures;
 
 /**
- * Command line entry point of the xsdtests harness with the Xerces-J
- * validator; the knobs are the system properties of {@link XsdSettings}.
+ * Command line entry point of the xsdtests harness with the validator chosen
+ * by <code>xsd.validator</code> (Xerces-J by default); the knobs are the system
+ * properties of {@link XsdSettings}.
  * Exits with 1 if the suite is missing or a failing case is not documented.
  *
  * @author Philip Helger
@@ -44,7 +45,7 @@ public final class XsdMain
       System.err.println ("xsdtests suite not found at " + aSettings.suiteDir ().toAbsolutePath () + " (set -Dxsd.dir)");
       System.exit (1);
     }
-    final ICommonsList <XsdRunResult> aResults = new XsdRunner (aSettings, XercesXsdTestValidator::new).runAndReport ();
+    final ICommonsList <XsdRunResult> aResults = new XsdRunner (aSettings, aSettings.validator ().getFactory ()).runAndReport ();
     if (aSettings.checkAccepted ())
     {
       final ICommonsList <String> aFails = new CommonsArrayList <> ();

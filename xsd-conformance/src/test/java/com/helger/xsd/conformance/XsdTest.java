@@ -48,7 +48,7 @@ public final class XsdTest
     Assume.assumeTrue ("xsdtests suite not present at " + aSettings.suiteDir (),
                        Files.isRegularFile (aSettings.getSuiteFile ()));
 
-    final ICommonsList <XsdRunResult> aResults = new XsdRunner (aSettings, XercesXsdTestValidator::new).runAndReport ();
+    final ICommonsList <XsdRunResult> aResults = new XsdRunner (aSettings, aSettings.validator ().getFactory ()).runAndReport ();
     if (aSettings.checkAccepted ())
     {
       final ICommonsList <String> aFails = new CommonsArrayList <> ();

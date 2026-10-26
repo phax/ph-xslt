@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!-- Reached only through an instance's xsi:schemaLocation hint. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:h">
+  <xs:element name="hinted" type="xs:int"/>
+</xs:schema>
