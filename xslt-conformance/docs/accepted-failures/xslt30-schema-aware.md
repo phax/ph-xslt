@@ -1,8 +1,10 @@
 # XSLT 3.0 (`xslt30-test`): failing cases of the schema-aware run
 
-Schema-aware processor (`-Dxslt30.schemaAware=true`; no streaming or backwards compatibility claimed), with Apache
-Xerces-J 2.12.2 as schema processor: 9,292 of 9,310 applicable cases pass, 18 fail. Measured offline, on JDK 21 and
-25. The default run (basic processor) and its failures are in `xslt30.md`; this run claims schema-awareness in both
+Schema-aware processor (`-Dxslt30.schemaAware=true`; no streaming or backwards compatibility claimed), with the
+native validator of `xsd-core` as schema processor (the default of the harness): 9,289 of 9,310 applicable cases
+pass, 21 fail. With Apache Xerces-J 2.12.2 (`-Dxdm.schemaProvider=xerces`) 9,292 pass and 18 fail: the 18 cases of
+this file except `merge-049`, `merge-050` and `merge-052`, which Xerces-J passes only by accident (see below). The fail
+lists of the two processors differ by these three cases only. Measured offline, on JDK 21 and 25. The default run (basic processor) and its failures are in `xslt30.md`; this run claims schema-awareness in both
 directions: the 686 cases that need it run, and the 31 cases written for a processor without it
 (`XSLT30SchemaUnawareCasesTest`; 22 of them apply to the default run) are skipped, 663 applicable cases more than
 in the default run.
@@ -13,9 +15,19 @@ Status **Open** means winnable later; **Accepted** means a decision not to.
 
 ### `accumulator-073`, `catalog-009`, `merge-051`, `strip-space-009`, `validation-1301`
 **Status:** Accepted (schema processor).
-The schemas use XSD 1.1 (`xs:assert`, `xs:alternative`), which Apache Xerces-J 2.12.2 does not support: it rejects
-the imported schema (XTSE0220), or for `strip-space-009` the source schema, so the source is not valid. go-xslt has
-its own XSD 1.1 validator and passes them.
+The schemas use XSD 1.1 (`xs:assert`, `xs:alternative`), which neither Apache Xerces-J 2.12.2 nor the native
+validator (XSD 1.0 only until phase V8) supports: the imported schema is rejected (XTSE0220), or for `strip-space-009`
+the source schema, so the source is not valid. go-xslt has its own XSD 1.1 validator and passes them.
+
+### `merge-049`, `merge-050`, `merge-052`
+**Status:** Open (native validator only; the XSLT engine is at fault, not the validator).
+`xsl:merge-source` ignores `validation` and `type`, so the sources of `xsl:merge` stay unannotated and
+`current-merge-group() instance of schema-element(ITEM)*` is false. Apache Xerces-J passes these cases only because
+it rejects `books.xsd` (it does not read the `xs:assert` under `vc:minVersion="1.1"`), and the harness accepts any
+error where the catalog expects XTSE1650. The native validator reads the schema (a `vc:minVersion` assertion is left
+out under XSD 1.0, as the specification asks), so the transformation runs. Fix in `MergeInstruction`: compile a
+`ValidationRequest` (kind source document) per `xsl:merge-source` and apply it to the document of each
+`for-each-source` URI, as `xsl:source-document` does.
 
 ### `catalog-005`, `catalog-005b`
 **Status:** Accepted (same as go-xslt).

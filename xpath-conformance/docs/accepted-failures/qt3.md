@@ -1,7 +1,8 @@
 # QT3 (`qt3tests`, XPath 3.1 / F&O 3.1): failing cases
 
-22,419 of 22,478 applicable cases pass, 59 fail. Measured offline, on JDK 21 and 25, with Apache Xerces-J as the
-schema processor (the default of the harness, see below).
+22,419 of 22,478 applicable cases pass, 59 fail. Measured offline, on JDK 21 and 25, with the native validator of
+`xsd-core` as the schema processor (the default of the harness, see below). With Apache Xerces-J
+(`-Dxdm.schemaProvider=xerces`) the fail list is identical by name.
 
 Every failing case is named here in backticks under a heading with its status and reason. `QT3Test` fails on any
 failing case that is not named here, so a regression is loud and a newly accepted failure needs a written reason.
@@ -48,7 +49,8 @@ go-xslt accepts the same 20 cases.
 `json-to-xml-037`, `json-to-xml-038`
 
 **Status:** Accepted (only in a run with `-Dqt3.schemaProcessor=jdk`; they pass in the default run).
-The harness validates sources with Apache Xerces-J, which is on its test class path, and makes the schemas of the
+The harness validates sources with the native validator (or Apache Xerces-J with `-Dxdm.schemaProvider=xerces`), both
+on its test class path, and makes the schemas of the
 environment the in-scope schema definitions of the test (`QT3SchemaCache`); the schema of the XML representation of
 JSON (environment `json-ns`, which names only the namespace) is taken from the suite's copy. With
 `-Dqt3.schemaProcessor=jdk` the JDK validator is used instead, as before: it gives type annotations, nilled, schema
