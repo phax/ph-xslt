@@ -116,6 +116,7 @@ v0.1.0 - work in progress
 * `xsd-core` instance validation: element and attribute validation with defaults, `xsi:type`, `xsi:nil`, `xsi:schemaLocation` hints, and the identity constraints (`xs:unique`, `xs:key`, `xs:keyref`) and ID/IDREF checks
 * `xsd-conformance` with `-Dxsd.validator=native`: the native XSD 1.0 validator passes 39,396 of 39,401 applicable cases; the 5 failures are the ones documented by go-xslt
 * Added the native schema processor as `IXdmSchemaProvider` (`XsdSchemaProvider` of `xsd-core`): `XdmSchemaSupport` uses it when `xsd-core` is on the class path, Apache Xerces-J otherwise or with `-Dxdm.schemaProvider=xerces`; trees are validated in place; the QT3 and the schema-aware XSLT30 harnesses use it by default
+* `xsl:merge-source` honours `validation` and `type`: the documents of `for-each-source` are validated like those of `xsl:source-document`; the schema-aware XSLT30 run with the native validator now fails 17 cases
 
 # Contributing
 
