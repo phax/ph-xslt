@@ -27,6 +27,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.schema.EXdmContentType;
 import com.helger.xpath.xdm.schema.EXdmSimpleVariety;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
@@ -50,55 +51,6 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
 {
   private static final int DERIVATION_RESTRICTION_EXTENSION = TypeInfo.DERIVATION_RESTRICTION |
                                                               TypeInfo.DERIVATION_EXTENSION;
-
-  /**
-   * The built-in atomic types, every type before all of its base types, so the
-   * first one a type derives from is the most specific one.
-   */
-  private static final String [] BUILTIN_ATOMIC_TYPES = { "ID",
-                                                          "IDREF",
-                                                          "ENTITY",
-                                                          "NCName",
-                                                          "Name",
-                                                          "NMTOKEN",
-                                                          "language",
-                                                          "token",
-                                                          "normalizedString",
-                                                          "string",
-                                                          "byte",
-                                                          "short",
-                                                          "int",
-                                                          "long",
-                                                          "unsignedByte",
-                                                          "unsignedShort",
-                                                          "unsignedInt",
-                                                          "unsignedLong",
-                                                          "positiveInteger",
-                                                          "nonNegativeInteger",
-                                                          "negativeInteger",
-                                                          "nonPositiveInteger",
-                                                          "integer",
-                                                          "decimal",
-                                                          "double",
-                                                          "float",
-                                                          "boolean",
-                                                          "dateTimeStamp",
-                                                          "dateTime",
-                                                          "date",
-                                                          "time",
-                                                          "yearMonthDuration",
-                                                          "dayTimeDuration",
-                                                          "duration",
-                                                          "gYearMonth",
-                                                          "gYear",
-                                                          "gMonthDay",
-                                                          "gDay",
-                                                          "gMonth",
-                                                          "hexBinary",
-                                                          "base64Binary",
-                                                          "anyURI",
-                                                          "QName",
-                                                          "NOTATION" };
 
   private final TypeInfo m_aTypeInfo;
   // true for the item type of a list type: the same TypeInfo, with the
@@ -141,10 +93,10 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     // simple content from its base by extension
     final int nMethods = bListItem ? DERIVATION_RESTRICTION_EXTENSION | TypeInfo.DERIVATION_LIST
                                    : DERIVATION_RESTRICTION_EXTENSION;
-    for (final String sBuiltin : BUILTIN_ATOMIC_TYPES)
-      if (_isDerivedFrom (aTypeInfo, XdmConstants.NS_XS, sBuiltin, nMethods))
-        return new XdmQName (XdmConstants.NS_XS, sBuiltin, "xs");
-    return null;
+    return XdmSchemaType.findBuiltinAtomicType (aName -> _isDerivedFrom (aTypeInfo,
+                                                                        aName.namespaceUri (),
+                                                                        aName.localName (),
+                                                                        nMethods));
   }
 
   @Nullable

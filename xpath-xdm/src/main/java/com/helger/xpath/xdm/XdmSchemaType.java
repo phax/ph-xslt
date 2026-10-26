@@ -16,6 +16,8 @@
  */
 package com.helger.xpath.xdm;
 
+import java.util.function.Predicate;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -42,6 +44,57 @@ import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 @Immutable
 public final class XdmSchemaType
 {
+  private static final XdmQName ANY_SIMPLE_TYPE = new XdmQName (XdmConstants.NS_XS, "anySimpleType");
+
+  /**
+   * The built-in atomic types, every type before all of its base types, so the
+   * first one a type derives from is the most specific one.
+   */
+  private static final String [] BUILTIN_ATOMIC_TYPES = { "ID",
+                                                          "IDREF",
+                                                          "ENTITY",
+                                                          "NCName",
+                                                          "Name",
+                                                          "NMTOKEN",
+                                                          "language",
+                                                          "token",
+                                                          "normalizedString",
+                                                          "string",
+                                                          "byte",
+                                                          "short",
+                                                          "int",
+                                                          "long",
+                                                          "unsignedByte",
+                                                          "unsignedShort",
+                                                          "unsignedInt",
+                                                          "unsignedLong",
+                                                          "positiveInteger",
+                                                          "nonNegativeInteger",
+                                                          "negativeInteger",
+                                                          "nonPositiveInteger",
+                                                          "integer",
+                                                          "decimal",
+                                                          "double",
+                                                          "float",
+                                                          "boolean",
+                                                          "dateTimeStamp",
+                                                          "dateTime",
+                                                          "date",
+                                                          "time",
+                                                          "yearMonthDuration",
+                                                          "dayTimeDuration",
+                                                          "duration",
+                                                          "gYearMonth",
+                                                          "gYear",
+                                                          "gMonthDay",
+                                                          "gDay",
+                                                          "gMonth",
+                                                          "hexBinary",
+                                                          "base64Binary",
+                                                          "anyURI",
+                                                          "QName",
+                                                          "NOTATION" };
+
   private final IXdmTypeDefinition m_aType;
   private final IXdmTypeDefinition m_aValueType;
   private final XdmQName m_aName;
@@ -56,19 +109,38 @@ public final class XdmSchemaType
     m_aName = aType.getAnnotationName ();
     m_bSimple = !aType.isComplex ();
     // The typed value comes from the simple content of the value type; a
-    // list is typed by its item type
+    // list is typed by its item type. As with the DOM TypeInfo derivation
+    // checks of the validators: xs:anySimpleType counts as a list, and a
+    // complex type with list content has no known built-in item type.
     final IXdmTypeDefinition aContent = aValueType.getSimpleContentType ();
-    m_bList = aContent != null && aContent.getVariety () == EXdmSimpleVariety.LIST;
-    if (aContent == null)
-      m_aAtomicBase = null;
+    m_bList = aContent != null && aContent.getVariety () == EXdmSimpleVariety.LIST ||
+              aValueType.getAnnotationName ().equals (ANY_SIMPLE_TYPE);
+    if (m_bList)
+    {
+      final IXdmTypeDefinition aItem = aContent == null || aValueType.isComplex () ? null : aContent.getItemType ();
+      m_aAtomicBase = aItem == null ? null : aItem.getBuiltinAtomicType ();
+    }
     else
-      if (m_bList)
-      {
-        final IXdmTypeDefinition aItem = aContent.getItemType ();
-        m_aAtomicBase = aItem == null ? null : aItem.getBuiltinAtomicType ();
-      }
-      else
-        m_aAtomicBase = aContent.getBuiltinAtomicType ();
+      m_aAtomicBase = findBuiltinAtomicType (aValueType::isDerivedFrom);
+  }
+
+  /**
+   * @param aDerivesFrom
+   *        The derivation check of a type against a built-in atomic type
+   *        name.
+   * @return The most specific built-in atomic type the check accepts, or
+   *         <code>null</code>.
+   */
+  @Nullable
+  public static XdmQName findBuiltinAtomicType (@NonNull final Predicate <XdmQName> aDerivesFrom)
+  {
+    for (final String sBuiltin : BUILTIN_ATOMIC_TYPES)
+    {
+      final XdmQName aName = new XdmQName (XdmConstants.NS_XS, sBuiltin, "xs");
+      if (aDerivesFrom.test (aName))
+        return aName;
+    }
+    return null;
   }
 
   /**
