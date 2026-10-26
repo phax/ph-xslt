@@ -111,8 +111,8 @@ v0.1.0 - work in progress
 * Added the module `xsd-conformance` that runs the W3C XML Schema test suite (xsdtests) against a pluggable validator; the first one is Apache Xerces-J 2.12.2 (XSD 1.0: 39,145 of 39,401 applicable cases pass; XSD 1.1 is reported as unsupported). Every failing case is documented with its reason in `xsd-conformance/docs/accepted-failures/xsd.md`, and an undocumented failure fails the build
 * Added the module `xsd-core`, a native XML Schema validator (port of go-xslt's `internal/xsd`, no Xerces-J or JAXP validation): schema loader with include/import/redefine and conditional inclusion (`vc:*`), schema-for-schemas checks, the component model and its read-only view (`XsdSchema.getView`), local-file-only access with optional confinement (`XsdFileAccess`); constructs not implemented yet are reported as unsupported
 * `xsd-conformance`: `-Dxsd.validator=native` runs the native validator; the summary splits schema and instance tests
+* Added the native schema processor as `IXdmSchemaProvider` (`XsdSchemaProvider` of `xsd-core`): `XdmSchemaSupport` uses it when `xsd-core` is on the class path, Apache Xerces-J otherwise or with `-Dxdm.schemaProvider=xerces`; trees are validated in place; the QT3 and the schema-aware XSLT30 harnesses use it by default
 
 # Contributing
 
 Copyright (C) 2026 Philip Helger. Licensed under the Apache License, Version 2.0.
-* Added the native schema processor as `IXdmSchemaProvider` (`XsdSchemaProvider` of `xsd-core`): `XdmSchemaSupport` uses it when `xsd-core` is on the class path, Apache Xerces-J otherwise or with `-Dxdm.schemaProvider=xerces`; trees are validated in place; the QT3 and the schema-aware XSLT30 harnesses use it by default
