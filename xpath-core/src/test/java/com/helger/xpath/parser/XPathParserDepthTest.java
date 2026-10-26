@@ -19,6 +19,7 @@ package com.helger.xpath.parser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import org.jspecify.annotations.NonNull;
@@ -29,9 +30,8 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.context.StaticContext;
 
 /**
- * Test class for the nesting depth limit of {@link XPathParser}: hostile input
- * must yield XPDY0130, never a StackOverflowError, independent of the stack
- * size of the calling thread.
+ * Test class for the nesting depth limit of {@link XPathParser}: hostile input must yield XPDY0130,
+ * never a StackOverflowError, independent of the stack size of the calling thread.
  *
  * @author Philip Helger
  */
@@ -65,7 +65,7 @@ public final class XPathParserDepthTest
     {
       assertEquals (ex.getMessage (), "XPDY0130", ex.getCode ());
       // The message must not contain the whole input
-      assertEquals (true, ex.getMessage ().length () < 1000);
+      assertTrue (ex.getMessage ().length () < 1000);
     }
   }
 

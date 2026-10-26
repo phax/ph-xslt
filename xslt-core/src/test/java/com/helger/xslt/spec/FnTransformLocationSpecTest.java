@@ -16,7 +16,6 @@
  */
 package com.helger.xslt.spec;
 
-import static com.helger.xslt.spec.XsltSpecTestHelper.err;
 import static com.helger.xslt.spec.XsltSpecTestHelper.specWrite;
 import static org.junit.Assert.assertEquals;
 
@@ -51,8 +50,8 @@ import com.helger.xslt.compile.FileResourceResolver;
 public final class FnTransformLocationSpecTest
 {
   /**
-   * A stylesheet whose only template comes from a RELATIVE xsl:include, so it
-   * runs only when its base URI is known.
+   * A stylesheet whose only template comes from a RELATIVE xsl:include, so it runs only when its
+   * base URI is known.
    */
   private static final String INCLUDING = "<xsl:stylesheet version=\"3.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\">\n" +
                                           "  <xsl:include href=\"inc.xsl\"/>\n" +
@@ -80,12 +79,10 @@ public final class FnTransformLocationSpecTest
   }
 
   /**
-   * stylesheet-location and stylesheet-base-uri (F&amp;O 3.1 §16.3.2): the
-   * location both locates the module and is the default for its base URI (a
-   * relative one resolves against the static base URI of the call);
-   * stylesheet-text gets one from stylesheet-base-uri. (Without it the include
-   * cannot be retrieved, fn-transform-err-9: XTSE0165. Left out, as in
-   * go-xslt.)
+   * stylesheet-location and stylesheet-base-uri (F&amp;O 3.1 §16.3.2): the location both locates
+   * the module and is the default for its base URI (a relative one resolves against the static base
+   * URI of the call); stylesheet-text gets one from stylesheet-base-uri. (Without it the include
+   * cannot be retrieved, fn-transform-err-9: XTSE0165. Left out, as in go-xslt.)
    */
   @Test
   public void fnTransformLocations () throws IOException
@@ -124,9 +121,8 @@ public final class FnTransformLocationSpecTest
   }
 
   /**
-   * Invokes a host-supplied package by package-name, with package-version
-   * defaulting to "*" (any version), with a version that selects it, and with
-   * one that selects nothing (FOXT0002).
+   * Invokes a host-supplied package by package-name, with package-version defaulting to "*" (any
+   * version), with a version that selects it, and with one that selects nothing (FOXT0002).
    */
   @Test
   public void fnTransformPackageName () throws IOException
@@ -139,13 +135,23 @@ public final class FnTransformLocationSpecTest
                         "  <xsl:template name=\"main\" visibility=\"public\"><out>from-package</out></xsl:template>\n" +
                         "</xsl:package>");
     final String [] [] aCases = { { "any-version", "'package-name': 'urn:mte:p'", "from-package" },
-                                  { "matching-version", "'package-name': 'urn:mte:p', 'package-version': '1.0'", "from-package" },
-                                  { "no-such-version", "'package-name': 'urn:mte:p', 'package-version': '2.0'", "FOXT0002" },
-                                  { "with-stylesheet-too", "'package-name': 'urn:mte:p', 'stylesheet-text': '&lt;x/&gt;'", "FOXT0002" } };
+                                  { "matching-version",
+                                    "'package-name': 'urn:mte:p', 'package-version': '1.0'",
+                                    "from-package" },
+                                  { "no-such-version",
+                                    "'package-name': 'urn:mte:p', 'package-version': '2.0'",
+                                    "FOXT0002" },
+                                  { "with-stylesheet-too",
+                                    "'package-name': 'urn:mte:p', 'stylesheet-text': '&lt;x/&gt;'",
+                                    "FOXT0002" } };
     for (final String [] aCase : aCases)
     {
-      final String sSheet = _outer ("transform(map{" + aCase[1] + ", 'initial-template': QName('', 'main')})?output/out");
-      final XsltCompileOptions aOptions = new XsltCompileOptions ().setBaseUri (aDir.resolve ("caller.xsl").toUri ().toString ())
+      final String sSheet = _outer ("transform(map{" +
+                                    aCase[1] +
+                                    ", 'initial-template': QName('', 'main')})?output/out");
+      final XsltCompileOptions aOptions = new XsltCompileOptions ().setBaseUri (aDir.resolve ("caller.xsl")
+                                                                                    .toUri ()
+                                                                                    .toString ())
                                                                    .addPackage (new PackageSource (null,
                                                                                                    null,
                                                                                                    aDir.resolve ("p.xsl")
@@ -167,10 +173,9 @@ public final class FnTransformLocationSpecTest
   }
 
   /**
-   * Calls fn:transform from a bare XPath expression with no enclosing
-   * stylesheet. With none of initial-template, source-node or
-   * initial-match-selection, call-template invocation of xsl:initial-template
-   * is used (§16.3.2).
+   * Calls fn:transform from a bare XPath expression with no enclosing stylesheet. With none of
+   * initial-template, source-node or initial-match-selection, call-template invocation of
+   * xsl:initial-template is used (§16.3.2).
    */
   @Test
   public void fnTransformStandalone ()

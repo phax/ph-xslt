@@ -29,7 +29,6 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.fn.FnUri;
-import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
@@ -51,9 +50,9 @@ import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
 /**
- * xsl:merge (XSLT 3.0 section 15) without streaming: every input sequence is
- * evaluated, checked to be sorted (or sorted with sort-before-merge), and all
- * of them are merged into groups of items with equal merge keys.
+ * xsl:merge (XSLT 3.0 section 15) without streaming: every input sequence is evaluated, checked to
+ * be sorted (or sorted with sort-before-merge), and all of them are merged into groups of items
+ * with equal merge keys.
  *
  * @author Philip Helger
  */
@@ -86,7 +85,8 @@ public final class MergeInstruction
   }
 
   @NonNull
-  private static XdmAtomic [] _computeKeys (final SortKeyDef.@NonNull Evaluated aKeys, @NonNull final XsltContext aItemCtx)
+  private static XdmAtomic [] _computeKeys (final SortKeyDef.@NonNull Evaluated aKeys,
+                                            @NonNull final XsltContext aItemCtx)
   {
     try
     {
@@ -100,7 +100,9 @@ public final class MergeInstruction
     }
   }
 
-  private static int _compare (final SortKeyDef.@NonNull Evaluated aKeys, @NonNull final XdmAtomic [] a, @NonNull final XdmAtomic [] b)
+  private static int _compare (final SortKeyDef.@NonNull Evaluated aKeys,
+                               @NonNull final XdmAtomic [] a,
+                               @NonNull final XdmAtomic [] b)
   {
     try
     {
@@ -115,8 +117,8 @@ public final class MergeInstruction
   }
 
   /**
-   * @return The contexts in which the select expression of a merge source is
-   *         evaluated, one per input sequence.
+   * @return The contexts in which the select expression of a merge source is evaluated, one per
+   *         input sequence.
    */
   @NonNull
   private static ICommonsList <XsltContext> _getAnchors (@NonNull final Source aSource, @NonNull final XsltContext aCtx)
@@ -145,7 +147,8 @@ public final class MergeInstruction
             if (aItem instanceof final XdmAtomic aAtomic && aAtomic.isStringLike ())
               sRef = aAtomic.getString ();
             else
-              throw new XPathException ("XPTY0004", "The for-each-source attribute of xsl:merge-source must deliver strings");
+              throw new XPathException ("XPTY0004",
+                                        "The for-each-source attribute of xsl:merge-source must deliver strings");
           final String sTrimmed = FnUri.iriToUri (sRef.trim ());
           String sUri;
           try
@@ -210,7 +213,7 @@ public final class MergeInstruction
           aEntries.add (new Entry (aItem, s, _computeKeys (aKeys, aAnchor.withFocus (aItem, 1, 1))));
         }
         if (aSource.sortBeforeMerge ())
-          aEntries.sort ( (a, b) -> _compare (aKeys, a.keys (), b.keys ()));
+          aEntries.sort ((a, b) -> _compare (aKeys, a.keys (), b.keys ()));
         else
           for (int i = 1; i < aEntries.size (); ++i)
             if (_compare (aKeys, aEntries.get (i - 1).keys (), aEntries.get (i).keys ()) > 0)
@@ -224,7 +227,7 @@ public final class MergeInstruction
 
     // Stable: items with equal keys stay in merge source and input order
     final SortKeyDef.Evaluated aKeys = aEvaluated[0];
-    aAll.sort ( (a, b) -> _compare (aKeys, a.keys (), b.keys ()));
+    aAll.sort ((a, b) -> _compare (aKeys, a.keys (), b.keys ()));
 
     final ICommonsList <ICommonsList <Entry>> aGroups = new CommonsArrayList <> ();
     ICommonsList <Entry> aCur = null;
@@ -238,7 +241,8 @@ public final class MergeInstruction
       aCur.add (aEntry);
     }
 
-    final XsltContext aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
+    final XsltContext aBase = aCtx.withState (aCtx.getState ()
+                                                  .withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
     final int nGroups = aGroups.size ();
     for (int g = 0; g < nGroups; ++g)
     {
@@ -260,7 +264,8 @@ public final class MergeInstruction
       for (final XdmAtomic aKey : aGroup.getFirstOrNull ().keys ())
         if (aKey != null)
           aKeyValues.add (aKey);
-      final XsltContext aGroupCtx = aBase.with (MergeExtension.CURRENT_MERGE_GROUP, new MergeGroup (aItems.build (), aBySource))
+      final XsltContext aGroupCtx = aBase.with (MergeExtension.CURRENT_MERGE_GROUP,
+                                                new MergeGroup (aItems.build (), aBySource))
                                          .with (MergeExtension.CURRENT_MERGE_KEY, aKeyValues.build ())
                                          .withFocus (aGroup.getFirstOrNull ().item (), g + 1, nGroups);
       m_aAction.execute (aGroupCtx, aOut);
@@ -293,7 +298,9 @@ public final class MergeInstruction
     }
     if (aEl.hasAttr ("type") && !bSchemaAware)
       throw XsltException.at (aEl, "XTSE1660", "The type attribute requires a schema-aware processor");
-    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.SOURCE_DOCUMENT);
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx,
+                                                                     aEl,
+                                                                     ValidationRequest.EKind.SOURCE_DOCUMENT);
     final ICommonsList <SortKeyDef> aKeys = new CommonsArrayList <> ();
     for (final XslElement aChild : aEl.getElementChildren ())
     {
@@ -316,9 +323,9 @@ public final class MergeInstruction
   }
 
   /**
-   * The static part of XTDE2210: corresponding merge keys must agree in the
-   * presence of lang, order, collation, case-order and data-type, and in the
-   * values of those written without attribute value templates.
+   * The static part of XTDE2210: corresponding merge keys must agree in the presence of lang,
+   * order, collation, case-order and data-type, and in the values of those written without
+   * attribute value templates.
    */
   private static void _checkCorrespondingKeys (@NonNull final XslElement aFirst, @NonNull final XslElement aOther)
   {
@@ -329,7 +336,9 @@ public final class MergeInstruction
       if (s1 == null && s2 == null)
         continue;
       if (s1 == null || s2 == null)
-        throw XsltException.at (aOther, "XTDE2210", "Corresponding xsl:merge-key elements differ in the presence of " + sAttr);
+        throw XsltException.at (aOther,
+                                "XTDE2210",
+                                "Corresponding xsl:merge-key elements differ in the presence of " + sAttr);
       if (s1.indexOf ('{') >= 0 || s2.indexOf ('{') >= 0)
         continue;
       s1 = s1.trim ();
@@ -340,7 +349,9 @@ public final class MergeInstruction
         s2 = CollationRegistry.resolveUri (s2, aOther.getStaticBaseUri ());
       }
       if (!s1.equals (s2))
-        throw XsltException.at (aOther, "XTDE2210", "Corresponding xsl:merge-key elements have different values for " + sAttr);
+        throw XsltException.at (aOther,
+                                "XTDE2210",
+                                "Corresponding xsl:merge-key elements have different values for " + sAttr);
     }
   }
 
@@ -369,7 +380,9 @@ public final class MergeInstruction
         if (aSource.name () != null && !aNames.add (aSource.name ()))
           throw XsltException.at (aChild, "XTSE3190", "Duplicate xsl:merge-source name '" + aSource.name () + "'");
         if (aSources.isNotEmpty () && aSources.getFirstOrNull ().keys ().size () != aSource.keys ().size ())
-          throw XsltException.at (aChild, "XTSE2200", "All xsl:merge-source elements must have the same number of xsl:merge-key children");
+          throw XsltException.at (aChild,
+                                  "XTSE2200",
+                                  "All xsl:merge-source elements must have the same number of xsl:merge-key children");
         aSources.add (aSource);
       }
       else
@@ -386,7 +399,9 @@ public final class MergeInstruction
               throw XsltException.at (aChild, "XTSE0010", "xsl:fallback may only follow xsl:merge-action");
           }
           else
-            throw XsltException.at (aChild, "XTSE0010", "xsl:" + aChild.getLocalName () + " is not allowed in xsl:merge");
+            throw XsltException.at (aChild,
+                                    "XTSE0010",
+                                    "xsl:" + aChild.getLocalName () + " is not allowed in xsl:merge");
     }
     if (aSources.isEmpty ())
       throw XsltException.at (aEl, "XTSE0010", "xsl:merge requires at least one xsl:merge-source");
@@ -394,7 +409,8 @@ public final class MergeInstruction
       throw XsltException.at (aEl, "XTSE0010", "xsl:merge requires an xsl:merge-action");
     for (int s = 1; s < aSources.size (); ++s)
       for (int k = 0; k < aSources.get (s).keys ().size (); ++k)
-        _checkCorrespondingKeys (aSources.getFirstOrNull ().keys ().get (k).getElement (), aSources.get (s).keys ().get (k).getElement ());
+        _checkCorrespondingKeys (aSources.getFirstOrNull ().keys ().get (k).getElement (),
+                                 aSources.get (s).keys ().get (k).getElement ());
     final MergeInstruction aInstr = new MergeInstruction (aSources, aAction);
     return new CompiledInstruction (aEl, aInstr::_execute);
   }

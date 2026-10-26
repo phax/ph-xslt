@@ -34,8 +34,8 @@ import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
  * @param nodeTest
  *        For NODE the kind test.
  * @param wildcard
- *        For FUNCTION, MAP, ARRAY: the wildcard form <code>function(*)</code>,
- *        <code>map(*)</code>, <code>array(*)</code>.
+ *        For FUNCTION, MAP, ARRAY: the wildcard form <code>function(*)</code>, <code>map(*)</code>,
+ *        <code>array(*)</code>.
  * @param paramTypes
  *        For a typed FUNCTION test the parameter types.
  * @param returnType
@@ -43,13 +43,11 @@ import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
  * @param mapKeyType
  *        For a typed MAP test the key type.
  * @param valueType
- *        For a typed MAP test the value type; for a typed ARRAY test the
- *        member type.
+ *        For a typed MAP test the value type; for a typed ARRAY test the member type.
  * @param schemaType
- *        For ATOMIC a user-defined simple type of the in-scope schema
- *        definitions (an atomic or union type; in a cast also a list type);
- *        <code>atomicType</code> is then its built-in base, or
- *        <code>xs:anyAtomicType</code>. <code>null</code> for built-in types.
+ *        For ATOMIC a user-defined simple type of the in-scope schema definitions (an atomic or
+ *        union type; in a cast also a list type); <code>atomicType</code> is then its built-in
+ *        base, or <code>xs:anyAtomicType</code>. <code>null</code> for built-in types.
  * @author Philip Helger
  */
 public record ItemType (@NonNull Kind kind,
@@ -66,6 +64,7 @@ public record ItemType (@NonNull Kind kind,
   public enum Kind
   {
     /** <code>item()</code> */
+    @SuppressWarnings ("hiding")
     ITEM,
     ATOMIC,
     NODE,
@@ -116,14 +115,14 @@ public record ItemType (@NonNull Kind kind,
 
   /**
    * @param eBuiltin
-   *        The built-in base type, or <code>xs:anyAtomicType</code> for a union
-   *        or list type.
+   *        The built-in base type, or <code>xs:anyAtomicType</code> for a union or list type.
    * @param aSchemaType
    *        The user-defined simple type.
    * @return An atomic item type of a user-defined simple type.
    */
   @NonNull
-  public static ItemType schemaAtomic (@NonNull final EAtomicType eBuiltin, @NonNull final IXdmTypeDefinition aSchemaType)
+  public static ItemType schemaAtomic (@NonNull final EAtomicType eBuiltin,
+                                       @NonNull final IXdmTypeDefinition aSchemaType)
   {
     return new ItemType (Kind.ATOMIC, eBuiltin, null, false, null, null, null, null, aSchemaType);
   }

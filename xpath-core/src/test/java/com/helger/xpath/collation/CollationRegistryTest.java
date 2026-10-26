@@ -17,6 +17,7 @@
 package com.helger.xpath.collation;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -59,9 +60,12 @@ public final class CollationRegistryTest
     final ICollation aColl = CollationRegistry.getCollationOrThrow (sUri);
     final int ret = Integer.signum (aColl.compare (a, b));
     // Keys must agree with the comparison
-    assertEquals (ret == 0, aColl.getCollationKey (a).equals (aColl.getCollationKey (b)));
+    if (ret == 0)
+      assertTrue (aColl.getCollationKey (a).equals (aColl.getCollationKey (b)));
+    else
+      assertFalse (aColl.getCollationKey (a).equals (aColl.getCollationKey (b)));
     final int nKeyCmp = Integer.signum (Arrays.compareUnsigned (aColl.getCollationKeyBytes (a),
-                                                                          aColl.getCollationKeyBytes (b)));
+                                                                aColl.getCollationKeyBytes (b)));
     assertEquals (ret, nKeyCmp);
     return ret;
   }

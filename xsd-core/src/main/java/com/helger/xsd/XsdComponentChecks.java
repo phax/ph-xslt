@@ -33,12 +33,11 @@ import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.xdm.XdmNode;
 
 /**
- * The whole-schema component checks of go-xslt <code>structure.go</code>
- * (element declarations consistent, xs:all placement, derivation of content
- * and attributes, substitution groups, cycles, identity-constraint names). The
- * particle-restriction and UPA algorithms they call are phase V4
- * ({@link XsdRestrictionChecker}, {@link XsdUpa}). Every walk over
- * input-controlled structure is iterative or bounded.
+ * The whole-schema component checks of go-xslt <code>structure.go</code> (element declarations
+ * consistent, xs:all placement, derivation of content and attributes, substitution groups, cycles,
+ * identity-constraint names). The particle-restriction and UPA algorithms they call are phase V4
+ * ({@code XsdRestrictionChecker}, {@code XsdUpa}). Every walk over input-controlled structure is
+ * iterative or bounded.
  *
  * @author Philip Helger
  */
@@ -67,8 +66,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>typeTablesEquivalent</code>: equivalent XSD 1.1 {type
-   * table}s (same alternatives, pairwise identical test text and type).
+   * go-xslt <code>typeTablesEquivalent</code>: equivalent XSD 1.1 {type table}s (same alternatives,
+   * pairwise identical test text and type).
    */
   private static boolean _typeTablesEquivalent (@NonNull final XsdElementDecl aA, @NonNull final XsdElementDecl aB)
   {
@@ -98,10 +97,10 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkElementConsistency11</code>: the XSD 1.1 half of
-   * cos-element-consistent - substitution members (abstract ones included)
-   * take part, and a non-skip wildcard admitting a local declaration's name
-   * requires equivalent type tables of the local and the global declaration.
+   * go-xslt <code>checkElementConsistency11</code>: the XSD 1.1 half of cos-element-consistent -
+   * substitution members (abstract ones included) take part, and a non-skip wildcard admitting a
+   * local declaration's name requires equivalent type tables of the local and the global
+   * declaration.
    */
   private void _checkElementConsistency11 (@Nullable final XsdParticle aRoot)
   {
@@ -158,16 +157,16 @@ final class XsdComponentChecks
         if (!_typeTablesEquivalent (aEntry.getValue ().decl (), aGlobal))
           throw XsdCompiler.invalid ("cos-element-consistent",
                                      "element " +
-                                                             aEntry.getKey () +
-                                                             ": type table differs from the global declaration a wildcard match would be assessed against");
+                                                               aEntry.getKey () +
+                                                               ": type table differs from the global declaration a wildcard match would be assessed against");
       }
     }
   }
 
   /**
-   * go-xslt <code>checkContentBaseKind</code>: src-ct.1/2, the derivation
-   * rules about what a derivation may take as its base (run as a post-pass,
-   * when forward-referenced bases are complete).
+   * go-xslt <code>checkContentBaseKind</code>: src-ct.1/2, the derivation rules about what a
+   * derivation may take as its base (run as a post-pass, when forward-referenced bases are
+   * complete).
    */
   private void _checkContentBaseKind (@NonNull final XsdComplexType aCT)
   {
@@ -185,14 +184,17 @@ final class XsdComponentChecks
         // simple-content base
         if (XsdDerivation.RESTRICTION.equals (aCT.m_sDerivation) && b.m_eKind == EXsdContentKind.SIMPLE)
           throw XsdCompiler.invalid ("derivation-ok-restriction.5.2",
-                                     "a complexContent restriction cannot derive from the simple-content type " + b.m_aName);
+                                     "a complexContent restriction cannot derive from the simple-content type " +
+                                                                      b.m_aName);
         // cos-ct-extends 1.4.2.2: a complexContent extension of a
         // simple-content base may only add attributes (1.1: not even that)
         if (XsdDerivation.EXTENSION.equals (aCT.m_sDerivation) &&
             b.m_eKind == EXsdContentKind.SIMPLE &&
             (!isEmptyParticle (aCT.m_aParticle) || m_aC.isXsd11 ()))
           throw XsdCompiler.invalid ("cos-ct-extends.1.4.2.2",
-                                     "an extension of the simple-content type " + b.m_aName + " cannot add element content");
+                                     "an extension of the simple-content type " +
+                                                               b.m_aName +
+                                                               " cannot add element content");
         // cos-ct-extends.1.4.3.2.2.1: an extension may not change mixedness
         if (XsdDerivation.EXTENSION.equals (aCT.m_sDerivation) &&
             !b.isAnyType () &&
@@ -201,11 +203,13 @@ final class XsdComponentChecks
           final boolean bDerivedMixed = aCT.m_eKind == EXsdContentKind.MIXED;
           final boolean bBaseMixed = b.m_eKind == EXsdContentKind.MIXED;
           if (!isEmptyParticle (aCT.m_aParticle) && bDerivedMixed != bBaseMixed)
-            throw XsdCompiler.invalid ("cos-ct-extends.1.4.3.2.2.1", "an extension may not change the mixedness of " + b.m_aName);
+            throw XsdCompiler.invalid ("cos-ct-extends.1.4.3.2.2.1",
+                                       "an extension may not change the mixedness of " + b.m_aName);
           // Declaring mixed over an element-only base with an empty body is
           // not allowed either
           if (isEmptyParticle (aCT.m_aParticle) && bDerivedMixed && !bBaseMixed)
-            throw XsdCompiler.invalid ("cos-ct-extends.1.4.3.2.2.1", "an extension may not change the mixedness of " + b.m_aName);
+            throw XsdCompiler.invalid ("cos-ct-extends.1.4.3.2.2.1",
+                                       "an extension may not change the mixedness of " + b.m_aName);
         }
         // derivation-ok-restriction 5.4.1.2, one direction: a mixed restriction
         // requires a mixed base
@@ -213,7 +217,8 @@ final class XsdComponentChecks
             !b.isAnyType () &&
             aCT.m_eKind == EXsdContentKind.MIXED &&
             b.m_eKind != EXsdContentKind.MIXED)
-          throw XsdCompiler.invalid ("derivation-ok-restriction.5.4.1.2", "a mixed restriction requires a mixed base (" + b.m_aName + ")");
+          throw XsdCompiler.invalid ("derivation-ok-restriction.5.4.1.2",
+                                     "a mixed restriction requires a mixed base (" + b.m_aName + ")");
       }
       return;
     }
@@ -234,8 +239,7 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkAllPlacement</code>: the placement half of
-   * cos-all-limited.
+   * go-xslt <code>checkAllPlacement</code>: the placement half of cos-all-limited.
    */
   private void _checkAllPlacement (@NonNull final XsdComplexType aCT)
   {
@@ -272,7 +276,8 @@ final class XsdComponentChecks
           {
             // 1.1: inside an xs:all only a 1..1 reference to another all group
             if (aMG.m_eCompositor != EXsdCompositor.ALL)
-              throw XsdCompiler.invalid ("cos-all-limited.1", "a sequence/choice group may not appear inside an xs:all");
+              throw XsdCompiler.invalid ("cos-all-limited.1",
+                                         "a sequence/choice group may not appear inside an xs:all");
             if (p.m_nMin != 1 || p.m_nMax != 1)
               throw XsdCompiler.invalid ("cos-all-limited.1",
                                          "an xs:all inside an xs:all must have minOccurs and maxOccurs 1");
@@ -290,8 +295,7 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkAllLimited</code>: the extension half of
-   * cos-all-limited.
+   * go-xslt <code>checkAllLimited</code>: the extension half of cos-all-limited.
    */
   private void _checkAllLimited (@NonNull final XsdComplexType aCT)
   {
@@ -317,13 +321,13 @@ final class XsdComponentChecks
     }
     else
       if (bBaseAll != bDerAll)
-        throw XsdCompiler.invalid ("cos-all-limited.1.2", "an extension may not combine xs:all with another compositor");
+        throw XsdCompiler.invalid ("cos-all-limited.1.2",
+                                   "an extension may not combine xs:all with another compositor");
   }
 
   /**
-   * go-xslt <code>directBuiltinPrim</code>: the primitive of a direct reference
-   * to a built-in atomic type (no user derivation, no facets), or
-   * <code>null</code>.
+   * go-xslt <code>directBuiltinPrim</code>: the primitive of a direct reference to a built-in
+   * atomic type (no user derivation, no facets), or <code>null</code>.
    */
   @Nullable
   private static EAtomicType _directBuiltinPrim (@Nullable final XsdSimpleType aType)
@@ -342,8 +346,7 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>wcNameSubsetOK</code>: the QName half of Wildcard Subset
-   * (1.1).
+   * go-xslt <code>wcNameSubsetOK</code>: the QName half of Wildcard Subset (1.1).
    */
   static boolean _wcNameSubsetOK (@NonNull final XsdWildcard aA, @NonNull final XsdWildcard aB)
   {
@@ -363,8 +366,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>wcUnionExpressible10</code>: whether the union of two
-   * attribute wildcards has an XSD 1.0 representation (errata E1-10).
+   * go-xslt <code>wcUnionExpressible10</code>: whether the union of two attribute wildcards has an
+   * XSD 1.0 representation (errata E1-10).
    */
   private static boolean _wcUnionExpressible10 (@NonNull final XsdWildcard aA, @NonNull final XsdWildcard aB)
   {
@@ -383,9 +386,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>baseAdmitsOpenWildcard</code>: whether a base without open
-   * content already admits every child the derived type's open content lets
-   * through (deliberately narrow).
+   * go-xslt <code>baseAdmitsOpenWildcard</code>: whether a base without open content already admits
+   * every child the derived type's open content lets through (deliberately narrow).
    */
   private boolean _baseAdmitsOpenWildcard (@NonNull final XsdComplexType aBase, @Nullable final XsdOpenContent aOwn)
   {
@@ -406,8 +408,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkOpenContentDerivation</code>: the {open content} halves
-   * of derivation-ok-restriction / cos-ct-extends (1.1).
+   * go-xslt <code>checkOpenContentDerivation</code>: the {open content} halves of
+   * derivation-ok-restriction / cos-ct-extends (1.1).
    */
   private void _checkOpenContentDerivation (@NonNull final XsdComplexType aCT)
   {
@@ -427,25 +429,32 @@ final class XsdComponentChecks
         if (aBase.isAnyType () || _baseAdmitsOpenWildcard (aBase, aOwn))
           return;
         throw XsdCompiler.invalid ("derivation-ok-restriction",
-                                   "a restriction cannot introduce open content over a closed base (" + aBase.m_aName + ")");
+                                   "a restriction cannot introduce open content over a closed base (" +
+                                                                aBase.m_aName +
+                                                                ")");
       }
       if (XsdOpenContent.MODE_SUFFIX.equals (aBaseEff.m_sMode) && XsdOpenContent.MODE_INTERLEAVE.equals (aOwn.m_sMode))
         throw XsdCompiler.invalid ("derivation-ok-restriction",
-                                   "open content mode cannot loosen suffix to interleave in a restriction of " + aBase.m_aName);
+                                   "open content mode cannot loosen suffix to interleave in a restriction of " +
+                                                                aBase.m_aName);
       if (!XsdRestrictionChecker.nsSubset (aOwn.m_aWildcard, aBaseEff.m_aWildcard) ||
           !_wcNameSubsetOK (aOwn.m_aWildcard, aBaseEff.m_aWildcard) ||
           XsdWildcard.processRank (aOwn.m_aWildcard.m_sProcess) < XsdWildcard.processRank (aBaseEff.m_aWildcard.m_sProcess))
         throw XsdCompiler.invalid ("derivation-ok-restriction",
-                                   "open-content wildcard is not a valid restriction of the base's (" + aBase.m_aName + ")");
+                                   "open-content wildcard is not a valid restriction of the base's (" +
+                                                                aBase.m_aName +
+                                                                ")");
     }
     else
       if (XsdDerivation.EXTENSION.equals (aCT.m_sDerivation))
       {
         if (aBaseEff == null || aBaseEff.m_aWildcard == null)
           return;
-        if (XsdOpenContent.MODE_INTERLEAVE.equals (aBaseEff.m_sMode) && XsdOpenContent.MODE_SUFFIX.equals (aOwn.m_sMode))
+        if (XsdOpenContent.MODE_INTERLEAVE.equals (aBaseEff.m_sMode) &&
+            XsdOpenContent.MODE_SUFFIX.equals (aOwn.m_sMode))
           throw XsdCompiler.invalid ("cos-ct-extends",
-                                     "open content mode cannot narrow interleave to suffix in an extension of " + aBase.m_aName);
+                                     "open content mode cannot narrow interleave to suffix in an extension of " +
+                                                       aBase.m_aName);
       }
   }
 
@@ -456,6 +465,7 @@ final class XsdComponentChecks
   {
     if (nDepth > 32)
       return true;
+
     final XsdSimpleType aBS = aBase instanceof final XsdSimpleType x ? x : null;
     final XsdSimpleType aDS = aDerived instanceof final XsdSimpleType x ? x : null;
     if (aBS == null && aDS == null)
@@ -469,7 +479,7 @@ final class XsdComponentChecks
       if (aBC.isAnyType ())
         return true;
       XsdComplexType aCur = aDC;
-      for (int n = 0; aCur != null && n < MAX_CHAIN; n++)
+      for (int n = 0; n < MAX_CHAIN; n++)
       {
         if (aCur == aBC || aCur.m_aName.equals (aBC.m_aName))
           return true;
@@ -520,7 +530,10 @@ final class XsdComponentChecks
       s = s.m_aBase;
     }
     // anySimpleType/anyAtomicType admits any simple type
-    if (aBS.m_bBaseBuiltin && aBS.m_aBase == null && aBS.m_aName.isZero () && aBS.resolvePrim () == EAtomicType.ANY_ATOMIC_TYPE)
+    if (aBS.m_bBaseBuiltin &&
+        aBS.m_aBase == null &&
+        aBS.m_aName.isZero () &&
+        aBS.resolvePrim () == EAtomicType.ANY_ATOMIC_TYPE)
       return true;
     if (aBS.m_eVariety == EXsdVariety.UNION && aBS.m_aBase == null)
     {
@@ -539,7 +552,11 @@ final class XsdComponentChecks
       return true;
     // A user-defined base is reached only through the chain; the built-in
     // hierarchy applies only to a plain built-in reference
-    if (!(aBS.m_bBaseBuiltin && aBS.m_aBase == null && aBS.m_aName.isZero () && !aBS.m_aFacets.any () && !aBS.m_bDeclared))
+    if (!(aBS.m_bBaseBuiltin &&
+          aBS.m_aBase == null &&
+          aBS.m_aName.isZero () &&
+          !aBS.m_aFacets.any () &&
+          !aBS.m_bDeclared))
       return false;
     return XsdDerivation.atomDerivesFrom (aDS.resolvePrim (), eBP);
   }
@@ -572,13 +589,20 @@ final class XsdComponentChecks
           continue;
         // derivation-ok-restriction 2.1.2: a redeclared use's type must be
         // validly derived from the base use's (provable cases only)
-        if (aBU != null && aBU.m_aDecl.m_aType != null && !typeRestrictsFrom (aUse.m_aDecl.m_aType, aBU.m_aDecl.m_aType))
+        if (aBU != null &&
+            aBU.m_aDecl.m_aType != null &&
+            !typeRestrictsFrom (aUse.m_aDecl.m_aType, aBU.m_aDecl.m_aType))
           throw XsdCompiler.invalid ("derivation-ok-restriction",
-                                     "attribute " + aUse.m_aDecl.m_aName + ": type is not derived from its type in base " + aBase.m_aName);
+                                     "attribute " +
+                                                                  aUse.m_aDecl.m_aName +
+                                                                  ": type is not derived from its type in base " +
+                                                                  aBase.m_aName);
         // 1.1: a restriction may not change {inheritable}
         if (aBU != null && m_aC.isXsd11 () && aBU.m_bInheritable != aUse.m_bInheritable)
           throw XsdCompiler.invalid ("derivation-ok-restriction",
-                                     "attribute " + aUse.m_aDecl.m_aName + ": {inheritable} must not change in a restriction");
+                                     "attribute " +
+                                                                  aUse.m_aDecl.m_aName +
+                                                                  ": {inheritable} must not change in a restriction");
         // derivation-ok-restriction 2.2: a use with no corresponding base use
         // must be admitted by the base's attribute wildcard
         if (aBU == null)
@@ -586,7 +610,9 @@ final class XsdComponentChecks
           final XsdWildcard aBW = aBaseAttrs.wildcard ();
           if (aBW == null || !aBW.matches (aUse.m_aDecl.m_aName))
             throw XsdCompiler.invalid ("derivation-ok-restriction.2.2",
-                                       "attribute " + aUse.m_aDecl.m_aName + " is not admitted by the base type's attribute wildcard");
+                                       "attribute " +
+                                                                        aUse.m_aDecl.m_aName +
+                                                                        " is not admitted by the base type's attribute wildcard");
         }
       }
     }
@@ -604,10 +630,9 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>fillWildcardSiblings</code>: resolve
-   * <code>##definedSibling</code> for every wildcard of a content model (and
-   * of its open content): the excluded names are the element declarations of
-   * the model and their allowed substitutes.
+   * go-xslt <code>fillWildcardSiblings</code>: resolve <code>##definedSibling</code> for every
+   * wildcard of a content model (and of its open content): the excluded names are the element
+   * declarations of the model and their allowed substitutes.
    */
   private void _fillWildcardSiblings (@Nullable final XsdParticle aRoot, @Nullable final XsdOpenContent aOC)
   {
@@ -666,9 +691,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>typeSignature</code>: a comparison key that treats two
-   * references to the same built-in or named type as equal; an anonymous type
-   * is its own key (identity).
+   * go-xslt <code>typeSignature</code>: a comparison key that treats two references to the same
+   * built-in or named type as equal; an anonymous type is its own key (identity).
    */
   @NonNull
   static Object typeSignature (@Nullable final IXsdType aType)
@@ -691,8 +715,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkElementConsistency</code>: two element particles with
-   * the same expanded name in one content model must have the same type.
+   * go-xslt <code>checkElementConsistency</code>: two element particles with the same expanded name
+   * in one content model must have the same type.
    */
   static void checkElementConsistency (@Nullable final XsdParticle aRoot)
   {
@@ -710,7 +734,10 @@ final class XsdComponentChecks
         final Object aSig = typeSignature (aDecl.m_aType);
         final Object aPrev = aSigs.get (aDecl.m_aName);
         if (aPrev != null && !aPrev.equals (aSig))
-          throw XsdCompiler.invalid ("", "inconsistent element declarations for " + aDecl.m_aName + " in one content model");
+          throw XsdCompiler.invalid ("",
+                                     "inconsistent element declarations for " +
+                                         aDecl.m_aName +
+                                         " in one content model");
         aSigs.put (aDecl.m_aName, aSig);
       }
       else
@@ -720,8 +747,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkAttrGroupCycles</code>: named attribute groups may not
-   * reference one another cyclically (XSD 1.0 only).
+   * go-xslt <code>checkAttrGroupCycles</code>: named attribute groups may not reference one another
+   * cyclically (XSD 1.0 only).
    */
   static void checkAttrGroupCycles (@NonNull final ICommonsList <XsdSchemaDocument> aDocs,
                                     @NonNull final EXsdVersion eVersion)
@@ -786,9 +813,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkAttrDerivation</code>: in a restriction an attribute
-   * carried over from the base keeps the base's fixed value, and a required
-   * base attribute may not become optional.
+   * go-xslt <code>checkAttrDerivation</code>: in a restriction an attribute carried over from the
+   * base keeps the base's fixed value, and a required base attribute may not become optional.
    */
   void checkAttrDerivation ()
   {
@@ -808,17 +834,20 @@ final class XsdComponentChecks
           continue;
         if (aBU.m_bHasFixed &&
             (!aDU.m_bHasFixed || !XsdWhiteSpace.collapse (aDU.m_sFixed).equals (XsdWhiteSpace.collapse (aBU.m_sFixed))))
-          throw XsdCompiler.invalid ("", "attribute " + aDU.m_aDecl.m_aName.local () + " must keep the base fixed value");
+          throw XsdCompiler.invalid ("",
+                                     "attribute " + aDU.m_aDecl.m_aName.local () + " must keep the base fixed value");
         if (aBU.m_bRequired && !aDU.m_bRequired)
           throw XsdCompiler.invalid ("",
-                                     "required attribute " + aDU.m_aDecl.m_aName.local () + " cannot be relaxed by restriction");
+                                     "required attribute " +
+                                         aDU.m_aDecl.m_aName.local () +
+                                         " cannot be relaxed by restriction");
       }
     }
   }
 
   /**
-   * go-xslt <code>checkFinalDerivation</code>: a complex type may not derive
-   * from a base whose {final} forbids that method.
+   * go-xslt <code>checkFinalDerivation</code>: a complex type may not derive from a base whose
+   * {final} forbids that method.
    */
   void checkFinalDerivation ()
   {
@@ -832,8 +861,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkDuplicateConstraints</code>: identity constraints are
-   * unique by name across the schema, and a keyref may not refer to a keyref.
+   * go-xslt <code>checkDuplicateConstraints</code>: identity constraints are unique by name across
+   * the schema, and a keyref may not refer to a keyref.
    */
   void checkDuplicateConstraints ()
   {
@@ -885,7 +914,12 @@ final class XsdComponentChecks
     // another keyref is flagged here
     for (final XsdIdentityConstraint aKR : aKeyrefs)
       if ("keyref".equals (aByName.get (aKR.m_aRefer)))
-        throw XsdCompiler.invalid ("", "keyref " + aKR.m_aName + " refers to " + aKR.m_aRefer + " which is itself a keyref");
+        throw XsdCompiler.invalid ("",
+                                   "keyref " +
+                                       aKR.m_aName +
+                                       " refers to " +
+                                       aKR.m_aRefer +
+                                       " which is itself a keyref");
   }
 
   /** go-xslt <code>isEmptyParticle</code>. */
@@ -907,8 +941,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>particleEmptiable</code>: whether a particle can match the
-   * empty sequence (depth-bounded, optimistic beyond the bound).
+   * go-xslt <code>particleEmptiable</code>: whether a particle can match the empty sequence
+   * (depth-bounded, optimistic beyond the bound).
    */
   static boolean particleEmptiable (@Nullable final XsdParticle aParticle, final int nDepth)
   {
@@ -934,36 +968,24 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>xsdPrimitiveOf</code>: the XSD primitive at the root of a
-   * built-in type's branch.
+   * go-xslt <code>xsdPrimitiveOf</code>: the XSD primitive at the root of a built-in type's branch.
    */
   @NonNull
   static EAtomicType xsdPrimitiveOf (@NonNull final EAtomicType eType)
   {
     if (eType.isIntegerFamily ())
       return EAtomicType.DECIMAL;
-    switch (eType)
+    return switch (eType)
     {
-      case NORMALIZED_STRING:
-      case TOKEN:
-      case LANGUAGE:
-      case NAME:
-      case NCNAME:
-      case ID:
-      case IDREF:
-      case ENTITY:
-      case NMTOKEN:
-        return EAtomicType.STRING;
-      case DATE_TIME_STAMP:
-        return EAtomicType.DATE_TIME;
-      default:
-        return eType;
-    }
+      case NORMALIZED_STRING, TOKEN, LANGUAGE, NAME, NCNAME, ID, IDREF, ENTITY, NMTOKEN -> EAtomicType.STRING;
+      case DATE_TIME_STAMP -> EAtomicType.DATE_TIME;
+      default -> eType;
+    };
   }
 
   /**
-   * go-xslt <code>typeRestrictsFrom</code>: whether derived is a valid
-   * restriction of base. Conservative: true unless provably not.
+   * go-xslt <code>typeRestrictsFrom</code>: whether derived is a valid restriction of base.
+   * Conservative: true unless provably not.
    */
   static boolean typeRestrictsFrom (@Nullable final IXsdType aDerived, @Nullable final IXsdType aBase)
   {
@@ -971,9 +993,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>typeRestrictsFromStrict</code>: {@link #typeRestrictsFrom}
-   * where an extension step anywhere in the complex chain disqualifies
-   * (rcase-NameAndTypeOK).
+   * go-xslt <code>typeRestrictsFromStrict</code>: {@link #typeRestrictsFrom} where an extension
+   * step anywhere in the complex chain disqualifies (rcase-NameAndTypeOK).
    */
   static boolean typeRestrictsFromStrict (@Nullable final IXsdType aDerived, @Nullable final IXsdType aBase)
   {
@@ -981,8 +1002,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkAllRestrictions</code>: the per-type derivation checks
-   * over every complex type, named and anonymous.
+   * go-xslt <code>checkAllRestrictions</code>: the per-type derivation checks over every complex
+   * type, named and anonymous.
    */
   void checkAllRestrictions ()
   {
@@ -1010,7 +1031,9 @@ final class XsdComponentChecks
         final XsdWildcard aBW = aSchema.effectiveAttrs (aExtBase).wildcard ();
         if (aBW != null && !_wcUnionExpressible10 (aCT.m_aAttrWildcard, aBW))
           throw XsdCompiler.invalid ("src-ct",
-                                     "the attribute wildcard union of " + aCT.m_aName + " and its base is not expressible in XSD 1.0");
+                                     "the attribute wildcard union of " +
+                                               aCT.m_aName +
+                                               " and its base is not expressible in XSD 1.0");
       }
       if (!XsdDerivation.RESTRICTION.equals (aCT.m_sDerivation))
         continue;
@@ -1025,8 +1048,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkGroupCycles</code>: a model group may not contain
-   * itself, directly or transitively.
+   * go-xslt <code>checkGroupCycles</code>: a model group may not contain itself, directly or
+   * transitively.
    */
   void checkGroupCycles ()
   {
@@ -1070,8 +1093,8 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>fillAllWildcardSiblings</code>: {@link #_fillWildcardSiblings}
-   * over every complex type, once substitution groups are known.
+   * go-xslt <code>fillAllWildcardSiblings</code>: {@link #_fillWildcardSiblings} over every complex
+   * type, once substitution groups are known.
    */
   void fillAllWildcardSiblings ()
   {
@@ -1080,10 +1103,9 @@ final class XsdComponentChecks
   }
 
   /**
-   * go-xslt <code>checkSubstitutionGroups</code>: a member's type must be
-   * validly derived from the head's (provably impossible cases only), and the
-   * head's {final} bars a member reaching the head's type by an excluded
-   * method.
+   * go-xslt <code>checkSubstitutionGroups</code>: a member's type must be validly derived from the
+   * head's (provably impossible cases only), and the head's {final} bars a member reaching the
+   * head's type by an excluded method.
    */
   void checkSubstitutionGroups ()
   {
@@ -1108,9 +1130,9 @@ final class XsdComponentChecks
                 aHT.m_eVariety == EXsdVariety.LIST && aST.m_eVariety != EXsdVariety.LIST)
               throw XsdCompiler.invalid ("e-props-correct.4",
                                          "element " +
-                                                             aMember.m_aName +
-                                                             ": type is not derived from the type of substitution-group head " +
-                                                             aHeadName);
+                                                              aMember.m_aName +
+                                                              ": type is not derived from the type of substitution-group head " +
+                                                              aHeadName);
             // Two direct built-in atomic types with different primitives can
             // never stand in a derivation chain
             final EAtomicType eSP = _directBuiltinPrim (aST);
@@ -1118,29 +1140,35 @@ final class XsdComponentChecks
             if (eSP != null && eHP != null && eSP != eHP)
               throw XsdCompiler.invalid ("e-props-correct.4",
                                          "element " +
-                                                             aMember.m_aName +
-                                                             ": type is not derived from the type of substitution-group head " +
-                                                             aHeadName);
+                                                              aMember.m_aName +
+                                                              ": type is not derived from the type of substitution-group head " +
+                                                              aHeadName);
           }
           if (aHead.m_aType instanceof final XsdComplexType aHC && !aHC.m_aName.isZero () && !aHC.isAnyType ())
             throw XsdCompiler.invalid ("e-props-correct.4",
-                                       "element " + aMember.m_aName + ": a simple type cannot derive from complex head type of " + aHeadName);
+                                       "element " +
+                                                            aMember.m_aName +
+                                                            ": a simple type cannot derive from complex head type of " +
+                                                            aHeadName);
         }
         if (aMember.m_aType instanceof final XsdComplexType aMC &&
             aMC.m_eKind != EXsdContentKind.SIMPLE &&
             aHead.m_aType instanceof XsdSimpleType)
           throw XsdCompiler.invalid ("e-props-correct.4",
-                                     "element " + aMember.m_aName + ": a complex type cannot derive from the simple head type of " + aHeadName);
+                                     "element " +
+                                                          aMember.m_aName +
+                                                          ": a complex type cannot derive from the simple head type of " +
+                                                          aHeadName);
         for (final String sMethod : XsdDerivation.derivationMethodsTo (aMember.m_aType, aHead.m_aType))
           if (aHead.m_aFinal.contains (sMethod))
             throw XsdCompiler.invalid ("cos-equiv-derived-ok-rec",
                                        "element " +
-                                                                     aMember.m_aName +
-                                                                     " may not join the substitution group of " +
-                                                                     aHeadName +
-                                                                     ": " +
-                                                                     sMethod +
-                                                                     " is final there");
+                                                                   aMember.m_aName +
+                                                                   " may not join the substitution group of " +
+                                                                   aHeadName +
+                                                                   ": " +
+                                                                   sMethod +
+                                                                   " is final there");
       }
     }
   }

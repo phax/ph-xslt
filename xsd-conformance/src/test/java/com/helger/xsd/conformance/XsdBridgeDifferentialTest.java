@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -44,14 +43,12 @@ import com.helger.xsd.XsdSchemaProvider;
 import com.helger.xsd.XsdUnsupportedException;
 
 /**
- * The differential gate of the bridge (go-xslt
- * <code>TestValidateNodeMatchesValidate</code>): validating a tree in place
- * reuses the whole validation engine but reaches it down a different road, a
- * detached, text-normalised clone instead of a freshly parsed document. That
- * road is where "a node built outside the normal path is missing an invariant
- * other code depends on" bugs live, so the guard is empirical: every instance
- * document of the xsdtests suite (XSD 1.0) goes through both entry points and
- * the verdicts must agree, case by case. Skipped when the suite is absent
+ * The differential gate of the bridge (go-xslt <code>TestValidateNodeMatchesValidate</code>):
+ * validating a tree in place reuses the whole validation engine but reaches it down a different
+ * road, a detached, text-normalised clone instead of a freshly parsed document. That road is where
+ * "a node built outside the normal path is missing an invariant other code depends on" bugs live,
+ * so the guard is empirical: every instance document of the xsdtests suite (XSD 1.0) goes through
+ * both entry points and the verdicts must agree, case by case. Skipped when the suite is absent
  * (<code>-Dxsd.dir=...</code>).
  *
  * @author Philip Helger
@@ -72,10 +69,10 @@ public final class XsdBridgeDifferentialTest
   }
 
   /**
-   * Validate reads the schema location hints of the document element before
-   * walking; the bridge deliberately does not (the component set of an XSLT
-   * host is static). Replicate the merge, so that what is compared is the
-   * bridge and not that documented difference in where components come from.
+   * Validate reads the schema location hints of the document element before walking; the bridge
+   * deliberately does not (the component set of an XSLT host is static). Replicate the merge, so
+   * that what is compared is the bridge and not that documented difference in where components come
+   * from.
    */
   @NonNull
   private static XsdSchema _withHints (@NonNull final XsdSchema aSchema,
@@ -94,7 +91,8 @@ public final class XsdBridgeDifferentialTest
     final XdmNode aNoNamespace = aRoot.getAttribute (XdmConstants.NS_XSI, "noNamespaceSchemaLocation");
     if (aNoNamespace != null)
       aLocations.add (aNoNamespace.getValue ().trim ());
-    final Path aBaseDir = aSchema.getBaseDir () != null ? aSchema.getBaseDir () : aInstance.toAbsolutePath ().getParent ();
+    final Path aBaseDir = aSchema.getBaseDir () != null ? aSchema.getBaseDir ()
+                                                        : aInstance.toAbsolutePath ().getParent ();
     final ICommonsList <Path> aMerged = new CommonsArrayList <> (aDocs);
     boolean bAdded = false;
     for (final String sLocation : aLocations)
@@ -176,10 +174,19 @@ public final class XsdBridgeDifferentialTest
     if (bText == bInPlace)
       aTally.m_aAgree.incrementAndGet ();
     else
-      aTally.m_aMismatches.add (aTest.name () + ": text says valid=" + bText + ", in place says valid=" + bInPlace + " (" + sDetail + ")");
+      aTally.m_aMismatches.add (aTest.name () +
+                                ": text says valid=" +
+                                bText +
+                                ", in place says valid=" +
+                                bInPlace +
+                                " (" +
+                                sDetail +
+                                ")");
   }
 
-  private static void _compareGroup (@NonNull final XsdTestGroup aGroup, @NonNull final Path aDir, @NonNull final Tally aTally)
+  private static void _compareGroup (@NonNull final XsdTestGroup aGroup,
+                                     @NonNull final Path aDir,
+                                     @NonNull final Tally aTally)
   {
     final EXsdVersion eVersion = EXsdVersion.XSD_10;
     final XsdSchemaTest aSchemaTest = aGroup.schemaTest ();
@@ -225,7 +232,9 @@ public final class XsdBridgeDifferentialTest
     }
   }
 
-  private static void _compareSet (@NonNull final String sHref, @NonNull final XsdSettings aSettings, @NonNull final Tally aTally)
+  private static void _compareSet (@NonNull final String sHref,
+                                   @NonNull final XsdSettings aSettings,
+                                   @NonNull final Tally aTally)
   {
     final XsdTestSet aSet;
     try

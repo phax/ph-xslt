@@ -50,11 +50,10 @@ import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 import com.helger.xpath.xdm.schema.XdmSaxEmitter;
 
 /**
- * Base class of the schema sets of JAXP schema processors. A node is
- * validated by writing it as SAX events through a
- * {@link ValidatorHandler} into a new tree, which receives the types the
- * validator reports, and then copying the outcome onto the original nodes.
- * Subclasses map the types a validator reports to their type definitions.
+ * Base class of the schema sets of JAXP schema processors. A node is validated by writing it as SAX
+ * events through a {@link ValidatorHandler} into a new tree, which receives the types the validator
+ * reports, and then copying the outcome onto the original nodes. Subclasses map the types a
+ * validator reports to their type definitions.
  *
  * @author Philip Helger
  */
@@ -86,8 +85,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
 
   /**
    * @param aSchema
-   *        The compiled JAXP schema the validators are created from. May not
-   *        be <code>null</code>.
+   *        The compiled JAXP schema the validators are created from. May not be <code>null</code>.
    */
   protected AbstractJaxpSchemaSet (@NonNull final Schema aSchema)
   {
@@ -106,10 +104,9 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
   /**
    * @param aValidator
    *        A validator of this schema set.
-   * @return A function from the attribute index of the current start tag to
-   *         the declared type of the attribute (for a union type the union,
-   *         not the member that matched), or <code>null</code> if the
-   *         validator does not tell. This implementation returns
+   * @return A function from the attribute index of the current start tag to the declared type of
+   *         the attribute (for a union type the union, not the member that matched), or
+   *         <code>null</code> if the validator does not tell. This implementation returns
    *         <code>null</code>.
    */
   @Nullable
@@ -136,9 +133,8 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
   }
 
   /**
-   * A default attribute in a namespace needs a prefix bound to it on the
-   * element: an existing one, or a new declaration (namespace fixup as in XSD
-   * 1.1 section 3.4.5.1).
+   * A default attribute in a namespace needs a prefix bound to it on the element: an existing one,
+   * or a new declaration (namespace fixup as in XSD 1.1 section 3.4.5.1).
    */
   @NonNull
   private static XdmQName _fixupAttributeName (@NonNull final XdmNode aElement, @NonNull final XdmQName aName)
@@ -172,18 +168,16 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
   }
 
   /**
-   * Copy the outcome of the validation from the validated copy to the
-   * original element. The copy has the same elements in the same order; it
-   * may lack whitespace text nodes of element-only content and may have
-   * default attributes and default element content.
+   * Copy the outcome of the validation from the validated copy to the original element. The copy
+   * has the same elements in the same order; it may lack whitespace text nodes of element-only
+   * content and may have default attributes and default element content.
    *
    * @param bDocument
-   *        <code>true</code> for a document read by the parser: a default
-   *        attribute keeps the name the validator gave it, and an ID kind of
-   *        the DTD stays unless the schema gives one (with the attribute value
-   *        then normalised), as if the document had been validated while it
-   *        was parsed. <code>false</code> for a node validated later: the ID
-   *        kinds are the ones of the schema.
+   *        <code>true</code> for a document read by the parser: a default attribute keeps the name
+   *        the validator gave it, and an ID kind of the DTD stays unless the schema gives one (with
+   *        the attribute value then normalised), as if the document had been validated while it was
+   *        parsed. <code>false</code> for a node validated later: the ID kinds are the ones of the
+   *        schema.
    * @return <code>true</code> if the structure of the original changed.
    */
   private static boolean _transferAnnotations (@NonNull final XdmNode aOriginal,
@@ -266,7 +260,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
 
   private static void _setFeatureIfSupported (@NonNull final ValidatorHandler aValidator,
                                               @NonNull final String sName,
-                                              final boolean bValue) throws SAXException
+                                              final boolean bValue)
   {
     try
     {
@@ -280,7 +274,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
 
   private static void _setPropertyIfSupported (@NonNull final ValidatorHandler aValidator,
                                                @NonNull final String sName,
-                                               @NonNull final Object aValue) throws SAXException
+                                               @NonNull final Object aValue)
   {
     try
     {

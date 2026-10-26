@@ -54,13 +54,26 @@ public final class UnicodeCategoriesTest
   }
 
   /**
-   * Every escape matches exactly the Unicode 15.0 characters of its category,
-   * whatever the Unicode version of the running JDK.
+   * Every escape matches exactly the Unicode 15.0 characters of its category, whatever the Unicode
+   * version of the running JDK.
    */
   @Test
   public void testEscapesMatchUnicode15 ()
   {
-    for (final String sName : new String [] { "L", "Lu", "Ll", "Lo", "M", "Mn", "N", "Nd", "P", "S", "So", "Z", "C", "Cn" })
+    for (final String sName : new String [] { "L",
+                                              "Lu",
+                                              "Ll",
+                                              "Lo",
+                                              "M",
+                                              "Mn",
+                                              "N",
+                                              "Nd",
+                                              "P",
+                                              "S",
+                                              "So",
+                                              "Z",
+                                              "C",
+                                              "Cn" })
     {
       final Pattern aPos = XPathRegex.compile ("\\p{" + sName + "}", null).getPattern ();
       final Pattern aNeg = XPathRegex.compile ("[\\P{" + sName + "}]", null).getPattern ();
@@ -68,12 +81,15 @@ public final class UnicodeCategoriesTest
       {
         if (c >= Character.MIN_SURROGATE && c <= Character.MAX_SURROGATE)
           continue;
+
         final String sCategory = UnicodeCategories.getCategory (c);
         final boolean bExpected = sName.length () == 1 ? sCategory.charAt (0) == sName.charAt (0)
                                                        : sCategory.equals (sName);
         final String sChar = new String (Character.toChars (c));
-        assertEquals (sName + " " + Integer.toHexString (c), bExpected, aPos.matcher (sChar).matches ());
-        assertEquals (sName + " " + Integer.toHexString (c), !bExpected, aNeg.matcher (sChar).matches ());
+        if (bExpected)
+          assertTrue (sName + " " + Integer.toHexString (c), aPos.matcher (sChar).matches ());
+        else
+          assertFalse (sName + " " + Integer.toHexString (c), aNeg.matcher (sChar).matches ());
       }
     }
   }

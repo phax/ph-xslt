@@ -28,16 +28,15 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.xpath.XPathException;
 
 /**
- * Payload of the date/time types (xs:dateTime, xs:dateTimeStamp, xs:date,
- * xs:time and the g* types): the XSD 1.1 value space with years of up to nine
- * digits (including year 0, which is 1 BCE, and negative years), fractional
- * seconds without rounding, and an optional timezone offset in minutes.
+ * Payload of the date/time types (xs:dateTime, xs:dateTimeStamp, xs:date, xs:time and the g*
+ * types): the XSD 1.1 value space with years of up to nine digits (including year 0, which is 1
+ * BCE, and negative years), fractional seconds without rounding, and an optional timezone offset in
+ * minutes.
  * <p>
- * Every value carries all seven components. Components a type does not have
- * hold the reference values of F&amp;O 3.1 section 10.4 (year 1972, month 12,
- * day 31 for xs:time; month 1, day 1, ... for the g* types), so values of one
- * type compare correctly as instants. The type itself is not part of the
- * payload.
+ * Every value carries all seven components. Components a type does not have hold the reference
+ * values of F&amp;O 3.1 section 10.4 (year 1972, month 12, day 31 for xs:time; month 1, day 1, ...
+ * for the g* types), so values of one type compare correctly as instants. The type itself is not
+ * part of the payload.
  *
  * @author Philip Helger
  */
@@ -199,8 +198,8 @@ public final class XdmDateTimeValue
     }
 
     /**
-     * @return <code>null</code> if no timezone follows, else the offset in
-     *         minutes. The string must end after it.
+     * @return <code>null</code> if no timezone follows, else the offset in minutes. The string must
+     *         end after it.
      */
     @Nullable
     Integer timezoneAtEnd ()
@@ -231,8 +230,8 @@ public final class XdmDateTimeValue
   }
 
   /**
-   * Validate components and build the value; 24:00:00 rolls into the next day
-   * (or, for xs:time, to 00:00:00 of the same reference day).
+   * Validate components and build the value; 24:00:00 rolls into the next day (or, for xs:time, to
+   * 00:00:00 of the same reference day).
    */
   @NonNull
   private static XdmDateTimeValue _build (@NonNull final Scanner aScanner,
@@ -271,8 +270,7 @@ public final class XdmDateTimeValue
   /**
    * @param s
    *        Source string.
-   * @return The string without leading and trailing XML whitespace (space,
-   *         tab, CR, LF).
+   * @return The string without leading and trailing XML whitespace (space, tab, CR, LF).
    */
   @NonNull
   public static String trimXmlWhitespace (@NonNull final String s)
@@ -292,12 +290,12 @@ public final class XdmDateTimeValue
    * @param eType
    *        One of the date/time types.
    * @param sLexical
-   *        The lexical form, whitespace already collapsed (surrounding XML
-   *        whitespace is tolerated).
+   *        The lexical form, whitespace already collapsed (surrounding XML whitespace is
+   *        tolerated).
    * @return The value
    * @throws XPathException
-   *         FORG0001 for an invalid lexical form or out-of-range component,
-   *         FODT0001 for a year beyond nine digits.
+   *         FORG0001 for an invalid lexical form or out-of-range component, FODT0001 for a year
+   *         beyond nine digits.
    */
   @NonNull
   public static XdmDateTimeValue parse (@NonNull final EAtomicType eType, @NonNull final String sLexical)
@@ -385,8 +383,8 @@ public final class XdmDateTimeValue
   }
 
   /**
-   * Create a value from components. Components the target type does not have
-   * should hold the reference values (see the class comment).
+   * Create a value from components. Components the target type does not have should hold the
+   * reference values (see the class comment).
    *
    * @param nYear
    *        Astronomical year (0 = 1 BCE), at most nine digits.
@@ -448,9 +446,8 @@ public final class XdmDateTimeValue
    * @param aEpochSeconds
    *        Seconds since 1970-01-01T00:00:00Z (UTC).
    * @param aTimezoneMinutes
-   *        Timezone in which the local components are expressed, or
-   *        <code>null</code>: then the instant is taken as local time without
-   *        timezone.
+   *        Timezone in which the local components are expressed, or <code>null</code>: then the
+   *        instant is taken as local time without timezone.
    * @return The value
    * @throws XPathException
    *         FODT0001 if the year is out of range.
@@ -488,8 +485,7 @@ public final class XdmDateTimeValue
   /**
    * @param aDateTime
    *        A java.time value, e.g. the current date/time.
-   * @return The xs:dateTime payload with the offset of the value (whole
-   *         minutes).
+   * @return The xs:dateTime payload with the offset of the value (whole minutes).
    */
   @NonNull
   public static XdmDateTimeValue ofOffsetDateTime (@NonNull final OffsetDateTime aDateTime)
@@ -656,43 +652,25 @@ public final class XdmDateTimeValue
     final StringBuilder aSB = new StringBuilder ();
     switch (eType)
     {
-      case DATE_TIME:
-      case DATE_TIME_STAMP:
-        aSB.append (formatYear (m_nYear))
-           .append ('-')
-           .append (_pad2 (m_nMonth))
-           .append ('-')
-           .append (_pad2 (m_nDay))
-           .append ('T')
-           .append (_pad2 (m_nHour))
-           .append (':')
-           .append (_pad2 (m_nMinute))
-           .append (':')
-           .append (_formatSeconds ());
-        break;
-      case DATE:
-        aSB.append (formatYear (m_nYear)).append ('-').append (_pad2 (m_nMonth)).append ('-').append (_pad2 (m_nDay));
-        break;
-      case TIME:
-        aSB.append (_pad2 (m_nHour)).append (':').append (_pad2 (m_nMinute)).append (':').append (_formatSeconds ());
-        break;
-      case G_YEAR_MONTH:
-        aSB.append (formatYear (m_nYear)).append ('-').append (_pad2 (m_nMonth));
-        break;
-      case G_YEAR:
-        aSB.append (formatYear (m_nYear));
-        break;
-      case G_MONTH_DAY:
-        aSB.append ("--").append (_pad2 (m_nMonth)).append ('-').append (_pad2 (m_nDay));
-        break;
-      case G_DAY:
-        aSB.append ("---").append (_pad2 (m_nDay));
-        break;
-      case G_MONTH:
-        aSB.append ("--").append (_pad2 (m_nMonth));
-        break;
-      default:
-        throw new IllegalArgumentException ("Not a date/time type: " + eType);
+      case DATE_TIME, DATE_TIME_STAMP -> aSB.append (formatYear (m_nYear))
+         .append ('-')
+         .append (_pad2 (m_nMonth))
+         .append ('-')
+         .append (_pad2 (m_nDay))
+         .append ('T')
+         .append (_pad2 (m_nHour))
+         .append (':')
+         .append (_pad2 (m_nMinute))
+         .append (':')
+         .append (_formatSeconds ());
+      case DATE -> aSB.append (formatYear (m_nYear)).append ('-').append (_pad2 (m_nMonth)).append ('-').append (_pad2 (m_nDay));
+      case TIME -> aSB.append (_pad2 (m_nHour)).append (':').append (_pad2 (m_nMinute)).append (':').append (_formatSeconds ());
+      case G_YEAR_MONTH -> aSB.append (formatYear (m_nYear)).append ('-').append (_pad2 (m_nMonth));
+      case G_YEAR -> aSB.append (formatYear (m_nYear));
+      case G_MONTH_DAY -> aSB.append ("--").append (_pad2 (m_nMonth)).append ('-').append (_pad2 (m_nDay));
+      case G_DAY -> aSB.append ("---").append (_pad2 (m_nDay));
+      case G_MONTH -> aSB.append ("--").append (_pad2 (m_nMonth));
+      default -> throw new IllegalArgumentException ("Not a date/time type: " + eType);
     }
     if (m_bHasTimezone)
       aSB.append (formatTimezone (m_nTimezoneMinutes));
@@ -700,10 +678,9 @@ public final class XdmDateTimeValue
   }
 
   /**
-   * Compare two values of the same type for ordering or equality (F&amp;O 3.1
-   * section 10.4): both are normalised to UTC, a value without timezone takes
-   * the implicit timezone. xs:time values and the g* types compare on their
-   * reference dates.
+   * Compare two values of the same type for ordering or equality (F&amp;O 3.1 section 10.4): both
+   * are normalised to UTC, a value without timezone takes the implicit timezone. xs:time values and
+   * the g* types compare on their reference dates.
    *
    * @param aOther
    *        Other value of the same type family.
@@ -711,8 +688,8 @@ public final class XdmDateTimeValue
    *        The type of both values (dateTimeStamp compares as dateTime).
    * @param nImplicitTimezoneMinutes
    *        Timezone applied to values that have none.
-   * @return negative, 0, positive. Only xs:dateTime, xs:date, xs:time, and
-   *         for equality the g* types, are ordered; callers check that.
+   * @return negative, 0, positive. Only xs:dateTime, xs:date, xs:time, and for equality the g*
+   *         types, are ordered; callers check that.
    */
   public int compareTo (@NonNull final XdmDateTimeValue aOther,
                         @NonNull final EAtomicType eType,

@@ -17,6 +17,7 @@
 package com.helger.xpath.parser;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import org.jspecify.annotations.NonNull;
@@ -377,7 +378,7 @@ public final class XPathParserErrorTest
     catch (final XPathException ex)
     {
       assertEquals ("XPST0003", ex.getCode ());
-      assertEquals (true, ex.getMessage ().contains ("offset"));
+      assertTrue (ex.getMessage ().contains ("offset"));
     }
   }
 }

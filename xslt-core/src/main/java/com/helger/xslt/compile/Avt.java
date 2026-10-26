@@ -26,9 +26,9 @@ import com.helger.xslt.instr.SimpleContent;
 import com.helger.xslt.runtime.XsltContext;
 
 /**
- * A compiled attribute value template or text value template: fixed text and
- * XPath expressions. The value of each expression is atomized and its items
- * joined with a single space (XSLT 3.0 section 5.6.1).
+ * A compiled attribute value template or text value template: fixed text and XPath expressions. The
+ * value of each expression is atomized and its items joined with a single space (XSLT 3.0 section
+ * 5.6.1).
  *
  * @author Philip Helger
  */
@@ -40,12 +40,11 @@ public final class Avt
 
   /**
    * @param aParts
-   *        The parts: {@link String} for fixed text, {@link XPathExpr} for
-   *        expressions.
+   *        The parts: {@link String} for fixed text, {@link XPathExpr} for expressions.
    * @param bTextValueTemplate
-   *        <code>true</code> for a text value template, whose expression
-   *        values are converted by the rules for simple content (adjacent
-   *        text nodes are merged before the items are joined with spaces).
+   *        <code>true</code> for a text value template, whose expression values are converted by
+   *        the rules for simple content (adjacent text nodes are merged before the items are joined
+   *        with spaces).
    */
   public Avt (@NonNull final List <Object> aParts, final boolean bTextValueTemplate)
   {
@@ -76,6 +75,7 @@ public final class Avt
   {
     if (!isConstant ())
       return null;
+
     final StringBuilder aSB = new StringBuilder ();
     for (final Object aPart : m_aParts)
       aSB.append ((String) aPart);
@@ -92,6 +92,7 @@ public final class Avt
   {
     if (m_aParts.length == 1)
       return m_aParts[0] instanceof final XPathExpr aExpr ? _evaluatePart (aExpr, aCtx) : (String) m_aParts[0];
+
     final StringBuilder aSB = new StringBuilder ();
     for (final Object aPart : m_aParts)
       if (aPart instanceof final XPathExpr aExpr)

@@ -54,9 +54,8 @@ import com.helger.xpath.xdm.schema.XdmSchemaSource;
 import com.helger.xpath.xdm.schema.XdmTypedToken;
 
 /**
- * The bridge (go-xslt <code>bridge_test.go</code>): component lookup,
- * derivation queries and validation of an existing tree in place. A
- * validation leaves the tree alone if it fails.
+ * The bridge (go-xslt <code>bridge_test.go</code>): component lookup, derivation queries and
+ * validation of an existing tree in place. A validation leaves the tree alone if it fails.
  *
  * @author Philip Helger
  */
@@ -65,31 +64,31 @@ public final class XsdBridgeTest
   private static final String NS = "urn:t";
 
   private static final String SCHEMA = """
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-    xmlns:t="urn:t" targetNamespace="urn:t" elementFormDefault="qualified">
-  <xs:simpleType name="Zip">
-    <xs:restriction base="xs:string"><xs:pattern value="[0-9]{5}"/></xs:restriction>
-  </xs:simpleType>
-  <xs:simpleType name="Zip5"><xs:restriction base="t:Zip"/></xs:simpleType>
-  <xs:complexType name="Addr">
-    <xs:sequence>
-      <xs:element name="zip" type="t:Zip"/>
-      <xs:element name="n" type="xs:int" minOccurs="0"/>
-    </xs:sequence>
-    <xs:attribute name="kind" type="t:Zip"/>
-  </xs:complexType>
-  <xs:complexType name="FullAddr">
-    <xs:complexContent>
-      <xs:extension base="t:Addr">
-        <xs:sequence><xs:element name="c" type="xs:string"/></xs:sequence>
-      </xs:extension>
-    </xs:complexContent>
-  </xs:complexType>
-  <xs:element name="head" type="t:Addr"/>
-  <xs:element name="sub" type="t:FullAddr" substitutionGroup="t:head"/>
-  <xs:element name="anon"><xs:complexType><xs:sequence/></xs:complexType></xs:element>
-  <xs:attribute name="gkind" type="t:Zip"/>
-</xs:schema>""";
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+          xmlns:t="urn:t" targetNamespace="urn:t" elementFormDefault="qualified">
+        <xs:simpleType name="Zip">
+          <xs:restriction base="xs:string"><xs:pattern value="[0-9]{5}"/></xs:restriction>
+        </xs:simpleType>
+        <xs:simpleType name="Zip5"><xs:restriction base="t:Zip"/></xs:simpleType>
+        <xs:complexType name="Addr">
+          <xs:sequence>
+            <xs:element name="zip" type="t:Zip"/>
+            <xs:element name="n" type="xs:int" minOccurs="0"/>
+          </xs:sequence>
+          <xs:attribute name="kind" type="t:Zip"/>
+        </xs:complexType>
+        <xs:complexType name="FullAddr">
+          <xs:complexContent>
+            <xs:extension base="t:Addr">
+              <xs:sequence><xs:element name="c" type="xs:string"/></xs:sequence>
+            </xs:extension>
+          </xs:complexContent>
+        </xs:complexType>
+        <xs:element name="head" type="t:Addr"/>
+        <xs:element name="sub" type="t:FullAddr" substitutionGroup="t:head"/>
+        <xs:element name="anon"><xs:complexType><xs:sequence/></xs:complexType></xs:element>
+        <xs:attribute name="gkind" type="t:Zip"/>
+      </xs:schema>""";
 
   @Rule
   public final TemporaryFolder m_aTempDir = new TemporaryFolder ();
@@ -98,7 +97,7 @@ public final class XsdBridgeTest
   private static IXdmSchemaSet _compile (@NonNull final String sSchema)
   {
     return XsdSchemaProvider.createSchemaSet (XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText (sSchema,
-                                                                                                                 null)),
+                                                                                                                  null)),
                                                                  EXsdVersion.V10,
                                                                  null));
   }
@@ -125,7 +124,9 @@ public final class XsdBridgeTest
   }
 
   @NonNull
-  private static IXdmTypeDefinition _type (@NonNull final IXdmSchemaSet aSet, @NonNull final String sNamespace, @NonNull final String sLocal)
+  private static IXdmTypeDefinition _type (@NonNull final IXdmSchemaSet aSet,
+                                           @NonNull final String sNamespace,
+                                           @NonNull final String sLocal)
   {
     final IXdmTypeDefinition ret = aSet.getTypeDefinition (_qn (sNamespace, sLocal));
     assertNotNull (sLocal, ret);
@@ -133,7 +134,7 @@ public final class XsdBridgeTest
   }
 
   @Test
-  public void testLookup () throws XdmValidationException
+  public void testLookup ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
 
@@ -161,12 +162,11 @@ public final class XsdBridgeTest
   }
 
   /**
-   * A declaration with an anonymous type gets a synthetic identity, which is
-   * what lets schema-element(N) work for the inline complexType most real
-   * schemas use.
+   * A declaration with an anonymous type gets a synthetic identity, which is what lets
+   * schema-element(N) work for the inline complexType most real schemas use.
    */
   @Test
-  public void testAnonymousType () throws XdmValidationException
+  public void testAnonymousType ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     final IXdmTypeDefinition aAnon = aSet.getElementDeclaration (_qn (NS, "anon")).getTypeDefinition ();
@@ -193,12 +193,20 @@ public final class XsdBridgeTest
                                      final boolean bExpected,
                                      @NonNull final String sWhy)
   {
-    assertEquals (sWhy, bExpected, aGot.isDerivedFrom (aWant));
-    assertEquals (sWhy + " (by name)", bExpected, aGot.isDerivedFrom (aWant.getName ()));
+    if (bExpected)
+    {
+      assertTrue (sWhy, aGot.isDerivedFrom (aWant));
+      assertTrue (sWhy + " (by name)", aGot.isDerivedFrom (aWant.getName ()));
+    }
+    else
+    {
+      assertFalse (sWhy, aGot.isDerivedFrom (aWant));
+      assertFalse (sWhy + " (by name)", aGot.isDerivedFrom (aWant.getName ()));
+    }
   }
 
   @Test
-  public void testDerivation () throws XdmValidationException
+  public void testDerivation ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     final IXdmTypeDefinition aZip = _type (aSet, NS, "Zip");
@@ -239,7 +247,7 @@ public final class XsdBridgeTest
   }
 
   @Test
-  public void testSubstitutionGroup () throws XdmValidationException
+  public void testSubstitutionGroup ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     final IXdmElementDeclaration aHead = aSet.getElementDeclaration (_qn (NS, "head"));
@@ -279,7 +287,7 @@ public final class XsdBridgeTest
   }
 
   @Test
-  public void testInvalidTreeIsLeftAlone () throws XdmValidationException
+  public void testInvalidTreeIsLeftAlone ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     final XdmNode aEl = _parseElement ("<t:head xmlns:t=\"urn:t\"><t:zip>nope</t:zip></t:head>");
@@ -298,7 +306,7 @@ public final class XsdBridgeTest
   }
 
   @Test
-  public void testUndeclaredElement () throws XdmValidationException
+  public void testUndeclaredElement ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     try
@@ -344,12 +352,12 @@ public final class XsdBridgeTest
   }
 
   /**
-   * XSLT builds element content one instruction at a time, so a constructed
-   * element routinely carries several adjacent text nodes and empty ones, which
-   * the parser never produces: the walk runs on a normalised clone.
+   * XSLT builds element content one instruction at a time, so a constructed element routinely
+   * carries several adjacent text nodes and empty ones, which the parser never produces: the walk
+   * runs on a normalised clone.
    */
   @Test
-  public void testConstructedText () throws XdmValidationException
+  public void testConstructedText ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     for (int nPass = 0; nPass < 2; nPass++)
@@ -357,7 +365,8 @@ public final class XsdBridgeTest
       final XdmNode aHead = XdmNode.createElement (new XdmQName (NS, "head", "t"));
       aHead.declareNamespace ("t", NS);
       final XdmNode aZip = XdmNode.createElement (new XdmQName (NS, "zip", "t"));
-      final String [] aParts = nPass == 0 ? new String [] { "", "12", "", "3", "45", "" } : new String [] { "12", "34" };
+      final String [] aParts = nPass == 0 ? new String [] { "", "12", "", "3", "45", "" }
+                                          : new String [] { "12", "34" };
       for (final String sPart : aParts)
         aZip.appendChild (XdmNode.createText (sPart));
       aHead.appendChild (aZip);
@@ -378,20 +387,22 @@ public final class XsdBridgeTest
   }
 
   /**
-   * A subtree of a larger tree is not the document: an IDREF inside it that
-   * resolves somewhere else is not dangling, while a whole document gets the
-   * full check.
+   * A subtree of a larger tree is not the document: an IDREF inside it that resolves somewhere else
+   * is not dangling, while a whole document gets the full check.
+   *
+   * @throws XdmValidationException
+   *         on error
    */
   @Test
   public void testIDScope () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = _compile ("""
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:element name="wrap"><xs:complexType><xs:sequence>
-    <xs:element ref="a"/></xs:sequence></xs:complexType></xs:element>
-  <xs:element name="a"><xs:complexType>
-    <xs:attribute name="r" type="xs:IDREF"/></xs:complexType></xs:element>
-</xs:schema>""");
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="wrap"><xs:complexType><xs:sequence>
+            <xs:element ref="a"/></xs:sequence></xs:complexType></xs:element>
+          <xs:element name="a"><xs:complexType>
+            <xs:attribute name="r" type="xs:IDREF"/></xs:complexType></xs:element>
+        </xs:schema>""");
     final XdmNode aSub = _parseElement ("<wrap><a r=\"elsewhere\"/></wrap>").getChildAtIndex (0);
     aSet.validateElement (aSub, null, false);
     try
@@ -406,17 +417,22 @@ public final class XsdBridgeTest
     aSet.validateElement (_parseElement ("<wrap><a r=\"elsewhere\"/></wrap>"), null, false);
   }
 
-  /** The component set of an XSLT host is fixed by xsl:import-schema. */
+  /**
+   * The component set of an XSLT host is fixed by xsl:import-schema.
+   *
+   * @throws IOException
+   *         on error
+   */
   @Test
-  public void testSchemaLocationHintsAreNotFollowed () throws IOException, XdmSchemaException
+  public void testSchemaLocationHintsAreNotFollowed () throws IOException
   {
     final Path aDir = m_aTempDir.getRoot ().toPath ();
     Files.writeString (aDir.resolve ("hint.xsd"), """
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:element name="hinted" type="xs:string"/></xs:schema>""");
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="hinted" type="xs:string"/></xs:schema>""");
     final String sBase = """
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:element name="other" type="xs:string"/></xs:schema>""";
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="other" type="xs:string"/></xs:schema>""";
     final XsdSchema aSchema = XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText (sBase, aDir)),
                                                  EXsdVersion.V10,
                                                  null);
@@ -439,8 +455,9 @@ public final class XsdBridgeTest
   {
     final Path aFile = m_aTempDir.newFile ("t.xsd").toPath ();
     Files.writeString (aFile, SCHEMA);
-    final ICommonsList <XdmSchemaSource> aSources = new CommonsArrayList <> (new XdmSchemaSource (aFile.toUri ().toString (),
-                                                                                                    null));
+    final ICommonsList <XdmSchemaSource> aSources = new CommonsArrayList <> (new XdmSchemaSource (aFile.toUri ()
+                                                                                                       .toString (),
+                                                                                                  null));
     final XsdSchemaProvider aProvider = new XsdSchemaProvider ();
     assertNotNull (aProvider.compile (aSources).getElementDeclaration (_qn (NS, "head")));
     assertNotNull (aProvider.compile (new CommonsArrayList <> (new XdmSchemaSource (null, SCHEMA)))
@@ -457,7 +474,8 @@ public final class XsdBridgeTest
     }
     try
     {
-      aProvider.compile (new CommonsArrayList <> (new XdmSchemaSource (null, "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'><xs:element/></xs:schema>")));
+      aProvider.compile (new CommonsArrayList <> (new XdmSchemaSource (null,
+                                                                       "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'><xs:element/></xs:schema>")));
       fail ("an invalid schema");
     }
     catch (final XdmSchemaException ex)
@@ -466,18 +484,23 @@ public final class XsdBridgeTest
     }
   }
 
-  /** The typed value of a simple value against a named type (the casting seam). */
+  /**
+   * The typed value of a simple value against a named type (the casting seam).
+   *
+   * @throws XdmValidationException
+   *         on error
+   */
   @Test
   public void testValidateSimpleValue () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = _compile ("""
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:c" xmlns="urn:c">
-  <xs:simpleType name="Small"><xs:restriction base="xs:int"><xs:maxInclusive value="9"/></xs:restriction></xs:simpleType>
-  <xs:simpleType name="U"><xs:union memberTypes="xs:int xs:date"/></xs:simpleType>
-  <xs:simpleType name="L"><xs:list itemType="xs:int"/></xs:simpleType>
-  <xs:simpleType name="Q"><xs:restriction base="xs:QName"/></xs:simpleType>
-  <xs:complexType name="C"/>
-</xs:schema>""");
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:c" xmlns="urn:c">
+          <xs:simpleType name="Small"><xs:restriction base="xs:int"><xs:maxInclusive value="9"/></xs:restriction></xs:simpleType>
+          <xs:simpleType name="U"><xs:union memberTypes="xs:int xs:date"/></xs:simpleType>
+          <xs:simpleType name="L"><xs:list itemType="xs:int"/></xs:simpleType>
+          <xs:simpleType name="Q"><xs:restriction base="xs:QName"/></xs:simpleType>
+          <xs:complexType name="C"/>
+        </xs:schema>""");
     final IXdmTypeDefinition aSmall = _type (aSet, "urn:c", "Small");
     final ICommonsList <XdmTypedToken> aTokens = aSmall.validate (" 7 ", null);
     assertEquals (1, aTokens.size ());
@@ -554,11 +577,11 @@ public final class XsdBridgeTest
   public void testIDKinds () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = _compile ("""
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:element name="e"><xs:complexType><xs:sequence>
-    <xs:element name="i" type="xs:ID"/><xs:element name="r" type="xs:IDREF"/>
-  </xs:sequence><xs:attribute name="id" type="xs:ID"/><xs:attribute name="refs" type="xs:IDREFS"/></xs:complexType></xs:element>
-</xs:schema>""");
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="e"><xs:complexType><xs:sequence>
+            <xs:element name="i" type="xs:ID"/><xs:element name="r" type="xs:IDREF"/>
+          </xs:sequence><xs:attribute name="id" type="xs:ID"/><xs:attribute name="refs" type="xs:IDREFS"/></xs:complexType></xs:element>
+        </xs:schema>""");
     final XdmNode aEl = _parseElement ("<e id=\"a\" refs=\" a  a \"><i>b</i><r>a</r></e>");
     aSet.validateElement (aEl, null, true);
     assertEquals (EIDKind.ID, aEl.getAttribute ("", "id").getIDKind ());

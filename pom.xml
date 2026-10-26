@@ -32,6 +32,7 @@
   <description>Pure Java XPath 3.1 and XSLT 3.0 engine</description>
   <url>https://github.com/phax/ph-xslt</url>
   <inceptionYear>2026</inceptionYear>
+  
   <licenses>
     <license>
       <name>Apache 2</name>
@@ -39,16 +40,19 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
+  
   <scm>
     <connection>scm:git:https://github.com/phax/ph-xslt.git</connection>
     <developerConnection>scm:git:https://github.com/phax/ph-xslt.git</developerConnection>
     <url>http://github.com/phax/ph-xslt</url>
     <tag>HEAD</tag>
   </scm>
+  
   <organization>
     <name>Philip Helger</name>
     <url>http://www.helger.com</url>
   </organization>
+  
   <developers>
     <developer>
       <id>philip</id>
@@ -57,9 +61,11 @@
       <url>http://www.helger.com</url>
     </developer>
   </developers>
+  
   <properties>
     <java.version>21</java.version>
   </properties>
+  
   <modules>
     <module>xpath-xdm</module>
     <module>xpath-core</module>
@@ -69,6 +75,7 @@
     <module>xslt-conformance</module>
     <module>xsd-conformance</module>
   </modules>
+  
   <dependencyManagement>
     <dependencies>
       <dependency>

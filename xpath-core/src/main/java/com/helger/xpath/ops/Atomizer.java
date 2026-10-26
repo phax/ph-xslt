@@ -69,8 +69,7 @@ public final class Atomizer
   }
 
   /**
-   * The namespaces of a node, for typed values of type xs:QName and
-   * xs:NOTATION.
+   * The namespaces of a node, for typed values of type xs:QName and xs:NOTATION.
    */
   @NonNull
   private static StaticContext _getNamespaceContext (@NonNull final XdmNode aNode)
@@ -87,8 +86,7 @@ public final class Atomizer
   }
 
   /**
-   * Typed value of a node of a schema-validated tree (XDM 3.1 sections 6.2.4
-   * and 6.3.4).
+   * Typed value of a node of a schema-validated tree (XDM 3.1 sections 6.2.4 and 6.3.4).
    */
   private static void _addSchemaTypedValue (@NonNull final XdmNode aNode,
                                             @NonNull final XdmSchemaType aSchemaType,
@@ -120,9 +118,9 @@ public final class Atomizer
   }
 
   /**
-   * Typed value of a node validated with the schema component model available
-   * (Apache Xerces-J): content types are known, and values of user-defined
-   * types, lists and unions are typed item by item.
+   * Typed value of a node validated with the schema component model available (Apache Xerces-J):
+   * content types are known, and values of user-defined types, lists and unions are typed item by
+   * item.
    *
    * @return <code>false</code> if the value cannot be computed this way.
    */
@@ -180,6 +178,7 @@ public final class Atomizer
         _addSchemaTypedValue (aNode, aSchemaType, aBuilder);
       return;
     }
+
     final XdmQName aAnnotation = aNode.getTypeAnnotation ();
     if (aAnnotation != null && XdmConstants.NS_XS.equals (aAnnotation.namespaceUri ()))
     {
@@ -244,15 +243,13 @@ public final class Atomizer
   }
 
   /**
-   * Atomise a sequence: nodes give their typed value (xs:untypedAtomic for
-   * documents, elements, attributes and text without schema; xs:string for
-   * comments, processing instructions and namespace nodes), arrays are
-   * flattened recursively, atomic values stay.
+   * Atomise a sequence: nodes give their typed value (xs:untypedAtomic for documents, elements,
+   * attributes and text without schema; xs:string for comments, processing instructions and
+   * namespace nodes), arrays are flattened recursively, atomic values stay.
    *
    * @param aSeq
    *        The sequence to atomise.
-   * @return A sequence of {@link XdmAtomic} only. The input itself if it is
-   *         already atomic.
+   * @return A sequence of {@link XdmAtomic} only. The input itself if it is already atomic.
    * @throws com.helger.xpath.XPathException
    *         FOTY0013 for maps and function items.
    */
@@ -274,16 +271,14 @@ public final class Atomizer
   }
 
   /**
-   * The typed value of a node: for a node of a schema-validated tree the
-   * value cast to the built-in base of its schema type (a sequence for list
-   * types, empty for nilled elements, the untyped string value for complex
-   * content); the value cast to the annotated type for a node annotated with
-   * a built-in atomic type; xs:string for comments, processing instructions
-   * and namespace nodes; otherwise xs:untypedAtomic of the string value.
+   * The typed value of a node: for a node of a schema-validated tree the value cast to the built-in
+   * base of its schema type (a sequence for list types, empty for nilled elements, the untyped
+   * string value for complex content); the value cast to the annotated type for a node annotated
+   * with a built-in atomic type; xs:string for comments, processing instructions and namespace
+   * nodes; otherwise xs:untypedAtomic of the string value.
    * <p>
-   * The JDK validator does not tell element-only from mixed content, so an
-   * element with element-only content has the untyped string value instead of
-   * raising FOTY0012.
+   * The JDK validator does not tell element-only from mixed content, so an element with
+   * element-only content has the untyped string value instead of raising FOTY0012.
    *
    * @param aNode
    *        The node.
@@ -305,8 +300,8 @@ public final class Atomizer
    *        The node.
    * @return The typed value.
    * @throws com.helger.xpath.XPathException
-   *         XPTY0004 if the typed value is not exactly one atomic value
-   *         (nilled elements, list types).
+   *         XPTY0004 if the typed value is not exactly one atomic value (nilled elements, list
+   *         types).
    */
   @NonNull
   public static XdmAtomic getTypedValue (@NonNull final XdmNode aNode)

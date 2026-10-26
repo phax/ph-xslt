@@ -39,7 +39,6 @@ import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.ast.EBinaryOp;
 import com.helger.xpath.ast.EComparisonOp;
 import com.helger.xpath.ast.IExpr;
-import com.helger.xpath.ast.ItemType;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
@@ -64,9 +63,8 @@ import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
- * Tree-walking evaluator for {@link IExpr} (a port of go-xslt's
- * <code>eval.go</code> and <code>axes.go</code>). Owner: evaluator
- * workstream.
+ * Tree-walking evaluator for {@link IExpr} (a port of go-xslt's <code>eval.go</code> and
+ * <code>axes.go</code>). Owner: evaluator workstream.
  *
  * @author Philip Helger
  */
@@ -74,8 +72,8 @@ import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 public final class XPathEvaluator
 {
   /**
-   * The largest integer range (<code>a to b</code>) that is materialised;
-   * longer ranges are an implementation limit (XPDY0130), as in go-xslt.
+   * The largest integer range (<code>a to b</code>) that is materialised; longer ranges are an
+   * implementation limit (XPDY0130), as in go-xslt.
    */
   public static final long MAX_RANGE_SIZE = 10_000_000L;
 
@@ -149,8 +147,7 @@ public final class XPathEvaluator
   }
 
   /**
-   * @return <code>true</code> if the numeric value equals the 1-based
-   *         position exactly.
+   * @return <code>true</code> if the numeric value equals the 1-based position exactly.
    */
   private static boolean _isPosition (@NonNull final XdmAtomic aValue, final int nPosition)
   {
@@ -163,8 +160,8 @@ public final class XPathEvaluator
   }
 
   /**
-   * @return The position a numeric literal predicate selects, or -1 if it
-   *         selects none (fractional, NaN, out of range).
+   * @return The position a numeric literal predicate selects, or -1 if it selects none (fractional,
+   *         NaN, out of range).
    */
   private static int _getLiteralPosition (@NonNull final XdmAtomic aValue)
   {
@@ -185,8 +182,7 @@ public final class XPathEvaluator
   }
 
   /**
-   * Apply one predicate to a sequence in its current order (axis order for an
-   * axis step).
+   * Apply one predicate to a sequence in its current order (axis order for an axis step).
    */
   @NonNull
   private static XdmSequence _applyPredicate (@NonNull final XdmSequence aSeq,
@@ -269,8 +265,7 @@ public final class XPathEvaluator
   }
 
   /**
-   * @return <code>true</code> if all items are nodes (the result needs a
-   *         document order sort).
+   * @return <code>true</code> if all items are nodes (the result needs a document order sort).
    * @throws XPathException
    *         XPTY0018 for a mix of nodes and other items in the last step.
    */
@@ -341,7 +336,8 @@ public final class XPathEvaluator
           throw XPathException.of ("XPTY0020", "The context item for '/' is not a node");
         final XdmNode aRoot = aNode.getRoot ();
         if (!aRoot.isDocument ())
-          throw XPathException.of ("XPDY0050", "The root of the tree containing the context item is not a document node");
+          throw XPathException.of ("XPDY0050",
+                                   "The root of the tree containing the context item is not a document node");
         aCurrent = XdmSequence.of (aRoot);
       }
       else
@@ -415,10 +411,7 @@ public final class XPathEvaluator
     {
       final IExpr aArg = aArgs.get (i);
       if (!(aArg instanceof IExpr.PlaceholderExpr))
-        aBound[i] = SequenceTypeMatcher.convert (evaluateInternal (aArg, aCtx),
-                                                 aParamTypes.get (i),
-                                                 aCtx,
-                                                 "XPTY0004");
+        aBound[i] = SequenceTypeMatcher.convert (evaluateInternal (aArg, aCtx), aParamTypes.get (i), aCtx, "XPTY0004");
     }
     return XdmSequence.of (new PartialFunctionItem (aFunc, aBound));
   }
@@ -469,7 +462,11 @@ public final class XPathEvaluator
       throw XPathException.type ("The target of a dynamic function call is not a function");
     final List <IExpr> aArgExprs = aExpr.args ();
     if (nArity != aArgExprs.size ())
-      throw XPathException.type ("A function of arity " + nArity + " is called with " + aArgExprs.size () + " arguments");
+      throw XPathException.type ("A function of arity " +
+                                 nArity +
+                                 " is called with " +
+                                 aArgExprs.size () +
+                                 " arguments");
     if (_hasPlaceholder (aArgExprs))
       return _partialApply (asFunction (aFuncItem), aArgExprs, aCtx);
 
@@ -480,8 +477,8 @@ public final class XPathEvaluator
   }
 
   /**
-   * @return The default collation of the static context, <code>null</code> for
-   *         the codepoint collation.
+   * @return The default collation of the static context, <code>null</code> for the codepoint
+   *         collation.
    */
   @Nullable
   private static ICollation _getDefaultCollation (@NonNull final DynamicContext aCtx)
@@ -517,9 +514,8 @@ public final class XPathEvaluator
   }
 
   /**
-   * @return <code>true</code> if the xs:integer or xs:decimal value compares
-   *         true under the operator with some integer of the range. Both are
-   *         compared exactly, at any magnitude.
+   * @return <code>true</code> if the xs:integer or xs:decimal value compares true under the
+   *         operator with some integer of the range. Both are compared exactly, at any magnitude.
    */
   private static boolean _isRangeHitExact (@NonNull final EComparisonOp eOp,
                                            @NonNull final XdmAtomic aValue,
@@ -544,11 +540,10 @@ public final class XPathEvaluator
   }
 
   /**
-   * {@link #_isRangeHitExact(EComparisonOp, XdmAtomic, BigInteger, BigInteger)}
-   * for an xs:double or xs:float value, to whose type every range member is
-   * promoted first. Promotion is monotonic, so the promoted bounds settle each
-   * operator; for "!=" some member differs from the value unless both promoted
-   * bounds (and so every member between them) equal it.
+   * {@link #_isRangeHitExact(EComparisonOp, XdmAtomic, BigInteger, BigInteger)} for an xs:double or
+   * xs:float value, to whose type every range member is promoted first. Promotion is monotonic, so
+   * the promoted bounds settle each operator; for "!=" some member differs from the value unless
+   * both promoted bounds (and so every member between them) equal it.
    */
   private static boolean _isRangeHitFloat (@NonNull final EComparisonOp eOp,
                                            @NonNull final XdmAtomic aValue,
@@ -573,21 +568,19 @@ public final class XPathEvaluator
   }
 
   /**
-   * A general comparison one of whose operands is a range expression, without
-   * materialising the range (<code>$c = (32 to 55295)</code> is a bounds test;
-   * RangeExpr-409c compares against a range of 10^13 integers). The
-   * existential semantics are exact: for a numeric v and the integers
-   * from..to, "v = range" holds iff v is an integer in [from, to], "v != range"
-   * iff some member differs from v, and the orderings compare v against the
-   * nearest bound. An empty range makes every comparison false.
+   * A general comparison one of whose operands is a range expression, without materialising the
+   * range (<code>$c = (32 to 55295)</code> is a bounds test; RangeExpr-409c compares against a
+   * range of 10^13 integers). The existential semantics are exact: for a numeric v and the integers
+   * from..to, "v = range" holds iff v is an integer in [from, to], "v != range" iff some member
+   * differs from v, and the orderings compare v against the nearest bound. An empty range makes
+   * every comparison false.
    *
    * @param eOp
    *        The operator, oriented so that the other operand is on the left.
    * @param aOtherAtoms
    *        The atomised other operand.
-   * @return <code>null</code> if the fast path does not apply (the other
-   *         operand holds anything but numeric or untyped atomic values); the
-   *         caller then takes the ordinary path.
+   * @return <code>null</code> if the fast path does not apply (the other operand holds anything but
+   *         numeric or untyped atomic values); the caller then takes the ordinary path.
    */
   @Nullable
   private static XdmSequence _evalRangeComparison (@NonNull final EComparisonOp eOp,
@@ -630,9 +623,9 @@ public final class XPathEvaluator
   private static final String RUN_CACHE_EQ_INDEX = "xpath:eq-index";
 
   /**
-   * Build (or get from the run cache) a hash index of a long sequence for
-   * general equality: kind 0 = numbers as doubles (untypedAtomic cast to
-   * xs:double), 1 = integers exactly, 2 = strings by codepoints.
+   * Build (or get from the run cache) a hash index of a long sequence for general equality: kind 0
+   * = numbers as doubles (untypedAtomic cast to xs:double), 1 = integers exactly, 2 = strings by
+   * codepoints.
    *
    * @return The set of keys or <code>null</code> if no index is possible.
    */
@@ -662,8 +655,9 @@ public final class XPathEvaluator
         {
           try
           {
-            final double d = AtomicCaster.castFromString (aAtom.getString (), EAtomicType.DOUBLE, aCtx.getStaticContext ())
-                                         .getAsDouble ();
+            final double d = AtomicCaster.castFromString (aAtom.getString (),
+                                                          EAtomicType.DOUBLE,
+                                                          aCtx.getStaticContext ()).getAsDouble ();
             // NaN equals nothing; +0 and -0 are equal
             if (!Double.isNaN (d))
               aSet.add (Double.valueOf (d == 0 ? 0d : d));
@@ -692,9 +686,8 @@ public final class XPathEvaluator
   }
 
   /**
-   * General equality of one atomic value against a long sequence via a hash
-   * index (the same long sequence is typically compared many times, e.g. in a
-   * predicate).
+   * General equality of one atomic value against a long sequence via a hash index (the same long
+   * sequence is typically compared many times, e.g. in a predicate).
    *
    * @return The result or <code>null</code> if the fast path does not apply.
    */
@@ -808,22 +801,18 @@ public final class XPathEvaluator
         !(aLeft.get (0) instanceof final XdmNode aL) ||
         !(aRight.get (0) instanceof final XdmNode aR))
       throw XPathException.type ("The operands of a node comparison must be single nodes");
-    switch (aExpr.op ())
+    return switch (aExpr.op ())
     {
-      case NODE_IS:
-        return _bool (aL == aR);
-      case NODE_PRECEDES:
-        return _bool (XdmNode.compareDocumentOrder (aL, aR) < 0);
-      default:
-        return _bool (XdmNode.compareDocumentOrder (aL, aR) > 0);
-    }
+      case NODE_IS -> _bool (aL == aR);
+      case NODE_PRECEDES -> _bool (XdmNode.compareDocumentOrder (aL, aR) < 0);
+      default -> _bool (XdmNode.compareDocumentOrder (aL, aR) > 0);
+    };
   }
 
   /**
-   * An arithmetic operand in XPath 1.0 compatibility mode (XPath 3.1 section
-   * 3.5): only the first atomised item counts, an empty operand is NaN, and
-   * booleans, strings, untyped and numeric values are converted with
-   * fn:number.
+   * An arithmetic operand in XPath 1.0 compatibility mode (XPath 3.1 section 3.5): only the first
+   * atomised item counts, an empty operand is NaN, and booleans, strings, untyped and numeric
+   * values are converted with fn:number.
    */
   @NonNull
   private static XdmAtomic _arithmeticOperand10 (@NonNull final XdmSequence aSeq)
@@ -1094,8 +1083,7 @@ public final class XPathEvaluator
   }
 
   /**
-   * Cast or castable to a user-defined simple type of the in-scope schema
-   * definitions.
+   * Cast or castable to a user-defined simple type of the in-scope schema definitions.
    */
   @NonNull
   private static XdmSequence _evalSchemaCast (final IExpr.@NonNull CastExpr aExpr,
@@ -1232,7 +1220,8 @@ public final class XPathEvaluator
       throw XPathException.type ("An array index must be an xs:integer, not " + aIndex.getType ().getQualifiedName ());
     final BigInteger aBigIndex = aIndex.getBigInteger ();
     if (aBigIndex.signum () <= 0 || aBigIndex.compareTo (BigInteger.valueOf (aArray.size ())) > 0)
-      throw XPathException.of ("FOAY0001", "Array index " + aBigIndex + " is out of bounds (1.." + aArray.size () + ")");
+      throw XPathException.of ("FOAY0001",
+                               "Array index " + aBigIndex + " is out of bounds (1.." + aArray.size () + ")");
     return aArray.get (aBigIndex.intValue () - 1);
   }
 
@@ -1317,9 +1306,8 @@ public final class XPathEvaluator
   }
 
   /**
-   * The recursive evaluation entry, used by the function items of this
-   * package. Errors from a too deep Java stack are mapped once in
-   * {@link #evaluate(IExpr, DynamicContext)}.
+   * The recursive evaluation entry, used by the function items of this package. Errors from a too
+   * deep Java stack are mapped once in {@link #evaluate(IExpr, DynamicContext)}.
    */
   @NonNull
   static XdmSequence evaluateInternal (@NonNull final IExpr aExpr, @NonNull final DynamicContext aCtx)
@@ -1341,8 +1329,10 @@ public final class XPathEvaluator
       case final IExpr.SetExpr e -> _evalSet (e, aCtx);
       case final IExpr.RangeExpr e -> _evalRange (e, aCtx);
       case final IExpr.StringConcatExpr e -> _evalStringConcat (e, aCtx);
-      case final IExpr.IfExpr e -> _ebv (evaluateInternal (e.condition (), aCtx)) ? evaluateInternal (e.thenExpr (), aCtx)
-                                                                                   : evaluateInternal (e.elseExpr (), aCtx);
+      case final IExpr.IfExpr e -> _ebv (evaluateInternal (e.condition (), aCtx)) ? evaluateInternal (e.thenExpr (),
+                                                                                                      aCtx)
+                                                                                  : evaluateInternal (e.elseExpr (),
+                                                                                                      aCtx);
       case final IExpr.ForExpr e -> _evalForExpr (e, aCtx);
       case final IExpr.LetExpr e -> _evalLet (e, aCtx);
       case final IExpr.QuantifiedExpr e -> _bool (_evalQuantified (e, 0, aCtx));
@@ -1350,7 +1340,7 @@ public final class XPathEvaluator
       case final IExpr.PathExpr e -> _evalPath (e, aCtx);
       case final IExpr.FilterExpr e -> _applyPredicates (evaluateInternal (e.primary (), aCtx), e.predicates (), aCtx);
       case final IExpr.InstanceOfExpr e -> _bool (SequenceTypeMatcher.matches (evaluateInternal (e.operand (), aCtx),
-                                                                                e.type ()));
+                                                                               e.type ()));
       case final IExpr.TreatExpr e -> _evalTreat (e, aCtx);
       case final IExpr.CastExpr e -> _evalCast (e, aCtx);
       case final IExpr.MapConstructorExpr e -> _evalMapConstructor (e, aCtx);
@@ -1364,8 +1354,8 @@ public final class XPathEvaluator
    *        Parsed expression.
    * @param aCtx
    *        Dynamic context.
-   * @return The result sequence; node sequences produced by path expressions
-   *         are in document order without duplicates.
+   * @return The result sequence; node sequences produced by path expressions are in document order
+   *         without duplicates.
    * @throws com.helger.xpath.XPathException
    *         for dynamic and type errors.
    */
@@ -1385,8 +1375,7 @@ public final class XPathEvaluator
   /**
    * @param aItem
    *        Any item.
-   * @return The arity if the item is a function item (1 for maps and arrays),
-   *         -1 otherwise.
+   * @return The arity if the item is a function item (1 for maps and arrays), -1 otherwise.
    */
   public static int getFunctionArity (@NonNull final IXdmItem aItem)
   {
@@ -1415,12 +1404,11 @@ public final class XPathEvaluator
   }
 
   /**
-   * Call a function item dynamically: check the arity, apply the function
-   * conversion rules to the arguments, invoke the function within
-   * {@link DynamicContext#enterCall()}/{@link DynamicContext#leaveCall()}, and
-   * convert the result to the declared return type. Maps and arrays are
-   * functions of arity one. This is the entry point for higher-order functions
-   * in other packages.
+   * Call a function item dynamically: check the arity, apply the function conversion rules to the
+   * arguments, invoke the function within
+   * {@link DynamicContext#enterCall()}/{@link DynamicContext#leaveCall()}, and convert the result
+   * to the declared return type. Maps and arrays are functions of arity one. This is the entry
+   * point for higher-order functions in other packages.
    *
    * @param aCtx
    *        The caller's dynamic context.
@@ -1430,8 +1418,8 @@ public final class XPathEvaluator
    *        The arguments.
    * @return The result.
    * @throws XPathException
-   *         XPTY0004 for a non-function or an arity mismatch, FOAY0001 for an
-   *         array index out of bounds.
+   *         XPTY0004 for a non-function or an arity mismatch, FOAY0001 for an array index out of
+   *         bounds.
    */
   @NonNull
   public static XdmSequence callFunction (@NonNull final DynamicContext aCtx,

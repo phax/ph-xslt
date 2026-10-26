@@ -136,8 +136,8 @@ public final class XsltPatternParserTest
   }
 
   /**
-   * Check that exactly the nodes of the selection expression match the
-   * pattern, among all nodes of the document.
+   * Check that exactly the nodes of the selection expression match the pattern, among all nodes of
+   * the document.
    */
   private static void _check (@NonNull final String sPattern, @NonNull final String sExpected)
   {
@@ -163,7 +163,8 @@ public final class XsltPatternParserTest
     for (final XdmNode aNode : _allNodes (aDoc))
     {
       final boolean bExpected = aExpected.contains (aNode);
-      assertEquals ("Pattern '" + sPattern + "' on " + aNode, Boolean.valueOf (bExpected),
+      assertEquals ("Pattern '" + sPattern + "' on " + aNode,
+                    Boolean.valueOf (bExpected),
                     Boolean.valueOf (aPattern.matches (aNode, aCtx)));
     }
   }
@@ -337,7 +338,7 @@ public final class XsltPatternParserTest
   public void testRooted ()
   {
     final XdmNode aDoc = _parse (DOC);
-    final XdmSequence aParas = XdmSequence.of (new CommonsArrayList <IXdmItem> (_select (aDoc, "/doc/para")));
+    final XdmSequence aParas = XdmSequence.of (new CommonsArrayList <> (_select (aDoc, "/doc/para")));
     _check (aDoc, "$v", "/doc/para", aParas);
     _check (aDoc, "$v[1]", "/doc/para[1]", aParas);
     _check (aDoc, "$v/@n", "/doc/para/@n", aParas);

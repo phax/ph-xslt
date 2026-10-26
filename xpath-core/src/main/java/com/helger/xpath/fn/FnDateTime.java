@@ -37,8 +37,8 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmConstants;
 
 /**
- * Function family: the date/time component, adjust and timezone functions of
- * F&amp;O section 9, fn:dateTime and fn:parse-ietf-date.
+ * Function family: the date/time component, adjust and timezone functions of F&amp;O section 9,
+ * fn:dateTime and fn:parse-ietf-date.
  *
  * @author Philip Helger
  */
@@ -123,17 +123,21 @@ public final class FnDateTime
     return XdmSequence.of (XdmAtomic.decimal (aRes));
   }
 
+  // Must match IXPathFunction signature
   @NonNull
-  private static XdmSequence _dateTime (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
+  private static XdmSequence _dateTime (@SuppressWarnings ("unused") @NonNull final DynamicContext aCtx,
+                                        @NonNull final List <XdmSequence> aArgs)
   {
     final XdmAtomic aDate = _arg (aArgs, 0);
     final XdmAtomic aTime = _arg (aArgs, 1);
     if (aDate == null || aTime == null)
       return XdmSequence.EMPTY;
+
     final XdmDateTimeValue aD = (XdmDateTimeValue) aDate.getValue ();
     final XdmDateTimeValue aT = (XdmDateTimeValue) aTime.getValue ();
     if (aD.hasTimezone () && aT.hasTimezone () && aD.getTimezoneMinutes () != aT.getTimezoneMinutes ())
       throw new XPathException ("FORG0008", "The arguments of fn:dateTime have different timezones");
+
     final Integer aTz = aD.hasTimezone () ? aD.getTimezone () : aT.getTimezone ();
     return XdmSequence.of (XdmAtomic.of (EAtomicType.DATE_TIME,
                                          XdmDateTimeValue.of (aD.getYear (),
@@ -190,7 +194,8 @@ public final class FnDateTime
           if (aDur.getMonths () != 0 ||
               aSecs.abs ().compareTo (BigDecimal.valueOf (XdmDateTimeValue.MAX_TIMEZONE_MINUTES * 60L)) > 0 ||
               aSecs.remainder (SIXTY).signum () != 0)
-            throw new XPathException ("FODT0003", "Invalid timezone value " + aDur.toLexical (EAtomicType.DAY_TIME_DURATION));
+            throw new XPathException ("FODT0003",
+                                      "Invalid timezone value " + aDur.toLexical (EAtomicType.DAY_TIME_DURATION));
           nTarget = aSecs.divide (SIXTY).intValueExact ();
         }
       }

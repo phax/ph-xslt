@@ -51,7 +51,6 @@ import com.helger.xslt.compile.IXsltExtension;
 import com.helger.xslt.compile.XPathExpr;
 import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.instr.CompiledInstruction;
-import com.helger.xslt.instr.ControlInstructions;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.model.CompiledStylesheet;
@@ -69,10 +68,9 @@ import com.helger.xslt.tree.XslText;
 import com.helger.xslt.tree.XsltNames;
 
 /**
- * Accumulators (XSLT 3.0 chapter 18): the xsl:accumulator declaration and the
- * functions accumulator-before() and accumulator-after(). The values of an
- * accumulator are computed for a whole tree at its first use, in one
- * iterative document-order walk, and kept per run.
+ * Accumulators (XSLT 3.0 chapter 18): the xsl:accumulator declaration and the functions
+ * accumulator-before() and accumulator-after(). The values of an accumulator are computed for a
+ * whole tree at its first use, in one iterative document-order walk, and kept per run.
  *
  * @author Philip Helger
  */
@@ -224,7 +222,9 @@ public final class AccumulatorExtension implements IXsltExtension
       if (aBest != aAcc && aBest.element ().getPrecedence () == aAcc.element ().getPrecedence ())
         throw XsltException.at (aBest.element (),
                                 "XTSE3350",
-                                "Duplicate xsl:accumulator " + aAcc.name ().getEQName () + " with the same import precedence");
+                                "Duplicate xsl:accumulator " +
+                                            aAcc.name ().getEQName () +
+                                            " with the same import precedence");
     }
     aSheet.putExtensionData (KEY_BY_NAME, aByName);
     // Modes
@@ -238,7 +238,9 @@ public final class AccumulatorExtension implements IXsltExtension
     for (final UseRef aRef : AccumulatorExtension.<UseRef> _getList (aSheet, KEY_REFS))
       for (final XdmQName aName : aRef.names ())
         if (aName != null && !aByName.containsKey (aName))
-          throw XsltException.at (aRef.element (), "XTSE3300", "use-accumulators names the unknown accumulator " + aName.getEQName ());
+          throw XsltException.at (aRef.element (),
+                                  "XTSE3300",
+                                  "use-accumulators names the unknown accumulator " + aName.getEQName ());
     for (final Mode aMode : aSheet.modes ().values ())
     {
       final XslElement aDecl = aMode.getDeclaration ();
@@ -261,7 +263,8 @@ public final class AccumulatorExtension implements IXsltExtension
    * @return The names; a <code>null</code> entry stands for #all.
    */
   @NonNull
-  public static ICommonsList <XdmQName> parseUseAccumulators (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
+  public static ICommonsList <XdmQName> parseUseAccumulators (@NonNull final CompileContext aCtx,
+                                                              @NonNull final XslElement aEl)
   {
     final ICommonsList <XdmQName> ret = new CommonsArrayList <> ();
     final String s = aEl.getAttr ("use-accumulators");
@@ -282,8 +285,8 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
-   * Parse a use-accumulators attribute and register its names for the static
-   * check that they exist (XTSE3300).
+   * Parse a use-accumulators attribute and register its names for the static check that they exist
+   * (XTSE3300).
    *
    * @param aCtx
    *        Compile context.
@@ -292,7 +295,8 @@ public final class AccumulatorExtension implements IXsltExtension
    * @return The names; a <code>null</code> entry stands for #all.
    */
   @NonNull
-  public static ICommonsList <XdmQName> registerUseAccumulators (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
+  public static ICommonsList <XdmQName> registerUseAccumulators (@NonNull final CompileContext aCtx,
+                                                                 @NonNull final XslElement aEl)
   {
     final ICommonsList <XdmQName> ret = parseUseAccumulators (aCtx, aEl);
     AccumulatorExtension.<UseRef> _getList (aCtx.getStylesheet (), KEY_REFS).add (new UseRef (aEl, ret));
@@ -306,8 +310,7 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
-   * Restrict the accumulators applicable to a tree (use-accumulators of
-   * xsl:source-document).
+   * Restrict the accumulators applicable to a tree (use-accumulators of xsl:source-document).
    *
    * @param aEngine
    *        The transformation.
@@ -316,8 +319,7 @@ public final class AccumulatorExtension implements IXsltExtension
    * @param aNames
    *        The applicable accumulators, a <code>null</code> entry for #all.
    * @param bStreamed
-   *        <code>true</code> if the stylesheet asked for the tree to be
-   *        streamed.
+   *        <code>true</code> if the stylesheet asked for the tree to be streamed.
    * @return The previous restriction, to be passed to
    *         {@link #restoreTree(Engine, XdmNode, Object)}.
    */
@@ -340,7 +342,9 @@ public final class AccumulatorExtension implements IXsltExtension
    *        The return value of the matching
    *        {@link #restrictTree(Engine, XdmNode, ICommonsList, boolean)}.
    */
-  public static void restoreTree (@NonNull final Engine aEngine, @NonNull final XdmNode aRoot, @Nullable final Object aPrevious)
+  public static void restoreTree (@NonNull final Engine aEngine,
+                                  @NonNull final XdmNode aRoot,
+                                  @Nullable final Object aPrevious)
   {
     final RunData aData = _getRunData (aEngine);
     if (aPrevious == null)
@@ -350,7 +354,9 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   @NonNull
-  private static XdmSequence _coerce (@NonNull final Accumulator aAcc, @NonNull final XdmSequence aValue, @NonNull final XsltContext aCtx)
+  private static XdmSequence _coerce (@NonNull final Accumulator aAcc,
+                                      @NonNull final XdmSequence aValue,
+                                      @NonNull final XsltContext aCtx)
   {
     if (aAcc.as () == null)
       return aValue;
@@ -392,8 +398,8 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
-   * Compute the values of an accumulator for a whole tree: an iterative
-   * document-order walk; attributes and namespaces are not visited.
+   * Compute the values of an accumulator for a whole tree: an iterative document-order walk;
+   * attributes and namespaces are not visited.
    */
   private static void _computeTree (@NonNull final Accumulator aAcc,
                                     @NonNull final XdmNode aRoot,
@@ -402,7 +408,8 @@ public final class AccumulatorExtension implements IXsltExtension
   {
     final Engine aEngine = aCaller.getEngine ();
     // Rules run in temporary output state: no xsl:result-document (XTDE1480)
-    final XsltContext aBase = Engine.withTemporaryOutputState (aEngine.createRootContext ().withState (XsltState.EMPTY));
+    final XsltContext aBase = Engine.withTemporaryOutputState (aEngine.createRootContext ()
+                                                                      .withState (XsltState.EMPTY));
     XdmSequence aValue;
     try
     {
@@ -444,11 +451,12 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
-   * Remember that a copy keeps the accumulator values of its original
-   * (XSLT 3.0 section 18.2.9): the subtree pairwise, and the ancestors of a
-   * snapshot.
+   * Remember that a copy keeps the accumulator values of its original (XSLT 3.0 section 18.2.9):
+   * the subtree pairwise, and the ancestors of a snapshot.
    */
-  private static void _recordCopy (@NonNull final Engine aEngine, @NonNull final XdmNode aCopy, @NonNull final XdmNode aOriginal)
+  private static void _recordCopy (@NonNull final Engine aEngine,
+                                   @NonNull final XdmNode aCopy,
+                                   @NonNull final XdmNode aOriginal)
   {
     final Map <XdmNode, XdmNode> aOrigins = _getRunData (aEngine).m_aOrigins;
     final ArrayDeque <XdmNode []> aStack = new ArrayDeque <> ();
@@ -494,7 +502,9 @@ public final class AccumulatorExtension implements IXsltExtension
   /**
    * Record the copies made by fn:copy-of or fn:snapshot.
    */
-  private static void _recordCopies (@NonNull final DynamicContext aDyn, @NonNull final XdmSequence aInput, @NonNull final XdmSequence aResult)
+  private static void _recordCopies (@NonNull final DynamicContext aDyn,
+                                     @NonNull final XdmSequence aInput,
+                                     @NonNull final XdmSequence aResult)
   {
     final XsltContext aCtx = XsltContext.of (aDyn);
     if (aCtx == null || !_hasAccumulators (aCtx.getEngine ().getStylesheet ()) || aInput.size () != aResult.size ())
@@ -504,7 +514,9 @@ public final class AccumulatorExtension implements IXsltExtension
         _recordCopy (aCtx.getEngine (), aCopy, aOriginal);
   }
 
-  private static void _wrapCopyFunction (@NonNull final FunctionLibrary aLib, @NonNull final String sLocalName, final int nArity)
+  private static void _wrapCopyFunction (@NonNull final FunctionLibrary aLib,
+                                         @NonNull final String sLocalName,
+                                         final int nArity)
   {
     final FunctionLibrary.FunctionDef aDef = aLib.getFunction (new XdmQName (XdmConstants.NS_FN, sLocalName), nArity);
     if (aDef == null)
@@ -513,7 +525,7 @@ public final class AccumulatorExtension implements IXsltExtension
     aLib.registerParsed (aDef.getName (), aDef.getParamTypes (), aDef.getReturnType (), (aDyn, aArgs) -> {
       final XdmSequence ret = aImpl.call (aDyn, aArgs);
       final XdmSequence aInput = nArity == 0 ? aDyn.getContextItem () == null ? XdmSequence.EMPTY
-                                                                             : XdmSequence.of (aDyn.getContextItem ())
+                                                                              : XdmSequence.of (aDyn.getContextItem ())
                                              : aArgs.get (0);
       _recordCopies (aDyn, aInput, ret);
       return ret;
@@ -529,7 +541,8 @@ public final class AccumulatorExtension implements IXsltExtension
     if (sCopyAccumulators == null || !XsltNames.isXsltTrue (sCopyAccumulators))
       return aCore.compile (aCtx, aEl);
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
-    final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") || XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
+    final boolean bCopyNamespaces = !aEl.hasAttr ("copy-namespaces") ||
+                                    XsltNames.isXsltTrue (aEl.getAttr ("copy-namespaces"));
     final String sStaticBase = aEl.getStaticBaseUri ();
     // Schema-aware: validation as in the core xsl:copy-of
     final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.COPY_OF);
@@ -604,7 +617,9 @@ public final class AccumulatorExtension implements IXsltExtension
 
   @SuppressWarnings ("unchecked")
   @NonNull
-  private static XdmSequence _lookup (@NonNull final DynamicContext aDyn, @NonNull final String sName, final boolean bAfter)
+  private static XdmSequence _lookup (@NonNull final DynamicContext aDyn,
+                                      @NonNull final String sName,
+                                      final boolean bAfter)
   {
     final XsltContext aCtx = XsltContext.of (aDyn);
     if (aCtx == null)
@@ -620,12 +635,15 @@ public final class AccumulatorExtension implements IXsltExtension
       throw new XPathException ("XTDE3340", "There is no accumulator named '" + sName + "'");
     final IXdmItem aItem = aCtx.getContextItem ();
     if (aItem == null)
-      throw new XPathException ("XPDY0002", "accumulator-" + (bAfter ? "after" : "before") + "() requires a context item");
+      throw new XPathException ("XPDY0002",
+                                "accumulator-" + (bAfter ? "after" : "before") + "() requires a context item");
     if (!(aItem instanceof final XdmNode aNode) ||
         aNode.getKind () == ENodeKind.ATTRIBUTE ||
         aNode.getKind () == ENodeKind.NAMESPACE)
       throw new XPathException ("XTTE3360",
-                                "accumulator-" + (bAfter ? "after" : "before") + "() requires a context node other than an attribute or namespace node");
+                                "accumulator-" +
+                                            (bAfter ? "after" : "before") +
+                                            "() requires a context node other than an attribute or namespace node");
     final ICommonsMap <Mode, ICommonsSet <XdmQName>> aModes = (ICommonsMap <Mode, ICommonsSet <XdmQName>>) aSheet.getExtensionData (KEY_MODES);
     final RunData aData = _getRunData (aCtx.getEngine ());
     final XdmNode aOrigin = _originOf (aData, aNode);
@@ -634,10 +652,13 @@ public final class AccumulatorExtension implements IXsltExtension
     if (aRestriction != null)
     {
       if (aRestriction.names () != null && !aRestriction.names ().contains (aName))
-        throw new XPathException ("XTDE3362", "The accumulator " + aName.getEQName () + " is not applicable to this document");
+        throw new XPathException ("XTDE3362",
+                                  "The accumulator " + aName.getEQName () + " is not applicable to this document");
       if (aRestriction.streamed () && !aAcc.streamable ())
         throw new XPathException ("XTDE3362",
-                                  "The accumulator " + aName.getEQName () + " is not streamable but the document is streamed");
+                                  "The accumulator " +
+                                              aName.getEQName () +
+                                              " is not streamable but the document is streamed");
     }
     else
       if (aModes != null)
@@ -649,7 +670,9 @@ public final class AccumulatorExtension implements IXsltExtension
           final ICommonsSet <XdmQName> aAllowed = aModes.get (_getInitialMode (aCtx.getEngine ()));
           if (aAllowed == null || !aAllowed.contains (aName))
             throw new XPathException ("XTDE3362",
-                                      "The accumulator " + aName.getEQName () + " is not applicable to the principal source document");
+                                      "The accumulator " +
+                                                  aName.getEQName () +
+                                                  " is not applicable to the principal source document");
         }
       }
     final Map <XdmNode, TreeValues> aTrees = aData.m_aValues.computeIfAbsent (aAcc, k -> new IdentityHashMap <> ());
