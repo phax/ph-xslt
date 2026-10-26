@@ -115,3 +115,4 @@ v0.1.0 - work in progress
 # Contributing
 
 Copyright (C) 2026 Philip Helger. Licensed under the Apache License, Version 2.0.
+* Added the native schema processor as `IXdmSchemaProvider` (`XsdSchemaProvider` of `xsd-core`): `XdmSchemaSupport` uses it when `xsd-core` is on the class path, Apache Xerces-J otherwise or with `-Dxdm.schemaProvider=xerces`; trees are validated in place; the QT3 and the schema-aware XSLT30 harnesses use it by default

@@ -174,10 +174,31 @@ the first error can differ).
   plus the hinted documents (`XsdSchemaSource.ofBytes`).
 * `XsdAttributeValidator.validateAttributes`, `XsdIdentityValidator.checkConstraint`: signatures are V5's to shape.
 
-### V6 (bridge)
+### V6 (bridge, done)
 
-* `XsdBridge` will implement the `IXdmSchemaProvider` SPI of `xpath-xdm` (go-xslt `bridge.go`, `ValidateNode` in
-  place, type lookup, casting). The anonymous-type registry (`anonReg`) and the node annotation maps belong there.
+* `XsdSchemaProvider` (public) is the `IXdmSchemaProvider` of `xpath-xdm`: `compile (List<XdmSchemaSource>)` compiles
+  the documents as XSD 1.0 with local file access and returns an `XsdBridge`; `createSchemaSet (XsdSchema)` wraps a
+  schema compiled otherwise. `XdmSchemaSupport` loads it by name.
+* `XsdBridge` is the `IXdmSchemaSet` (go-xslt `bridge.go`). Lookup by name goes over the schema's types and the
+  built-ins with the rules of `xsi:type` (XDM-only names, `xs:numeric` and, under 1.0, the 1.1 names are no schema
+  types); `XsdTypeDefinition` (`IXdmTypeDefinition`) carries the name that a built-in reference lacks in the compiled
+  model (go-xslt `builtinRefName`, the ur-type sentinel is xs:anySimpleType) and answers derivation with
+  `XsdDerivation.derivesFromMode` without union substitution (the consumer adds the pure-union rule). An anonymous type
+  gets a name `#tN` from a per-schema-set registry (`anonReg`), stable and resolvable by `isDerivedFrom (XdmQName)`.
+  `XsdElementDeclaration` and `XsdAttributeDeclaration` are the global declarations; `getSubstitutionMember` honours
+  abstract and block (go-xslt `SubstitutesFor`). `XsdTypeDefinition.validate` is the casting seam: the typed tokens of a
+  value (a union's accepting member, a list's items) with the nearest built-in type.
+* `validateElement` and `validateDocument` validate in place (go-xslt `ValidateNode`): the subtree is cloned into a
+  detached tree with merged text nodes (iteratively), validated with `XsdInstanceValidator.validateRoot` (big-stack
+  thread for deep trees) and a run that records `enableNodeTypes/Nilled/Defaults`; only after success the types,
+  `[nilled]`, schema ID kinds, supplied default attributes (with namespace fixup) are written to the caller's nodes
+  and whitespace text in element-only content is removed. Not assessed elements are annotated xs:anyType. A failure
+  leaves the tree untouched. `bDocumentLevel` selects `Document` (IDREF resolution, ID uniqueness) against
+  `elementScope`; `xsi:schemaLocation` hints are never followed; an xs:ENTITY value need not name an unparsed entity.
+  Default element content is not written to the tree (go-xslt does not either).
+* Additions to V5's `XsdInstanceValidator`: `validateRoot` with the assessment of the root given, `validateAsType`, and
+  lax assessment of an undeclared element now validates its attributes against global attribute declarations and takes
+  an explicit `xsi:type` (XSD 1.0 section 3.4.4; go-xslt leaves both unassessed; no xsdtests case changes).
 
 ## XSD 1.1 (V8)
 
@@ -204,8 +225,9 @@ the first error can differ).
 * Suite: `mvn -o -q test -pl xsd-conformance -am -Dtest=XsdTest -Dsurefire.failIfNoSpecifiedTests=false
   -Dxsd.validator=native` (fail list `xsd-conformance/target/xsd-native-fails.txt`; `-Dxsd.unsup=true` prints each
   unsupported case with the stub it hit; `-Dxsd.faildump=true` the fails). The summary splits schema and instance
-  tests. Accepted failures: `xsd-conformance/docs/accepted-failures/xsd-native.md`, checked from V6 on
-  (`-Dxsd.checkAccepted=true` earlier).
+  tests. Accepted failures: `xsd-conformance/docs/accepted-failures/xsd-native.md`, checked by default
+  (`XsdNativeTest` always runs the native validator and gates on it). `XsdBridgeDifferentialTest` compares validation
+  in place with validation of the text.
 * Differential check used for V2: replace the stubs locally (never committed) by permissive bodies (accept every
   pattern, facet, value, UPA and restriction) and do the same in a scratch copy of go-xslt; then the schema-test fail
   lists of both must be identical by name. For V2 they were (1,307 schema fails each, 0 difference). The same
