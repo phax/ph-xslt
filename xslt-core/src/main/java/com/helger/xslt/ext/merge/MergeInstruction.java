@@ -44,7 +44,9 @@ import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.instr.SortKeyDef;
 import com.helger.xslt.runtime.IXsltOutput;
+import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.schema.ValidationRequest;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -65,6 +67,7 @@ public final class MergeInstruction
                          @Nullable XPathExpr forEachItem,
                          @Nullable XPathExpr forEachSource,
                          boolean sortBeforeMerge,
+                         @Nullable ValidationRequest validation,
                          @NonNull ICommonsList <SortKeyDef> keys,
                          @NonNull ICommonsList <XdmQName> accumulators)
   {}
@@ -153,9 +156,19 @@ public final class MergeInstruction
           {
             throw new XPathException ("FODC0005", "Invalid URI '" + sTrimmed + "' in xsl:merge-source");
           }
-          final XdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, sUri);
+          XdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, sUri);
           if (aDoc == null)
             throw new XPathException ("FODC0002", "Cannot retrieve the document '" + sUri + "'");
+          // Validate a copy, the document itself is shared by all retrievals
+          // of its URI
+          final ValidationRequest aValidation = aSource.validation ();
+          if (aValidation != null && !aValidation.isPreserve ())
+          {
+            final XdmNode aCopy = NodeCopier.copyDeep (aDoc.getRoot (), true, !aValidation.isStrip ());
+            aCopy.setDocumentUri (aDoc.getRoot ().getDocumentUri ());
+            aValidation.apply (aCopy);
+            aDoc = aCopy;
+          }
           // Only the accumulators named in use-accumulators apply to the document
           AccumulatorExtension.restrictTree (aCtx.getEngine (), aDoc.getRoot (), aSource.accumulators (), false);
           ret.add (aCtx.withFocus (aDoc, i + 1, nSize));
@@ -268,6 +281,19 @@ public final class MergeInstruction
       if (s != null && !XsltNames.isXsltBooleanLexical (s))
         throw XsltException.at (aEl, "XTSE0020", sAttr + "='" + s + "' is not a valid boolean");
     }
+    final String sValidation = aEl.getAttr ("validation");
+    final boolean bSchemaAware = aCtx.getStylesheet ().isSchemaAware ();
+    if (sValidation != null)
+    {
+      final String s = sValidation.trim ();
+      if (("strict".equals (s) || "lax".equals (s)) && !bSchemaAware)
+        throw XsltException.at (aEl, "XTSE1660", "validation='" + s + "' requires a schema-aware processor");
+      if (!"preserve".equals (s) && !"strip".equals (s) && !"strict".equals (s) && !"lax".equals (s))
+        throw XsltException.at (aEl, "XTSE0020", "validation='" + sValidation + "' is not a valid value");
+    }
+    if (aEl.hasAttr ("type") && !bSchemaAware)
+      throw XsltException.at (aEl, "XTSE1660", "The type attribute requires a schema-aware processor");
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.SOURCE_DOCUMENT);
     final ICommonsList <SortKeyDef> aKeys = new CommonsArrayList <> ();
     for (final XslElement aChild : aEl.getElementChildren ())
     {
@@ -284,6 +310,7 @@ public final class MergeInstruction
                        aCtx.compileOptionalExpression (aEl, "for-each-item"),
                        aCtx.compileOptionalExpression (aEl, "for-each-source"),
                        sSortBefore != null && XsltNames.isXsltTrue (sSortBefore),
+                       aValidation,
                        aKeys,
                        AccumulatorExtension.registerUseAccumulators (aCtx, aEl));
   }

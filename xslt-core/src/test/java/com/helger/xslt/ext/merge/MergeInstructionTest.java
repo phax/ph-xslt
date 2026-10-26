@@ -21,8 +21,19 @@ import static com.helger.xslt.XsltTestHelper.SHEET;
 import static com.helger.xslt.XsltTestHelper.errorCode;
 import static com.helger.xslt.XsltTestHelper.text;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 
 import org.junit.Test;
+
+import com.helger.xpath.XPathException;
+import com.helger.xslt.XsltCompileOptions;
+import com.helger.xslt.XsltCompiler;
+import com.helger.xslt.XsltTransformRequest;
+import com.helger.xslt.compile.FileResourceResolver;
 
 /**
  * Test class for class {@link MergeInstruction}.
@@ -79,5 +90,56 @@ public final class MergeInstructionTest
                                      "") +
                              END,
                              null));
+  }
+
+  @Test
+  public void testMergeSourceValidationNeedsSchemaAwareness ()
+  {
+    assertEquals ("XTSE1660",
+                  errorCode (SHEET +
+                             _merge ("<xsl:merge-source select='1' validation='strict'><xsl:merge-key select='.'/></xsl:merge-source>", "") +
+                             END,
+                             null));
+  }
+
+  @Test
+  public void testMergeSourceValidatesForEachSource () throws IOException
+  {
+    final File aDoc = File.createTempFile ("merge-source", ".xml");
+    try
+    {
+      Files.writeString (aDoc.toPath (), "<order xmlns='urn:my'><qty>99</qty></order>");
+      final String sSheet = "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'" +
+                            " xmlns:xs='http://www.w3.org/2001/XMLSchema' xmlns:my='urn:my'>" +
+                            "<xsl:output method='text'/>" +
+                            "<xsl:import-schema><xs:schema targetNamespace='urn:my' elementFormDefault='qualified'>" +
+                            "<xs:element name='order'><xs:complexType><xs:sequence>" +
+                            "<xs:element name='qty'><xs:simpleType><xs:restriction base='xs:integer'>" +
+                            "<xs:maxInclusive value='20'/></xs:restriction></xs:simpleType></xs:element>" +
+                            "</xs:sequence></xs:complexType></xs:element></xs:schema></xsl:import-schema>" +
+                            IT +
+                            "<xsl:merge><xsl:merge-source for-each-source=\"'" +
+                            aDoc.toURI () +
+                            "'\" select='.' %s><xsl:merge-key select='1'/></xsl:merge-source>" +
+                            "<xsl:merge-action><xsl:value-of select='count(current-merge-group())'/></xsl:merge-action></xsl:merge>" +
+                            TE +
+                            END;
+      final XsltCompileOptions aOptions = new XsltCompileOptions ().setSchemaAware (true);
+      // Without validation attributes the document is not validated
+      assertEquals ("1", XsltCompiler.compile (sSheet.formatted (""), aOptions).transform (new XsltTransformRequest ().setResolver (FileResourceResolver.INSTANCE)).principalSerialized ());
+      try
+      {
+        XsltCompiler.compile (sSheet.formatted ("validation='strict'"), aOptions).transform (new XsltTransformRequest ().setResolver (FileResourceResolver.INSTANCE));
+        fail ();
+      }
+      catch (final XPathException ex)
+      {
+        assertEquals ("XTTE1510", ex.getCode ());
+      }
+    }
+    finally
+    {
+      aDoc.delete ();
+    }
   }
 }

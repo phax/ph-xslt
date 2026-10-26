@@ -58,9 +58,9 @@ those two harnesses use the native validator unless `-Dxdm.schemaProvider=xerces
   `validate=true`). `-Dqt3.schemaProcessor=jdk` runs QT3 on the JDK validator: 66 fails instead of 59, otherwise
   identical by name. See `xpath-conformance/docs/accepted-failures/qt3.md`.
   Native and Xerces-J: the same 59 fails by name.
-* **XSLT30 schema-aware run** (`-Dxslt30.schemaAware=true`): all 9,310 applicable cases run; 21 fail with the native
-  validator, 18 with Xerces-J (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`; the three more are
-  `merge-049`, `merge-050` and `merge-052`, which Xerces-J passes only because it rejects their schema). The default run (8,647 cases) does not need it.
+* **XSLT30 schema-aware run** (`-Dxslt30.schemaAware=true`): all 9,310 applicable cases run; 17 fail with the native
+  validator, 18 with Xerces-J (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`; the one more is
+  `merge-051`, whose XSD 1.1 schema Xerces-J rejects). The default run (8,647 cases) does not need it.
   `XSLT30SchemaUnawareCasesTest` checks the 31 cases that require a processor *without* schema-awareness in both claim
   states.
 * **xsdtests** (`xsd-conformance`): `-Dxsd.validator=xerces` (the default of `XsdTest`) is the Xerces-J baseline;
@@ -91,8 +91,8 @@ schema-awareness, but it is not a good permanent base:
 
 * **Maintenance.** 2.12.2 is the latest release on Maven Central (metadata last updated 2022-01-27; the jar was built
   on 2022-01-21); ph-xslt depends on it as is.
-* **XSD 1.0 only.** The published artifact does not read XSD 1.1 schemas. 5 of the 18 schema-aware XSLT30 fails
-  (`accumulator-073`, `catalog-009`, `merge-051`, `strip-space-009`, `validation-1301`) are XSD 1.1 schemas, and the
+* **XSD 1.0 only.** The published artifact does not read XSD 1.1 schemas. 4 of the 17 schema-aware XSLT30 fails
+  (`accumulator-073`, `catalog-009`, `strip-space-009`, `validation-1301`) are XSD 1.1 schemas, and the
   whole XSD 1.1 part of xsdtests (41,553 cases) is unsupported. go-xslt's validator passes 99.99% of both versions.
 * **Conformance.** On xsdtests XSD 1.0, Xerces-J fails 256 of 39,401 cases, go-xslt's validator 5 (same
   denominator). Without the 92 offline cases, the rest are mainly Xerces-J deviations: regular expressions (26),
