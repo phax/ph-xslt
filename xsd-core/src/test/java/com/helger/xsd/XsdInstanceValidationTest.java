@@ -49,7 +49,7 @@ import com.helger.xsd.XsdTestSupport.Tally;
 public final class XsdInstanceValidationTest
 {
   /** Declares the global components the instance tests use. Any global element may serve as the validation root. */
-  private static final String PRELUDE = """
+  static final String PRELUDE = """
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <xs:complexType name="Base"><xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence></xs:complexType>
   <xs:complexType name="Ext"><xs:complexContent><xs:extension base="Base"><xs:sequence><xs:element name="b" type="xs:int"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>

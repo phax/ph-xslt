@@ -115,6 +115,7 @@ v0.1.0 - work in progress
 * `xsd-core` content models: particles, `xs:all`, wildcards, Unique Particle Attribution, substitution groups and the derivation-by-restriction and -extension checks
 * `xsd-core` instance validation: element and attribute validation with defaults, `xsi:type`, `xsi:nil`, `xsi:schemaLocation` hints, and the identity constraints (`xs:unique`, `xs:key`, `xs:keyref`) and ID/IDREF checks
 * `xsd-conformance` with `-Dxsd.validator=native`: the native XSD 1.0 validator passes 39,396 of 39,401 applicable cases; the 5 failures are the ones documented by go-xslt
+* Added the native schema processor as `IXdmSchemaProvider` (`XsdSchemaProvider` of `xsd-core`): `XdmSchemaSupport` uses it when `xsd-core` is on the class path, Apache Xerces-J otherwise or with `-Dxdm.schemaProvider=xerces`; trees are validated in place; the QT3 and the schema-aware XSLT30 harnesses use it by default
 
 # Contributing
 

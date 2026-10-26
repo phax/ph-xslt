@@ -19,6 +19,7 @@ package com.helger.xsd;
 import java.nio.file.Path;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.function.BiConsumer;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -673,6 +674,57 @@ final class XsdInstanceValidator
       throw XsdCompiler.invalid ("cvc-assess-elt", "element " + aName + " has no declaration to assess it against");
   }
 
+  /**
+   * The attributes of an element that lax assessment descends into: the
+   * element has no declaration, so it is assessed against the ur-type, whose
+   * attribute wildcard is lax (XSD 1.0 section 3.4.4): an attribute with a
+   * global declaration is validated against it, which is how an xml:id or an
+   * ID arriving this way is counted and bound. The xsi attributes are left
+   * alone, as are attributes without a declaration.
+   */
+  private static void _laxAssessAttributes (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aElement)
+  {
+    final int nAttrs = aElement.getAttributeCount ();
+    for (int i = 0; i < nAttrs; i++)
+    {
+      final XdmNode aAttr = aElement.getAttributeAtIndex (i);
+      final XsdName aName = nameOf (aAttr);
+      if (XsdConstants.NS_XSI.equals (aName.space ()))
+        continue;
+      final XsdAttributeDecl aGlobal = aRun.getSchema ().m_aAttributes.get (aName);
+      if (aGlobal == null || aGlobal.m_aType == null)
+        continue;
+      final String sValue = aAttr.getValue ();
+      yearZeroOK (aRun, aGlobal.m_aType, sValue);
+      XsdSimpleTypeValidator.validateIn (aGlobal.m_aType, sValue, aAttr);
+      aRun.noteIDValues (aGlobal.m_aType, sValue, aElement, aAttr);
+      aRun.annotateAssertType (aAttr, aGlobal.m_aType);
+      aRun.noteNodeType (aAttr, aGlobal.m_aType);
+    }
+  }
+
+  /**
+   * Lax assessment of an element no declaration governs: an explicit
+   * <code>xsi:type</code> supplies the type it is assessed against (validation
+   * "as a type", like an undeclared document element), otherwise its
+   * attributes are assessed. Not in go-xslt, which assesses neither.
+   *
+   * @return <code>true</code> if the children are to be assessed as well,
+   *         <code>false</code> if an <code>xsi:type</code> governs the whole
+   *         element.
+   */
+  private static boolean _laxAssessOwn (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aElement)
+  {
+    final String sXsiType = XsdNodes.attrNS (aElement, XsdConstants.NS_XSI, "type");
+    if (sXsiType != null)
+    {
+      validateAsType (aRun, resolveInstanceType (aRun, aElement, sXsiType), aElement);
+      return false;
+    }
+    _laxAssessAttributes (aRun, aElement);
+    return true;
+  }
+
   /** One level of the iterative walk of {@link #_laxAssessSubtree}: an element and the next child to look at. */
   private static final class LaxFrame
   {
@@ -698,6 +750,8 @@ final class XsdInstanceValidator
                                          @NonNull final XdmNode aRoot,
                                          @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
+    if (!_laxAssessOwn (aRun, aRoot))
+      return;
     final ICommonsList <LaxFrame> aStack = new CommonsArrayList <> ();
     aStack.add (new LaxFrame (aRoot));
     while (aStack.isNotEmpty ())
@@ -715,7 +769,8 @@ final class XsdInstanceValidator
       if (aGlobal != null)
         validateElementAgainst (aRun, aGlobal, aKid, aScopes, null);
       else
-        aStack.add (new LaxFrame (aKid));
+        if (_laxAssessOwn (aRun, aKid))
+          aStack.add (new LaxFrame (aKid));
     }
   }
 
@@ -1244,6 +1299,43 @@ final class XsdInstanceValidator
   }
 
   /**
+   * Validate an element against a type ("validation as a type", the
+   * <code>[xsl:]type</code> episode of the bridge), the same assessment
+   * {@link #validateElement} makes for an undeclared element with an
+   * <code>xsi:type</code>.
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aType
+   *        The type the element is assessed against.
+   * @param aElement
+   *        The element.
+   * @throws XsdInvalidException
+   *         if the element is not valid
+   */
+  static void validateAsType (@NonNull final XsdValidationRun aRun,
+                              @NonNull final IXsdType aType,
+                              @NonNull final XdmNode aElement)
+  {
+    try
+    {
+      aRun.enterElement ();
+      try
+      {
+        _validateAgainstType (aRun, aType, aElement, new CommonsHashMap <> (), null);
+      }
+      finally
+      {
+        aRun.leaveElement ();
+      }
+    }
+    catch (final XsdInvalidException ex)
+    {
+      throw _stamp (ex, aElement);
+    }
+  }
+
+  /**
    * go-xslt <code>checkLateHints</code>: enforce XSD 1.0's rule on where
    * schema location hints may appear (Structures section 4.3.2): an
    * xsi:schemaLocation or xsi:noNamespaceSchemaLocation on an element is an
@@ -1400,11 +1492,35 @@ final class XsdInstanceValidator
    */
   static void validateRoot (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aRoot)
   {
+    validateRoot (aRun, aRoot, XsdInstanceValidator::validateElement);
+  }
+
+  /**
+   * {@link #validateRoot(XsdValidationRun, XdmNode)} with the assessment of
+   * the root given: its declaration ({@link #validateElement}) or a type
+   * ({@link #validateAsType}).
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aRoot
+   *        The element to validate.
+   * @param aAssess
+   *        The assessment of the root.
+   * @throws XsdInvalidException
+   *         if the element is not valid
+   * @throws XsdUnsupportedException
+   *         if the element is nested deeper than
+   *         {@link XsdValidationRun#MAX_DEPTH_BIG_STACK} levels
+   */
+  static void validateRoot (@NonNull final XsdValidationRun aRun,
+                            @NonNull final XdmNode aRoot,
+                            @NonNull final BiConsumer <XsdValidationRun, XdmNode> aAssess)
+  {
     final int nDepth = _elementDepth (aRoot);
     if (nDepth <= XsdValidationRun.MAX_DEPTH)
     {
       aRun.setMaxDepth (XsdValidationRun.MAX_DEPTH);
-      validateElement (aRun, aRoot);
+      aAssess.accept (aRun, aRoot);
       return;
     }
     if (nDepth > XsdValidationRun.MAX_DEPTH_BIG_STACK)
@@ -1416,7 +1532,7 @@ final class XsdInstanceValidator
     final Thread aThread = new Thread (null, () -> {
       try
       {
-        validateElement (aRun, aRoot);
+        aAssess.accept (aRun, aRoot);
       }
       catch (final RuntimeException ex)
       {

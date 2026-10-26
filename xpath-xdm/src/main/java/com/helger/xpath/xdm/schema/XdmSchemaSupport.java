@@ -28,8 +28,13 @@ import com.helger.collection.commons.CommonsArrayList;
 
 /**
  * Entry point to schema processing (the schema component model and validation
- * of XDM trees), which is the basis of schema-awareness. It is backed by
- * Apache Xerces-J, an optional dependency: when Xerces-J is not on the class
+ * of XDM trees), which is the basis of schema-awareness. It is backed by one
+ * of two optional providers, both loaded by name only if present: the native
+ * validator (<code>com.helger.xsd.XsdSchemaProvider</code> of the module
+ * <code>xsd-core</code>) or Apache Xerces-J. The system property
+ * <code>xdm.schemaProvider</code> selects <code>native</code> or
+ * <code>xerces</code>; without it the native validator is used if it is on the
+ * class path, else Xerces-J. When the selected provider is not on the class
  * path, {@link #isAvailable()} is <code>false</code> and nothing of it is ever
  * loaded. Xerces-J classes are instantiated directly, never through a JAXP
  * lookup, so the JAXP defaults of the application stay untouched. The JDK's
@@ -45,6 +50,10 @@ public final class XdmSchemaSupport
   private static final String XERCES_MARKER_CLASS = "org.apache.xerces.xs.XSModel";
   /** The provider implementation, only loaded when Xerces-J is present. */
   private static final String PROVIDER_CLASS = "com.helger.xpath.xdm.xerces.XercesSchemaProvider";
+  /** The native provider (module xsd-core), only loaded when present. */
+  private static final String NATIVE_PROVIDER_CLASS = "com.helger.xsd.XsdSchemaProvider";
+  /** The system property that selects the provider: <code>native</code> or <code>xerces</code>. */
+  public static final String SYSTEM_PROPERTY_PROVIDER = "xdm.schemaProvider";
 
   private static final IXdmSchemaProvider PROVIDER = _loadProvider ();
 
@@ -55,9 +64,31 @@ public final class XdmSchemaSupport
   {}
 
   @Nullable
+  private static IXdmSchemaProvider _loadNativeProvider (@NonNull final ClassLoader aLoader)
+  {
+    try
+    {
+      return (IXdmSchemaProvider) Class.forName (NATIVE_PROVIDER_CLASS, true, aLoader)
+                                       .getDeclaredConstructor ()
+                                       .newInstance ();
+    }
+    catch (final ReflectiveOperationException | LinkageError ex)
+    {
+      return null;
+    }
+  }
+
+  @Nullable
   private static IXdmSchemaProvider _loadProvider ()
   {
     final ClassLoader aLoader = XdmSchemaSupport.class.getClassLoader ();
+    final String sWanted = System.getProperty (SYSTEM_PROPERTY_PROVIDER, "");
+    if (!"xerces".equals (sWanted))
+    {
+      final IXdmSchemaProvider aNative = _loadNativeProvider (aLoader);
+      if (aNative != null || "native".equals (sWanted))
+        return aNative;
+    }
     try
     {
       Class.forName (XERCES_MARKER_CLASS, false, aLoader);
@@ -77,8 +108,9 @@ public final class XdmSchemaSupport
   }
 
   /**
-   * @return <code>true</code> if schema processing is available, i.e. Apache
-   *         Xerces-J is on the class path.
+   * @return <code>true</code> if schema processing is available, i.e. the
+   *         selected provider (the native validator or Apache Xerces-J) is on
+   *         the class path.
    */
   public static boolean isAvailable ()
   {
@@ -89,8 +121,19 @@ public final class XdmSchemaSupport
   private static IXdmSchemaProvider _getProvider ()
   {
     if (PROVIDER == null)
-      throw new IllegalStateException ("Schema processing needs Apache Xerces-J (xerces:xercesImpl) on the class path");
+      throw new IllegalStateException ("Schema processing needs the native validator (xsd-core) or Apache Xerces-J (xerces:xercesImpl) on the class path");
     return PROVIDER;
+  }
+
+  /**
+   * @return The simple class name of the provider in use, e.g.
+   *         <code>XsdSchemaProvider</code> or <code>XercesSchemaProvider</code>;
+   *         <code>null</code> if schema processing is not available.
+   */
+  @Nullable
+  public static String getProviderName ()
+  {
+    return PROVIDER == null ? null : PROVIDER.getClass ().getSimpleName ();
   }
 
   /**

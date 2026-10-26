@@ -36,9 +36,9 @@ public enum EXsdTestValidatorKind
   XERCES ("xerces", "xsd", "docs/accepted-failures/xsd.md", true, XercesXsdTestValidator::new),
   /**
    * The native validator of <code>xsd-core</code>. Its accepted-failures check
-   * is off by default until it becomes the gate (phase V6).
+   * is the gate: go-xslt's five documented XSD 1.0 failures are accepted.
    */
-  NATIVE ("native", "xsd-native", "docs/accepted-failures/xsd-native.md", false, NativeXsdTestValidator::new);
+  NATIVE ("native", "xsd-native", "docs/accepted-failures/xsd-native.md", true, NativeXsdTestValidator::new);
 
   private final String m_sID;
   private final String m_sFilePrefix;

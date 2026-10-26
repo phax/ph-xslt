@@ -52,8 +52,8 @@ Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests`
 * New module `xsd-core` (package `com.helger.xsd`, depends on `xpath-core`) plus `xsd-conformance` for the harness.
 * XSD 1.0 first; the version switch stays in the code so that XSD 1.1 (assertions and conditional type assignment on
   our XPath engine, `xs:override`, open content) can follow without a rework.
-* The native validator becomes the default schema provider. Xerces-J stays as an optional second provider and as the
-  differential reference.
+* The native validator is the default schema provider (V6). Xerces-J stays as an optional second provider and as the
+  differential reference (`-Dxdm.schemaProvider=xerces`).
 * XSLT and XPath only need the first error. The public validation API that collects all errors comes after the switch-over.
 
 | Phase | Content | Go reference | Status |
@@ -64,7 +64,7 @@ Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests`
 | V3 | Simple types and facets (reusing casting and the XSD regex grammar) | `simpletype.go`, `facets.go`, `lexscan.go` | done (cyclic unions bounded; new `XsdRegexGrammar` for the XSD regex grammar) |
 | V4 | Content models: position-set NFA, linear matcher above 600 children, UPA, restriction derivation | `content.go`, `bigmatch.go`, `upa.go`, `restriction.go` | done (recursion bounded at 250 particle levels, `XsdUnsupportedException` beyond) |
 | V5 | Instance validation: attributes, identity constraints, `xsi:type`/`nil`/`schemaLocation` hints | `instance.go`, `attributes.go`, `identity.go` | done, first-error mode only (collect-all is V7). Merged V3-V5, native XSD 1.0: 39,396 of 39,401 pass, 0 unsupported; the 5 fails are go-xslt's documented five (`groupH021v`, `idB005`, `particlesZ001.i`, `particlesZ023/024`). Fail lists identical on JDK 21 and 25 |
-| V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | open |
+| V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | done: `XsdBridge` (`IXdmSchemaSet`) and `XsdSchemaProvider` in `xsd-core`; in place vs. from text agree on all 25,018 compared XSD 1.0 instances (`XsdBridgeDifferentialTest`); `XdmSchemaSupport` loads the native provider by default (`-Dxdm.schemaProvider=xerces` for Xerces-J); QT3 identical to Xerces-J by name (59), XSLT30 schema-aware 21 fails against 18 (see `xslt30-schema-aware.md`); the native xsdtests gate is on (go-xslt's five fails) |
 | V7 | Public validation API: all errors in document order, content-model explanations, `msg:message` | `collect.go`, `explain.go`, `messages.go` | open |
 | V8 | XSD 1.1 | `xsd11.go`, `override.go`, version branches | later |
 

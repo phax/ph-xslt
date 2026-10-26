@@ -1,13 +1,18 @@
 # Schema processing
 
-ph-xslt has a schema provider interface (`com.helger.xpath.xdm.schema`, entry point `XdmSchemaSupport`) with two
-implementations today and a third one in progress:
+ph-xslt has a schema provider interface (`com.helger.xpath.xdm.schema`, entry point `XdmSchemaSupport`) with three
+implementations:
 
 | Provider | Package | Needs | Gives |
 |----------|---------|-------|-------|
 | JDK validator | `com.helger.xpath.xdm.jaxp` (`JdkSchemaProvider`) | nothing beyond the JDK | validation and type annotations only |
 | Apache Xerces-J 2.12.2 | `com.helger.xpath.xdm.xerces` (`XercesSchemaProvider`) | `xerces:xercesImpl` on the class path (optional dependency of `xpath-xdm`) | validation plus the full schema component model |
-| Native validator | `com.helger.xsd` (module `xsd-core`) | nothing beyond ph-xslt | planned: validation plus the full component model, see [PLAN.md](PLAN.md) "Native XSD validator" |
+| Native validator | `com.helger.xsd` (`XsdSchemaProvider`, module `xsd-core`) | nothing beyond ph-xslt | validation plus the full component model; XSD 1.0 only until phase V8, see [PLAN.md](PLAN.md) "Native XSD validator" |
+
+`XdmSchemaSupport` loads the native provider if `xsd-core` is on the class path and Xerces-J otherwise. The system
+property `xdm.schemaProvider` (`native` or `xerces`) selects one explicitly; a provider that is named but absent leaves
+schema processing unavailable. The conformance harnesses have both on their test class path and use the native
+validator by default.
 
 ## Why Xerces-J is needed for some features and tests
 
@@ -33,28 +38,35 @@ needs the schema *components* is missing (verified in `JdkSchemaSet` and `JdkTyp
 `IXdmTypeDefinition.hasComponentModel ()` is `false` for JDK types and `XdmSchemaType.getDefinition ()` returns `null`
 for them; callers such as the atomizer then fall back to what the type annotation alone allows.
 
-### Features that need Xerces-J
+### Features that need a schema processor (the native validator or Xerces-J)
 
 * **Schema-aware XSLT** (`XsltCompileOptions.setSchemaAware (true)`): `xsl:import-schema`, `[xsl:]validation`,
-  `[xsl:]type`, typed modes, `schema-element()`. Claiming it without Xerces-J throws an `IllegalStateException` when
+  `[xsl:]type`, typed modes, `schema-element()`. Claiming it without a schema processor throws an `IllegalStateException` when
   the stylesheet is compiled (`StylesheetCompiler`). Without the claim the processor is a basic XSLT 3.0 processor, as
   XSLT 3.0 section 26 allows.
 * **User-defined types in XPath** and the element/attribute declaration tests listed above.
 
-### Tests that need Xerces-J
+### Tests that need a schema processor
 
 Xerces-J is in test scope of `xslt-core`, `xpath-conformance` and `xslt-conformance`, and a compile dependency of the
-(not deployed) `xsd-conformance`, so these runs use it:
+(not deployed) `xsd-conformance`; `xsd-core` is in test scope of `xpath-conformance` and `xslt-conformance`. Since V6
+those two harnesses use the native validator unless `-Dxdm.schemaProvider=xerces` is given; `xslt-core` has no
+`xsd-core` on its class path and uses Xerces-J:
 
-* **QT3**: 7 cases pass only with Xerces-J (`K2-DataFunc-6`, `fn-normalize-space-24`, `fn-string-length-23` need the
+* **QT3**: 7 cases pass only with a full schema processor (`K2-DataFunc-6`, `fn-normalize-space-24`, `fn-string-length-23` need the
   content type for FOTY0012; `json-to-xml-016/017/037/038` need element declarations for `schema-element(j:...)` and
   `validate=true`). `-Dqt3.schemaProcessor=jdk` runs QT3 on the JDK validator: 66 fails instead of 59, otherwise
   identical by name. See `xpath-conformance/docs/accepted-failures/qt3.md`.
-* **XSLT30 schema-aware run** (`-Dxslt30.schemaAware=true`): all 9,310 applicable cases run with Xerces-J; 18 fail
-  (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`). The default run (8,647 cases) does not need it.
+  Native and Xerces-J: the same 59 fails by name.
+* **XSLT30 schema-aware run** (`-Dxslt30.schemaAware=true`): all 9,310 applicable cases run; 21 fail with the native
+  validator, 18 with Xerces-J (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`; the three more are
+  `merge-049`, `merge-050` and `merge-052`, which Xerces-J passes only because it rejects their schema). The default run (8,647 cases) does not need it.
   `XSLT30SchemaUnawareCasesTest` checks the 31 cases that require a processor *without* schema-awareness in both claim
   states.
-* **xsdtests** (`xsd-conformance`): Xerces-J is the reference validator until the native one takes over (V6).
+* **xsdtests** (`xsd-conformance`): `-Dxsd.validator=xerces` (the default of `XsdTest`) is the Xerces-J baseline;
+  `XsdNativeTest` always runs the native validator and gates on `docs/accepted-failures/xsd-native.md` (go-xslt's five
+  fails); `XsdBridgeDifferentialTest` checks that validating a tree in place gives the verdict of validating its text,
+  for every XSD 1.0 instance.
 * **`NoXercesTest`**: a second surefire execution of `xslt-core` without Xerces-J on the class path checks that the
   basic processor and the JDK validator work without it and that no Xerces-J class is loaded.
 
