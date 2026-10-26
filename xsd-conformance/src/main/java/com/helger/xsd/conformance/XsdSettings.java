@@ -27,6 +27,8 @@ import com.helger.collection.commons.ICommonsList;
  * The knobs of an xsdtests run, read from system properties (the Go harness'
  * <code>XSD_*</code> environment variables):
  * <ul>
+ * <li><code>xsd.validator</code> - <code>xerces</code> (default) or
+ * <code>native</code>: the validator under test</li>
  * <li><code>xsd.dir</code> - suite directory (default
  * {@value #DEFAULT_SUITE_DIR})</li>
  * <li><code>xsd.only</code> - run only test sets whose <code>suite.xml</code>
@@ -39,13 +41,18 @@ import com.helger.collection.commons.ICommonsList;
  * <li><code>xsd.unsup=true</code> - also print a line per unsupported
  * case</li>
  * <li><code>xsd.seq=true</code> - run the test sets sequentially</li>
- * <li><code>xsd.checkAccepted=false</code> - do not fail on failing cases not
- * named in the accepted-failures file (the check is on by default)</li>
+ * <li><code>xsd.checkAccepted=false|true</code> - whether to fail on failing
+ * cases not named in the accepted-failures file (default: on for Xerces-J,
+ * off for the native validator until it becomes the gate)</li>
  * <li><code>xsd.out</code> - output directory (default <code>target</code>)</li>
  * <li><code>xsd.accepted</code> - accepted-failures file (default
- * {@value #DEFAULT_ACCEPTED_FILE})</li>
+ * {@value #DEFAULT_ACCEPTED_FILE} for Xerces-J,
+ * <code>docs/accepted-failures/xsd-native.md</code> for the native
+ * validator)</li>
  * </ul>
  *
+ * @param validator
+ *        The validator under test.
  * @param suiteDir
  *        The xsdtests directory.
  * @param only
@@ -68,7 +75,8 @@ import com.helger.collection.commons.ICommonsList;
  *        The accepted-failures markdown file.
  * @author Philip Helger
  */
-public record XsdSettings (@NonNull Path suiteDir,
+public record XsdSettings (@NonNull EXsdTestValidatorKind validator,
+                           @NonNull Path suiteDir,
                            @NonNull String only,
                            @NonNull ICommonsList <EXsdVersion> versions,
                            boolean progress,
@@ -82,6 +90,7 @@ public record XsdSettings (@NonNull Path suiteDir,
   public static final String DEFAULT_SUITE_DIR = "/Users/philip/dev/git-thirdparty/xsdtests";
   public static final String DEFAULT_ACCEPTED_FILE = "docs/accepted-failures/xsd.md";
   public static final String DEFAULT_VERSION = "1.0";
+  public static final String DEFAULT_VALIDATOR = "xerces";
 
   /** @return The <code>suite.xml</code> file. */
   @NonNull
@@ -123,19 +132,40 @@ public record XsdSettings (@NonNull Path suiteDir,
     return ret;
   }
 
+  /**
+   * @param sValue
+   *        The value of <code>xsd.validator</code>.
+   * @return The validator kind.
+   * @throws IllegalArgumentException
+   *         for an unknown value
+   */
+  @NonNull
+  public static EXsdTestValidatorKind parseValidator (@NonNull final String sValue)
+  {
+    final EXsdTestValidatorKind ret = EXsdTestValidatorKind.getFromIDOrNull (sValue);
+    if (ret == null)
+      throw new IllegalArgumentException ("Unknown XSD validator '" + sValue + "' (use xerces or native)");
+    return ret;
+  }
+
   /** @return The settings from the system properties. */
   @NonNull
   public static XsdSettings fromSystemProperties ()
   {
-    return new XsdSettings (Path.of (System.getProperty ("xsd.dir", DEFAULT_SUITE_DIR)),
+    final EXsdTestValidatorKind eValidator = parseValidator (System.getProperty ("xsd.validator", DEFAULT_VALIDATOR));
+    final String sCheckAccepted = System.getProperty ("xsd.checkAccepted");
+    final boolean bCheckAccepted = sCheckAccepted == null ? eValidator.isCheckAcceptedByDefault ()
+                                                          : !"false".equals (sCheckAccepted);
+    return new XsdSettings (eValidator,
+                            Path.of (System.getProperty ("xsd.dir", DEFAULT_SUITE_DIR)),
                             System.getProperty ("xsd.only", ""),
                             parseVersions (System.getProperty ("xsd.version", DEFAULT_VERSION)),
                             Boolean.getBoolean ("xsd.progress"),
                             Boolean.getBoolean ("xsd.faildump"),
                             Boolean.getBoolean ("xsd.unsup"),
                             Boolean.getBoolean ("xsd.seq"),
-                            !"false".equals (System.getProperty ("xsd.checkAccepted")),
+                            bCheckAccepted,
                             Path.of (System.getProperty ("xsd.out", "target")),
-                            Path.of (System.getProperty ("xsd.accepted", DEFAULT_ACCEPTED_FILE)));
+                            Path.of (System.getProperty ("xsd.accepted", eValidator.getAcceptedFile ())));
   }
 }

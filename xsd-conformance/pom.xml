@@ -49,6 +49,11 @@
       <groupId>com.helger.commons</groupId>
       <artifactId>ph-collection</artifactId>
     </dependency>
+    <!-- The native validator under test (-Dxsd.validator=native) -->
+    <dependency>
+      <groupId>com.helger.xpath</groupId>
+      <artifactId>xsd-core</artifactId>
+    </dependency>
     <!-- The reference validator of the baseline run, instantiated directly (never through a JAXP lookup) -->
     <dependency>
       <groupId>xerces</groupId>

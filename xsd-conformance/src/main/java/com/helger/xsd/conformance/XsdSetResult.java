@@ -40,6 +40,9 @@ public final class XsdSetResult
   private int m_nSkip;
   private int m_nUnsupported;
   private int m_nQueried;
+  private int m_nSchemaPass;
+  private int m_nSchemaFail;
+  private int m_nSchemaUnsupported;
   private final ICommonsSortedMap <String, Integer> m_aSkipReasons = new CommonsTreeMap <> ();
   private final ICommonsList <String> m_aFailNames = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aLines = new CommonsArrayList <> ();
@@ -96,6 +99,24 @@ public final class XsdSetResult
   }
 
   /**
+   * Book the outcome of a schema test (in addition to the totals, which count
+   * schema and instance tests alike).
+   *
+   * @param nPass
+   *        Passes to add.
+   * @param nFail
+   *        Fails to add.
+   * @param nUnsupported
+   *        Unsupported cases to add.
+   */
+  public void addSchemaTestOutcome (final int nPass, final int nFail, final int nUnsupported)
+  {
+    m_nSchemaPass += nPass;
+    m_nSchemaFail += nFail;
+    m_nSchemaUnsupported += nUnsupported;
+  }
+
+  /**
    * @param sReason
    *        Why the case was skipped.
    */
@@ -145,6 +166,24 @@ public final class XsdSetResult
   public int getQueried ()
   {
     return m_nQueried;
+  }
+
+  /** @return The passing schema tests (part of {@link #getPass()}). */
+  public int getSchemaPass ()
+  {
+    return m_nSchemaPass;
+  }
+
+  /** @return The failing schema tests (part of {@link #getFail()}). */
+  public int getSchemaFail ()
+  {
+    return m_nSchemaFail;
+  }
+
+  /** @return The unsupported schema tests (part of {@link #getUnsupported()}). */
+  public int getSchemaUnsupported ()
+  {
+    return m_nSchemaUnsupported;
   }
 
   @NonNull
