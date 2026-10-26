@@ -273,20 +273,6 @@ final class XsdRestrictionChecker
   }
 
   /**
-   * go-xslt <code>wcNameSubsetOK</code>: the QName half of Wildcard Subset
-   * (1.1).
-   */
-  private static boolean _wcNameSubsetOK (@NonNull final XsdWildcard aA, @NonNull final XsdWildcard aB)
-  {
-    if (aB.m_bNotDefined && !aA.m_bNotDefined)
-      return false;
-    for (final XsdName aName : aB.m_aNotNames)
-      if (aA.matches (aName))
-        return false;
-    return true;
-  }
-
-  /**
    * go-xslt <code>nsSubset</code>: whether wildcard a's namespace constraint is
    * a subset of b's. Conservative: <code>true</code> unless it can show that a
    * admits a namespace b forbids.
@@ -387,7 +373,7 @@ final class XsdRestrictionChecker
       // exclusions (wild050)
       return nsSubset (aLeaf, aWC) &&
              XsdWildcard.processRank (aLeaf.m_sProcess) >= XsdWildcard.processRank (aWC.m_sProcess) &&
-             _wcNameSubsetOK (aLeaf, aWC);
+             XsdComponentChecks._wcNameSubsetOK (aLeaf, aWC);
     }
     if (aParticle.m_aTerm instanceof final XsdModelGroup aMG)
     {

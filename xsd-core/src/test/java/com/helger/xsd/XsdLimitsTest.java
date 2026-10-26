@@ -130,6 +130,22 @@ public final class XsdLimitsTest
     }
   }
 
+  /**
+   * A wide self-referencing union used as an element type must not be walked
+   * exponentially by the NOTATION usability check.
+   */
+  @Test(timeout = 20000)
+  public void testWideSelfReferencingUnion ()
+  {
+    final int nMembers = 40;
+    final StringBuilder aSB = new StringBuilder (XS + "<xs:simpleType name=\"u\"><xs:union memberTypes=\"");
+    for (int i = 0; i < nMembers; i++)
+      aSB.append ("u ");
+    aSB.append ("xs:string\"/></xs:simpleType><xs:element name=\"e\" type=\"u\"/></xs:schema>");
+    final Compiled aCompiled = XsdTestSupport.compile (aSB.toString (), null, EXsdVersion.V10);
+    assertTrue (aCompiled.message (), aCompiled.verdict () != EVerdict.INVALID);
+  }
+
   @Test
   public void testCyclicIncludesTerminate () throws IOException
   {
