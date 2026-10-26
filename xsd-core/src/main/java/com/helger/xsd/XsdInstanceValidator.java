@@ -19,6 +19,7 @@ package com.helger.xsd;
 import java.nio.file.Path;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.function.BiConsumer;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -1244,6 +1245,43 @@ final class XsdInstanceValidator
   }
 
   /**
+   * Validate an element against a type ("validation as a type", the
+   * <code>[xsl:]type</code> episode of the bridge), the same assessment
+   * {@link #validateElement} makes for an undeclared element with an
+   * <code>xsi:type</code>.
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aType
+   *        The type the element is assessed against.
+   * @param aElement
+   *        The element.
+   * @throws XsdInvalidException
+   *         if the element is not valid
+   */
+  static void validateAsType (@NonNull final XsdValidationRun aRun,
+                              @NonNull final IXsdType aType,
+                              @NonNull final XdmNode aElement)
+  {
+    try
+    {
+      aRun.enterElement ();
+      try
+      {
+        _validateAgainstType (aRun, aType, aElement, new CommonsHashMap <> (), null);
+      }
+      finally
+      {
+        aRun.leaveElement ();
+      }
+    }
+    catch (final XsdInvalidException ex)
+    {
+      throw _stamp (ex, aElement);
+    }
+  }
+
+  /**
    * go-xslt <code>checkLateHints</code>: enforce XSD 1.0's rule on where
    * schema location hints may appear (Structures section 4.3.2): an
    * xsi:schemaLocation or xsi:noNamespaceSchemaLocation on an element is an
@@ -1400,11 +1438,35 @@ final class XsdInstanceValidator
    */
   static void validateRoot (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aRoot)
   {
+    validateRoot (aRun, aRoot, XsdInstanceValidator::validateElement);
+  }
+
+  /**
+   * {@link #validateRoot(XsdValidationRun, XdmNode)} with the assessment of
+   * the root given: its declaration ({@link #validateElement}) or a type
+   * ({@link #validateAsType}).
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aRoot
+   *        The element to validate.
+   * @param aAssess
+   *        The assessment of the root.
+   * @throws XsdInvalidException
+   *         if the element is not valid
+   * @throws XsdUnsupportedException
+   *         if the element is nested deeper than
+   *         {@link XsdValidationRun#MAX_DEPTH_BIG_STACK} levels
+   */
+  static void validateRoot (@NonNull final XsdValidationRun aRun,
+                            @NonNull final XdmNode aRoot,
+                            @NonNull final BiConsumer <XsdValidationRun, XdmNode> aAssess)
+  {
     final int nDepth = _elementDepth (aRoot);
     if (nDepth <= XsdValidationRun.MAX_DEPTH)
     {
       aRun.setMaxDepth (XsdValidationRun.MAX_DEPTH);
-      validateElement (aRun, aRoot);
+      aAssess.accept (aRun, aRoot);
       return;
     }
     if (nDepth > XsdValidationRun.MAX_DEPTH_BIG_STACK)
@@ -1416,7 +1478,7 @@ final class XsdInstanceValidator
     final Thread aThread = new Thread (null, () -> {
       try
       {
-        validateElement (aRun, aRoot);
+        aAssess.accept (aRun, aRoot);
       }
       catch (final RuntimeException ex)
       {
