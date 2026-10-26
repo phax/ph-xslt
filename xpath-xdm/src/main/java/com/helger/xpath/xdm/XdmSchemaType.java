@@ -18,149 +18,61 @@ package com.helger.xpath.xdm;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.w3c.dom.TypeInfo;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.xpath.xdm.schema.EXdmSimpleVariety;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
-import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 
 /**
- * The schema type of a node that was validated against an XML schema while
- * the tree was built (see {@link XdmParser#setSchema(javax.xml.validation.Schema)}).
- * It wraps the type definition the JDK validator reports
- * ({@link org.w3c.dom.TypeInfo}) together with what XPath needs from it: the
- * type name, whether the type is simple, and the built-in atomic type of the
- * typed value. Instances are shared by all nodes of the same type.
+ * The schema type of a node of a schema-validated tree (see
+ * {@link com.helger.xpath.xdm.schema.IXdmSchemaSet}): the type definition of
+ * the node together with what XPath needs from it: the type annotation name,
+ * whether the type is simple, and the built-in atomic type of the typed value.
+ * Instances are usually shared by all nodes of the same type.
  * <p>
- * Limits of the JDK validator API, on purpose not hidden: it does not tell
- * element-only from mixed content, so the typed value of an element with
- * complex content is always the untyped string value; and it gives no access to
- * element declarations or the members of a union type. The
- * {@link org.w3c.dom.TypeInfo} objects are the validator's own type
- * definitions; that they stay usable after parsing is the behaviour of the JDK
- * implementation, not an API guarantee.
+ * With a provider that has no schema component model (the JDK validator,
+ * {@link IXdmTypeDefinition#hasComponentModel()}), element-only and mixed
+ * content cannot be told apart, so the typed value of an element with complex
+ * content is always the untyped string value, and the members of a union type
+ * are not known.
  *
  * @author Philip Helger
  */
 @Immutable
 public final class XdmSchemaType
 {
-  private static final int DERIVATION_RESTRICTION_EXTENSION = TypeInfo.DERIVATION_RESTRICTION |
-                                                              TypeInfo.DERIVATION_EXTENSION;
-
-  /**
-   * The built-in atomic types, every type before all of its base types, so the
-   * first one a type derives from is the most specific one.
-   */
-  private static final String [] BUILTIN_ATOMIC_TYPES = { "ID",
-                                                          "IDREF",
-                                                          "ENTITY",
-                                                          "NCName",
-                                                          "Name",
-                                                          "NMTOKEN",
-                                                          "language",
-                                                          "token",
-                                                          "normalizedString",
-                                                          "string",
-                                                          "byte",
-                                                          "short",
-                                                          "int",
-                                                          "long",
-                                                          "unsignedByte",
-                                                          "unsignedShort",
-                                                          "unsignedInt",
-                                                          "unsignedLong",
-                                                          "positiveInteger",
-                                                          "nonNegativeInteger",
-                                                          "negativeInteger",
-                                                          "nonPositiveInteger",
-                                                          "integer",
-                                                          "decimal",
-                                                          "double",
-                                                          "float",
-                                                          "boolean",
-                                                          "dateTimeStamp",
-                                                          "dateTime",
-                                                          "date",
-                                                          "time",
-                                                          "yearMonthDuration",
-                                                          "dayTimeDuration",
-                                                          "duration",
-                                                          "gYearMonth",
-                                                          "gYear",
-                                                          "gMonthDay",
-                                                          "gDay",
-                                                          "gMonth",
-                                                          "hexBinary",
-                                                          "base64Binary",
-                                                          "anyURI",
-                                                          "QName",
-                                                          "NOTATION" };
-
-  private final TypeInfo m_aTypeInfo;
-  private final TypeInfo m_aValueTypeInfo;
+  private final IXdmTypeDefinition m_aType;
+  private final IXdmTypeDefinition m_aValueType;
   private final XdmQName m_aName;
   private final boolean m_bSimple;
   private final boolean m_bList;
   private final XdmQName m_aAtomicBase;
 
-  /**
-   * @param aTypeInfo
-   *        The type definition of the node, its type annotation.
-   * @param aValueTypeInfo
-   *        The type the value was validated against. It differs from aTypeInfo
-   *        only for a union type, where it is the member type that matched.
-   */
-  XdmSchemaType (@NonNull final TypeInfo aTypeInfo, @NonNull final TypeInfo aValueTypeInfo)
+  private XdmSchemaType (@NonNull final IXdmTypeDefinition aType, @NonNull final IXdmTypeDefinition aValueType)
   {
-    ValueEnforcer.notNull (aTypeInfo, "TypeInfo");
-    ValueEnforcer.notNull (aValueTypeInfo, "ValueTypeInfo");
-    m_aTypeInfo = aTypeInfo;
-    m_aValueTypeInfo = aValueTypeInfo;
-    final String sNamespace = aTypeInfo.getTypeNamespace ();
-    final String sLocal = aTypeInfo.getTypeName ();
-    m_aName = new XdmQName (sNamespace == null ? "" : sNamespace, sLocal == null || sLocal.isEmpty () ? "#anonymous"
-                                                                                                    : sLocal);
-    m_bSimple = _isDerivedFrom (aTypeInfo, XdmConstants.NS_XS, "anySimpleType", TypeInfo.DERIVATION_RESTRICTION);
-    m_bList = _isDerivedFrom (aValueTypeInfo, XdmConstants.NS_XS, "anySimpleType", TypeInfo.DERIVATION_LIST);
-    m_aAtomicBase = _findAtomicBase (aValueTypeInfo, m_bList);
-  }
-
-  private static boolean _isDerivedFrom (@NonNull final TypeInfo aTypeInfo,
-                                         @NonNull final String sNamespace,
-                                         @NonNull final String sLocalName,
-                                         final int nMethods)
-  {
-    final String sTypeNamespace = aTypeInfo.getTypeNamespace ();
-    if (sNamespace.equals (sTypeNamespace == null ? "" : sTypeNamespace) && sLocalName.equals (aTypeInfo.getTypeName ()))
-      return true;
-    if (nMethods == DERIVATION_RESTRICTION_EXTENSION)
-    {
-      // With the schema component model (Apache Xerces-J); its DOM TypeInfo
-      // view is not reliable for types in no namespace
-      final IXdmTypeDefinition aDefinition = XdmSchemaSupport.getDefinition (aTypeInfo);
-      if (aDefinition != null)
-        return aDefinition.isDerivedFrom (new XdmQName (sNamespace, sLocalName));
-    }
-    return aTypeInfo.isDerivedFrom (sNamespace, sLocalName, nMethods);
-  }
-
-  @Nullable
-  private static XdmQName _findAtomicBase (@NonNull final TypeInfo aValueTypeInfo, final boolean bList)
-  {
-    // A list type derives from its item type by list; a complex type with
-    // simple content from its base by extension
-    final int nMethods = bList ? DERIVATION_RESTRICTION_EXTENSION | TypeInfo.DERIVATION_LIST
-                               : DERIVATION_RESTRICTION_EXTENSION;
-    for (final String sBuiltin : BUILTIN_ATOMIC_TYPES)
-      if (_isDerivedFrom (aValueTypeInfo, XdmConstants.NS_XS, sBuiltin, nMethods))
-        return new XdmQName (XdmConstants.NS_XS, sBuiltin, "xs");
-    return null;
+    m_aType = aType;
+    m_aValueType = aValueType;
+    m_aName = aType.getAnnotationName ();
+    m_bSimple = !aType.isComplex ();
+    // The typed value comes from the simple content of the value type; a
+    // list is typed by its item type
+    final IXdmTypeDefinition aContent = aValueType.getSimpleContentType ();
+    m_bList = aContent != null && aContent.getVariety () == EXdmSimpleVariety.LIST;
+    if (aContent == null)
+      m_aAtomicBase = null;
+    else
+      if (m_bList)
+      {
+        final IXdmTypeDefinition aItem = aContent.getItemType ();
+        m_aAtomicBase = aItem == null ? null : aItem.getBuiltinAtomicType ();
+      }
+      else
+        m_aAtomicBase = aContent.getBuiltinAtomicType ();
   }
 
   /**
-   * Create the annotation for a type of the schema component model.
+   * Create the annotation for a type definition.
    *
    * @param aType
    *        The type definition of the node. May not be <code>null</code>.
@@ -173,44 +85,57 @@ public final class XdmSchemaType
   @NonNull
   public static XdmSchemaType of (@NonNull final IXdmTypeDefinition aType, @NonNull final IXdmTypeDefinition aValueType)
   {
-    return new XdmSchemaType (aType.getTypeInfo (), aValueType.getTypeInfo ());
+    ValueEnforcer.notNull (aType, "Type");
+    ValueEnforcer.notNull (aValueType, "ValueType");
+    return new XdmSchemaType (aType, aValueType);
   }
 
   /**
-   * @return The schema component model of the type, if the validator provides
-   *         one (Apache Xerces-J, see {@link XdmSchemaSupport}), otherwise
+   * @return The type definition of the node, as the schema provider reports
+   *         it. Never <code>null</code>.
+   */
+  @NonNull
+  public IXdmTypeDefinition getTypeDefinition ()
+  {
+    return m_aType;
+  }
+
+  /**
+   * @return The type definition the value was validated against (for a union
+   *         the matching member type). Never <code>null</code>.
+   */
+  @NonNull
+  public IXdmTypeDefinition getValueTypeDefinition ()
+  {
+    return m_aValueType;
+  }
+
+  /**
+   * @return The type definition of the node if the provider has a schema
+   *         component model (Apache Xerces-J, see
+   *         {@link com.helger.xpath.xdm.schema.XdmSchemaSupport}), otherwise
    *         <code>null</code> (the JDK validator).
    */
   @Nullable
   public IXdmTypeDefinition getDefinition ()
   {
-    return XdmSchemaSupport.getDefinition (m_aTypeInfo);
+    return m_aType.hasComponentModel () ? m_aType : null;
   }
 
   /**
-   * @return The schema component model of the type the value was validated
-   *         against (for a union the matching member type), or
-   *         <code>null</code> like {@link #getDefinition()}.
+   * @return The type definition the value was validated against (for a union
+   *         the matching member type), or <code>null</code> like
+   *         {@link #getDefinition()}.
    */
   @Nullable
   public IXdmTypeDefinition getValueDefinition ()
   {
-    return XdmSchemaSupport.getDefinition (m_aValueTypeInfo);
+    return m_aValueType.hasComponentModel () ? m_aValueType : null;
   }
 
   /**
-   * @return The type definition as reported by the JDK validator. Never
-   *         <code>null</code>.
-   */
-  @NonNull
-  public TypeInfo getTypeInfo ()
-  {
-    return m_aTypeInfo;
-  }
-
-  /**
-   * @return The type name. Anonymous types carry the name the JDK gives them,
-   *         which starts with <code>#</code> (see {@link #isAnonymous()}).
+   * @return The type name. Anonymous types carry a name whose local part
+   *         starts with <code>#</code> (see {@link #isAnonymous()}).
    */
   @NonNull
   public XdmQName getName ()
@@ -283,7 +208,9 @@ public final class XdmSchemaType
    */
   public boolean isDerivedFrom (@NonNull final String sNamespace, @NonNull final String sLocalName)
   {
-    return _isDerivedFrom (m_aTypeInfo, sNamespace, sLocalName, DERIVATION_RESTRICTION_EXTENSION);
+    if (sNamespace.equals (m_aName.namespaceUri ()) && sLocalName.equals (m_aName.localName ()))
+      return true;
+    return m_aType.isDerivedFrom (new XdmQName (sNamespace, sLocalName));
   }
 
   @Override

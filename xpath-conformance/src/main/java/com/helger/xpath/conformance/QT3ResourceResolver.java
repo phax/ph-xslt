@@ -30,8 +30,6 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Locale;
 
-import javax.xml.validation.Schema;
-
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -310,10 +308,10 @@ public final class QT3ResourceResolver implements IResourceResolver
       // validation="strict" or "lax": both are run strict. A schema that does
       // not compile or a source that is not valid leaves the source
       // unvalidated, like Go
-      final Schema aSchema = QT3SchemaCache.getSchema (m_aSchemaFiles);
-      if (aSchema != null)
+      final IXdmSchemaSet aSchemaSet = QT3SchemaCache.getValidationSchemaSet (m_aSchemaFiles);
+      if (aSchemaSet != null)
       {
-        final XdmNode aDoc = m_aDocs.getValidatedDocument (aPath, aSchema, m_aSchemaFiles.toString ());
+        final XdmNode aDoc = m_aDocs.getValidatedDocument (aPath, aSchemaSet, m_aSchemaFiles.toString ());
         if (aDoc != null)
         {
           m_aValidated.put (aPath, aDoc);

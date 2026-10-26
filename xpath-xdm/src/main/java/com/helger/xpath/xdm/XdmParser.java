@@ -23,22 +23,17 @@ import java.nio.file.Path;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
-import javax.xml.validation.Schema;
-import javax.xml.validation.ValidatorHandler;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.xml.sax.DTDHandler;
-import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXParseException;
 import org.xml.sax.XMLReader;
 
 import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * Reads XML with the JDK parser into an {@link XdmNode} tree, also when another
@@ -46,9 +41,9 @@ import com.helger.base.enforce.ValueEnforcer;
  * safe: secure processing is on and external entities and the external DTD
  * subset are not loaded.
  * <p>
- * With a {@link #setSchema(Schema) schema} the document is validated (strict)
- * while the tree is built and the nodes carry the schema information (see
- * {@link XdmTreeBuilder}).
+ * With a {@link #setSchemaSet(IXdmSchemaSet) schema set} the document is
+ * validated (strict) after the tree is built, and the nodes carry the schema
+ * information (see {@link IXdmSchemaSet#validateDocument(XdmNode)}).
  *
  * @author Philip Helger
  */
@@ -75,38 +70,9 @@ public class XdmParser
                                                       { "maxParameterEntitySizeLimit", "1000000" },
                                                       { "entityReplacementLimit", "3000000" } };
 
-  /**
-   * Marks an error reported by the validator, as opposed to a parse error.
-   */
-  private static final class ValidationError extends SAXException
-  {
-    ValidationError (@NonNull final SAXParseException aCause)
-    {
-      super (aCause.getMessage (), aCause);
-    }
-  }
-
-  private static final ErrorHandler VALIDATION_ERROR_HANDLER = new ErrorHandler ()
-  {
-    public void warning (final SAXParseException ex)
-    {
-      // ignore
-    }
-
-    public void error (final SAXParseException ex) throws SAXException
-    {
-      throw new ValidationError (ex);
-    }
-
-    public void fatalError (final SAXParseException ex) throws SAXException
-    {
-      throw new ValidationError (ex);
-    }
-  };
-
   private boolean m_bLoadExternalEntities = DEFAULT_LOAD_EXTERNAL_ENTITIES;
   private int m_nMaxElementDepth = DEFAULT_MAX_ELEMENT_DEPTH;
-  private Schema m_aSchema;
+  private IXdmSchemaSet m_aSchemaSet;
 
   public final boolean isLoadExternalEntities ()
   {
@@ -151,31 +117,29 @@ public class XdmParser
   }
 
   @Nullable
-  public final Schema getSchema ()
+  public final IXdmSchemaSet getSchemaSet ()
   {
-    return m_aSchema;
+    return m_aSchemaSet;
   }
 
   /**
-   * Validate documents against an XML schema while they are read. Validation
+   * Validate documents against a schema set after they are read. Validation
    * is strict: the document element must be declared, and an invalid document
-   * is rejected with an {@link XdmValidationException}. The tree is built from
-   * the validation result: elements and attributes carry their
-   * {@link XdmSchemaType}, <code>xsi:nil</code> sets the nilled property,
-   * schema IDs and IDREFs are recognised, and whitespace in element-only
-   * content is dropped. With the JDK validator, schema location hints in the
-   * document are only followed if
-   * {@link #setLoadExternalEntities(boolean) external entities} are allowed.
+   * is rejected with an {@link XdmValidationException}. Elements and
+   * attributes then carry their {@link XdmSchemaType}, <code>xsi:nil</code>
+   * sets the nilled property, schema IDs and IDREFs are recognised, and
+   * whitespace in element-only content is dropped (see
+   * {@link IXdmSchemaSet#validateDocument(XdmNode)}).
    *
-   * @param aSchema
-   *        The compiled schema (thread-safe, may be shared);
+   * @param aSchemaSet
+   *        The compiled schema set (thread-safe, may be shared);
    *        <code>null</code> to read without validation.
    * @return this for chaining
    */
   @NonNull
-  public final XdmParser setSchema (@Nullable final Schema aSchema)
+  public final XdmParser setSchemaSet (@Nullable final IXdmSchemaSet aSchemaSet)
   {
-    m_aSchema = aSchema;
+    m_aSchemaSet = aSchemaSet;
     return this;
   }
 
@@ -211,59 +175,9 @@ public class XdmParser
       if (m_bLoadExternalEntities)
         aReader.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "all");
       final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
-      DTDHandler aValidatorDTDHandler = null;
-      if (m_aSchema != null)
-      {
-        // XMLReader -> ValidatorHandler -> builder; lexical and DTD events go
-        // to the builder directly
-        final ValidatorHandler aValidator = m_aSchema.newValidatorHandler ();
-        aValidator.setErrorHandler (VALIDATION_ERROR_HANDLER);
-        if (!m_bLoadExternalEntities)
-          try
-          {
-            aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-            aValidator.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "");
-          }
-          catch (final SAXNotRecognizedException ex)
-          {
-            // A validator other than the JDK's (e.g. Apache Xerces) does not
-            // know the JAXP 1.5 properties; whether it follows schema location
-            // hints is then up to its schema (Xerces ignores them for a schema
-            // compiled from sources)
-          }
-        aValidator.setContentHandler (aBuilder);
-        aBuilder.setTypeInfoProvider (aValidator.getTypeInfoProvider ());
-        aBuilder.setValidator (aValidator);
-        if (aValidator instanceof final DTDHandler aDTDHandler)
-          aValidatorDTDHandler = aDTDHandler;
-        aReader.setContentHandler (aValidator);
-      }
-      else
-        aReader.setContentHandler (aBuilder);
+      aReader.setContentHandler (aBuilder);
       aReader.setErrorHandler (aBuilder);
       aReader.setDTDHandler (aBuilder);
-      if (aValidatorDTDHandler != null)
-      {
-        // The validator needs the unparsed entities too (xs:ENTITY values)
-        final DTDHandler aOtherDTDHandler = aValidatorDTDHandler;
-        aReader.setDTDHandler (new DTDHandler ()
-        {
-          public void notationDecl (final String sName, final String sPublicId, final String sSystemId) throws SAXException
-          {
-            aBuilder.notationDecl (sName, sPublicId, sSystemId);
-            aOtherDTDHandler.notationDecl (sName, sPublicId, sSystemId);
-          }
-
-          public void unparsedEntityDecl (final String sName,
-                                          final String sPublicId,
-                                          final String sSystemId,
-                                          final String sNotationName) throws SAXException
-          {
-            aBuilder.unparsedEntityDecl (sName, sPublicId, sSystemId, sNotationName);
-            aOtherDTDHandler.unparsedEntityDecl (sName, sPublicId, sSystemId, sNotationName);
-          }
-        });
-      }
       aReader.setEntityResolver (aBuilder);
       aReader.setProperty ("http://xml.org/sax/properties/lexical-handler", aBuilder);
       aReader.setProperty ("http://xml.org/sax/properties/declaration-handler", aBuilder);
@@ -272,11 +186,10 @@ public class XdmParser
       aReader.setProperty ("http://www.oracle.com/xml/jaxp/properties/maxElementDepth",
                            Integer.toString (m_nMaxElementDepth));
       aReader.parse (aSource);
-      return aBuilder.getDocument ();
-    }
-    catch (final ValidationError ex)
-    {
-      throw new XdmValidationException ("Document is not valid: " + ex.getMessage (), ex.getCause ());
+      final XdmNode aDocument = aBuilder.getDocument ();
+      if (m_aSchemaSet != null)
+        m_aSchemaSet.validateDocument (aDocument);
+      return aDocument;
     }
     catch (final ParserConfigurationException | SAXException | IOException ex)
     {

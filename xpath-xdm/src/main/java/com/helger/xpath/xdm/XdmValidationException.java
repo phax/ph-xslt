@@ -20,7 +20,8 @@ import org.jspecify.annotations.NonNull;
 
 /**
  * Thrown if a well-formed source document is not valid against the schema
- * given to {@link XdmParser#setSchema(javax.xml.validation.Schema)}.
+ * set given to {@link XdmParser#setSchemaSet(com.helger.xpath.xdm.schema.IXdmSchemaSet)},
+ * or a node is not valid against a schema.
  *
  * @author Philip Helger
  */

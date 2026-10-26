@@ -61,12 +61,6 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
     m_aType = aType;
   }
 
-  @NonNull
-  XSTypeDefinition getXSType ()
-  {
-    return m_aType;
-  }
-
   @Nullable
   static IXdmTypeDefinition wrap (@Nullable final XSTypeDefinition aType)
   {
@@ -364,9 +358,14 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   @NonNull
-  public TypeInfo getTypeInfo ()
+  public XdmQName getAnnotationName ()
   {
-    return (TypeInfo) m_aType;
+    // The name the validator reports, also for anonymous types
+    final TypeInfo aTypeInfo = (TypeInfo) m_aType;
+    final String sNamespace = aTypeInfo.getTypeNamespace ();
+    final String sLocal = aTypeInfo.getTypeName ();
+    return new XdmQName (sNamespace == null ? "" : sNamespace, sLocal == null || sLocal.isEmpty () ? "#anonymous"
+                                                                                                  : sLocal);
   }
 
   @Override

@@ -19,8 +19,6 @@ package com.helger.xpath.conformance;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import javax.xml.validation.Schema;
-
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -32,6 +30,7 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
  * Parses and caches the documents of one test set by absolute path, so the
@@ -86,8 +85,8 @@ public final class QT3DocumentCache
   /**
    * @param aFile
    *        Absolute, normalised path.
-   * @param aSchema
-   *        The schema to validate against.
+   * @param aSchemaSet
+   *        The schema set to validate against.
    * @param sSchemaKey
    *        A key that identifies the schema within this cache.
    * @return The parsed and validated document or <code>null</code> if the file
@@ -95,7 +94,7 @@ public final class QT3DocumentCache
    */
   @Nullable
   public XdmNode getValidatedDocument (@NonNull final Path aFile,
-                                       @NonNull final Schema aSchema,
+                                       @NonNull final IXdmSchemaSet aSchemaSet,
                                        @NonNull final String sSchemaKey)
   {
     final String sKey = aFile.toString () + '\n' + sSchemaKey;
@@ -111,7 +110,7 @@ public final class QT3DocumentCache
     }
     try
     {
-      final XdmNode aDoc = new XdmParser ().setSchema (aSchema).parse (aFile);
+      final XdmNode aDoc = new XdmParser ().setSchemaSet (aSchemaSet).parse (aFile);
       m_aValidatedDocs.put (sKey, aDoc);
       return aDoc;
     }

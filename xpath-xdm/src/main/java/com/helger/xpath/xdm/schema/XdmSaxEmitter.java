@@ -90,12 +90,17 @@ public final class XdmSaxEmitter
    *        The receiver of the content events.
    * @param aLexicalHandler
    *        The receiver of comments, may be <code>null</code>.
+   * @param bParsedEntitiesAsUnparsed
+   *        <code>true</code> to declare the parsed entities of the document as
+   *        unparsed entities too, so that an <code>xs:ENTITY</code> value may
+   *        name one (leniently, as go-xslt does).
    * @throws SAXException
    *         from the handlers
    */
   public static void emitElement (@NonNull final XdmNode aElement,
                                   @NonNull final ContentHandler aHandler,
-                                  @Nullable final LexicalHandler aLexicalHandler) throws SAXException
+                                  @Nullable final LexicalHandler aLexicalHandler,
+                                  final boolean bParsedEntitiesAsUnparsed) throws SAXException
   {
     if (!aElement.isElement ())
       throw new IllegalArgumentException ("Not an element: " + aElement);
@@ -108,9 +113,7 @@ public final class XdmSaxEmitter
         final String [] aIDs = aRoot.getUnparsedEntity (sName);
         aDTDHandler.unparsedEntityDecl (sName, aIDs[1], aIDs[0], "");
       }
-    // Leniently, an xs:ENTITY value may also name a parsed entity of the DTD
-    // (as go-xslt does)
-    if (aHandler instanceof final DTDHandler aDTDHandler && aRoot.isDocument ())
+    if (bParsedEntitiesAsUnparsed && aHandler instanceof final DTDHandler aDTDHandler && aRoot.isDocument ())
       for (final String sName : aRoot.getAllParsedEntityNames ())
         aDTDHandler.unparsedEntityDecl (sName, null, sName, "");
     // Stack entries: a node to open, or (with bClose) an element to close

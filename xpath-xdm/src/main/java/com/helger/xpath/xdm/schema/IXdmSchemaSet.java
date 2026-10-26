@@ -16,8 +16,6 @@
  */
 package com.helger.xpath.xdm.schema;
 
-import javax.xml.validation.Schema;
-
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -60,13 +58,6 @@ public interface IXdmSchemaSet
   IXdmAttributeDeclaration getAttributeDeclaration (@NonNull XdmQName aName);
 
   /**
-   * @return The schema for validating documents while they are parsed
-   *         ({@link com.helger.xpath.xdm.XdmParser#setSchema(Schema)}).
-   */
-  @NonNull
-  Schema getJaxpSchema ();
-
-  /**
    * Validate an element (with its subtree) in place: on success every element
    * and attribute of the subtree carries the type annotation the validation
    * gave it, nilled and the schema ID kinds are set, and elements that were not
@@ -86,4 +77,22 @@ public interface IXdmSchemaSet
   void validateElement (@NonNull XdmNode aElement,
                         @Nullable IXdmTypeDefinition aType,
                         boolean bDocumentLevel) throws XdmValidationException;
+
+  /**
+   * Validate a document in place, strictly: the document element must be
+   * declared, and the document-level constraints (ID uniqueness, IDREF
+   * targets) are checked. On success the tree carries the schema information
+   * as after {@link #validateElement(XdmNode, IXdmTypeDefinition, boolean)},
+   * default attributes and default element content are added, and whitespace
+   * text nodes in element-only content are removed. ID kinds from the DTD are
+   * kept unless the schema gives one. Schema location hints in the document
+   * are not followed.
+   *
+   * @param aDocument
+   *        The document node, as built by
+   *        {@link com.helger.xpath.xdm.XdmParser}.
+   * @throws XdmValidationException
+   *         if the document is not valid (nothing is changed then)
+   */
+  void validateDocument (@NonNull XdmNode aDocument) throws XdmValidationException;
 }
