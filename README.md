@@ -22,6 +22,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `xpath-conformance` | W3C QT3 test harness (not deployed) | usable |
 | `xslt-core` | XSLT 3.0: stylesheet compiler, modules, templates and modes, the basic instructions, XSLT functions | in progress |
 | `xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
+| `xsd-conformance` | W3C xsdtests (XML Schema) harness with a pluggable validator (not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
 
@@ -101,6 +102,7 @@ v0.1.0 - work in progress
 * Added the schema API `com.helger.xpath.xdm.schema` (`XdmSchemaSupport`, `IXdmSchemaSet`, ...) and `StaticContext.setSchemaSet`
 * `fn:json-to-xml` supports `validate=true` when the schema for its namespace is in scope
 * `xsl:strip-space` now also applies to typed elements with element-only or mixed content
+* Added the module `xsd-conformance` that runs the W3C XML Schema test suite (xsdtests) against a pluggable validator; the first one is Apache Xerces-J 2.12.2 (XSD 1.0: 39,145 of 39,401 applicable cases pass; XSD 1.1 is reported as unsupported). Every failing case is documented with its reason in `xsd-conformance/docs/accepted-failures/xsd.md`, and an undocumented failure fails the build
 
 # Contributing
 

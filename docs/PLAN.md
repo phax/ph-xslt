@@ -59,7 +59,7 @@ Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests`
 | Phase | Content | Go reference | Status |
 |-------|---------|--------------|--------|
 | V0 | Schema SPI independent of JAXP: `XdmSchemaType` holds an `IXdmTypeDefinition` instead of `TypeInfo`; no `getJaxpSchema`/`ValidatorHandler` access; validation parses with the JDK and then validates the tree in place; Xerces provider adapted, QT3 schema cache off JAXP. Gate: unchanged numbers | - | open |
-| V1 | `xsd-conformance`: `xsdtests` harness, accepted-failures gate, first run against Xerces-J as baseline | `test/conformance/xsd_test.go` | open |
+| V1 | `xsd-conformance`: `xsdtests` harness, accepted-failures gate, first run against Xerces-J as baseline | `test/conformance/xsd_test.go` | done: Xerces-J baseline XSD 1.0 39,145 of 39,401 (256 fails documented), same denominator as go-xslt; the native validator plugs in through `IXsdTestValidator` |
 | V2 | Loader and component model, include/import/redefine, schema-for-schemas checks, resolver and file-access rules | `loader.go`, `structure.go`, `components.go`, `imports.go`, `model.go`, `docs.go` | open |
 | V3 | Simple types and facets (reusing casting and the XSD regex grammar) | `simpletype.go`, `facets.go`, `lexscan.go` | open |
 | V4 | Content models: position-set NFA, linear matcher above 600 children, UPA, restriction derivation | `content.go`, `bigmatch.go`, `upa.go`, `restriction.go` | open |
