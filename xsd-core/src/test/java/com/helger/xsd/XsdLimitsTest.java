@@ -114,6 +114,22 @@ public final class XsdLimitsTest
     }
   }
 
+  /**
+   * A union that names itself as a member is a tolerated pure-union cycle in
+   * XSD 1.0; walking its members must stay bounded (go-xslt 2168ab5 overflows
+   * its stack in checkNotationUsable here).
+   */
+  @Test
+  public void testSelfReferencingUnion ()
+  {
+    for (final String sBody : new String [] { "<xs:simpleType name=\"u\"><xs:union memberTypes=\"u xs:string\"/></xs:simpleType><xs:element name=\"e\" type=\"u\"/>",
+                                              "<xs:simpleType name=\"u\"><xs:union memberTypes=\"u xs:string\"/></xs:simpleType><xs:simpleType name=\"v\"><xs:restriction base=\"u\"/></xs:simpleType>" })
+    {
+      final Compiled aCompiled = XsdTestSupport.compile (XS + sBody + "</xs:schema>", null, EXsdVersion.V10);
+      assertTrue (sBody + ": " + aCompiled.message (), aCompiled.verdict () != EVerdict.INVALID);
+    }
+  }
+
   @Test
   public void testCyclicIncludesTerminate () throws IOException
   {

@@ -147,6 +147,10 @@ the first error can differ).
   restrictions. `fixedEqual`, `firstMemberRaw`, `checkPrimitiveLexical` and `XsdFacetValidator.checkIn /
   checkPatternEnum / checkListLength` are for V5/V6.
 * Casting and ordering of facet values: reuse `XsdValueCompare` (or extend it additively).
+* Union member lists may be cyclic: XSD 1.0 tolerates a pure-union cycle (`<xs:union memberTypes="u xs:string"/>`
+  inside `u` itself, go-xslt stE110), so every walk over members (validation, `firstMemberRaw`, list item types of
+  members) must be bounded. go-xslt 2168ab5 overflows its stack on this schema in `checkNotationUsable`; the port
+  bounds that walk.
 
 ### V4 (content models)
 
