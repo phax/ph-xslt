@@ -39,6 +39,9 @@ on the JDK parser, and the Xerces-J classes are instantiated directly, never thr
 presence of the jar alone changes what `SAXParserFactory.newInstance ()` and `SchemaFactory.newInstance (...)` return
 for other code in the same application (its `META-INF/services` entries).
 
+[docs/SCHEMA.md](docs/SCHEMA.md) explains in detail what the JDK validator cannot provide and which features and tests
+therefore need Xerces-J, and why Xerces-J is only the fallback next to the planned native validator.
+
 ```xml
 <dependency>
   <groupId>xerces</groupId>

@@ -47,7 +47,7 @@ cases fail again.
 ## Native XSD validator
 
 Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests` for XSD 1.0 and 1.1), decided
-2026-10-26:
+2026-10-26. Why Xerces-J is needed today and why it is only the fallback: [SCHEMA.md](SCHEMA.md).
 
 * New module `xsd-core` (package `com.helger.xsd`, depends on `xpath-core`) plus `xsd-conformance` for the harness.
 * XSD 1.0 first; the version switch stays in the code so that XSD 1.1 (assertions and conditional type assignment on
