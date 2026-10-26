@@ -44,6 +44,33 @@ schema processor. `-Dxslt30.schemaAware=true` runs XSLT30 schema-aware: 9,292 of
 With `-Dqt3.schemaProcessor=jdk` the QT3 harness uses the JDK validator instead, and the 7 schema-validated source
 cases fail again.
 
+## Native XSD validator
+
+Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests` for XSD 1.0 and 1.1), decided
+2026-10-26:
+
+* New module `xsd-core` (package `com.helger.xsd`, depends on `xpath-core`) plus `xsd-conformance` for the harness.
+* XSD 1.0 first; the version switch stays in the code so that XSD 1.1 (assertions and conditional type assignment on
+  our XPath engine, `xs:override`, open content) can follow without a rework.
+* The native validator becomes the default schema provider. Xerces-J stays as an optional second provider and as the
+  differential reference.
+* XSLT and XPath only need the first error. The public validation API that collects all errors comes after the switch-over.
+
+| Phase | Content | Go reference | Status |
+|-------|---------|--------------|--------|
+| V0 | Schema SPI independent of JAXP: `XdmSchemaType` holds an `IXdmTypeDefinition` instead of `TypeInfo`; no `getJaxpSchema`/`ValidatorHandler` access; validation parses with the JDK and then validates the tree in place; Xerces provider adapted, QT3 schema cache off JAXP. Gate: unchanged numbers | - | open |
+| V1 | `xsd-conformance`: `xsdtests` harness, accepted-failures gate, first run against Xerces-J as baseline | `test/conformance/xsd_test.go` | open |
+| V2 | Loader and component model, include/import/redefine, schema-for-schemas checks, resolver and file-access rules | `loader.go`, `structure.go`, `components.go`, `imports.go`, `model.go`, `docs.go` | open |
+| V3 | Simple types and facets (reusing casting and the XSD regex grammar) | `simpletype.go`, `facets.go`, `lexscan.go` | open |
+| V4 | Content models: position-set NFA, linear matcher above 600 children, UPA, restriction derivation | `content.go`, `bigmatch.go`, `upa.go`, `restriction.go` | open |
+| V5 | Instance validation: attributes, identity constraints, `xsi:type`/`nil`/`schemaLocation` hints | `instance.go`, `attributes.go`, `identity.go`, `schemavalid.go` | open |
+| V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | open |
+| V7 | Public validation API: all errors in document order, content-model explanations, `msg:message` | `collect.go`, `explain.go`, `messages.go` | open |
+| V8 | XSD 1.1 | `xsd11.go`, `override.go`, version branches | later |
+
+V3 to V5 run as parallel worktree agents once V2 is merged. Gate for each: the XSD 1.0 fail list by name, with
+go-xslt's 5 documented fails as the target, plus the XSLT30 (default and schema-aware) and QT3 lists.
+
 Known JDK differences found so far:
 
 * JDK 25 secure processing limits the element depth to 100, JDK 21 does not. `XdmParser` sets the limit explicitly (default 10,000).
