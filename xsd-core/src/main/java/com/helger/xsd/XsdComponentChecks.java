@@ -345,7 +345,7 @@ final class XsdComponentChecks
    * go-xslt <code>wcNameSubsetOK</code>: the QName half of Wildcard Subset
    * (1.1).
    */
-  private static boolean _wcNameSubsetOK (@NonNull final XsdWildcard aA, @NonNull final XsdWildcard aB)
+  static boolean _wcNameSubsetOK (@NonNull final XsdWildcard aA, @NonNull final XsdWildcard aB)
   {
     if (aB.m_bNotDefined && !aA.m_bNotDefined)
       return false;

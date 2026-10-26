@@ -16,6 +16,10 @@
  */
 package com.helger.xsd;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -473,16 +477,21 @@ final class XsdSimpleTypeParser
     }
   }
 
-  private void _checkNotationUsable (@Nullable final XsdSimpleType aType, final int nDepth)
+  private void _checkNotationUsable (@Nullable final XsdSimpleType aType,
+                                     final int nDepth,
+                                     @NonNull final Set <XsdSimpleType> aVisited)
   {
     if (aType == null || nDepth > MAX_CHAIN)
+      return;
+    // A union reachable along several paths (or from itself) is walked once
+    if (aType.m_eVariety == EXsdVariety.UNION && !aVisited.add (aType))
       return;
     // A union used as a declaration's type may not carry a bare xs:NOTATION
     // as a direct member; one nested a union deeper escapes
     if (aType.m_eVariety == EXsdVariety.UNION)
     {
       for (final XsdSimpleType aMember : aType.m_aMembers)
-        _checkNotationUsable (aMember, nDepth + 1);
+        _checkNotationUsable (aMember, nDepth + 1, aVisited);
       return;
     }
     if (aType.m_eVariety != EXsdVariety.ATOMIC || aType.resolvePrim () != EAtomicType.NOTATION)
@@ -650,7 +659,7 @@ final class XsdSimpleTypeParser
    */
   void checkNotationUsable (@Nullable final XsdSimpleType aType)
   {
-    _checkNotationUsable (aType, 0);
+    _checkNotationUsable (aType, 0, Collections.newSetFromMap (new IdentityHashMap <> ()));
   }
 
   /** go-xslt <code>parseFacets</code>. */

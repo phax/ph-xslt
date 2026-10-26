@@ -111,6 +111,10 @@ v0.1.0 - work in progress
 * Added the module `xsd-conformance` that runs the W3C XML Schema test suite (xsdtests) against a pluggable validator; the first one is Apache Xerces-J 2.12.2 (XSD 1.0: 39,145 of 39,401 applicable cases pass; XSD 1.1 is reported as unsupported). Every failing case is documented with its reason in `xsd-conformance/docs/accepted-failures/xsd.md`, and an undocumented failure fails the build
 * Added the module `xsd-core`, a native XML Schema validator (port of go-xslt's `internal/xsd`, no Xerces-J or JAXP validation): schema loader with include/import/redefine and conditional inclusion (`vc:*`), schema-for-schemas checks, the component model and its read-only view (`XsdSchema.getView`), local-file-only access with optional confinement (`XsdFileAccess`); constructs not implemented yet are reported as unsupported
 * `xsd-conformance`: `-Dxsd.validator=native` runs the native validator; the summary splits schema and instance tests
+* `xsd-core` simple types and facets: all built-in types, atomic/list/union derivation, every constraining facet, XSD regular expressions and the lexical checks of each primitive type
+* `xsd-core` content models: particles, `xs:all`, wildcards, Unique Particle Attribution, substitution groups and the derivation-by-restriction and -extension checks
+* `xsd-core` instance validation: element and attribute validation with defaults, `xsi:type`, `xsi:nil`, `xsi:schemaLocation` hints, and the identity constraints (`xs:unique`, `xs:key`, `xs:keyref`) and ID/IDREF checks
+* `xsd-conformance` with `-Dxsd.validator=native`: the native XSD 1.0 validator passes 39,396 of 39,401 applicable cases; the 5 failures are the ones documented by go-xslt
 
 # Contributing
 
