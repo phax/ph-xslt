@@ -24,18 +24,17 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.io.StringReader;
-
-import javax.xml.transform.stream.StreamSource;
-import javax.xml.validation.Schema;
-import javax.xml.validation.SchemaFactory;
-
 import org.junit.Test;
-import org.xml.sax.SAXException;
+
+import com.helger.collection.commons.CommonsArrayList;
+import com.helger.xpath.xdm.jaxp.JdkSchemaProvider;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
+import com.helger.xpath.xdm.schema.XdmSchemaException;
+import com.helger.xpath.xdm.schema.XdmSchemaSource;
 
 /**
- * Test class for schema validation in {@link XdmParser} and the schema
- * annotations of {@link XdmTreeBuilder}.
+ * Test class for schema validation in {@link XdmParser} with the JDK
+ * validator ({@link JdkSchemaProvider}) and the schema annotations it gives.
  *
  * @author Philip Helger
  */
@@ -49,6 +48,7 @@ public final class XdmParserSchemaTest
                                     "<xs:element name='u' type='t:u' minOccurs='0' maxOccurs='unbounded'/>" +
                                     "<xs:element name='dec' minOccurs='0'><xs:complexType><xs:simpleContent><xs:extension base='xs:decimal'>" +
                                     "<xs:attribute name='key' type='xs:ID'/><xs:attribute name='refs' type='xs:IDREFS'/>" +
+                                    "<xs:attribute name='note' type='xs:string'/><xs:attribute name='def' type='xs:int' default='3'/>" +
                                     "</xs:extension></xs:simpleContent></xs:complexType></xs:element>" +
                                     "<xs:element name='mixed' minOccurs='0'><xs:complexType mixed='true'><xs:sequence>" +
                                     "<xs:element name='b' type='xs:string' minOccurs='0'/></xs:sequence></xs:complexType></xs:element>" +
@@ -58,15 +58,14 @@ public final class XdmParserSchemaTest
                                     "<xs:simpleType name='u'><xs:union memberTypes='t:rid xs:integer'/></xs:simpleType>" +
                                     "</xs:schema>";
 
-  private static Schema _schema () throws SAXException
+  private static IXdmSchemaSet _schema () throws XdmSchemaException
   {
-    return SchemaFactory.newDefaultInstance ()
-                        .newSchema (new StreamSource (new StringReader (XSD)));
+    return new JdkSchemaProvider ().compile (new CommonsArrayList <> (new XdmSchemaSource (null, XSD)));
   }
 
-  private static XdmNode _parseRoot (final String sXml) throws XdmParseException, SAXException
+  private static XdmNode _parseRoot (final String sXml) throws XdmParseException, XdmSchemaException
   {
-    return new XdmParser ().setSchema (_schema ()).parse (sXml).getChildAtIndex (0);
+    return new XdmParser ().setSchemaSet (_schema ()).parse (sXml).getChildAtIndex (0);
   }
 
   @Test
@@ -126,6 +125,32 @@ public final class XdmParserSchemaTest
   }
 
   @Test
+  public void testDtdIDsAndDefaults () throws Exception
+  {
+    final XdmNode aRoot = _parseRoot ("<!DOCTYPE root [<!ATTLIST dec note ID #IMPLIED>]>" +
+                                      "<root xmlns='urn:t'><dec note=' n1 ' key=' k1 '>1</dec></root>");
+    final XdmNode aDec = aRoot.getChildAtIndex (0);
+    // The DTD ID stays although the schema type is xs:string
+    final XdmNode aNote = aDec.getAttribute ("", "note");
+    assertEquals (EIDKind.ID, aNote.getIDKind ());
+    assertEquals ("n1", aNote.getValue ());
+    assertEquals ("string", aNote.getSchemaType ().getAtomicBase ().localName ());
+    // A schema ID is normalised
+    final XdmNode aKey = aDec.getAttribute ("", "key");
+    assertEquals (EIDKind.ID, aKey.getIDKind ());
+    assertEquals ("k1", aKey.getValue ());
+    // A default attribute of the schema is added
+    final XdmNode aDef = aDec.getAttribute ("", "def");
+    assertNotNull (aDef);
+    assertEquals ("3", aDef.getValue ());
+    assertEquals ("int", aDef.getSchemaType ().getAtomicBase ().localName ());
+    // Without a component model
+    assertNull (aDef.getSchemaType ().getDefinition ());
+    assertNotNull (aDef.getSchemaType ().getTypeDefinition ());
+    assertTrue (XdmNode.compareDocumentOrder (aKey, aDef) < 0);
+  }
+
+  @Test
   public void testCommentOrder () throws Exception
   {
     final XdmNode aRoot = _parseRoot ("<root xmlns='urn:t'><mixed>a<!--c-->b<b>x</b></mixed></root>");
@@ -139,7 +164,7 @@ public final class XdmParserSchemaTest
   @Test
   public void testInvalid () throws Exception
   {
-    final XdmParser aParser = new XdmParser ().setSchema (_schema ());
+    final XdmParser aParser = new XdmParser ().setSchemaSet (_schema ());
     try
     {
       aParser.parse ("<root xmlns='urn:t'><int>x</int></root>");

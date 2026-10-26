@@ -17,11 +17,9 @@
 package com.helger.xpath.xdm.schema;
 
 import java.util.List;
-import java.util.function.IntFunction;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.w3c.dom.TypeInfo;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.annotation.style.PresentForCodeCoverage;
@@ -34,7 +32,9 @@ import com.helger.collection.commons.CommonsArrayList;
  * Apache Xerces-J, an optional dependency: when Xerces-J is not on the class
  * path, {@link #isAvailable()} is <code>false</code> and nothing of it is ever
  * loaded. Xerces-J classes are instantiated directly, never through a JAXP
- * lookup, so the JAXP defaults of the application stay untouched.
+ * lookup, so the JAXP defaults of the application stay untouched. The JDK's
+ * own validator is available separately and with less information, as
+ * {@link com.helger.xpath.xdm.jaxp.JdkSchemaProvider}.
  *
  * @author Philip Helger
  */
@@ -127,35 +127,5 @@ public final class XdmSchemaSupport
     {
       throw new IllegalStateException ("Failed to create the built-in schema set", ex);
     }
-  }
-
-  /**
-   * @param aTypeInfo
-   *        A type reported by a validator.
-   * @return The schema component model of the type, if the validator was the
-   *         one of {@link IXdmSchemaSet#getJaxpSchema()}; <code>null</code>
-   *         for other validators (e.g. the JDK's) and if schema processing is
-   *         not available.
-   */
-  @Nullable
-  public static IXdmTypeDefinition getDefinition (@Nullable final TypeInfo aTypeInfo)
-  {
-    if (aTypeInfo == null || PROVIDER == null)
-      return null;
-    return PROVIDER.getDefinition (aTypeInfo);
-  }
-
-  /**
-   * @param aValidatorHandler
-   *        A validator handler.
-   * @return For the validator of {@link IXdmSchemaSet#getJaxpSchema()}: a
-   *         function from the attribute index of the current start tag to the
-   *         declared type of the attribute (for a union type the union, not
-   *         the member that matched); otherwise <code>null</code>.
-   */
-  @Nullable
-  public static IntFunction <TypeInfo> getAttributeTypeDefinitionAccess (@NonNull final Object aValidatorHandler)
-  {
-    return PROVIDER == null ? null : PROVIDER.getAttributeTypeDefinitionAccess (aValidatorHandler);
   }
 }

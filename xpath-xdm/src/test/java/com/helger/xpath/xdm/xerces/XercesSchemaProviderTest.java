@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.xpath.xdm.EIDKind;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParser;
@@ -53,7 +54,8 @@ public final class XercesSchemaProviderTest
                                     "<xs:element name='b' substitutionGroup='t:a'/>" +
                                     "<xs:complexType name='at'><xs:sequence>" +
                                     "<xs:element name='c' type='t:u' maxOccurs='9'/>" +
-                                    "</xs:sequence><xs:attribute name='size' type='t:size'/></xs:complexType>" +
+                                    "</xs:sequence><xs:attribute name='size' type='t:size'/>" +
+                                    "<xs:attribute name='key' type='xs:ID'/><xs:attribute name='def' type='xs:int' default='3'/></xs:complexType>" +
                                     "<xs:simpleType name='u'><xs:union memberTypes='xs:integer xs:date'/></xs:simpleType>" +
                                     "<xs:simpleType name='size'><xs:restriction base='xs:positiveInteger'><xs:maxInclusive value='20'/></xs:restriction></xs:simpleType>" +
                                     "<xs:simpleType name='sizes'><xs:list itemType='t:size'/></xs:simpleType>" +
@@ -132,6 +134,33 @@ public final class XercesSchemaProviderTest
     {
       assertFalse (ex.isDocumentConstraint ());
       assertNull (aBad.getSchemaType ());
+    }
+  }
+
+  @Test
+  public void testValidateDocument () throws Exception
+  {
+    final XdmParser aParser = new XdmParser ().setSchemaSet (_compile ());
+    final XdmNode aDoc = aParser.parse ("<t:a xmlns:t='urn:t' size='7' key=' k '>\n  <c>12</c>\n  <c>2020-01-01</c>\n</t:a>");
+    final XdmNode aA = aDoc.getChildAtIndex (0);
+    assertEquals (new XdmQName (NS, "at"), aA.getSchemaType ().getName ());
+    assertEquals (EXdmContentType.ELEMENT_ONLY, aA.getSchemaType ().getDefinition ().getContentType ());
+    // Whitespace of element-only content is gone
+    assertEquals (2, aA.getChildCount ());
+    assertEquals ("date", aA.getChildAtIndex (1).getSchemaType ().getValueDefinition ().getName ().localName ());
+    // The union attribute type is the declared one
+    assertEquals ("size", aA.getAttribute ("", "size").getSchemaType ().getName ().localName ());
+    assertEquals (EIDKind.ID, aA.getAttribute ("", "key").getIDKind ());
+    assertEquals ("k", aA.getAttribute ("", "key").getValue ());
+    assertEquals ("3", aA.getAttribute ("", "def").getValue ());
+    try
+    {
+      aParser.parse ("<t:a xmlns:t='urn:t'><c>x</c></t:a>");
+      fail ();
+    }
+    catch (final XdmValidationException ex)
+    {
+      // expected
     }
   }
 }

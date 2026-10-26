@@ -17,13 +17,9 @@
 package com.helger.xpath.xdm;
 
 import java.util.ArrayDeque;
-import java.util.function.IntFunction;
-
-import javax.xml.validation.TypeInfoProvider;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.w3c.dom.TypeInfo;
 import org.xml.sax.Attributes;
 import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
@@ -31,12 +27,7 @@ import org.xml.sax.ext.DefaultHandler2;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
-import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
-import com.helger.collection.commons.ICommonsMap;
-import com.helger.xpath.xdm.schema.EXdmContentType;
-import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
-import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 
 /**
  * SAX2 handler that builds an {@link XdmNode} tree. Adjacent character events
@@ -44,42 +35,14 @@ import com.helger.xpath.xdm.schema.XdmSchemaSupport;
  * location of an element is the position the parser reports at the end of its
  * start tag. DTD attribute types ID, IDREF and IDREFS are recorded, and the
  * value of such an attribute as well as of <code>xml:id</code> is normalised
- * like a tokenised attribute (XDM 3.1 section 6.3.3).
- * <p>
- * Behind a {@link javax.xml.validation.ValidatorHandler} (see
- * {@link #setTypeInfoProvider(TypeInfoProvider)}) the builder annotates
- * elements and attributes with their {@link XdmSchemaType}, sets the
- * <code>nilled</code> property and the schema ID kinds, and drops whitespace in
- * element-only content, as XDM construction from a PSVI does.
+ * like a tokenised attribute (XDM 3.1 section 6.3.3). Schema information is
+ * added afterwards, by {@link com.helger.xpath.xdm.schema.IXdmSchemaSet}.
  *
  * @author Philip Helger
  */
 @NotThreadSafe
 public final class XdmTreeBuilder extends DefaultHandler2
 {
-  private static final XdmQName ANY_TYPE = new XdmQName (XdmConstants.NS_XS, "anyType", "xs");
-
-  // The annotation and the value type of a node, compared by identity
-  private record TypeKey (@NonNull TypeInfo typeInfo, @NonNull TypeInfo valueTypeInfo)
-  {
-    @Override
-    public boolean equals (final Object o)
-    {
-      return o instanceof final TypeKey aOther && aOther.typeInfo == typeInfo && aOther.valueTypeInfo == valueTypeInfo;
-    }
-
-    @Override
-    public int hashCode ()
-    {
-      return System.identityHashCode (typeInfo) * 31 + System.identityHashCode (valueTypeInfo);
-    }
-  }
-
-  private TypeInfoProvider m_aTypeInfoProvider;
-  private IntFunction <TypeInfo> m_aAttributeTypeDefinitions;
-  private final ICommonsMap <TypeKey, XdmSchemaType> m_aSchemaTypes = new CommonsHashMap <> ();
-  // The type reported at the start of each open element; may contain null
-  private final ICommonsList <TypeInfo> m_aStartTypes = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aPendingPrefixes = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aPendingUris = new CommonsArrayList <> ();
   private final StringBuilder m_aText = new StringBuilder ();
@@ -125,32 +88,34 @@ public final class XdmTreeBuilder extends DefaultHandler2
     return nIndex < 0 ? "" : sQName.substring (0, nIndex);
   }
 
-  /**
-   * The JDK validator reports whitespace in element-only content as ignorable
-   * whitespace, Apache Xerces-J does not. With Xerces-J the content type is
-   * known from the schema component model, so such whitespace text nodes are
-   * dropped here (XDM 3.1 section 6.7.3).
-   */
-  private static void _dropElementOnlyWhitespace (@NonNull final XdmNode aElement, @NonNull final XdmSchemaType aType)
+  @NonNull
+  private static EIDKind _getIDKind (@Nullable final String sSaxType)
   {
-    if (aElement.getChildCount () == 0)
-      return;
-    final IXdmTypeDefinition aDef = aType.getDefinition ();
-    if (aDef == null)
-      return;
-    final EXdmContentType eContent = aDef.getContentType ();
-    if (eContent != EXdmContentType.ELEMENT_ONLY && eContent != EXdmContentType.EMPTY)
-      return;
-    for (int i = aElement.getChildCount () - 1; i >= 0; --i)
-    {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
-      if (aChild.isText () && aChild.getValue ().isBlank ())
-        aElement.removeChild (aChild);
-    }
+    if (sSaxType != null)
+      switch (sSaxType)
+      {
+        case "ID":
+          return EIDKind.ID;
+        case "IDREF":
+          return EIDKind.IDREF;
+        case "IDREFS":
+          return EIDKind.IDREFS;
+        default:
+          break;
+      }
+    return EIDKind.NONE;
   }
 
+  /**
+   * Normalise the value of an attribute of a tokenised type.
+   *
+   * @param sValue
+   *        The attribute value after XML attribute value normalisation.
+   * @return The value without leading and trailing spaces and with runs of
+   *         spaces collapsed.
+   */
   @NonNull
-  private static String _normaliseTokenised (@NonNull final String sValue)
+  public static String normaliseTokenised (@NonNull final String sValue)
   {
     // Trim and collapse runs of spaces; XML attribute normalisation already
     // turned all other whitespace characters into spaces
@@ -174,103 +139,15 @@ public final class XdmTreeBuilder extends DefaultHandler2
     return aSB.toString ();
   }
 
-  @NonNull
-  private static EIDKind _getIDKind (@Nullable final String sSaxType)
-  {
-    if (sSaxType != null)
-      switch (sSaxType)
-      {
-        case "ID":
-          return EIDKind.ID;
-        case "IDREF":
-          return EIDKind.IDREF;
-        case "IDREFS":
-          return EIDKind.IDREFS;
-        default:
-          break;
-      }
-    return EIDKind.NONE;
-  }
-
-  @NonNull
-  private XdmSchemaType _getSchemaType (@NonNull final TypeInfo aTypeInfo, @NonNull final TypeInfo aValueTypeInfo)
-  {
-    return m_aSchemaTypes.computeIfAbsent (new TypeKey (aTypeInfo, aValueTypeInfo),
-                                           k -> new XdmSchemaType (k.typeInfo (), k.valueTypeInfo ()));
-  }
-
-  private static boolean _isSingleToken (@NonNull final String sValue)
-  {
-    final String s = sValue.trim ();
-    if (s.isEmpty ())
-      return false;
-    for (int i = 0; i < s.length (); ++i)
-    {
-      final char c = s.charAt (i);
-      if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
-        return false;
-    }
-    return true;
-  }
-
   /**
-   * XDM 3.1 sections 6.2.3 and 6.3.3: <code>is-id</code> if the typed value is
-   * a single xs:ID (also as the only item of a list),
-   * <code>is-idrefs</code> if an item of the typed value is an xs:IDREF.
+   * @return The node that content is currently added to: the innermost open
+   *         element, or the document node. For handlers that wrap the
+   *         builder.
    */
-  @NonNull
-  private static EIDKind _getSchemaIDKind (@NonNull final XdmSchemaType aType, @NonNull final String sValue)
+  @Nullable
+  public XdmNode getCurrentNode ()
   {
-    final XdmQName aBase = aType.getAtomicBase ();
-    if (aBase == null)
-      return EIDKind.NONE;
-    switch (aBase.localName ())
-    {
-      case "ID":
-        return !aType.isList () || _isSingleToken (sValue) ? EIDKind.ID : EIDKind.NONE;
-      case "IDREF":
-        return aType.isList () ? EIDKind.IDREFS : EIDKind.IDREF;
-      default:
-        return EIDKind.NONE;
-    }
-  }
-
-  private static boolean _isXsiNilTrue (@NonNull final String sValue)
-  {
-    final String s = sValue.trim ();
-    return "true".equals (s) || "1".equals (s);
-  }
-
-  /**
-   * Annotate the tree with the schema information of a
-   * {@link javax.xml.validation.ValidatorHandler} that feeds this builder.
-   * Must be set before parsing starts.
-   *
-   * @param aTypeInfoProvider
-   *        The type info provider of the validator handler;
-   *        <code>null</code> for an unvalidated tree.
-   * @return this for chaining
-   */
-  @NonNull
-  public XdmTreeBuilder setTypeInfoProvider (@Nullable final TypeInfoProvider aTypeInfoProvider)
-  {
-    m_aTypeInfoProvider = aTypeInfoProvider;
-    m_aAttributeTypeDefinitions = null;
-    return this;
-  }
-
-  /**
-   * @param aValidatorHandler
-   *        The validator whose type info provider was set. With Apache
-   *        Xerces-J, attributes of a union type are then annotated with the
-   *        union rather than the member type.
-   * @return this for chaining
-   */
-  @NonNull
-  public XdmTreeBuilder setValidator (@NonNull final Object aValidatorHandler)
-  {
-    m_aAttributeTypeDefinitions = XdmSchemaSupport.getAttributeTypeDefinitionAccess (aValidatorHandler);
-    return this;
+    return m_aCurrent;
   }
 
   /**
@@ -328,9 +205,6 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aPendingPrefixes.clear ();
     m_aPendingUris.clear ();
     final String sSystemId = _applyEntityBase (aElement);
-    if (m_aTypeInfoProvider != null)
-      m_aStartTypes.add (m_aTypeInfoProvider.getElementTypeInfo ());
-
     for (int i = 0; i < aAttrs.getLength (); ++i)
     {
       final String sAttrQName = aAttrs.getQName (i);
@@ -340,31 +214,11 @@ public final class XdmTreeBuilder extends DefaultHandler2
       final XdmQName aAttrName = new XdmQName (aAttrs.getURI (i), aAttrs.getLocalName (i), _getPrefix (sAttrQName));
       final String sValue = aAttrs.getValue (i);
       EIDKind eIDKind = _getIDKind (aAttrs.getType (i));
-      XdmSchemaType aAttrType = null;
-      if (m_aTypeInfoProvider != null)
-      {
-        final TypeInfo aTypeInfo = m_aTypeInfoProvider.getAttributeTypeInfo (i);
-        if (aTypeInfo != null)
-        {
-          // The validator reports the member type of a union; the annotation
-          // is the declared type
-          final TypeInfo aDeclared = m_aAttributeTypeDefinitions != null ? m_aAttributeTypeDefinitions.apply (i) : null;
-          aAttrType = _getSchemaType (aDeclared != null ? aDeclared : aTypeInfo, aTypeInfo);
-          final EIDKind eSchemaIDKind = m_aTypeInfoProvider.isIdAttribute (i) ? EIDKind.ID
-                                                                              : _getSchemaIDKind (aAttrType, sValue);
-          if (eSchemaIDKind != EIDKind.NONE)
-            eIDKind = eSchemaIDKind;
-        }
-        // The document is valid, so xsi:nil="true" means nilled
-        if (aAttrName.isSameName (XdmConstants.NS_XSI, "nil") && _isXsiNilTrue (sValue))
-          aElement.setNilled (true);
-      }
       if (eIDKind == EIDKind.NONE && aAttrName.isSameName (XdmConstants.NS_XML, "id"))
         eIDKind = EIDKind.ID;
       final XdmNode aAttr = XdmNode.createAttribute (aAttrName,
-                                                     eIDKind == EIDKind.NONE ? sValue : _normaliseTokenised (sValue));
+                                                     eIDKind == EIDKind.NONE ? sValue : normaliseTokenised (sValue));
       aAttr.setIDKind (eIDKind);
-      aAttr.setSchemaType (aAttrType);
       if (m_aLocator != null)
         aAttr.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
       aElement.addAttribute (aAttr);
@@ -378,26 +232,6 @@ public final class XdmTreeBuilder extends DefaultHandler2
   public void endElement (final String sUri, final String sLocalName, final String sQName)
   {
     _flushText ();
-    if (m_aTypeInfoProvider != null)
-    {
-      // At the end tag the validator reports the member type of a union
-      final TypeInfo aStartType = m_aStartTypes.removeLast ();
-      final TypeInfo aEndType = m_aTypeInfoProvider.getElementTypeInfo ();
-      if (aStartType == null && aEndType == null)
-      {
-        // Not assessed, e.g. below a skip wildcard
-        m_aCurrent.setTypeAnnotation (ANY_TYPE);
-      }
-      else
-      {
-        final XdmSchemaType aType = _getSchemaType (aStartType != null ? aStartType : aEndType,
-                                                    aEndType != null ? aEndType : aStartType);
-        m_aCurrent.setSchemaType (aType);
-        _dropElementOnlyWhitespace (m_aCurrent, aType);
-        if (aType.getAtomicBase () != null && !m_aCurrent.isNilled ())
-          m_aCurrent.setIDKind (_getSchemaIDKind (aType, m_aCurrent.getStringValue ()));
-      }
-    }
     m_aCurrent = m_aCurrent.getParent ();
     m_aSystemIds.pop ();
   }

@@ -18,12 +18,20 @@ package com.helger.xslt.schema;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import org.junit.Assume;
 import org.junit.Test;
 
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.XdmValidationException;
+import com.helger.xpath.xdm.jaxp.JdkSchemaProvider;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
+import com.helger.xpath.xdm.schema.XdmSchemaSource;
 import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltCompiler;
@@ -89,6 +97,28 @@ public final class NoXercesTest
     catch (final XPathException ex)
     {
       fail (ex.getMessage ());
+    }
+  }
+
+  @Test
+  public void testJdkValidator () throws Exception
+  {
+    Assume.assumeFalse ("Xerces-J is on the class path", _isXercesPresent ());
+    // Schema-validated input documents need no Xerces-J
+    final String sXsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'><xs:element name='a' type='xs:int'/></xs:schema>";
+    final IXdmSchemaSet aSchemaSet = new JdkSchemaProvider ().compile (new CommonsArrayList <> (new XdmSchemaSource (null, sXsd)));
+    final XdmParser aParser = new XdmParser ().setSchemaSet (aSchemaSet);
+    final XdmNode aA = aParser.parse ("<a> 5 </a>").getChildAtIndex (0);
+    assertEquals ("int", aA.getSchemaType ().getAtomicBase ().localName ());
+    assertNull (aA.getSchemaType ().getDefinition ());
+    try
+    {
+      aParser.parse ("<a>x</a>");
+      fail ();
+    }
+    catch (final XdmValidationException ex)
+    {
+      // expected
     }
   }
 }

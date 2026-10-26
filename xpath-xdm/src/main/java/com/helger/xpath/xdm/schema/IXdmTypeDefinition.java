@@ -20,7 +20,6 @@ import java.util.function.UnaryOperator;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.w3c.dom.TypeInfo;
 
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.xdm.XdmQName;
@@ -46,6 +45,31 @@ public interface IXdmTypeDefinition
   default boolean isAnonymous ()
   {
     return getName () == null;
+  }
+
+  /**
+   * @return The name a node annotated with this type reports as its type
+   *         annotation: the type name, or for an anonymous type a name whose
+   *         local part starts with <code>#</code>.
+   */
+  @NonNull
+  default XdmQName getAnnotationName ()
+  {
+    final XdmQName aName = getName ();
+    return aName != null ? aName : new XdmQName ("", "#anonymous");
+  }
+
+  /**
+   * @return <code>true</code> if the definition is part of a full schema
+   *         component model. <code>false</code> for a provider that only
+   *         knows type names and derivation (the JDK validator): then the
+   *         content type, member types and base type are not known,
+   *         {@link #validate(String, UnaryOperator)} is not supported, and the
+   *         simple content type of a complex type is the type itself.
+   */
+  default boolean hasComponentModel ()
+  {
+    return true;
   }
 
   /**
@@ -148,11 +172,4 @@ public interface IXdmTypeDefinition
   @NonNull
   ICommonsList <XdmTypedToken> validate (@NonNull String sLexical,
                                          @Nullable UnaryOperator <String> aNamespaceResolver) throws XdmValidationException;
-
-  /**
-   * @return The definition as a DOM {@link TypeInfo} (the object a validator
-   *         reports), for {@link com.helger.xpath.xdm.XdmSchemaType}.
-   */
-  @NonNull
-  TypeInfo getTypeInfo ();
 }

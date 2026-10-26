@@ -21,30 +21,25 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.xml.transform.Source;
-import javax.xml.transform.stream.StreamSource;
-import javax.xml.validation.Schema;
-import javax.xml.validation.SchemaFactory;
-
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.xml.sax.SAXException;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.xpath.xdm.jaxp.JdkSchemaProvider;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xpath.xdm.schema.XdmSchemaException;
 import com.helger.xpath.xdm.schema.XdmSchemaSource;
 import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 
 /**
- * Compiles the schema documents of an environment with the JDK schema factory
- * and caches the result by the list of files, since the same catalogue
- * environment is used by many test cases. A schema that does not compile is
- * cached as unavailable; its sources are then read without validation, like
- * Go.
+ * Compiles the schema documents of an environment with the schema processor
+ * of the run and caches the result by the list of files, since the same
+ * catalogue environment is used by many test cases. A schema that does not
+ * compile is cached as unavailable; its sources are then read without
+ * validation, like Go.
  *
  * @author Philip Helger
  */
@@ -59,7 +54,9 @@ public final class QT3SchemaCache
   private static final boolean USE_XERCES = XdmSchemaSupport.isAvailable () &&
                                             !"jdk".equals (System.getProperty ("qt3.schemaProcessor"));
 
-  private static final ConcurrentHashMap <List <Path>, Optional <Schema>> CACHE = new ConcurrentHashMap <> ();
+  private static final JdkSchemaProvider JDK_PROVIDER = new JdkSchemaProvider ();
+
+  private static final ConcurrentHashMap <List <Path>, Optional <IXdmSchemaSet>> JDK_CACHE = new ConcurrentHashMap <> ();
   private static final ConcurrentHashMap <List <Path>, Optional <IXdmSchemaSet>> SET_CACHE = new ConcurrentHashMap <> ();
 
   @PresentForCodeCoverage
@@ -78,14 +75,20 @@ public final class QT3SchemaCache
   }
 
   @NonNull
+  private static ICommonsList <XdmSchemaSource> _getSources (@NonNull final List <Path> aFiles)
+  {
+    final ICommonsList <XdmSchemaSource> ret = new CommonsArrayList <> ();
+    for (final Path aFile : aFiles)
+      ret.add (new XdmSchemaSource (aFile.toUri ().toString (), null));
+    return ret;
+  }
+
+  @NonNull
   private static Optional <IXdmSchemaSet> _compileSet (@NonNull final List <Path> aFiles)
   {
-    final ICommonsList <XdmSchemaSource> aSources = new CommonsArrayList <> ();
-    for (final Path aFile : aFiles)
-      aSources.add (new XdmSchemaSource (aFile.toUri ().toString (), null));
     try
     {
-      return Optional.of (XdmSchemaSupport.compile (aSources));
+      return Optional.of (XdmSchemaSupport.compile (_getSources (aFiles)));
     }
     catch (final XdmSchemaException ex)
     {
@@ -100,18 +103,13 @@ public final class QT3SchemaCache
   }
 
   @NonNull
-  private static Optional <Schema> _compile (@NonNull final List <Path> aFiles)
+  private static Optional <IXdmSchemaSet> _compileJdk (@NonNull final List <Path> aFiles)
   {
-    if (USE_XERCES)
-      return _getSchemaSetOptional (aFiles).map (IXdmSchemaSet::getJaxpSchema);
-    final Source [] aSources = new Source [aFiles.size ()];
-    for (int i = 0; i < aSources.length; ++i)
-      aSources[i] = new StreamSource (aFiles.get (i).toUri ().toString ());
     try
     {
-      return Optional.of (SchemaFactory.newDefaultInstance ().newSchema (aSources));
+      return Optional.of (JDK_PROVIDER.compile (_getSources (aFiles)));
     }
-    catch (final SAXException ex)
+    catch (final XdmSchemaException ex)
     {
       return Optional.empty ();
     }
@@ -120,12 +118,15 @@ public final class QT3SchemaCache
   /**
    * @param aFiles
    *        Absolute, normalised paths of the schema documents. Not empty.
-   * @return The compiled schema or <code>null</code> if it does not compile.
+   * @return The schema set to validate source documents against (Xerces-J or
+   *         the JDK validator), or <code>null</code> if it does not compile.
    */
   @Nullable
-  public static Schema getSchema (@NonNull final List <Path> aFiles)
+  public static IXdmSchemaSet getValidationSchemaSet (@NonNull final List <Path> aFiles)
   {
-    return CACHE.computeIfAbsent (List.copyOf (aFiles), QT3SchemaCache::_compile).orElse (null);
+    if (USE_XERCES)
+      return _getSchemaSetOptional (aFiles).orElse (null);
+    return JDK_CACHE.computeIfAbsent (List.copyOf (aFiles), QT3SchemaCache::_compileJdk).orElse (null);
   }
 
   /**

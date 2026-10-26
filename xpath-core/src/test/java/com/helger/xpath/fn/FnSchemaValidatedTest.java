@@ -18,17 +18,11 @@ package com.helger.xpath.fn;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.StringReader;
-
-import javax.xml.XMLConstants;
-import javax.xml.transform.stream.StreamSource;
-import javax.xml.validation.Schema;
-import javax.xml.validation.SchemaFactory;
-
 import org.jspecify.annotations.NonNull;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.xpath.CompiledXPath;
 import com.helger.xpath.XPathCompiler;
 import com.helger.xpath.context.DynamicContext;
@@ -39,6 +33,9 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.jaxp.JdkSchemaProvider;
+import com.helger.xpath.xdm.schema.IXdmSchemaSet;
+import com.helger.xpath.xdm.schema.XdmSchemaSource;
 
 /**
  * Test the functions and type tests that depend on schema information:
@@ -80,9 +77,9 @@ public final class FnSchemaValidatedTest
   @BeforeClass
   public static void beforeClass () throws Exception
   {
-    final Schema aSchema = SchemaFactory.newInstance (XMLConstants.W3C_XML_SCHEMA_NS_URI)
-                                        .newSchema (new StreamSource (new StringReader (XSD)));
-    s_aDoc = new XdmParser ().setSchema (aSchema).parse (XML);
+    final XdmSchemaSource aSource = new XdmSchemaSource (null, XSD);
+    final IXdmSchemaSet aSchemaSet = new JdkSchemaProvider ().compile (new CommonsArrayList <> (aSource));
+    s_aDoc = new XdmParser ().setSchemaSet (aSchemaSet).parse (XML);
   }
 
   @NonNull
