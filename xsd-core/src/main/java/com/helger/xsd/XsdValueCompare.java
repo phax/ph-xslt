@@ -28,6 +28,7 @@ import com.helger.xpath.ops.AtomicCaster;
 import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
+import com.helger.xpath.value.XdmDateTimeValue;
 import com.helger.xpath.value.XdmDurationValue;
 
 /**
@@ -54,6 +55,15 @@ final class XsdValueCompare
   {
     final Object aPayload = aValue.getValue ();
     return aPayload instanceof final Double aD && aD.isNaN () || aPayload instanceof final Float aF && aF.isNaN ();
+  }
+
+  private static boolean _isGType (@NonNull final EAtomicType eType)
+  {
+    return eType == EAtomicType.G_YEAR ||
+           eType == EAtomicType.G_YEAR_MONTH ||
+           eType == EAtomicType.G_MONTH ||
+           eType == EAtomicType.G_MONTH_DAY ||
+           eType == EAtomicType.G_DAY;
   }
 
   /**
@@ -99,6 +109,14 @@ final class XsdValueCompare
         return Integer.valueOf (aDA.getMonths () < aDB.getMonths () ? -1 : 1);
       return Integer.valueOf (Integer.signum (aDA.getSeconds ().compareTo (aDB.getSeconds ())));
     }
+    // The g* types have no order in XPath; XSD orders them on their reference
+    // dates (go-xslt compares the time line value of every date/time type)
+    if (aA.getType () == aB.getType () &&
+        aA.getType ().isDateTimeFamily () &&
+        _isGType (aA.getType ()) &&
+        aA.getValue () instanceof final XdmDateTimeValue aTA &&
+        aB.getValue () instanceof final XdmDateTimeValue aTB)
+      return Integer.valueOf (Integer.signum (aTA.compareTo (aTB, aA.getType (), 0)));
     if (_isNaN (aA) || _isNaN (aB))
       return null;
     try
