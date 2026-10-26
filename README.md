@@ -22,6 +22,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `xpath-conformance` | W3C QT3 test harness (not deployed) | usable |
 | `xslt-core` | XSLT 3.0: stylesheet compiler, modules, templates and modes, the basic instructions, XSLT functions | in progress |
 | `xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
+| `xsd-core` | Native XML Schema validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine, schema-for-schemas checks, component model and read-only view; datatypes, content models and instance validation still to come | in progress |
 | `xsd-conformance` | W3C xsdtests (XML Schema) harness with a pluggable validator (not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
@@ -108,6 +109,8 @@ v0.1.0 - work in progress
 * The schema SPI (`com.helger.xpath.xdm.schema`) is independent of JAXP: `XdmSchemaType` holds `IXdmTypeDefinition`s, and JAXP is only used inside the providers
 * Added `com.helger.xpath.xdm.jaxp.JdkSchemaProvider`: schema-validated input on the JDK's own validator without Apache Xerces-J (no schema component model)
 * Added the module `xsd-conformance` that runs the W3C XML Schema test suite (xsdtests) against a pluggable validator; the first one is Apache Xerces-J 2.12.2 (XSD 1.0: 39,145 of 39,401 applicable cases pass; XSD 1.1 is reported as unsupported). Every failing case is documented with its reason in `xsd-conformance/docs/accepted-failures/xsd.md`, and an undocumented failure fails the build
+* Added the module `xsd-core`, a native XML Schema validator (port of go-xslt's `internal/xsd`, no Xerces-J or JAXP validation): schema loader with include/import/redefine and conditional inclusion (`vc:*`), schema-for-schemas checks, the component model and its read-only view (`XsdSchema.getView`), local-file-only access with optional confinement (`XsdFileAccess`); constructs not implemented yet are reported as unsupported
+* `xsd-conformance`: `-Dxsd.validator=native` runs the native validator; the summary splits schema and instance tests
 
 # Contributing
 
