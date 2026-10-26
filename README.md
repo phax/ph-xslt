@@ -4,11 +4,13 @@
 > and no release has been published yet. Do not use it in production.
 
 A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 licensed alternative to Saxon.
-XML parsing and XSD validation are left to the JDK (Xerces); everything on top of it is implemented here.
+XML parsing is left to the JDK, XSD schema-awareness to the optional Apache Xerces-J; everything on top of it is
+implemented here.
 
 Status: work in progress. The XPath 3.1 engine runs and passes 99.7% of the applicable W3C QT3 test cases
-(22,412 of 22,478). The XSLT 3.0 engine passes 99.9% of the applicable W3C xslt30-test cases as a basic
-processor (8,637 of 8,647); streaming, schema-awareness and backwards compatibility are not done yet.
+(22,419 of 22,478). The XSLT 3.0 engine passes 99.9% of the applicable W3C xslt30-test cases as a basic
+processor (8,637 of 8,647). Schema-awareness is available as an opt-in; streaming and backwards compatibility are
+not done yet.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Modules
@@ -22,6 +24,33 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
+
+## Schema-awareness (optional dependency)
+
+Schema-awareness (`XsltCompileOptions.setSchemaAware (true)`: `xsl:import-schema`, `[xsl:]validation`/`[xsl:]type`,
+typed sources, `schema-element()` and user-defined types in XPath) needs Apache Xerces-J (`xerces:xercesImpl` 2.12.2) on
+the class path. It is an optional dependency of `xpath-xdm`: add it yourself, excluding `xml-apis` (the JDK provides
+those APIs); no resolver or catalogue library is needed. Without it the engine is a basic XSLT 3.0 processor and no
+Xerces-J class is loaded.
+
+Xerces-J is used only for schema compilation, the schema component model and validation (XSD 1.0). XML parsing stays
+on the JDK parser, and the Xerces-J classes are instantiated directly, never through the JAXP lookup. Note that the
+presence of the jar alone changes what `SAXParserFactory.newInstance ()` and `SchemaFactory.newInstance (...)` return
+for other code in the same application (its `META-INF/services` entries).
+
+```xml
+<dependency>
+  <groupId>xerces</groupId>
+  <artifactId>xercesImpl</artifactId>
+  <version>2.12.2</version>
+  <exclusions>
+    <exclusion>
+      <groupId>xml-apis</groupId>
+      <artifactId>xml-apis</artifactId>
+    </exclusion>
+  </exclusions>
+</dependency>
+```
 
 ## Origin and acknowledgements
 
@@ -68,6 +97,10 @@ v0.1.0 - work in progress
 * Package visibility follows XSLT 3.0: `xsl:expose` decides entry points, the `xsl:accept` visibility table applies, and private or hidden components are hidden from the packages that use them
 * Replaced all `synchronized` blocks with read-write locks; fixed a lock-order deadlock between the `fn:transform` handler lookup and the default function library
 * `XdmParser.setLoadExternalEntities(true)` now really reads the external DTD subset and external entities; secure processing had blocked every external access
+* Added optional schema-awareness based on Apache Xerces-J 2.12.2 (optional dependency, without xml-apis): `XsltCompileOptions.setSchemaAware`, `xsl:import-schema`, validation of constructed and source nodes, `default-validation`, typed modes, typed values, `schema-element()`/`schema-attribute()` and user-defined simple types in XPath
+* Added the schema API `com.helger.xpath.xdm.schema` (`XdmSchemaSupport`, `IXdmSchemaSet`, ...) and `StaticContext.setSchemaSet`
+* `fn:json-to-xml` supports `validate=true` when the schema for its namespace is in scope
+* `xsl:strip-space` now also applies to typed elements with element-only or mixed content
 
 # Contributing
 
