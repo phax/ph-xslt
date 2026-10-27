@@ -242,6 +242,9 @@ the first error can differ).
   element declaration's own messages win, else those of the innermost group that holds all alternatives; for a missing
   required attribute the `xs:attribute`'s (the use's, else the referenced declaration's) with `on="missing"` or no `on`.
   The convention affects `message` and `rule` only, never validity.
+* `XsdValidationRun.MAX_DEPTH` (instance nesting followed on the calling thread before the big-stack thread takes over)
+  is lowered from 250 to 100: the collector hooks add a frame per level and a 512 KB stack overflowed at about 150 levels
+  once the JIT had compiled the walk with deep inlining. Deeper documents cost a thread start, nothing else.
 * Not part of V7: the assertion half of `messages.go` (`assertionFailed`, `failAssert`) belongs to V8 with `xs:assert`;
   `afterModelError` already calls the assertion check, which is the V8 stub.
 
