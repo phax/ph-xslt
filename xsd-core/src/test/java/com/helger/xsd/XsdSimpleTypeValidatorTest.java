@@ -155,7 +155,10 @@ public final class XsdSimpleTypeValidatorTest
     assertTrue (_valid (aPair, "7"));
     assertFalse (_valid (aPair, "x"));
     assertTrue (XsdSimpleTypeValidator.fixedEqual (aPair, "7", "07"));
-    assertFalse (XsdSimpleTypeValidator.fixedEqual (aPair, "true", "1"));
+    // The cycle collapses to the members that do not lead back, in member
+    // order (boolean, int), so "1" is the boolean true like "true"
+    assertTrue (XsdSimpleTypeValidator.fixedEqual (aPair, "true", "1"));
+    assertFalse (XsdSimpleTypeValidator.fixedEqual (aPair, "true", "2"));
     // Many members that all lead back: linear, not exponential
     final StringBuilder aSB = new StringBuilder ("<xs:simpleType name=\"t\"><xs:union memberTypes=\"");
     for (int i = 0; i < 40; i++)
