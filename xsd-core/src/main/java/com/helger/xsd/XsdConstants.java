@@ -42,10 +42,10 @@ public final class XsdConstants
   public static final String NS_VC = "http://www.w3.org/2007/XMLSchema-versioning";
   /**
    * The namespace of the <code>msg:message</code> convention for readable
-   * diagnostics in <code>xs:appinfo</code> (go-xslt's own, kept for
-   * compatibility of schemas written for it).
+   * diagnostics in <code>xs:appinfo</code>. It is ph-xslt's own; the
+   * namespace go-xslt uses for the same convention is not recognised.
    */
-  public static final String NS_MESSAGES = "https://github.com/tim-riep/go-xslt/xsd/messages";
+  public static final String NS_MESSAGES = "urn:fdc:helger.com:ph-xslt:xsd:messages";
   /** The maximum occurrence of <code>maxOccurs="unbounded"</code>. */
   public static final int UNBOUNDED = -1;
 

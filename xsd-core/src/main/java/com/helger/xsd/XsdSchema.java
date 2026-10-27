@@ -501,7 +501,8 @@ public final class XsdSchema
 
   /**
    * Assess the schema-validity of an instance document, strictly from its
-   * document element (go-xslt <code>Schema.Validate</code>).
+   * document element (go-xslt <code>Schema.Validate</code>). All errors are
+   * reported, in document order.
    *
    * @param aInstance
    *        The instance file.
@@ -513,13 +514,35 @@ public final class XsdSchema
   @NonNull
   public XsdValidationResult validate (@NonNull final Path aInstance)
   {
+    return validate (aInstance, new XsdValidationOptions ());
+  }
+
+  /**
+   * Assess the schema-validity of an instance document (go-xslt
+   * <code>Schema.ValidateOpts</code>). {@link XsdValidationResult#errors()}
+   * lists every error found, in document order, up to
+   * {@link XsdValidationOptions#getMaxErrors()}.
+   *
+   * @param aInstance
+   *        The instance file.
+   * @param aOptions
+   *        The language of the messages and the error limit.
+   * @return The result. Never <code>null</code>.
+   * @throws XsdUnsupportedException
+   *         if the instance or schema uses a construct that is not implemented
+   *         (no verdict)
+   */
+  @NonNull
+  public XsdValidationResult validate (@NonNull final Path aInstance, @NonNull final XsdValidationOptions aOptions)
+  {
     ValueEnforcer.notNull (aInstance, "Instance");
-    return _noVerdictOnMissingFunctionality ( () -> XsdInstanceValidator.validate (this, aInstance));
+    ValueEnforcer.notNull (aOptions, "Options");
+    return _noVerdictOnMissingFunctionality ( () -> XsdInstanceValidator.validate (this, aInstance, aOptions));
   }
 
   /**
    * Assess the schema-validity of instance document text (go-xslt
-   * <code>Schema.Validate</code>).
+   * <code>Schema.Validate</code>). All errors are reported, in document order.
    *
    * @param sInstance
    *        The instance document text.
@@ -531,8 +554,44 @@ public final class XsdSchema
   @NonNull
   public XsdValidationResult validateText (@NonNull final String sInstance)
   {
+    return validateText (sInstance, new XsdValidationOptions ());
+  }
+
+  /**
+   * Assess the schema-validity of instance document text (go-xslt
+   * <code>Schema.ValidateOpts</code>).
+   *
+   * @param sInstance
+   *        The instance document text.
+   * @param aOptions
+   *        The language of the messages and the error limit.
+   * @return The result. Never <code>null</code>.
+   * @throws XsdUnsupportedException
+   *         if the instance or schema uses a construct that is not implemented
+   *         (no verdict)
+   */
+  @NonNull
+  public XsdValidationResult validateText (@NonNull final String sInstance,
+                                           @NonNull final XsdValidationOptions aOptions)
+  {
     ValueEnforcer.notNull (sInstance, "Instance");
-    return _noVerdictOnMissingFunctionality ( () -> XsdInstanceValidator.validateText (this, sInstance));
+    ValueEnforcer.notNull (aOptions, "Options");
+    return _noVerdictOnMissingFunctionality ( () -> XsdInstanceValidator.validateText (this, sInstance, aOptions));
+  }
+
+  /**
+   * The validation of {@link #validateText(String)} that stops at the first
+   * error, as the in-place validation of the bridge does: the verdict and the
+   * first error are the ones the collecting validation is compared against.
+   *
+   * @param sInstance
+   *        The instance document text.
+   * @return The result with at most one error.
+   */
+  @NonNull
+  XsdValidationResult validateTextFirstError (@NonNull final String sInstance)
+  {
+    return _noVerdictOnMissingFunctionality ( () -> XsdInstanceValidator.validateText (this, sInstance, null));
   }
 
   @Override

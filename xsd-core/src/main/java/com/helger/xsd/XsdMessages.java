@@ -16,6 +16,8 @@
  */
 package com.helger.xsd;
 
+import java.util.Locale;
+
 import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
@@ -27,8 +29,10 @@ import com.helger.xpath.xdm.XdmNode;
 
 /**
  * Reading of the <code>msg:message</code> convention (go-xslt
- * <code>assertMessages</code> in <code>messages.go</code>). Choosing and
- * formatting the message for an error is phase V7.
+ * <code>assertMessages</code> in <code>messages.go</code>) and the choice of
+ * the wording of an error by language. The convention affects
+ * {@link XsdError#message()} and {@link XsdError#rule()} only, never the
+ * verdict; appinfo content in any other namespace is ignored.
  *
  * @author Philip Helger
  */
@@ -75,5 +79,68 @@ final class XsdMessages
       }
     }
     return ret;
+  }
+
+  /**
+   * go-xslt <code>pickMessage</code>: replace the generic text of an error by
+   * the best <code>msg:message</code>: the one in the language (exact, then
+   * primary subtag), else one without <code>xml:lang</code>, else the first.
+   *
+   * @param aError
+   *        The error.
+   * @param aMessages
+   *        The candidate messages; may be empty.
+   * @param sLanguage
+   *        The preferred language; may be empty.
+   * @return The error with the chosen rule and message, or the error itself
+   *         if there is no candidate.
+   */
+  @NonNull
+  static XsdError pickMessage (@NonNull final XsdError aError,
+                               @NonNull final ICommonsList <XsdMessage> aMessages,
+                               @NonNull final String sLanguage)
+  {
+    if (aMessages.isEmpty ())
+      return aError;
+    final String sLang = sLanguage.toLowerCase (Locale.ROOT);
+    XsdMessage aPick = null;
+    if (!sLang.isEmpty ())
+    {
+      final int nDash = sLang.indexOf ('-');
+      final String sPrimary = nDash < 0 ? sLang : sLang.substring (0, nDash);
+      for (final XsdMessage aMsg : aMessages)
+        if (aMsg.lang ().toLowerCase (Locale.ROOT).equals (sLang))
+        {
+          aPick = aMsg;
+          break;
+        }
+      if (aPick == null)
+        for (final XsdMessage aMsg : aMessages)
+        {
+          final String sMsgLang = aMsg.lang ().toLowerCase (Locale.ROOT);
+          if (sMsgLang.equals (sPrimary) || !sMsgLang.isEmpty () && sMsgLang.startsWith (sPrimary + "-"))
+          {
+            aPick = aMsg;
+            break;
+          }
+        }
+    }
+    if (aPick == null)
+      for (final XsdMessage aMsg : aMessages)
+        if (aMsg.lang ().isEmpty ())
+        {
+          aPick = aMsg;
+          break;
+        }
+    if (aPick == null)
+      aPick = aMessages.getFirstOrNull ();
+    return new XsdError (aError.line (),
+                         aError.column (),
+                         aError.code (),
+                         aPick.text ().isEmpty () ? aError.message () : aPick.text (),
+                         aPick.rule (),
+                         aError.path (),
+                         aError.kind (),
+                         aError.particle ());
   }
 }

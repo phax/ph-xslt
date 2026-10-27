@@ -114,6 +114,7 @@ final class XsdValidationRun
   private final ICommonsMap <XdmNode, IXsdType> m_aTypeCache = new CommonsHashMap <> ();
   private final ICommonsSet <XdmNode> m_aUnassessed = new CommonsHashSet <> ();
 
+  private XsdErrorCollector m_aCollector;
   private boolean m_bElementScope;
   private boolean m_bLenientEntities;
   private int m_nDepth;
@@ -144,6 +145,52 @@ final class XsdValidationRun
   {
     m_aSchema = aSchema;
     m_aDocument = aDocument;
+  }
+
+  /**
+   * Collect all errors instead of stopping at the first one (go-xslt
+   * <code>Schema.coll</code>, set on the string <code>Validate</code> path
+   * only; the in-place path of the bridge keeps its first-error behaviour).
+   *
+   * @param aCollector
+   *        The collector. May not be <code>null</code>.
+   */
+  void setCollector (@NonNull final XsdErrorCollector aCollector)
+  {
+    m_aCollector = aCollector;
+  }
+
+  /** @return The collector; <code>null</code> when the first error ends the validation. */
+  @Nullable
+  XsdErrorCollector getCollector ()
+  {
+    return m_aCollector;
+  }
+
+  /** @return <code>true</code> if all errors are collected. */
+  boolean isCollecting ()
+  {
+    return m_aCollector != null;
+  }
+
+  /** @return The number of errors collected so far (go-xslt <code>collected</code>); 0 when not collecting. */
+  int collected ()
+  {
+    return m_aCollector == null ? 0 : m_aCollector.size ();
+  }
+
+  /**
+   * Withdraw the errors recorded after a {@link #collected()} reading (go-xslt
+   * <code>uncollect</code>; see the skip-wildcard excuse of the children
+   * check).
+   *
+   * @param nCollected
+   *        The reading.
+   */
+  void uncollect (final int nCollected)
+  {
+    if (m_aCollector != null)
+      m_aCollector.truncate (nCollected);
   }
 
   /** @return The schema validated against. */

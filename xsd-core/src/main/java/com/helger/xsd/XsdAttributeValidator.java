@@ -21,6 +21,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
@@ -34,9 +35,9 @@ import com.helger.xpath.xdm.XdmNode;
  * <code>attributes.go</code>). The attributes are checked against the
  * effective attribute uses and the attribute wildcard of the type.
  * <p>
- * Only the first error is reported; collecting all errors (the "missing
- * required attribute" loop of go-xslt <code>soft</code> and the wording from
- * the appinfo messages) is phase V7.
+ * A run that collects all errors reports every missing required attribute,
+ * with the wording of the appinfo messages; otherwise the first error ends the
+ * check.
  *
  * @author Philip Helger
  */
@@ -114,6 +115,17 @@ final class XsdAttributeValidator
           return true;
       return false;
     }
+  }
+
+  /** @return The messages of a list that apply to a missing attribute. */
+  @NonNull
+  private static ICommonsList <XsdMessage> _missingMessages (@NonNull final ICommonsList <XsdMessage> aCandidates)
+  {
+    final ICommonsList <XsdMessage> ret = new CommonsArrayList <> ();
+    for (final XsdMessage aMsg : aCandidates)
+      if (aMsg.on ().isEmpty () || "missing".equals (aMsg.on ()))
+        ret.add (aMsg);
+    return ret;
   }
 
   /**
@@ -236,8 +248,21 @@ final class XsdAttributeValidator
     {
       final XsdName aUseName = aUse.m_aDecl.m_aName;
       if (aUse.m_bRequired && !aIndex.isPresent (aUseName))
-        // Own wording (the appinfo msg:message on="missing") is phase V7
-        throw XsdCompiler.invalid ("cvc-complex-type.4", "required attribute " + aUseName + " is missing");
+      {
+        // Own wording: the xs:attribute's appinfo (the use's, else the
+        // referenced declaration's), msg:message on="missing" or unspecified
+        ICommonsList <XsdMessage> aMessages = _missingMessages (aUse.m_aMsgs);
+        if (aMessages.isEmpty ())
+          aMessages = _missingMessages (aUse.m_aDecl.m_aMsgs);
+        final XsdInvalidException aMissing = new XsdInvalidException (XsdError.of ("cvc-complex-type.4",
+                                                                                   "required attribute " +
+                                                                                                          aUseName +
+                                                                                                          " is missing"),
+                                                                      aMessages);
+        // Collecting: every missing attribute is reported, not only the first
+        XsdInstanceValidator.soft (aRun, aMissing, aElement);
+        continue;
+      }
       // An absent attribute with a value constraint contributes that value to
       // the instance, so an ID default still binds (and an IDREF default
       // still has to resolve)

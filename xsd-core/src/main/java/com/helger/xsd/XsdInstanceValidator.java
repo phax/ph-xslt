@@ -294,7 +294,36 @@ final class XsdInstanceValidator
                                                   aError.rule (),
                                                   bNoPath ? elementPath (aElement) : aError.path (),
                                                   aError.kind (),
-                                                  aError.particle ()));
+                                                  aError.particle ()),
+                                    ex.getMessages ());
+  }
+
+  /**
+   * go-xslt <code>soft</code>: record an instance-validation error located at
+   * an element and carry on, if the run collects all errors. Otherwise - and
+   * for everything that is not an invalid verdict, notably
+   * {@link XsdUnsupportedException} - the error is passed up unchanged.
+   *
+   * @param aRun
+   *        The validation run.
+   * @param ex
+   *        The error.
+   * @param aElement
+   *        The element it is located at, if it has no location of its own.
+   * @throws XsdInvalidException
+   *         <code>ex</code> if the run does not collect
+   * @throws XsdErrorCollector.Stopped
+   *         if the error limit is reached
+   */
+  static void soft (@NonNull final XsdValidationRun aRun,
+                    @NonNull final XsdInvalidException ex,
+                    @NonNull final XdmNode aElement)
+  {
+    final XsdErrorCollector aCollector = aRun.getCollector ();
+    if (aCollector == null)
+      throw ex;
+    final XsdInvalidException aStamped = _stamp (ex, aElement);
+    aCollector.add (new XsdErrorCollector.Entry (aStamped.getError (), aStamped.getMessages ()));
   }
 
   /** An invalid verdict located at an element. */
@@ -793,15 +822,37 @@ final class XsdInstanceValidator
     if (!aMatch.decided ())
       throw new XsdUnsupportedException ("pathological content model - no verdict");
     if (!aMatch.matched ())
-      throw _invalidAt ("cvc-complex-type.2.4",
-                        "element " +
-                                               nameOf (aElement) +
-                                               ": content does not match its content model (" +
-                                               _describeChildren (aKids) +
-                                               "; allowed child elements: " +
-                                               _describeAllowedNames (aModel) +
-                                               ")",
-                        aElement);
+    {
+      final XsdInvalidException aGeneric = _invalidAt ("cvc-complex-type.2.4",
+                                                       "element " +
+                                                                               nameOf (aElement) +
+                                                                               ": content does not match its content model (" +
+                                                                               _describeChildren (aKids) +
+                                                                               "; allowed child elements: " +
+                                                                               _describeAllowedNames (aModel) +
+                                                                               ")",
+                                                       aElement);
+      if (!aRun.isCollecting ())
+        throw aGeneric;
+      // Collecting: say precisely what is wrong when that can be worked out (no
+      // open content, a model the explainer can express); the generic message
+      // above is the fallback
+      if (aOC == null)
+      {
+        final ICommonsList <XsdErrorCollector.Entry> aCards = XsdExplain.cardinalityErrors (aSchema,
+                                                                                            aElement,
+                                                                                            aParticle,
+                                                                                            aKids);
+        if (aCards.isNotEmpty ())
+        {
+          for (final XsdErrorCollector.Entry aCard : aCards)
+            aRun.getCollector ().add (aCard);
+          throw new XsdErrorCollector.ModelMismatch ();
+        }
+      }
+      soft (aRun, aGeneric, aElement);
+      throw new XsdErrorCollector.ModelMismatch ();
+    }
     final boolean b11 = aRun.isXsd11 ();
     ICommonsMap <XsdName, Integer> aElemUsed = null; // allocated on first use (1.1 EDC only)
     ICommonsList <XdmNode> aPinned = aKids; // lazily copied; wildcard-attributed children get probed out
@@ -843,22 +894,34 @@ final class XsdInstanceValidator
           final Integer aUsed = aElemUsed.get (aName);
           aElemUsed.put (aName, Integer.valueOf (aUsed == null ? 1 : aUsed.intValue () + 1));
         }
+        final int nSnap = aRun.collected ();
+        RuntimeException aFailure = null;
         try
         {
           validateElementAgainst (aRun, aDecl, aKid, aScopes, aModel.m_aFixedsByName.get (aName));
         }
-        catch (final XsdInvalidException | XsdUnsupportedException ex)
+        catch (final XsdInvalidException | XsdUnsupportedException | XsdErrorCollector.Stopped ex)
+        {
+          aFailure = ex;
+        }
+        if (aFailure != null || aRun.collected () > nSnap)
         {
           // Attribution is by name, but the model may also offer a
           // processContents="skip" wildcard absorbing this child at this
           // position - under that parse the child is not assessed at all. A
-          // child for which some parse validates is not an error.
+          // child for which some parse validates is not an error; the errors
+          // it already recorded while collecting are withdrawn.
           if (_skipWildcardParseExcuses (aRun, aModel, aKids, i, aName))
           {
+            aRun.uncollect (nSnap);
             aRun.markUnassessed (aKid);
             continue;
           }
-          throw ex;
+          if (aFailure instanceof final XsdInvalidException aInvalid)
+            soft (aRun, aInvalid, aKid);
+          else
+            if (aFailure != null)
+              throw aFailure;
         }
         continue;
       }
@@ -903,7 +966,14 @@ final class XsdInstanceValidator
                                                           ": governing type is not validly derived from its context-determined type");
           }
         }
-        validateElementAgainst (aRun, aGlobal, aKid, aScopes, null);
+        try
+        {
+          validateElementAgainst (aRun, aGlobal, aKid, aScopes, null);
+        }
+        catch (final XsdInvalidException ex)
+        {
+          soft (aRun, ex, aKid);
+        }
         continue;
       }
       // A strict wildcard demands that the match be assessed, so a name with
@@ -929,6 +999,69 @@ final class XsdInstanceValidator
   }
 
   /**
+   * go-xslt <code>assessDeclaredChildren</code>: validate the children of an
+   * element whose content model did not match, as far as their declarations
+   * can be told by name.
+   *
+   * @return <code>true</code> if every child could be assigned
+   */
+  private static boolean _assessDeclaredChildren (@NonNull final XsdValidationRun aRun,
+                                                  @NonNull final XsdComplexType aType,
+                                                  @NonNull final ICommonsList <XdmNode> aKids,
+                                                  @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
+  {
+    final ChildModel aModel = aRun.childModelOf (aType);
+    boolean bAll = true;
+    for (final XdmNode aKid : aKids)
+    {
+      final XsdName aName = nameOf (aKid);
+      final XsdElementDecl aDecl = aModel.m_aDecls.get (aName);
+      if (aDecl == null)
+      {
+        bAll = false;
+        continue;
+      }
+      try
+      {
+        validateElementAgainst (aRun, aDecl, aKid, aScopes, aModel.m_aFixedsByName.get (aName));
+      }
+      catch (final XsdInvalidException ex)
+      {
+        soft (aRun, ex, aKid);
+      }
+    }
+    return bAll;
+  }
+
+  /**
+   * go-xslt <code>afterModelError</code> around <code>validateChildren</code>:
+   * a content-model mismatch that was recorded still lets the declared children
+   * and - when every child could be assigned - the element's own assertions be
+   * checked.
+   *
+   * @return <code>true</code> if the content model did not match, which is
+   *         recorded and finished; the caller is done with the element
+   */
+  private static boolean _validateChildrenOrMismatch (@NonNull final XsdValidationRun aRun,
+                                                      @NonNull final XsdComplexType aType,
+                                                      @NonNull final XdmNode aElement,
+                                                      @NonNull final ICommonsList <XdmNode> aKids,
+                                                      @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
+  {
+    try
+    {
+      _validateChildren (aRun, aType, aElement, aKids, aScopes);
+      return false;
+    }
+    catch (final XsdErrorCollector.ModelMismatch ex)
+    {
+      if (_assessDeclaredChildren (aRun, aType, aKids, aScopes))
+        _checkAsserts (aRun, aType, aElement);
+      return true;
+    }
+  }
+
+  /**
    * go-xslt <code>validateComplex</code>.
    */
   private static void _validateComplex (@NonNull final XsdValidationRun aRun,
@@ -939,7 +1072,14 @@ final class XsdInstanceValidator
   {
     if (aType.m_bAbstract)
       throw XsdCompiler.invalid ("cvc-type.2", "type is abstract and cannot be used directly");
-    XsdAttributeValidator.validateAttributes (aRun, aType, aElement);
+    try
+    {
+      XsdAttributeValidator.validateAttributes (aRun, aType, aElement);
+    }
+    catch (final XsdInvalidException ex)
+    {
+      soft (aRun, ex, aElement);
+    }
     final ICommonsList <XdmNode> aKids = _childElements (aElement);
     final boolean b11 = aRun.isXsd11 ();
     switch (aType.m_eKind)
@@ -951,7 +1091,8 @@ final class XsdInstanceValidator
         {
           if (_hasNonWSText (aElement))
             throw XsdCompiler.invalid ("cvc-complex-type.2.1", "open empty content admits no character data");
-          _validateChildren (aRun, aType, aElement, aKids, aScopes);
+          if (_validateChildrenOrMismatch (aRun, aType, aElement, aKids, aScopes))
+            return;
           break;
         }
         if (!aKids.isEmpty () || _hasNonWSText (aElement))
@@ -983,10 +1124,12 @@ final class XsdInstanceValidator
             aRun.getSchema ().effectiveOpenContent (aType) == null &&
             XsdComponentChecks.isEmptyParticle (aRun.getSchema ().effectiveParticle (aType)))
           throw XsdCompiler.invalid ("cvc-complex-type.2.1", "empty content admits no character data at all");
-        _validateChildren (aRun, aType, aElement, aKids, aScopes);
+        if (_validateChildrenOrMismatch (aRun, aType, aElement, aKids, aScopes))
+          return;
         break;
       default:
-        _validateChildren (aRun, aType, aElement, aKids, aScopes);
+        if (_validateChildrenOrMismatch (aRun, aType, aElement, aKids, aScopes))
+          return;
         break;
     }
     _checkAsserts (aRun, aType, aElement);
@@ -1553,10 +1696,16 @@ final class XsdInstanceValidator
       throw aFailure.get ();
   }
 
+  /**
+   * @param aOptions
+   *        The options, <code>null</code> to stop at the first error (the
+   *        verdict is the same; only the list of errors is shorter).
+   */
   @NonNull
   private static XsdValidationResult _validateDocument (@NonNull final XsdSchema aSchemaIn,
                                                         @NonNull final XdmNode aDocument,
-                                                        @Nullable final Path aInstanceDir)
+                                                        @Nullable final Path aInstanceDir,
+                                                        @Nullable final XsdValidationOptions aOptions)
   {
     XsdSchema aSchema = aSchemaIn;
     final XdmNode aRoot = XsdNodes.rootElement (aDocument);
@@ -1584,30 +1733,64 @@ final class XsdInstanceValidator
     if (aLateHint != null)
       return XsdValidationResult.createInvalid (aLateHint);
     final XsdValidationRun aRun = new XsdValidationRun (aSchema, aDocument);
+    final XsdErrorCollector aCollector = aOptions == null ? null : new XsdErrorCollector (aOptions.getMaxErrors ());
+    final String sLanguage = aOptions == null ? "" : aOptions.getLanguage ();
+    if (aCollector != null)
+      aRun.setCollector (aCollector);
     try
     {
-      validateRoot (aRun, aRoot);
+      try
+      {
+        validateRoot (aRun, aRoot);
+      }
+      catch (final XsdInvalidException ex)
+      {
+        soft (aRun, ex, aRoot);
+      }
+      catch (final XsdErrorCollector.Stopped ex)
+      {
+        // the limit is reached: the list is complete
+      }
+      catch (final XsdUnsupportedException ex)
+      {
+        // Once an error is known, anything further the walk trips over must not
+        // turn that verdict into "no verdict": the instance IS invalid, the
+        // list just ends early
+        if (aCollector == null || aCollector.size () == 0)
+          throw ex;
+      }
+      if (aCollector != null && aCollector.size () > 0)
+        return new XsdValidationResult (false, aCollector.getSorted (sLanguage));
       aRun.checkIDRefs ();
     }
     catch (final XsdInvalidException ex)
     {
       return XsdValidationResult.createInvalid (ex.getError ());
     }
+    catch (final XsdErrorCollector.Stopped ex)
+    {
+      return new XsdValidationResult (false, aCollector.getSorted (sLanguage));
+    }
     return XsdValidationResult.createValid ();
   }
 
   /**
-   * go-xslt <code>Schema.Validate</code> for an instance file. Not well-formed
-   * input is invalid.
+   * go-xslt <code>Schema.ValidateOpts</code> for an instance file. Not
+   * well-formed input is invalid.
    *
    * @param aSchema
    *        The compiled schema.
    * @param aInstance
    *        The instance file.
-   * @return The result. Never <code>null</code>.
+   * @param aOptions
+   *        The options.
+   * @return The result, with all errors in document order. Never
+   *         <code>null</code>.
    */
   @NonNull
-  static XsdValidationResult validate (@NonNull final XsdSchema aSchema, @NonNull final Path aInstance)
+  static XsdValidationResult validate (@NonNull final XsdSchema aSchema,
+                                       @NonNull final Path aInstance,
+                                       @NonNull final XsdValidationOptions aOptions)
   {
     final XdmNode aDocument;
     try
@@ -1619,20 +1802,24 @@ final class XsdInstanceValidator
       return XsdValidationResult.createInvalid (XsdError.of ("", "instance not well-formed: " + ex.getMessage ()));
     }
     final Path aAbsolute = aInstance.toAbsolutePath ();
-    return _validateDocument (aSchema, aDocument, aAbsolute.getParent ());
+    return _validateDocument (aSchema, aDocument, aAbsolute.getParent (), aOptions);
   }
 
   /**
-   * go-xslt <code>Schema.Validate</code> for instance text.
+   * go-xslt <code>Schema.ValidateOpts</code> for instance text.
    *
    * @param aSchema
    *        The compiled schema.
    * @param sInstance
    *        The instance document text.
+   * @param aOptions
+   *        The options, <code>null</code> to stop at the first error.
    * @return The result. Never <code>null</code>.
    */
   @NonNull
-  static XsdValidationResult validateText (@NonNull final XsdSchema aSchema, @NonNull final String sInstance)
+  static XsdValidationResult validateText (@NonNull final XsdSchema aSchema,
+                                           @NonNull final String sInstance,
+                                           @Nullable final XsdValidationOptions aOptions)
   {
     final XdmNode aDocument;
     try
@@ -1643,6 +1830,6 @@ final class XsdInstanceValidator
     {
       return XsdValidationResult.createInvalid (XsdError.of ("", "instance not well-formed: " + ex.getMessage ()));
     }
-    return _validateDocument (aSchema, aDocument, null);
+    return _validateDocument (aSchema, aDocument, null, aOptions);
   }
 }
