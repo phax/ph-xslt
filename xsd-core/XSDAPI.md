@@ -147,10 +147,15 @@ the first error can differ).
   restrictions. `fixedEqual`, `firstMemberRaw`, `checkPrimitiveLexical` and `XsdFacetValidator.checkIn /
   checkPatternEnum / checkListLength` are for V5/V6.
 * Casting and ordering of facet values: reuse `XsdValueCompare` (or extend it additively).
-* Union member lists may be cyclic: XSD 1.0 tolerates a pure-union cycle (`<xs:union memberTypes="u xs:string"/>`
-  inside `u` itself, go-xslt stE110), so every walk over members (validation, `firstMemberRaw`, list item types of
-  members) must be bounded. go-xslt 2168ab5 overflows its stack on this schema in `checkNotationUsable`; the port
-  bounds that walk.
+* A compiled simple type never reaches itself (go-xslt 42f82b3, issue 12). `XsdSimpleTypeParser` keeps the types
+  being parsed (`m_aOpen`, with their derivation kind): a restriction base or list item type that is still open, or
+  a union member that is open through a restriction/list, is `circular simpleType derivation` in both versions, and
+  an open union member is one in XSD 1.1 (cos-no-circular-unions). `_closeUnion`, run when a union's member list is
+  final (`_parseUnion`, and a restriction copying its base union's members), detects a cycle back to the union and,
+  in XSD 1.0 (`<xs:union memberTypes="u xs:string"/>` inside `u` itself, stE110), collapses it to the members that
+  do not lead back, in member order (the least fixed point of the value space); in 1.1 it is rejected. Both walks
+  are iterative. Walks over members, base and item types therefore need no visited set; the bounds and visited sets
+  in `XsdSimpleTypeValidator` and `_checkNotationUsable` stay as defence in depth.
 
 ### V4 (content models)
 

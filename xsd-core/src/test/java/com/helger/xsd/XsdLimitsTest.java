@@ -146,6 +146,23 @@ public final class XsdLimitsTest
     assertTrue (aCompiled.message (), aCompiled.verdict () != EVerdict.INVALID);
   }
 
+  /**
+   * go-xslt TestNoStackOverflow, issue 12: a union listing itself compiles in
+   * XSD 1.0 with the members that do not lead back as its value space.
+   */
+  @Test
+  public void testSelfMemberUnionValidates ()
+  {
+    final String sSchema = XS +
+                           "<xs:simpleType name=\"u\"><xs:union memberTypes=\"u xs:int\"/></xs:simpleType>" +
+                           "<xs:simpleType name=\"v\"><xs:restriction base=\"u\"/></xs:simpleType>" +
+                           "<xs:element name=\"e\" type=\"v\"/></xs:schema>";
+    final Compiled aCompiled = XsdTestSupport.compile (sSchema, null, EXsdVersion.V10);
+    assertSame (aCompiled.message (), EVerdict.VALID, aCompiled.verdict ());
+    assertSame (EVerdict.VALID, XsdTestSupport.validate (aCompiled.schema (), "<e>7</e>"));
+    assertSame (EVerdict.INVALID, XsdTestSupport.validate (aCompiled.schema (), "<e>x</e>"));
+  }
+
   @Test
   public void testCyclicIncludesTerminate () throws IOException
   {

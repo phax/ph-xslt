@@ -16,8 +16,12 @@
  */
 package com.helger.xsd;
 
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
@@ -49,6 +53,13 @@ final class XsdSimpleTypeParser
   private static final int MAX_CHAIN = 64;
 
   private final XsdCompiler m_aC;
+  /**
+   * Every simple type whose definition is being parsed, with its derivation
+   * kind (restriction, list or union). A reference to one from inside its own
+   * definition is a circular derivation, tolerated only as a union member in
+   * XSD 1.0 (see {@link #_closeUnion}).
+   */
+  private final Map <XsdSimpleType, String> m_aOpen = new IdentityHashMap <> ();
 
   XsdSimpleTypeParser (@NonNull final XsdCompiler aCompiler)
   {
@@ -517,6 +528,82 @@ final class XsdSimpleTypeParser
                                "xs:NOTATION may only be used through a restriction with an enumeration facet");
   }
 
+  /**
+   * go-xslt <code>unionReaches</code>: whether aTarget is reachable from the
+   * given members along union membership (a restriction of a union carries its
+   * base's members, so that edge is covered too). Iterative, each type entered
+   * once.
+   */
+  private static boolean _unionReaches (@NonNull final Iterable <XsdSimpleType> aMembers,
+                                        @NonNull final XsdSimpleType aTarget,
+                                        @NonNull final XsdSimpleType aStart)
+  {
+    final Set <XsdSimpleType> aSeen = Collections.newSetFromMap (new IdentityHashMap <> ());
+    aSeen.add (aStart);
+    final Deque <XsdSimpleType> aTodo = new ArrayDeque <> ();
+    for (final XsdSimpleType aMember : aMembers)
+      aTodo.push (aMember);
+    while (!aTodo.isEmpty ())
+    {
+      final XsdSimpleType aMember = aTodo.pop ();
+      if (aMember == aTarget)
+        return true;
+      if (aMember == null || !aSeen.add (aMember))
+        continue;
+      for (final XsdSimpleType aSub : aMember.m_aMembers)
+        aTodo.push (aSub);
+    }
+    return false;
+  }
+
+  /**
+   * go-xslt <code>closeUnion</code>: end the construction of a union's member
+   * list. XSD 1.0 tolerates a cycle of unions (stE110); left in the component
+   * graph it would send every later walk over members into unbounded
+   * recursion. A union's value space is the union of its members' value
+   * spaces, so the least fixed point of a cycle is the members from which the
+   * union is not reachable, collected in member order through the cyclic ones.
+   * XSD 1.1 forbids the cycle (cos-no-circular-unions). Afterwards no cycle
+   * runs through a finished union.
+   */
+  private void _closeUnion (@NonNull final XsdSimpleType aType)
+  {
+    if (!_unionReaches (aType.m_aMembers, aType, aType))
+      return;
+    if (m_aC.isXsd11 ())
+      throw _circular ();
+    final ICommonsList <XsdSimpleType> aMembers = new CommonsArrayList <> ();
+    final Set <XsdSimpleType> aSeen = Collections.newSetFromMap (new IdentityHashMap <> ());
+    aSeen.add (aType);
+    // Depth-first in member order without recursion
+    final Deque <Iterator <XsdSimpleType>> aStack = new ArrayDeque <> ();
+    aStack.push (aType.m_aMembers.iterator ());
+    while (!aStack.isEmpty ())
+    {
+      final Iterator <XsdSimpleType> aIt = aStack.peek ();
+      if (!aIt.hasNext ())
+      {
+        aStack.pop ();
+        continue;
+      }
+      final XsdSimpleType aMember = aIt.next ();
+      if (aMember == null || !aSeen.add (aMember))
+        continue;
+      if (_unionReaches (aMember.m_aMembers, aType, aMember))
+        aStack.push (aMember.m_aMembers.iterator ());
+      else
+        aMembers.add (aMember);
+    }
+    // A new list: a restriction shares its base's list
+    aType.m_aMembers = aMembers;
+  }
+
+  @NonNull
+  private static XsdInvalidException _circular ()
+  {
+    return XsdCompiler.invalid ("", "circular simpleType derivation");
+  }
+
   private void _parseRestriction (@NonNull final XsdSimpleType aType, @NonNull final XdmNode aRestriction)
   {
     aType.m_eVariety = EXsdVariety.ATOMIC;
@@ -524,6 +611,8 @@ final class XsdSimpleTypeParser
     if (sBaseRef != null)
     {
       final XsdSimpleType aBase = m_aC.resolveSimpleType (aRestriction, sBaseRef);
+      if (m_aOpen.containsKey (aBase))
+        throw _circular ();
       checkSimpleFinal (aBase, XsdDerivation.RESTRICTION);
       linkBase (aType, aBase);
     }
@@ -546,6 +635,9 @@ final class XsdSimpleTypeParser
         case UNION:
           aType.m_eVariety = EXsdVariety.UNION;
           aType.m_aMembers = aType.m_aBase.m_aMembers;
+          // The inline base union(aType, ...) of a type still being parsed
+          // just handed aType itself back as a member
+          _closeUnion (aType);
           break;
         default:
           break;
@@ -567,6 +659,8 @@ final class XsdSimpleTypeParser
         throw XsdCompiler.invalid ("", "expected a simple type, got complex " + sItemRef);
       if (aItem != XsdSimpleType.ABSENT)
       {
+        if (m_aOpen.containsKey (aItem))
+          throw _circular ();
         checkNotationUsable (aItem);
         checkSimpleFinal (aItem, XsdDerivation.LIST);
         if (aItem.m_eVariety == EXsdVariety.LIST)
@@ -602,6 +696,12 @@ final class XsdSimpleTypeParser
         if (i > 0 && XsdNodes.lookupPrefix (aUnion, sRef.substring (0, i)) == null)
           throw XsdCompiler.invalid ("src-resolve", "undefined namespace prefix in " + XsdLexHelper.quote (sRef));
         final XsdSimpleType aMember = m_aC.resolveSimpleType (aUnion, sRef);
+        // A member still being parsed is an enclosing type: through a
+        // restriction or list that is a circular derivation; a pure-union
+        // cycle is cos-no-circular-unions in 1.1 and _closeUnion's in 1.0
+        final String sOpenKind = m_aOpen.get (aMember);
+        if (sOpenKind != null && (!"union".equals (sOpenKind) || m_aC.isXsd11 ()))
+          throw _circular ();
         // XSD 1.1: the ur-types may not be union members
         if (m_aC.isXsd11 () && aMember.isURType ())
           throw XsdCompiler.invalid ("", sRef + " is not a valid union member type");
@@ -619,6 +719,7 @@ final class XsdSimpleTypeParser
       }
     if (aType.m_aMembers.isEmpty ())
       throw XsdCompiler.invalid ("", "union without members");
+    _closeUnion (aType);
   }
 
   /**
@@ -838,18 +939,21 @@ final class XsdSimpleTypeParser
       final XdmNode aRestriction = XsdNodes.firstXSChild (aNode, "restriction");
       if (aRestriction != null)
       {
+        m_aOpen.put (aType, "restriction");
         _parseRestriction (aType, aRestriction);
         return;
       }
       final XdmNode aList = XsdNodes.firstXSChild (aNode, "list");
       if (aList != null)
       {
+        m_aOpen.put (aType, "list");
         _parseList (aType, aList);
         return;
       }
       final XdmNode aUnion = XsdNodes.firstXSChild (aNode, "union");
       if (aUnion != null)
       {
+        m_aOpen.put (aType, "union");
         _parseUnion (aType, aUnion);
         return;
       }
@@ -857,6 +961,7 @@ final class XsdSimpleTypeParser
     }
     finally
     {
+      m_aOpen.remove (aType);
       m_aC.leaveNesting ();
     }
   }
