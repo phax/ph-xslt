@@ -36,11 +36,13 @@ import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmValidationException;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
+import com.helger.xsd.XsdError;
 import com.helger.xsd.XsdFileAccess;
 import com.helger.xsd.XsdInvalidException;
 import com.helger.xsd.XsdSchema;
 import com.helger.xsd.XsdSchemaProvider;
 import com.helger.xsd.XsdUnsupportedException;
+import com.helger.xsd.XsdValidationResult;
 
 /**
  * The differential gate of the bridge (go-xslt <code>TestValidateNodeMatchesValidate</code>):
@@ -144,9 +146,11 @@ public final class XsdBridgeDifferentialTest
     }
 
     final boolean bText;
+    final XsdValidationResult aTextResult;
     try
     {
-      bText = aSchema.validate (aInstance).valid ();
+      aTextResult = aSchema.validate (aInstance);
+      bText = aTextResult.valid ();
     }
     catch (final XsdUnsupportedException ex)
     {
@@ -172,7 +176,24 @@ public final class XsdBridgeDifferentialTest
       return;
     }
     if (bText == bInPlace)
-      aTally.m_aAgree.incrementAndGet ();
+    {
+      // The first error of the in-place validation (first-error mode) is among
+      // the errors the collecting validation of the text reports: same code or
+      // the very same text (a content-model error is worded more precisely)
+      boolean bFound = bInPlace;
+      if (!bInPlace)
+        for (final XsdError aError : aTextResult.errors ())
+          if (sDetail.endsWith (aError.toString ()) || sDetail.contains (aError.code () + ": ") && !aError.code ().isEmpty ())
+            bFound = true;
+      if (bFound)
+        aTally.m_aAgree.incrementAndGet ();
+      else
+        aTally.m_aMismatches.add (aTest.name () +
+                                  ": first error of the in-place validation is not among the collected ones: " +
+                                  sDetail +
+                                  " vs " +
+                                  aTextResult.errors ());
+    }
     else
       aTally.m_aMismatches.add (aTest.name () +
                                 ": text says valid=" +

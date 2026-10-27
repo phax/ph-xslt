@@ -20,11 +20,12 @@ paragraph) first.
 
 | Class | Purpose |
 |-------|---------|
-| `XsdSchema` | Compiled schema. `compile (List<XsdSchemaSource>, EXsdVersion, XsdCompileOptions)`, `compileFiles (List<Path>, ...)`, `validate (Path)`, `validateText (String)`, `getView ()`. Immutable after compile, shared between threads. |
+| `XsdSchema` | Compiled schema. `compile (List<XsdSchemaSource>, EXsdVersion, XsdCompileOptions)`, `compileFiles (List<Path>, ...)`, `validate (Path)` / `validate (Path, XsdValidationOptions)`, `validateText (String)` / `validateText (String, XsdValidationOptions)`, `getView ()`. Immutable after compile, shared between threads. |
 | `XsdSchemaSource` | A schema document: `ofFile (Path)` (base directory = its folder) or `ofText (String, Path baseDir)`. |
 | `XsdCompileOptions` | `setKeepDocumentation (boolean)` (go-xslt `CompileWithDocs`), `setFileAccess (XsdFileAccess)`. |
 | `XsdFileAccess` | File reads of the validator: `LOCAL_FILES` (default, any local file) or `confinedTo (Path...)`. Never the network: a location with another URI scheme than `file:` is unavailable like a missing file. `resolveLocation (baseDir, location)`, `readFile (Path)`. |
-| `XsdValidationResult` | `valid ()`, `errors ()` (go-xslt `Result`). |
+| `XsdValidationOptions` | `setLanguage (String)` (preferred `xml:lang` of the `msg:message` wording), `setMaxErrors (int)` (0 = unlimited); go-xslt `ValidateRequest.Language` / `MaxErrors`. Neither changes the verdict. |
+| `XsdValidationResult` | `valid ()`, `errors ()` (go-xslt `Result`). `errors ()` lists ALL errors found, in document order (V7). |
 | `XsdError` | One error: line, column, code, message, rule, path, kind, particle (go-xslt `Error`). |
 | `XsdInvalidException` | A genuine invalid verdict, carries an `XsdError`. |
 | `XsdUnsupportedException` | No verdict (go-xslt `ErrUnsupported`). |
@@ -40,7 +41,9 @@ paragraph) first.
   `UnsupportedOperationException` into `XsdUnsupportedException`, naming the class and method it came from. Never
   catch `UnsupportedOperationException` anywhere else, and never turn it into a verdict. Where go-xslt tests a
   function result with `err != nil` and continues, catch `XsdInvalidException` only.
-* Error identity: the first error decides (XSLT and XPath need only that). Collecting all errors is phase V7.
+* Error identity: the first error decides (XSLT and XPath need only that). The in-place validation of the bridge
+  (`XsdBridge`, `XsdInstanceValidator.validateRoot` without a collector) stops at the first error and its error
+  identity is unchanged. `XsdSchema.validate` / `validateText` collect all errors (phase V7, below).
 
 ## Compile pipeline (V2, read-only for V3 to V6)
 
@@ -76,7 +79,7 @@ input-controlled structure (go-xslt relies on its growable stack, Java does not 
 | V4 | `XsdContentMatcher`, `XsdBigMatch`, `XsdUpa`, `XsdRestrictionChecker`, `XsdMatchResult`, new classes of its own | `content.go`, `bigmatch.go`, `upa.go`, `restriction.go` |
 | V5 | `XsdInstanceValidator`, `XsdAttributeValidator`, `XsdIdentityValidator`, `XsdValidationRun`, new classes of its own | `instance.go`, `attributes.go`, `identity.go` (run-time half) |
 | V6 | `XsdBridge`, new classes of its own | `bridge.go` |
-| V7 | new classes; additive fields in `XsdError` | `collect.go`, `explain.go`, `messages.go` (selection) |
+| V7 (done) | `XsdErrorCollector`, `XsdExplain`, `XsdValidationOptions`, `XsdMessages` (selection); the collector hooks in `XsdInstanceValidator`, `XsdAttributeValidator`, `XsdValidationRun`, `XsdInvalidException`, `XsdSchema` | `collect.go`, `explain.go`, `messages.go` (selection) |
 | V8 | the XSD 1.1 stubs (`XsdCompiler.unsupported11` call sites), `XsdAssertion`, `XsdTypeAlternative`, `XsdOpenContent` | `xsd11.go`, `override.go`, 1.1 branches |
 
 A change to a file a phase does not own must be strictly additive (a new method, a new field) and be listed in the
@@ -205,6 +208,52 @@ the first error can differ).
   lax assessment of an undeclared element now validates its attributes against global attribute declarations and takes
   an explicit `xsi:type` (XSD 1.0 section 3.4.4; go-xslt leaves both unassessed; no xsdtests case changes).
 
+### V7 (error API, done)
+
+* `XsdSchema.validate` / `validateText` collect every error they can find (go-xslt `Schema.ValidateOpts`). The collector
+  is `XsdErrorCollector` in the `XsdValidationRun`; the in-place path (bridge) has none and stops at the first error. The
+  verdict is identical either way (`XsdBridgeDifferentialTest` compares both over the whole XSD 1.0 suite and also
+  checks that the first error of the in-place run is among the collected ones, by code).
+* Recording points are `XsdInstanceValidator.soft (run, XsdInvalidException, element)`, which records the error (stamped
+  with the location of the innermost element, like `stampLoc`) when the run collects and rethrows it otherwise:
+  the attribute check of an element, each child of a content model, each missing required attribute, and the top level.
+  Anything else (an identity-constraint error, a simple-type error) ends the check of the element it occurs in and is
+  recorded by the nearest enclosing `soft` call, as in go-xslt. `XsdUnsupportedException` is never recorded: before the
+  first error it is the result, after it the list just ends early.
+* `XsdErrorCollector.Stopped` (go-xslt `errStopped`) unwinds the walk once `MaxErrors` is reached; `ModelMismatch`
+  (`errModelMismatch`) is thrown by the content-model check after it recorded its errors, so that `XsdInstanceValidator`
+  can still assess the children whose declaration is known by name (`assessDeclaredChildren`) and, when all of them are,
+  the assertions (`afterModelError`). Neither is an `XsdInvalidException`, so no verdict handler sees them. The skip-
+  wildcard excuse withdraws what a child recorded (`XsdValidationRun.collected` / `uncollect`).
+* Errors are sorted by line and column (stable) when the result is built; the wording is chosen by language then
+  (`XsdMessages.pickMessage`: `xml:lang` exact, then primary subtag, else an entry without `xml:lang`, else the first).
+* Content-model explanations (`XsdExplain`, go-xslt `explain.go`): when the matcher refused the children and the run
+  collects, a position automaton replays them and names each defect (`kind` = `missing`, `too-many`, `unexpected`,
+  `order`, `particle` = Clark name of the element declaration concerned, code `cvc-complex-type.2.4`). `xs:all`, open
+  content, occurrence bounds above 120 to unroll and more than 5,000 children are not explained: the generic message
+  stays (`kind` empty). It never decides validity. Walks are iterative; group nesting is followed to 100 levels.
+* `msg:message` (go-xslt `messages.go`) in an `xs:appinfo` of an `xs:element`, `xs:attribute`, model group (and, from
+  V8 on, `xs:assert` / `xs:assertion`) gives the diagnostic its own wording and `rule`:
+
+      <xs:element name="a" xmlns:msg="urn:fdc:helger.com:ph-xslt:xsd:messages">
+        <xs:annotation><xs:appinfo>
+          <msg:message on="missing" rule="R1" xml:lang="en">a is required</msg:message>
+        </xs:appinfo></xs:annotation>
+      </xs:element>
+
+  The namespace is `XsdConstants.NS_MESSAGES` = `urn:fdc:helger.com:ph-xslt:xsd:messages`; go-xslt's
+  `https://github.com/tim-riep/go-xslt/xsd/messages` is NOT recognised (a schema written for go-xslt needs the
+  namespace changed). `on` narrows a message to `missing` or `too-many` (absent: both). For a cardinality error the
+  element declaration's own messages win, else those of the innermost group that holds all alternatives; for a missing
+  required attribute the `xs:attribute`'s (the use's, else the referenced declaration's) with `on="missing"` or no `on`.
+  The convention affects `message` and `rule` only, never validity.
+* `XsdValidationRun.MAX_DEPTH` (instance nesting followed on the calling thread before the big-stack thread takes over)
+  is lowered from 250 to 50: a level costs six frames, 2.3 KB interpreted and over 5 KB while the JIT only has profiled
+  code, so even 100 levels overflowed a 512 KB stack in a full test run (the collector hooks add one frame per level).
+  Deeper documents cost a thread start, nothing else.
+* Not part of V7: the assertion half of `messages.go` (`assertionFailed`, `failAssert`) belongs to V8 with `xs:assert`;
+  `afterModelError` already calls the assertion check, which is the V8 stub.
+
 ## XSD 1.1 (V8)
 
 1.1 branches inside ported functions are kept; the trivial ones are ported, the features throw
@@ -220,6 +269,9 @@ the first error can differ).
 * Occurrence values above `Integer.MAX_VALUE` are clamped to it (go-xslt: 64-bit).
 * Identity-constraint XPaths are compiled at schema compile time; a compile failure is unsupported.
 * Facet-value ordering of date/time values without timezone uses the implicit timezone UTC.
+* The `msg:message` namespace is `urn:fdc:helger.com:ph-xslt:xsd:messages` (go-xslt: its GitHub URL).
+* Collecting is the default of `validate` / `validateText` (go-xslt's `Validate` does the same); there is no
+  context-cancellation variant (`ValidateOptsCtx`).
 
 ## Testing
 

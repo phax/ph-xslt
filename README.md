@@ -118,6 +118,8 @@ v0.1.0 - work in progress
 * Added the native schema processor as `IXdmSchemaProvider` (`XsdSchemaProvider` of `xsd-core`): `XdmSchemaSupport` uses it when `xsd-core` is on the class path, Apache Xerces-J otherwise or with `-Dxdm.schemaProvider=xerces`; trees are validated in place; the QT3 and the schema-aware XSLT30 harnesses use it by default
 * `xsl:merge-source` honours `validation` and `type`: the documents of `for-each-source` are validated like those of `xsl:source-document`; the schema-aware XSLT30 run with the native validator now fails 17 cases
 * `xsd-core` keeps compiled simple types acyclic: an XSD 1.0 union cycle collapses to the members that do not lead back, any other circular derivation is rejected (go-xslt issue #12)
+* The native schema validator reports all errors: `XsdSchema.validate`/`validateText` list every error in document order (`XsdValidationResult.errors`), with line, column, code, element path, and for content-model errors the `kind` (`missing`, `too-many`, `unexpected`, `order`) and `particle`; `XsdValidationOptions` sets the language of the messages and a maximum number of errors; the error that the first-error validation of XSLT and XPath reports is among them
+* The native schema validator reads `msg:message` entries in `xs:appinfo` (element, attribute and group declarations) as the wording and `rule` of a cardinality error or a missing required attribute, selected by `xml:lang`; the namespace is `urn:fdc:helger.com:ph-xslt:xsd:messages` (`XsdConstants.NS_MESSAGES`), not the one of go-xslt
 
 # Contributing
 

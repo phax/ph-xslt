@@ -19,6 +19,8 @@ package com.helger.xsd;
 import org.jspecify.annotations.NonNull;
 
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.ICommonsList;
 
 /**
  * A genuine "invalid" verdict: the schema set is in error, or the instance is
@@ -30,6 +32,8 @@ import com.helger.base.enforce.ValueEnforcer;
 public class XsdInvalidException extends RuntimeException
 {
   private final transient XsdError m_aError;
+  /** The candidate msg:message entries of the error (choice by language is made when results are built). */
+  private final transient ICommonsList <XsdMessage> m_aMessages;
 
   /**
    * @param aError
@@ -37,8 +41,21 @@ public class XsdInvalidException extends RuntimeException
    */
   public XsdInvalidException (@NonNull final XsdError aError)
   {
+    this (aError, new CommonsArrayList <> ());
+  }
+
+  XsdInvalidException (@NonNull final XsdError aError, @NonNull final ICommonsList <XsdMessage> aMessages)
+  {
     super (ValueEnforcer.notNull (aError, "Error").toString ());
     m_aError = aError;
+    m_aMessages = aMessages;
+  }
+
+  /** @return The candidate <code>msg:message</code> entries; empty for most errors. */
+  @NonNull
+  ICommonsList <XsdMessage> getMessages ()
+  {
+    return m_aMessages;
   }
 
   /** @return The error. Never <code>null</code>. */

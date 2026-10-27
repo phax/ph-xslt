@@ -43,14 +43,16 @@ final class XsdValidationRun
 {
   /**
    * How deep the validation walk follows nested instance elements on the
-   * calling thread. Every level costs a handful of Java frames (about a
-   * kilobyte while still interpreted) and go-xslt relies on its growable stack
-   * here, so a deeper document is validated on a thread with a big stack
+   * calling thread. Every level costs six Java frames: about 2.3 kilobytes
+   * interpreted, more than 5 while the JIT has only compiled the walk with
+   * profiling, so 50 levels fit a 512 KB stack with a margin. go-xslt relies
+   * on its growable stack here, so a deeper document is validated on a thread
+   * with a big stack
    * ({@link #MAX_DEPTH_BIG_STACK}, see
    * {@link XsdInstanceValidator#validateRoot}); a deeper one still ends in
    * {@link XsdUnsupportedException}, never in a stack overflow.
    */
-  static final int MAX_DEPTH = 250;
+  static final int MAX_DEPTH = 50;
 
   /** The depth bound on a thread with a big stack (the parser's own limit is 10,000). */
   static final int MAX_DEPTH_BIG_STACK = 20_000;
@@ -114,6 +116,7 @@ final class XsdValidationRun
   private final ICommonsMap <XdmNode, IXsdType> m_aTypeCache = new CommonsHashMap <> ();
   private final ICommonsSet <XdmNode> m_aUnassessed = new CommonsHashSet <> ();
 
+  private XsdErrorCollector m_aCollector;
   private boolean m_bElementScope;
   private boolean m_bLenientEntities;
   private int m_nDepth;
@@ -144,6 +147,52 @@ final class XsdValidationRun
   {
     m_aSchema = aSchema;
     m_aDocument = aDocument;
+  }
+
+  /**
+   * Collect all errors instead of stopping at the first one (go-xslt
+   * <code>Schema.coll</code>, set on the string <code>Validate</code> path
+   * only; the in-place path of the bridge keeps its first-error behaviour).
+   *
+   * @param aCollector
+   *        The collector. May not be <code>null</code>.
+   */
+  void setCollector (@NonNull final XsdErrorCollector aCollector)
+  {
+    m_aCollector = aCollector;
+  }
+
+  /** @return The collector; <code>null</code> when the first error ends the validation. */
+  @Nullable
+  XsdErrorCollector getCollector ()
+  {
+    return m_aCollector;
+  }
+
+  /** @return <code>true</code> if all errors are collected. */
+  boolean isCollecting ()
+  {
+    return m_aCollector != null;
+  }
+
+  /** @return The number of errors collected so far (go-xslt <code>collected</code>); 0 when not collecting. */
+  int collected ()
+  {
+    return m_aCollector == null ? 0 : m_aCollector.size ();
+  }
+
+  /**
+   * Withdraw the errors recorded after a {@link #collected()} reading (go-xslt
+   * <code>uncollect</code>; see the skip-wildcard excuse of the children
+   * check).
+   *
+   * @param nCollected
+   *        The reading.
+   */
+  void uncollect (final int nCollected)
+  {
+    if (m_aCollector != null)
+      m_aCollector.truncate (nCollected);
   }
 
   /** @return The schema validated against. */
