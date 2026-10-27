@@ -43,15 +43,16 @@ final class XsdValidationRun
 {
   /**
    * How deep the validation walk follows nested instance elements on the
-   * calling thread. Every level costs a handful of Java frames (up to 3.5
-   * kilobytes while interpreted or compiled with deep inlining, which is what
-   * bounds this to 100 levels on a 512 KB stack) and go-xslt relies on its growable stack
-   * here, so a deeper document is validated on a thread with a big stack
+   * calling thread. Every level costs six Java frames: about 2.3 kilobytes
+   * interpreted, more than 5 while the JIT has only compiled the walk with
+   * profiling, so 50 levels fit a 512 KB stack with a margin. go-xslt relies
+   * on its growable stack here, so a deeper document is validated on a thread
+   * with a big stack
    * ({@link #MAX_DEPTH_BIG_STACK}, see
    * {@link XsdInstanceValidator#validateRoot}); a deeper one still ends in
    * {@link XsdUnsupportedException}, never in a stack overflow.
    */
-  static final int MAX_DEPTH = 100;
+  static final int MAX_DEPTH = 50;
 
   /** The depth bound on a thread with a big stack (the parser's own limit is 10,000). */
   static final int MAX_DEPTH_BIG_STACK = 20_000;
