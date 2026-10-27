@@ -368,10 +368,13 @@ public final class FnAccessor
                  "node()?",
                  "xs:anyURI",
                  (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.anyUri (_getNamespaceUri (_getNode (aCtx, aArgs)))));
-    _register01 (aLib, "root", "node()?", "node()?", (aCtx, aArgs) -> {
+    final IXPathFunction aRoot = (aCtx, aArgs) -> {
       final XdmNode aNode = _getNode (aCtx, aArgs);
       return aNode == null ? XdmSequence.EMPTY : XdmSequence.of (aNode.getRoot ());
-    });
+    };
+    // The zero-argument form never returns the empty sequence
+    aLib.register (XdmConstants.NS_FN, "root", "() as node()", aRoot, true);
+    aLib.register (XdmConstants.NS_FN, "root", "(node()?) as node()?", aRoot);
     _register01 (aLib, "has-children", "node()?", "xs:boolean", (aCtx, aArgs) -> {
       final XdmNode aNode = _getNode (aCtx, aArgs);
       return XdmSequence.of (XdmAtomic.bool (aNode != null && aNode.getChildCount () > 0));

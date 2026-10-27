@@ -44,6 +44,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.ops.AtomicArithmetic;
 import com.helger.xpath.ops.AtomicCaster;
@@ -58,6 +59,7 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
@@ -382,6 +384,51 @@ public final class XPathEvaluator
   }
 
   @NonNull
+  private static String _functionDisplayName (@Nullable final XdmQName aName)
+  {
+    if (aName == null)
+      return "function item";
+    final String sNs = aName.namespaceUri ();
+    if (XdmConstants.NS_FN.equals (sNs))
+      return "fn:" + aName.localName ();
+    if (FunctionLibrary.NS_MATH.equals (sNs))
+      return "math:" + aName.localName ();
+    if (FunctionLibrary.NS_MAP.equals (sNs))
+      return "map:" + aName.localName ();
+    if (FunctionLibrary.NS_ARRAY.equals (sNs))
+      return "array:" + aName.localName ();
+    return aName.getEQName ();
+  }
+
+  /**
+   * Apply the function conversion rules to one argument; a failure names the function and the argument position.
+   */
+  @NonNull
+  private static XdmSequence _convertArgument (@NonNull final XdmSequence aValue,
+                                               @NonNull final SeqType aType,
+                                               @NonNull final DynamicContext aCtx,
+                                               @Nullable final XdmQName aFunctionName,
+                                               final int nArgIndex)
+  {
+    try
+    {
+      return SequenceTypeMatcher.convert (aValue, aType, aCtx, "XPTY0004");
+    }
+    catch (final XPathException ex)
+    {
+      if (ex.getClass () != XPathException.class || !XPathException.ERR_NAMESPACE.equals (ex.getCodeName ().namespaceUri ()))
+        throw ex;
+      throw new XPathException (ex.getCode (),
+                                _functionDisplayName (aFunctionName) +
+                                                ", argument " +
+                                                (nArgIndex + 1) +
+                                                ": " +
+                                                ex.getDescription (),
+                                ex);
+    }
+  }
+
+  @NonNull
   private static XdmSequence _invokeBuiltIn (@NonNull final FunctionDef aDef,
                                              @NonNull final DynamicContext aCtx,
                                              @NonNull final List <XdmSequence> aArgs)
@@ -411,7 +458,7 @@ public final class XPathEvaluator
     {
       final IExpr aArg = aArgs.get (i);
       if (!(aArg instanceof IExpr.PlaceholderExpr))
-        aBound[i] = SequenceTypeMatcher.convert (evaluateInternal (aArg, aCtx), aParamTypes.get (i), aCtx, "XPTY0004");
+        aBound[i] = _convertArgument (evaluateInternal (aArg, aCtx), aParamTypes.get (i), aCtx, aFunc.getName (), i);
     }
     return XdmSequence.of (new PartialFunctionItem (aFunc, aBound));
   }
@@ -442,7 +489,7 @@ public final class XPathEvaluator
     {
       // XPath 1.0 compatibility rules are applied inside convert
       final XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
-      aArgs.add (SequenceTypeMatcher.convert (aValue, aParamTypes.get (i), aCtx, "XPTY0004"));
+      aArgs.add (_convertArgument (aValue, aParamTypes.get (i), aCtx, aDef.getName (), i));
     }
     return _invokeBuiltIn (aDef, aCtx, aArgs);
   }
@@ -1454,7 +1501,7 @@ public final class XPathEvaluator
     final List <SeqType> aParamTypes = aFunc.getParamTypes ();
     final ICommonsList <XdmSequence> aConverted = new CommonsArrayList <> (nArity);
     for (int i = 0; i < nArity; ++i)
-      aConverted.add (SequenceTypeMatcher.convert (aArgs.get (i), aParamTypes.get (i), aCtx, "XPTY0004"));
+      aConverted.add (_convertArgument (aArgs.get (i), aParamTypes.get (i), aCtx, aFunc.getName (), i));
     aCtx.checkInterrupt ();
     final XdmSequence aResult;
     aCtx.enterCall ();
