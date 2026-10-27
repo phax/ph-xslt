@@ -1,0 +1,273 @@
+fn:concat(xs:anyAtomicType?, xs:anyAtomicType?, ...) as xs:string
+fn:QName(xs:string?, xs:string) as xs:QName
+fn:abs(xs:numeric?) as xs:numeric?
+fn:adjust-date-to-timezone(xs:date?) as xs:date?
+fn:adjust-date-to-timezone(xs:date?, xs:dayTimeDuration?) as xs:date?
+fn:adjust-dateTime-to-timezone(xs:dateTime?) as xs:dateTime?
+fn:adjust-dateTime-to-timezone(xs:dateTime?, xs:dayTimeDuration?) as xs:dateTime?
+fn:adjust-time-to-timezone(xs:time?) as xs:time?
+fn:adjust-time-to-timezone(xs:time?, xs:dayTimeDuration?) as xs:time?
+fn:analyze-string(xs:string?, xs:string) as element(fn:analyze-string-result)
+fn:analyze-string(xs:string?, xs:string, xs:string) as element(fn:analyze-string-result)
+fn:apply(function(*), array(*)) as item()*
+fn:available-environment-variables() as xs:string*
+fn:avg(xs:anyAtomicType*) as xs:anyAtomicType?
+fn:base-uri() as xs:anyURI?
+fn:base-uri(node()?) as xs:anyURI?
+fn:boolean(item()*) as xs:boolean
+fn:ceiling(xs:numeric?) as xs:numeric?
+fn:codepoint-equal(xs:string?, xs:string?) as xs:boolean?
+fn:codepoints-to-string(xs:integer*) as xs:string
+fn:collation-key(xs:string) as xs:base64Binary
+fn:collation-key(xs:string, xs:string) as xs:base64Binary
+fn:collection() as item()*
+fn:collection(xs:string?) as item()*
+fn:compare(xs:string?, xs:string?) as xs:integer?
+fn:compare(xs:string?, xs:string?, xs:string) as xs:integer?
+fn:contains(xs:string?, xs:string?) as xs:boolean
+fn:contains(xs:string?, xs:string?, xs:string) as xs:boolean
+fn:contains-token(xs:string*, xs:string) as xs:boolean
+fn:contains-token(xs:string*, xs:string, xs:string) as xs:boolean
+fn:count(item()*) as xs:integer
+fn:current-date() as xs:date
+fn:current-dateTime() as xs:dateTimeStamp
+fn:current-time() as xs:time
+fn:data() as xs:anyAtomicType*
+fn:data(item()*) as xs:anyAtomicType*
+fn:dateTime(xs:date?, xs:time?) as xs:dateTime?
+fn:day-from-date(xs:date?) as xs:integer?
+fn:day-from-dateTime(xs:dateTime?) as xs:integer?
+fn:days-from-duration(xs:duration?) as xs:integer?
+fn:deep-equal(item()*, item()*) as xs:boolean
+fn:deep-equal(item()*, item()*, xs:string) as xs:boolean
+fn:default-collation() as xs:string
+fn:default-language() as xs:language
+fn:distinct-values(xs:anyAtomicType*) as xs:anyAtomicType*
+fn:distinct-values(xs:anyAtomicType*, xs:string) as xs:anyAtomicType*
+fn:doc(xs:string?) as document-node()?
+fn:doc-available(xs:string?) as xs:boolean
+fn:document-uri() as xs:anyURI?
+fn:document-uri(node()?) as xs:anyURI?
+fn:element-with-id(xs:string*) as element()*
+fn:element-with-id(xs:string*, node()) as element()*
+fn:empty(item()*) as xs:boolean
+fn:encode-for-uri(xs:string?) as xs:string
+fn:ends-with(xs:string?, xs:string?) as xs:boolean
+fn:ends-with(xs:string?, xs:string?, xs:string) as xs:boolean
+fn:environment-variable(xs:string) as xs:string?
+fn:error() as none
+fn:error(xs:QName?) as none
+fn:error(xs:QName?, xs:string) as none
+fn:error(xs:QName?, xs:string, item()*) as none
+fn:escape-html-uri(xs:string?) as xs:string
+fn:exactly-one(item()*) as item()
+fn:exists(item()*) as xs:boolean
+fn:false() as xs:boolean
+fn:filter(item()*, function(item()) as xs:boolean) as item()*
+fn:floor(xs:numeric?) as xs:numeric?
+fn:fold-left(item()*, item()*, function(item()*, item()) as item()*) as item()*
+fn:fold-right(item()*, item()*, function(item(), item()*) as item()*) as item()*
+fn:for-each(item()*, function(item()) as item()*) as item()*
+fn:for-each-pair(item()*, item()*, function(item(), item()) as item()*) as item()*
+fn:format-date(xs:date?, xs:string) as xs:string?
+fn:format-date(xs:date?, xs:string, xs:string?, xs:string?, xs:string?) as xs:string?
+fn:format-dateTime(xs:dateTime?, xs:string) as xs:string?
+fn:format-dateTime(xs:dateTime?, xs:string, xs:string?, xs:string?, xs:string?) as xs:string?
+fn:format-integer(xs:integer?, xs:string) as xs:string
+fn:format-integer(xs:integer?, xs:string, xs:string?) as xs:string
+fn:format-number(xs:numeric?, xs:string) as xs:string
+fn:format-number(xs:numeric?, xs:string, xs:string?) as xs:string
+fn:format-time(xs:time?, xs:string) as xs:string?
+fn:format-time(xs:time?, xs:string, xs:string?, xs:string?, xs:string?) as xs:string?
+fn:function-arity(function(*)) as xs:integer
+fn:function-lookup(xs:QName, xs:integer) as function(*)?
+fn:function-name(function(*)) as xs:QName?
+fn:generate-id() as xs:string
+fn:generate-id(node()?) as xs:string
+fn:has-children() as xs:boolean
+fn:has-children(node()?) as xs:boolean
+fn:head(item()*) as item()?
+fn:hours-from-dateTime(xs:dateTime?) as xs:integer?
+fn:hours-from-duration(xs:duration?) as xs:integer?
+fn:hours-from-time(xs:time?) as xs:integer?
+fn:id(xs:string*) as element()*
+fn:id(xs:string*, node()) as element()*
+fn:idref(xs:string*) as node()*
+fn:idref(xs:string*, node()) as node()*
+fn:implicit-timezone() as xs:dayTimeDuration
+fn:in-scope-prefixes(element()) as xs:string*
+fn:index-of(xs:anyAtomicType*, xs:anyAtomicType) as xs:integer*
+fn:index-of(xs:anyAtomicType*, xs:anyAtomicType, xs:string) as xs:integer*
+fn:innermost(node()*) as node()*
+fn:insert-before(item()*, xs:integer, item()*) as item()*
+fn:iri-to-uri(xs:string?) as xs:string
+fn:json-doc(xs:string?) as item()?
+fn:json-doc(xs:string?, map(*)) as item()?
+fn:json-to-xml(xs:string?) as document-node()?
+fn:json-to-xml(xs:string?, map(*)) as document-node()?
+fn:lang(xs:string?) as xs:boolean
+fn:lang(xs:string?, node()) as xs:boolean
+fn:last() as xs:integer
+fn:load-xquery-module(xs:string) as map(*)
+fn:load-xquery-module(xs:string, map(*)) as map(*)
+fn:local-name() as xs:string
+fn:local-name(node()?) as xs:string
+fn:local-name-from-QName(xs:QName?) as xs:NCName?
+fn:lower-case(xs:string?) as xs:string
+fn:matches(xs:string?, xs:string) as xs:boolean
+fn:matches(xs:string?, xs:string, xs:string) as xs:boolean
+fn:max(xs:anyAtomicType*) as xs:anyAtomicType?
+fn:max(xs:anyAtomicType*, xs:string) as xs:anyAtomicType?
+fn:min(xs:anyAtomicType*) as xs:anyAtomicType?
+fn:min(xs:anyAtomicType*, xs:string) as xs:anyAtomicType?
+fn:minutes-from-dateTime(xs:dateTime?) as xs:integer?
+fn:minutes-from-duration(xs:duration?) as xs:integer?
+fn:minutes-from-time(xs:time?) as xs:integer?
+fn:month-from-date(xs:date?) as xs:integer?
+fn:month-from-dateTime(xs:dateTime?) as xs:integer?
+fn:months-from-duration(xs:duration?) as xs:integer?
+fn:name() as xs:string
+fn:name(node()?) as xs:string
+fn:namespace-uri() as xs:anyURI
+fn:namespace-uri(node()?) as xs:anyURI
+fn:namespace-uri-for-prefix(xs:string?, element()) as xs:anyURI?
+fn:namespace-uri-from-QName(xs:QName?) as xs:anyURI?
+fn:nilled() as xs:boolean?
+fn:nilled(node()?) as xs:boolean?
+fn:node-name() as xs:QName?
+fn:node-name(node()?) as xs:QName?
+fn:normalize-space() as xs:string
+fn:normalize-space(xs:string?) as xs:string
+fn:normalize-unicode(xs:string?) as xs:string
+fn:normalize-unicode(xs:string?, xs:string) as xs:string
+fn:not(item()*) as xs:boolean
+fn:number() as xs:double
+fn:number(xs:anyAtomicType?) as xs:double
+fn:one-or-more(item()*) as item()+
+fn:outermost(node()*) as node()*
+fn:parse-ietf-date(xs:string?) as xs:dateTime?
+fn:parse-json(xs:string?) as item()?
+fn:parse-json(xs:string?, map(*)) as item()?
+fn:parse-xml(xs:string?) as document-node(element(*))?
+fn:parse-xml-fragment(xs:string?) as document-node()?
+fn:path() as xs:string?
+fn:path(node()?) as xs:string?
+fn:position() as xs:integer
+fn:prefix-from-QName(xs:QName?) as xs:NCName?
+fn:random-number-generator() as map(xs:string, item())
+fn:random-number-generator(xs:anyAtomicType?) as map(xs:string, item())
+fn:remove(item()*, xs:integer) as item()*
+fn:replace(xs:string?, xs:string, xs:string) as xs:string
+fn:replace(xs:string?, xs:string, xs:string, xs:string) as xs:string
+fn:resolve-QName(xs:string?, element()) as xs:QName?
+fn:resolve-uri(xs:string?) as xs:anyURI?
+fn:resolve-uri(xs:string?, xs:string) as xs:anyURI?
+fn:reverse(item()*) as item()*
+fn:root() as node()
+fn:root(node()?) as node()?
+fn:round(xs:numeric?) as xs:numeric?
+fn:round(xs:numeric?, xs:integer) as xs:numeric?
+fn:round-half-to-even(xs:numeric?) as xs:numeric?
+fn:round-half-to-even(xs:numeric?, xs:integer) as xs:numeric?
+fn:seconds-from-dateTime(xs:dateTime?) as xs:decimal?
+fn:seconds-from-duration(xs:duration?) as xs:decimal?
+fn:seconds-from-time(xs:time?) as xs:decimal?
+fn:serialize(item()*) as xs:string
+fn:serialize(item()*, item()?) as xs:string
+fn:sort(item()*) as item()*
+fn:sort(item()*, xs:string?) as item()*
+fn:sort(item()*, xs:string?, function(item()) as xs:anyAtomicType*) as item()*
+fn:starts-with(xs:string?, xs:string?) as xs:boolean
+fn:starts-with(xs:string?, xs:string?, xs:string) as xs:boolean
+fn:static-base-uri() as xs:anyURI?
+fn:string() as xs:string
+fn:string(item()?) as xs:string
+fn:string-join(xs:anyAtomicType*) as xs:string
+fn:string-join(xs:anyAtomicType*, xs:string) as xs:string
+fn:string-length() as xs:integer
+fn:string-length(xs:string?) as xs:integer
+fn:string-to-codepoints(xs:string?) as xs:integer*
+fn:subsequence(item()*, xs:double) as item()*
+fn:subsequence(item()*, xs:double, xs:double) as item()*
+fn:substring(xs:string?, xs:double) as xs:string
+fn:substring(xs:string?, xs:double, xs:double) as xs:string
+fn:substring-after(xs:string?, xs:string?) as xs:string
+fn:substring-after(xs:string?, xs:string?, xs:string) as xs:string
+fn:substring-before(xs:string?, xs:string?) as xs:string
+fn:substring-before(xs:string?, xs:string?, xs:string) as xs:string
+fn:sum(xs:anyAtomicType*) as xs:anyAtomicType
+fn:sum(xs:anyAtomicType*, xs:anyAtomicType?) as xs:anyAtomicType?
+fn:tail(item()*) as item()*
+fn:timezone-from-date(xs:date?) as xs:dayTimeDuration?
+fn:timezone-from-dateTime(xs:dateTime?) as xs:dayTimeDuration?
+fn:timezone-from-time(xs:time?) as xs:dayTimeDuration?
+fn:tokenize(xs:string?) as xs:string*
+fn:tokenize(xs:string?, xs:string) as xs:string*
+fn:tokenize(xs:string?, xs:string, xs:string) as xs:string*
+fn:trace(item()*) as item()*
+fn:trace(item()*, xs:string) as item()*
+fn:transform(map(*)) as map(*)
+fn:translate(xs:string?, xs:string, xs:string) as xs:string
+fn:true() as xs:boolean
+fn:unordered(item()*) as item()*
+fn:unparsed-text(xs:string?) as xs:string?
+fn:unparsed-text(xs:string?, xs:string) as xs:string?
+fn:unparsed-text-available(xs:string?) as xs:boolean
+fn:unparsed-text-available(xs:string?, xs:string) as xs:boolean
+fn:unparsed-text-lines(xs:string?) as xs:string*
+fn:unparsed-text-lines(xs:string?, xs:string) as xs:string*
+fn:upper-case(xs:string?) as xs:string
+fn:uri-collection() as xs:anyURI*
+fn:uri-collection(xs:string?) as xs:anyURI*
+fn:xml-to-json(node()?) as xs:string?
+fn:xml-to-json(node()?, map(*)) as xs:string?
+fn:year-from-date(xs:date?) as xs:integer?
+fn:year-from-dateTime(xs:dateTime?) as xs:integer?
+fn:years-from-duration(xs:duration?) as xs:integer?
+fn:zero-or-one(item()*) as item()?
+math:acos(xs:double?) as xs:double?
+math:asin(xs:double?) as xs:double?
+math:atan(xs:double?) as xs:double?
+math:atan2(xs:double, xs:double) as xs:double
+math:cos(xs:double?) as xs:double?
+math:exp(xs:double?) as xs:double?
+math:exp10(xs:double?) as xs:double?
+math:log(xs:double?) as xs:double?
+math:log10(xs:double?) as xs:double?
+math:pi() as xs:double
+math:pow(xs:double?, xs:numeric) as xs:double?
+math:sin(xs:double?) as xs:double?
+math:sqrt(xs:double?) as xs:double?
+math:tan(xs:double?) as xs:double?
+map:contains(map(*), xs:anyAtomicType) as xs:boolean
+map:entry(xs:anyAtomicType, item()*) as map(*)
+map:find(item()*, xs:anyAtomicType) as array(*)
+map:for-each(map(*), function(xs:anyAtomicType, item()*) as item()*) as item()*
+map:get(map(*), xs:anyAtomicType) as item()*
+map:keys(map(*)) as xs:anyAtomicType*
+map:merge(map(*)*) as map(*)
+map:merge(map(*)*, map(*)) as map(*)
+map:put(map(*), xs:anyAtomicType, item()*) as map(*)
+map:remove(map(*), xs:anyAtomicType*) as map(*)
+map:size(map(*)) as xs:integer
+array:append(array(*), item()*) as array(*)
+array:filter(array(*), function(item()*) as xs:boolean) as array(*)
+array:flatten(item()*) as item()*
+array:fold-left(array(*), item()*, function(item()*, item()*) as item()*) as item()*
+array:fold-right(array(*), item()*, function(item()*, item()*) as item()*) as item()*
+array:for-each(array(*), function(item()*) as item()*) as array(*)
+array:for-each-pair(array(*), array(*), function(item()*, item()*) as item()*) as array(*)
+array:get(array(*), xs:integer) as item()*
+array:head(array(*)) as item()*
+array:insert-before(array(*), xs:integer, item()*) as array(*)
+array:join(array(*)*) as array(*)
+array:put(array(*), xs:integer, item()*) as array(*)
+array:remove(array(*), xs:integer*) as array(*)
+array:reverse(array(*)) as array(*)
+array:size(array(*)) as xs:integer
+array:sort(array(*)) as array(*)
+array:sort(array(*), xs:string?) as array(*)
+array:sort(array(*), xs:string?, function(item()*) as xs:anyAtomicType*) as array(*)
+array:subarray(array(*), xs:integer) as array(*)
+array:subarray(array(*), xs:integer, xs:integer) as array(*)
+array:tail(array(*)) as array(*)

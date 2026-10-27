@@ -94,6 +94,17 @@ public final class PackageVersionTest
     assertFalse (_matches ("1 to 5", "5.1"));
     assertTrue (_matches ("1 to 5.*", "5.7.2"));
     assertFalse (_matches ("1 to 5.*", "6.0-beta"));
+    assertTrue (_matches ("to 3.3.*", "1.5"));
+    assertTrue (_matches ("to 3.3.*", "3.3"));
+    assertTrue (_matches ("to 3.3.*", "3.3-beta"));
+    assertTrue (_matches ("1 to 5", "1.1"));
+    assertTrue (_matches ("1 to 5", "3.1"));
+    assertTrue (_matches ("1 to 5", "5.0"));
+    assertTrue (_matches ("1 to 5.*", "1.1"));
+    assertTrue (_matches ("1 to 5.*", "5.0"));
+    assertTrue (_matches ("1 to 5.*", "5.1"));
+    assertFalse (_matches ("1 to 5.*", "6.0"));
+    assertFalse (_matches ("1 to 5.*", "0.9"));
     assertFalse (_matches ("1.3+", "1.2.3"));
     assertTrue (_matches ("2.0, 1.2.3", "1.2.3"));
     assertNull (PackageVersionRanges.parse (""));
