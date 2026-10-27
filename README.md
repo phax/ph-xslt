@@ -117,6 +117,7 @@ v0.1.0 - work in progress
 * `xsd-conformance` with `-Dxsd.validator=native`: the native XSD 1.0 validator passes 39,396 of 39,401 applicable cases; the 5 failures are the ones documented by go-xslt
 * Added the native schema processor as `IXdmSchemaProvider` (`XsdSchemaProvider` of `xsd-core`): `XdmSchemaSupport` uses it when `xsd-core` is on the class path, Apache Xerces-J otherwise or with `-Dxdm.schemaProvider=xerces`; trees are validated in place; the QT3 and the schema-aware XSLT30 harnesses use it by default
 * `xsl:merge-source` honours `validation` and `type`: the documents of `for-each-source` are validated like those of `xsl:source-document`; the schema-aware XSLT30 run with the native validator now fails 17 cases
+* `xsd-core` keeps compiled simple types acyclic: an XSD 1.0 union cycle collapses to the members that do not lead back, any other circular derivation is rejected (go-xslt issue #12)
 
 # Contributing
 
