@@ -27,7 +27,9 @@ import org.xml.sax.ext.DefaultHandler2;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsMap;
 
 /**
  * SAX2 handler that builds an {@link XdmNode} tree. Adjacent character events
@@ -52,6 +54,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private boolean m_bInDTD = false;
   // The system ID in effect for each open element
   private final ArrayDeque <String> m_aSystemIds = new ArrayDeque <> ();
+  // One shared name instance per namespace URI and lexical name, so that the
+  // nodes of a document do not each carry their own copy
+  private final ICommonsMap <String, ICommonsMap <String, XdmQName>> m_aNames = new CommonsHashMap <> ();
 
   private void _flushText ()
   {
@@ -86,6 +91,15 @@ public final class XdmTreeBuilder extends DefaultHandler2
   {
     final int nIndex = sQName.indexOf (':');
     return nIndex < 0 ? "" : sQName.substring (0, nIndex);
+  }
+
+  @NonNull
+  private XdmQName _getName (@NonNull final String sUri, @NonNull final String sLocalName, @NonNull final String sQName)
+  {
+    // Keyed by the lexical name and not by XdmQName, whose equals ignores the
+    // prefix
+    return m_aNames.computeIfAbsent (sUri, k -> new CommonsHashMap <> ())
+                   .computeIfAbsent (sQName, k -> new XdmQName (sUri, sLocalName, _getPrefix (sQName)));
   }
 
   @NonNull
@@ -197,7 +211,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
                             final Attributes aAttrs)
   {
     _flushText ();
-    final XdmNode aElement = XdmNode.createElement (new XdmQName (sUri, sLocalName, _getPrefix (sQName)));
+    final XdmNode aElement = XdmNode.createElement (_getName (sUri, sLocalName, sQName));
     if (m_aLocator != null)
       aElement.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
     for (int i = 0; i < m_aPendingPrefixes.size (); ++i)
@@ -211,7 +225,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
       // Namespace declarations are not attributes in XDM
       if (sAttrQName.equals ("xmlns") || sAttrQName.startsWith ("xmlns:"))
         continue;
-      final XdmQName aAttrName = new XdmQName (aAttrs.getURI (i), aAttrs.getLocalName (i), _getPrefix (sAttrQName));
+      final XdmQName aAttrName = _getName (aAttrs.getURI (i), aAttrs.getLocalName (i), sAttrQName);
       final String sValue = aAttrs.getValue (i);
       EIDKind eIDKind = _getIDKind (aAttrs.getType (i));
       if (eIDKind == EIDKind.NONE && aAttrName.isSameName (XdmConstants.NS_XML, "id"))
