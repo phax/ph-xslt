@@ -55,6 +55,30 @@ public final class XdmNode implements IXdmItem
   // per node would cost memory on every node)
   private static final SimpleReadWriteLock NAMESPACE_NODES_LOCK = new SimpleReadWriteLock ();
 
+  /**
+   * The properties only few nodes have. They live in a separate object that is
+   * created on the first non-default value, which keeps every node small. All
+   * of them are set while a tree is built.
+   */
+  private static final class Details
+  {
+    // Namespace declarations of an element
+    private ICommonsOrderedMap <String, String> m_aNamespaces;
+    // Built-in type annotation of a node without schema type
+    private XdmQName m_aTypeAnnotation;
+    private boolean m_bNilled;
+    private String m_sDocumentUri;
+    private String m_sBaseUri;
+    // Position of a namespace node among the namespace nodes of its parent
+    private int m_nNamespaceIndex;
+    // XSLT disable-output-escaping on a text node
+    private boolean m_bDisableOutputEscaping;
+    // Unparsed entities of a document node: name to {system ID, public ID}
+    private ICommonsOrderedMap <String, String []> m_aUnparsedEntities;
+    // Names of the parsed general entities declared in the DTD of a document
+    private ICommonsList <String> m_aParsedEntityNames;
+  }
+
   private final ENodeKind m_eKind;
   private int m_nOrder;
   private int m_nLine;
@@ -64,32 +88,42 @@ public final class XdmNode implements IXdmItem
   private XdmNode m_aParent;
   private ICommonsList <XdmNode> m_aChildren;
   private ICommonsList <XdmNode> m_aAttributes;
-  private ICommonsOrderedMap <String, String> m_aNamespaces;
   private EIDKind m_eIDKind = EIDKind.NONE;
-  private XdmQName m_aTypeAnnotation;
   // Only set on nodes of a schema-validated tree; shared between nodes
   private XdmSchemaType m_aSchemaType;
-  private boolean m_bNilled;
-  private String m_sDocumentUri;
-  private String m_sBaseUri;
   // 0 = not numbered yet
   private long m_nTree;
-  // Position of a namespace node among the namespace nodes of its parent
-  private int m_nNamespaceIndex;
-  // Lazily built namespace axis of an element
+  // Lazily built namespace axis of an element. Not part of the details,
+  // because it is written after the tree was built (guarded by
+  // NAMESPACE_NODES_LOCK)
   private ICommonsList <XdmNode> m_aNamespaceNodes;
-  // XSLT disable-output-escaping on a text node
-  private boolean m_bDisableOutputEscaping;
-  // Unparsed entities of a document node: name to {system ID, public ID}
-  private ICommonsOrderedMap <String, String []> m_aUnparsedEntities;
-  // Names of the parsed general entities declared in the DTD of a document
-  private ICommonsList <String> m_aParsedEntityNames;
+  // Created on demand
+  private Details m_aDetails;
 
   private XdmNode (@NonNull final ENodeKind eKind, @Nullable final XdmQName aName, @Nullable final String sValue)
   {
     m_eKind = eKind;
     m_aName = aName;
     m_sValue = sValue;
+  }
+
+  @NonNull
+  private Details _details ()
+  {
+    if (m_aDetails == null)
+      m_aDetails = new Details ();
+    return m_aDetails;
+  }
+
+  @Nullable
+  private ICommonsOrderedMap <String, String> _getNamespaces ()
+  {
+    return m_aDetails == null ? null : m_aDetails.m_aNamespaces;
+  }
+
+  private int _getNamespaceIndex ()
+  {
+    return m_aDetails == null ? 0 : m_aDetails.m_nNamespaceIndex;
   }
 
   @NonNull
@@ -280,7 +314,9 @@ public final class XdmNode implements IXdmItem
   @Nullable
   public XdmQName getTypeAnnotation ()
   {
-    return m_aSchemaType != null ? m_aSchemaType.getName () : m_aTypeAnnotation;
+    if (m_aSchemaType != null)
+      return m_aSchemaType.getName ();
+    return m_aDetails == null ? null : m_aDetails.m_aTypeAnnotation;
   }
 
   /**
@@ -292,7 +328,8 @@ public final class XdmNode implements IXdmItem
    */
   public void setTypeAnnotation (@Nullable final XdmQName aTypeAnnotation)
   {
-    m_aTypeAnnotation = aTypeAnnotation;
+    if (aTypeAnnotation != null || m_aDetails != null)
+      _details ().m_aTypeAnnotation = aTypeAnnotation;
   }
 
   /**
@@ -317,12 +354,13 @@ public final class XdmNode implements IXdmItem
    */
   public boolean isNilled ()
   {
-    return m_bNilled;
+    return m_aDetails != null && m_aDetails.m_bNilled;
   }
 
   public void setNilled (final boolean bNilled)
   {
-    m_bNilled = bNilled;
+    if (bNilled || m_aDetails != null)
+      _details ().m_bNilled = bNilled;
   }
 
   /**
@@ -331,12 +369,13 @@ public final class XdmNode implements IXdmItem
   @Nullable
   public String getDocumentUri ()
   {
-    return m_sDocumentUri;
+    return m_aDetails == null ? null : m_aDetails.m_sDocumentUri;
   }
 
   public void setDocumentUri (@Nullable final String sDocumentUri)
   {
-    m_sDocumentUri = sDocumentUri;
+    if (sDocumentUri != null || m_aDetails != null)
+      _details ().m_sDocumentUri = sDocumentUri;
   }
 
   /**
@@ -350,12 +389,13 @@ public final class XdmNode implements IXdmItem
   @Nullable
   public String getBaseUri ()
   {
-    return m_sBaseUri;
+    return m_aDetails == null ? null : m_aDetails.m_sBaseUri;
   }
 
   public void setBaseUri (@Nullable final String sBaseUri)
   {
-    m_sBaseUri = sBaseUri;
+    if (sBaseUri != null || m_aDetails != null)
+      _details ().m_sBaseUri = sBaseUri;
   }
 
   /**
@@ -364,12 +404,13 @@ public final class XdmNode implements IXdmItem
    */
   public boolean isDisableOutputEscaping ()
   {
-    return m_bDisableOutputEscaping;
+    return m_aDetails != null && m_aDetails.m_bDisableOutputEscaping;
   }
 
   public void setDisableOutputEscaping (final boolean bDisableOutputEscaping)
   {
-    m_bDisableOutputEscaping = bDisableOutputEscaping;
+    if (bDisableOutputEscaping || m_aDetails != null)
+      _details ().m_bDisableOutputEscaping = bDisableOutputEscaping;
   }
 
   /**
@@ -390,10 +431,11 @@ public final class XdmNode implements IXdmItem
     ValueEnforcer.notNull (sSystemId, "SystemId");
     if (m_eKind != ENodeKind.DOCUMENT)
       throw new IllegalStateException ("Only a document node has unparsed entities");
-    if (m_aUnparsedEntities == null)
-      m_aUnparsedEntities = new CommonsLinkedHashMap <> ();
+    final Details aDetails = _details ();
+    if (aDetails.m_aUnparsedEntities == null)
+      aDetails.m_aUnparsedEntities = new CommonsLinkedHashMap <> ();
     // The first declaration of an entity is binding
-    m_aUnparsedEntities.putIfAbsent (sName, new String [] { sSystemId, sPublicId });
+    aDetails.m_aUnparsedEntities.putIfAbsent (sName, new String [] { sSystemId, sPublicId });
   }
 
   /**
@@ -406,9 +448,9 @@ public final class XdmNode implements IXdmItem
   @Nullable
   public String [] getUnparsedEntity (@NonNull final String sName)
   {
-    if (m_aUnparsedEntities == null)
+    if (m_aDetails == null || m_aDetails.m_aUnparsedEntities == null)
       return null;
-    final String [] ret = m_aUnparsedEntities.get (sName);
+    final String [] ret = m_aDetails.m_aUnparsedEntities.get (sName);
     return ret == null ? null : ret.clone ();
   }
 
@@ -423,9 +465,10 @@ public final class XdmNode implements IXdmItem
     ValueEnforcer.notNull (sName, "Name");
     if (m_eKind != ENodeKind.DOCUMENT)
       throw new IllegalStateException ("Only a document node has entities");
-    if (m_aParsedEntityNames == null)
-      m_aParsedEntityNames = new CommonsArrayList <> ();
-    m_aParsedEntityNames.add (sName);
+    final Details aDetails = _details ();
+    if (aDetails.m_aParsedEntityNames == null)
+      aDetails.m_aParsedEntityNames = new CommonsArrayList <> ();
+    aDetails.m_aParsedEntityNames.add (sName);
   }
 
   /** @return The names of the parsed general entities of this document node. */
@@ -433,7 +476,9 @@ public final class XdmNode implements IXdmItem
   @ReturnsMutableCopy
   public ICommonsList <String> getAllParsedEntityNames ()
   {
-    return m_aParsedEntityNames == null ? new CommonsArrayList <> () : m_aParsedEntityNames.getClone ();
+    if (m_aDetails == null || m_aDetails.m_aParsedEntityNames == null)
+      return new CommonsArrayList <> ();
+    return m_aDetails.m_aParsedEntityNames.getClone ();
   }
 
   /** @return The names of the unparsed entities of this document node. */
@@ -441,7 +486,9 @@ public final class XdmNode implements IXdmItem
   @ReturnsMutableCopy
   public ICommonsList <String> getAllUnparsedEntityNames ()
   {
-    return m_aUnparsedEntities == null ? new CommonsArrayList <> () : new CommonsArrayList <> (m_aUnparsedEntities.keySet ());
+    if (m_aDetails == null || m_aDetails.m_aUnparsedEntities == null)
+      return new CommonsArrayList <> ();
+    return new CommonsArrayList <> (m_aDetails.m_aUnparsedEntities.keySet ());
   }
 
   public void appendChild (@NonNull final XdmNode aChild)
@@ -510,9 +557,10 @@ public final class XdmNode implements IXdmItem
     ValueEnforcer.notNull (sNamespaceUri, "NamespaceUri");
     if (m_eKind != ENodeKind.ELEMENT)
       throw new IllegalStateException ("Only an element can declare namespaces");
-    if (m_aNamespaces == null)
-      m_aNamespaces = new CommonsLinkedHashMap <> ();
-    m_aNamespaces.put (sPrefix, sNamespaceUri);
+    final Details aDetails = _details ();
+    if (aDetails.m_aNamespaces == null)
+      aDetails.m_aNamespaces = new CommonsLinkedHashMap <> ();
+    aDetails.m_aNamespaces.put (sPrefix, sNamespaceUri);
     m_aNamespaceNodes = null;
   }
 
@@ -585,7 +633,8 @@ public final class XdmNode implements IXdmItem
   @ReturnsMutableCopy
   public ICommonsOrderedMap <String, String> getDeclaredNamespaces ()
   {
-    return m_aNamespaces == null ? new CommonsLinkedHashMap <> () : m_aNamespaces.getClone ();
+    final ICommonsOrderedMap <String, String> aNamespaces = _getNamespaces ();
+    return aNamespaces == null ? new CommonsLinkedHashMap <> () : aNamespaces.getClone ();
   }
 
   /**
@@ -604,12 +653,15 @@ public final class XdmNode implements IXdmItem
     if ("xml".equals (sPrefix))
       return XdmConstants.NS_XML;
     for (XdmNode aCur = this; aCur != null; aCur = aCur.m_aParent)
-      if (aCur.m_aNamespaces != null)
+    {
+      final ICommonsOrderedMap <String, String> aNamespaces = aCur._getNamespaces ();
+      if (aNamespaces != null)
       {
-        final String sUri = aCur.m_aNamespaces.get (sPrefix);
+        final String sUri = aNamespaces.get (sPrefix);
         if (sUri != null)
           return sUri.isEmpty () ? null : sUri;
       }
+    }
     return null;
   }
 
@@ -629,12 +681,15 @@ public final class XdmNode implements IXdmItem
     final ICommonsOrderedMap <String, String> ret = new CommonsLinkedHashMap <> ();
     ret.put ("xml", XdmConstants.NS_XML);
     for (final XdmNode aNode : aPath)
-      if (aNode.m_aNamespaces != null)
-        for (final var aEntry : aNode.m_aNamespaces.entrySet ())
+    {
+      final ICommonsOrderedMap <String, String> aNamespaces = aNode._getNamespaces ();
+      if (aNamespaces != null)
+        for (final var aEntry : aNamespaces.entrySet ())
           if (aEntry.getValue ().isEmpty ())
             ret.remove (aEntry.getKey ());
           else
             ret.put (aEntry.getKey (), aEntry.getValue ());
+    }
     return ret;
   }
 
@@ -666,7 +721,9 @@ public final class XdmNode implements IXdmItem
         {
           final XdmNode aNS = createNamespace (aEntry.getKey (), aEntry.getValue ());
           aNS.m_aParent = this;
-          aNS.m_nNamespaceIndex = aList.size ();
+          // Index 0 is the default
+          if (!aList.isEmpty ())
+            aNS._details ().m_nNamespaceIndex = aList.size ();
           aList.add (aNS);
         }
         m_aNamespaceNodes = aList;
@@ -784,8 +841,8 @@ public final class XdmNode implements IXdmItem
       return Long.compare (aLeftAnchor.m_nTree, aRightAnchor.m_nTree);
     if (aLeftAnchor.m_nOrder != aRightAnchor.m_nOrder)
       return Integer.compare (aLeftAnchor.m_nOrder, aRightAnchor.m_nOrder);
-    final int nLeftSub = aLeftAnchor == aLeft ? 0 : 1 + aLeft.m_nNamespaceIndex;
-    final int nRightSub = aRightAnchor == aRight ? 0 : 1 + aRight.m_nNamespaceIndex;
+    final int nLeftSub = aLeftAnchor == aLeft ? 0 : 1 + aLeft._getNamespaceIndex ();
+    final int nRightSub = aRightAnchor == aRight ? 0 : 1 + aRight._getNamespaceIndex ();
     return Integer.compare (nLeftSub, nRightSub);
   }
 
