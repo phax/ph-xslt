@@ -25,8 +25,8 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.value.EAtomicType;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmValidationException;
 import com.helger.xpath.xdm.schema.EXdmContentType;
@@ -341,12 +341,12 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
    * prefixes the value uses, as the resolver binds them.
    */
   @Nullable
-  private static XdmNode _namespaceContext (@NonNull final String sLexical,
+  private static IXdmNode _namespaceContext (@NonNull final String sLexical,
                                             @Nullable final UnaryOperator <String> aNamespaceResolver)
   {
     if (aNamespaceResolver == null)
       return null;
-    final XdmNode ret = XdmNode.createElement (new XdmQName ("x"));
+    final IXdmNode ret = IXdmNode.createElement (new XdmQName ("x"));
     final String sDefault = aNamespaceResolver.apply ("");
     if (sDefault != null && !sDefault.isEmpty ())
       ret.declareNamespace ("", sDefault);
@@ -372,7 +372,7 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
   @Nullable
   static XsdSimpleType acceptingMember (@NonNull final XsdSimpleType aUnion,
                                         @NonNull final String sRaw,
-                                        @Nullable final XdmNode aAt)
+                                        @Nullable final IXdmNode aAt)
   {
     XsdSimpleType aCur = aUnion;
     for (int i = 0; i < MAX_DEPTH; i++)
@@ -409,7 +409,7 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
 
   private void _collectTokensRecursive (@NonNull final XsdSimpleType aType,
                                         @NonNull final String sRaw,
-                                        @Nullable final XdmNode aAt,
+                                        @Nullable final IXdmNode aAt,
                                         @NonNull final ICommonsList <XdmTypedToken> aTokens,
                                         final int nDepth)
   {
@@ -456,7 +456,7 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
       ret.add (new XdmTypedToken (sLexical, new XdmQName (XdmConstants.NS_XS, "untypedAtomic", "xs"), this));
       return ret;
     }
-    final XdmNode aAt = _namespaceContext (sLexical, aNamespaceResolver);
+    final IXdmNode aAt = _namespaceContext (sLexical, aNamespaceResolver);
     try
     {
       XsdSimpleTypeValidator.validateIn (aSimple, sLexical, aAt);

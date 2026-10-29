@@ -30,7 +30,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Schema composition (go-xslt <code>imports.go</code>): resolves the
@@ -111,7 +111,7 @@ final class XsdDocumentCollector
   }
 
   private static void _vcQNames (@NonNull final VcState aState,
-                                 @NonNull final XdmNode aNode,
+                                 @NonNull final IXdmNode aNode,
                                  @NonNull final String sValue,
                                  @NonNull final String sAttr)
   {
@@ -138,7 +138,7 @@ final class XsdDocumentCollector
   }
 
   /** Whether an element is retained by its own vc attributes. */
-  private static boolean _keepElement (@NonNull final VcState aState, @NonNull final XdmNode aNode)
+  private static boolean _keepElement (@NonNull final VcState aState, @NonNull final IXdmNode aNode)
   {
     final double dOur = aState.m_eVersion == EXsdVersion.V11 ? 1.1 : 1.0;
     String v = XsdNodes.attrNS (aNode, XsdConstants.NS_VC, "minVersion");
@@ -209,10 +209,10 @@ final class XsdDocumentCollector
    * components an xs:redefine element redefines.
    */
   @NonNull
-  private static ICommonsSet <String> _redefChildNames (@NonNull final XdmNode aRedefine)
+  private static ICommonsSet <String> _redefChildNames (@NonNull final IXdmNode aRedefine)
   {
     final ICommonsSet <String> ret = new CommonsHashSet <> ();
-    for (final XdmNode aChild : XsdNodes.children (aRedefine))
+    for (final IXdmNode aChild : XsdNodes.children (aRedefine))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -241,7 +241,7 @@ final class XsdDocumentCollector
    * between an include/redefine/override/import directive and the
    * targetNamespace of the document it resolves to.
    */
-  private static void _directiveTnsOK (@NonNull final XdmNode aDirective,
+  private static void _directiveTnsOK (@NonNull final IXdmNode aDirective,
                                        @NonNull final String sOwnTns,
                                        @NonNull final String sSubTns)
   {
@@ -303,7 +303,7 @@ final class XsdDocumentCollector
     }
   }
 
-  private void _collect (@NonNull final XdmNode aElement,
+  private void _collect (@NonNull final IXdmNode aElement,
                          @Nullable final Path aBaseDir,
                          @NonNull final String sSelfPath,
                          @NonNull final ICommonsList <XsdSchemaDocument> aOut,
@@ -333,7 +333,7 @@ final class XsdDocumentCollector
         aSD.m_sTNS = sAdoptNs;
         aSD.m_bChameleon = true;
       }
-    for (final XdmNode aChild : XsdNodes.children (aElement))
+    for (final IXdmNode aChild : XsdNodes.children (aElement))
       if (XsdNodes.isXS (aChild, "import"))
         aSD.m_aImports.add (XsdNodes.attrOrEmpty (aChild, "namespace"));
     aSD.m_sFinalDefault = XsdNodes.attrOrEmpty (aElement, "finalDefault");
@@ -346,7 +346,7 @@ final class XsdDocumentCollector
     }
     aOut.add (aSD);
 
-    for (final XdmNode aChild : XsdNodes.children (aElement))
+    for (final IXdmNode aChild : XsdNodes.children (aElement))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -411,7 +411,7 @@ final class XsdDocumentCollector
         continue;
       }
       final XsdSchemaSource aSource = XsdSchemaSource.ofBytes (aData, aPath, aPath.getParent ());
-      final XdmNode aSub = XsdNodes.rootElement (XsdCompiler.parseDocument (aSource, "included schema " + sLoc));
+      final IXdmNode aSub = XsdNodes.rootElement (XsdCompiler.parseDocument (aSource, "included schema " + sLoc));
       if (!XsdCompiler.isSchemaElement (aSub))
         throw XsdCompiler.invalid ("", "included " + sLoc + " is not a schema");
       final String sSubTns = XsdNodes.attrOrEmpty (aSub, "targetNamespace");
@@ -509,20 +509,20 @@ final class XsdDocumentCollector
    * @throws XsdInvalidException
    *         for an invalid vc attribute (1.1)
    */
-  static boolean stripVersioning (@NonNull final XdmNode aRoot, @NonNull final EXsdVersion eVersion)
+  static boolean stripVersioning (@NonNull final IXdmNode aRoot, @NonNull final EXsdVersion eVersion)
   {
     final VcState aState = new VcState (eVersion);
     boolean bRootKept = _keepElement (aState, aRoot);
     if (bRootKept)
     {
       // Iterative walk: decide each child element, descend into the kept ones
-      final ICommonsList <XdmNode> aStack = new CommonsArrayList <> ();
+      final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
       aStack.add (aRoot);
       while (aStack.isNotEmpty ())
       {
-        final XdmNode aCur = aStack.removeLast ();
-        final ICommonsList <XdmNode> aKept = new CommonsArrayList <> ();
-        for (final XdmNode aChild : XsdNodes.children (aCur))
+        final IXdmNode aCur = aStack.removeLast ();
+        final ICommonsList <IXdmNode> aKept = new CommonsArrayList <> ();
+        for (final IXdmNode aChild : XsdNodes.children (aCur))
         {
           if (!aChild.isElement ())
             continue;
@@ -559,7 +559,7 @@ final class XsdDocumentCollector
    * @throws XsdInvalidException
    *         for a composition error
    */
-  void collect (@NonNull final XdmNode aElement,
+  void collect (@NonNull final IXdmNode aElement,
                 @Nullable final Path aBaseDir,
                 @NonNull final String sSelfPath,
                 @NonNull final ICommonsList <XsdSchemaDocument> aOut,

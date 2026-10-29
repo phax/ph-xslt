@@ -24,7 +24,7 @@ import org.xml.sax.InputSource;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.enforce.ValueEnforcer;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xslt.compile.StylesheetCompiler;
@@ -59,7 +59,7 @@ public final class XsltCompiler
   {
     ValueEnforcer.notNull (sStylesheet, "Stylesheet");
     ValueEnforcer.notNull (aOptions, "Options");
-    final XdmNode aDoc;
+    final IXdmNode aDoc;
     try
     {
       final InputSource aSource = new InputSource (new StringReader (sStylesheet));
@@ -87,7 +87,7 @@ public final class XsltCompiler
    * @return The compiled stylesheet.
    */
   @NonNull
-  public static XsltExecutable compile (@NonNull final XdmNode aStylesheet, @NonNull final XsltCompileOptions aOptions)
+  public static XsltExecutable compile (@NonNull final IXdmNode aStylesheet, @NonNull final XsltCompileOptions aOptions)
   {
     ValueEnforcer.notNull (aStylesheet, "Stylesheet");
     ValueEnforcer.notNull (aOptions, "Options");

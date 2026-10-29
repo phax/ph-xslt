@@ -26,7 +26,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsMap;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 
@@ -44,7 +44,7 @@ import com.helger.xpath.xdm.XdmParser;
 @NotThreadSafe
 public final class XSLT30DocumentCache
 {
-  private final ICommonsMap <Path, XdmNode> m_aDocs = new CommonsHashMap <> ();
+  private final ICommonsMap <Path, IXdmNode> m_aDocs = new CommonsHashMap <> ();
   private final ICommonsMap <Path, XdmParseException> m_aFailed = new CommonsHashMap <> ();
 
   /**
@@ -55,9 +55,9 @@ public final class XSLT30DocumentCache
    *         if the file does not exist or is not well-formed
    */
   @NonNull
-  public XdmNode getDocumentOrThrow (@NonNull final Path aFile) throws XdmParseException
+  public IXdmNode getDocumentOrThrow (@NonNull final Path aFile) throws XdmParseException
   {
-    final XdmNode aCached = m_aDocs.get (aFile);
+    final IXdmNode aCached = m_aDocs.get (aFile);
     if (aCached != null)
       return aCached;
     final XdmParseException aFailed = m_aFailed.get (aFile);
@@ -71,7 +71,7 @@ public final class XSLT30DocumentCache
     }
     try
     {
-      final XdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aFile);
+      final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aFile);
       m_aDocs.put (aFile, aDoc);
       return aDoc;
     }
@@ -89,7 +89,7 @@ public final class XSLT30DocumentCache
    *         exist or is not well-formed.
    */
   @Nullable
-  public XdmNode getDocument (@NonNull final Path aFile)
+  public IXdmNode getDocument (@NonNull final Path aFile)
   {
     try
     {

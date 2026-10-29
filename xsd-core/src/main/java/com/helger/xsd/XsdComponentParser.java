@@ -25,7 +25,7 @@ import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Compiles complex types, particles, local declarations, wildcards and
@@ -50,7 +50,7 @@ final class XsdComponentParser
    * annotation, and exactly one content model (simpleContent XOR
    * complexContent XOR a shorthand model group).
    */
-  private static void _checkComplexTypeStructure (@NonNull final XdmNode aNode)
+  private static void _checkComplexTypeStructure (@NonNull final IXdmNode aNode)
   {
     int nAnnot = 0;
     int nSimple = 0;
@@ -58,7 +58,7 @@ final class XsdComponentParser
     int nGroup = 0;
     int nAttr = 0;
     boolean bSawContent = false;
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -117,10 +117,10 @@ final class XsdComponentParser
    * restriction every constraining facet (and the inline simple type) must
    * precede the attribute uses.
    */
-  private static void _checkFacetsBeforeAttrs (@NonNull final XdmNode aBody)
+  private static void _checkFacetsBeforeAttrs (@NonNull final IXdmNode aBody)
   {
     boolean bSeenAttr = false;
-    for (final XdmNode aChild : XsdNodes.children (aBody))
+    for (final IXdmNode aChild : XsdNodes.children (aBody))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -150,7 +150,7 @@ final class XsdComponentParser
 
   /** go-xslt <code>occursOf</code>: minOccurs and maxOccurs (default 1). */
   @NonNull
-  private static int [] _occursOf (@NonNull final XdmNode aNode)
+  private static int [] _occursOf (@NonNull final IXdmNode aNode)
   {
     int nMin = 1;
     final String sMin = XsdNodes.attr (aNode, "minOccurs");
@@ -164,9 +164,9 @@ final class XsdComponentParser
   }
 
   /** go-xslt <code>hasFacetChildren</code>. */
-  private static boolean _hasFacetChildren (@NonNull final XdmNode aNode)
+  private static boolean _hasFacetChildren (@NonNull final IXdmNode aNode)
   {
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -261,7 +261,7 @@ final class XsdComponentParser
    * @return The namespace, or <code>null</code> if the attribute is absent.
    */
   @Nullable
-  private String _localTargetNS (@NonNull final XdmNode aNode)
+  private String _localTargetNS (@NonNull final IXdmNode aNode)
   {
     final String sValue = XsdNodes.attr (aNode, "targetNamespace");
     if (sValue == null)
@@ -273,7 +273,7 @@ final class XsdComponentParser
       return v;
     if (XsdNodes.hasAttr (aNode, "form"))
       throw XsdCompiler.invalid ("src-element", "@targetNamespace and @form are mutually exclusive");
-    for (XdmNode n = aNode.getParent (); n != null && n.isElement (); n = n.getParent ())
+    for (IXdmNode n = aNode.getParent (); n != null && n.isElement (); n = n.getParent ())
     {
       if (!XsdNodes.isXSElement (n))
         continue;
@@ -305,11 +305,11 @@ final class XsdComponentParser
    * go-xslt <code>applyOpenContent</code>: set a complex type's {open content}
    * (XSD 1.1, phase V8). Under 1.0 nothing happens.
    */
-  private void _applyOpenContent (@NonNull final XsdComplexType aCT, @NonNull final XdmNode... aBodies)
+  private void _applyOpenContent (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode... aBodies)
   {
     if (!m_aC.isXsd11 ())
       return;
-    for (final XdmNode aBody : aBodies)
+    for (final IXdmNode aBody : aBodies)
       if (aBody != null && XsdNodes.firstXSChild (aBody, "openContent") != null)
         throw XsdCompiler.unsupported11 ("xs:openContent");
     final XsdSchemaDocument aSD = m_aC.m_aCurDoc;
@@ -322,7 +322,7 @@ final class XsdComponentParser
    * xs:schema/@defaultAttributes group into a complex type unless it opts out
    * (XSD 1.1).
    */
-  private void _applyDefaultAttrs (@NonNull final XsdComplexType aCT, @NonNull final XdmNode aNode)
+  private void _applyDefaultAttrs (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode aNode)
   {
     final XsdSchemaDocument aSD = m_aC.m_aCurDoc;
     if (!m_aC.isXsd11 () ||
@@ -353,7 +353,7 @@ final class XsdComponentParser
 
   /** go-xslt <code>parseAttrUse</code>. */
   @NonNull
-  private XsdAttributeUse _parseAttrUse (@NonNull final XdmNode aNode)
+  private XsdAttributeUse _parseAttrUse (@NonNull final IXdmNode aNode)
   {
     final XsdAttributeUse aUse = new XsdAttributeUse ();
     aUse.m_aDocs = m_aC.docsOf (aNode);
@@ -492,12 +492,12 @@ final class XsdComponentParser
    * or attributeGroup.
    */
   @NonNull
-  private XsdEffectiveAttributes _parseAttributes (@NonNull final XdmNode aNode)
+  private XsdEffectiveAttributes _parseAttributes (@NonNull final IXdmNode aNode)
   {
     final ICommonsList <XsdAttributeUse> aUses = new CommonsArrayList <> ();
     XsdWildcard aWC = null;
     final ICommonsSet <XsdName> aSeen = new CommonsHashSet <> ();
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (XsdNodes.isXS (aChild, "attribute"))
       {
@@ -549,7 +549,7 @@ final class XsdComponentParser
 
   /** go-xslt <code>parseLocalElement</code>: a local declaration or a reference. */
   @NonNull
-  private XsdElementDecl _parseLocalElement (@NonNull final XdmNode aNode)
+  private XsdElementDecl _parseLocalElement (@NonNull final IXdmNode aNode)
   {
     final String sRef = XsdNodes.attr (aNode, "ref");
     if (sRef != null)
@@ -610,7 +610,7 @@ final class XsdComponentParser
 
   /** go-xslt <code>parseModelGroup</code>: a sequence, choice or all. */
   @NonNull
-  private XsdModelGroup _parseModelGroup (@NonNull final XdmNode aNode)
+  private XsdModelGroup _parseModelGroup (@NonNull final IXdmNode aNode)
   {
     final XsdModelGroup aMG = new XsdModelGroup ();
     aMG.m_aMsgs = XsdMessages.messagesOf (aNode);
@@ -626,7 +626,7 @@ final class XsdComponentParser
         aMG.m_eCompositor = EXsdCompositor.SEQUENCE;
         break;
     }
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -651,9 +651,9 @@ final class XsdComponentParser
    * group-reference child, or <code>null</code>.
    */
   @Nullable
-  private XsdParticle _parseContentModel (@NonNull final XdmNode aNode)
+  private XsdParticle _parseContentModel (@NonNull final IXdmNode aNode)
   {
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -672,12 +672,12 @@ final class XsdComponentParser
   }
 
   /** go-xslt <code>parseSimpleContent</code>. */
-  private void _parseSimpleContent (@NonNull final XsdComplexType aCT, @NonNull final XdmNode aSC)
+  private void _parseSimpleContent (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode aSC)
   {
     aCT.m_eKind = EXsdContentKind.SIMPLE;
-    final XdmNode aExt = XsdNodes.firstXSChild (aSC, "extension");
-    final XdmNode aRes = XsdNodes.firstXSChild (aSC, "restriction");
-    XdmNode aBody = aExt;
+    final IXdmNode aExt = XsdNodes.firstXSChild (aSC, "extension");
+    final IXdmNode aRes = XsdNodes.firstXSChild (aSC, "restriction");
+    IXdmNode aBody = aExt;
     aCT.m_sDerivation = XsdDerivation.EXTENSION;
     if (aBody == null)
     {
@@ -706,7 +706,7 @@ final class XsdComponentParser
     if (aBase instanceof final XsdSimpleType aBST && XsdDerivation.EXTENSION.equals (aCT.m_sDerivation))
       XsdSimpleTypeParser.checkSimpleFinal (aBST, XsdDerivation.EXTENSION);
     aCT.m_aBaseType = aBase;
-    final XdmNode aInline = XsdNodes.firstXSChild (aBody, "simpleType");
+    final IXdmNode aInline = XsdNodes.firstXSChild (aBody, "simpleType");
     if (aInline != null)
     {
       final XsdSimpleType aST = new XsdSimpleType ();
@@ -750,7 +750,7 @@ final class XsdComponentParser
 
   /** go-xslt <code>parseComplexContent</code>. */
   private void _parseComplexContent (@NonNull final XsdComplexType aCT,
-                                     @NonNull final XdmNode aCC,
+                                     @NonNull final IXdmNode aCC,
                                      final boolean bMixedIn)
   {
     boolean bMixed = bMixedIn;
@@ -771,9 +771,9 @@ final class XsdComponentParser
     }
     if (XsdNodes.boolAttrTrue (aCC, "mixed"))
       bMixed = true;
-    final XdmNode aExt = XsdNodes.firstXSChild (aCC, "extension");
-    final XdmNode aRes = XsdNodes.firstXSChild (aCC, "restriction");
-    XdmNode aBody = aExt;
+    final IXdmNode aExt = XsdNodes.firstXSChild (aCC, "extension");
+    final IXdmNode aRes = XsdNodes.firstXSChild (aCC, "restriction");
+    IXdmNode aBody = aExt;
     aCT.m_sDerivation = XsdDerivation.EXTENSION;
     if (aBody == null)
     {
@@ -892,7 +892,7 @@ final class XsdComponentParser
    * <code>parseAssert</code>). Phase V8.
    */
   @NonNull
-  XsdAssertion parseAssert (@NonNull final XdmNode aNode)
+  XsdAssertion parseAssert (@NonNull final IXdmNode aNode)
   {
     throw XsdCompiler.unsupported11 ("xs:assert / xs:assertion");
   }
@@ -902,10 +902,10 @@ final class XsdComponentParser
    * body. Any assertion is an XSD 1.1 feature not implemented yet.
    */
   @NonNull
-  ICommonsList <XsdAssertion> parseAsserts (@NonNull final XdmNode aNode)
+  ICommonsList <XsdAssertion> parseAsserts (@NonNull final IXdmNode aNode)
   {
     final ICommonsList <XsdAssertion> ret = new CommonsArrayList <> ();
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
       if (XsdNodes.isXS (aChild, "assert"))
         ret.add (parseAssert (aChild));
     if (ret.isNotEmpty ())
@@ -918,9 +918,9 @@ final class XsdComponentParser
    * element declaration (XSD 1.1 conditional type assignment, phase V8).
    */
   @NonNull
-  ICommonsList <XsdTypeAlternative> parseAlternatives (@NonNull final XdmNode aNode)
+  ICommonsList <XsdTypeAlternative> parseAlternatives (@NonNull final IXdmNode aNode)
   {
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
       if (XsdNodes.isXS (aChild, "alternative"))
         throw XsdCompiler.unsupported11 ("xs:alternative (conditional type assignment)");
     return new CommonsArrayList <> ();
@@ -928,7 +928,7 @@ final class XsdComponentParser
 
   /** go-xslt <code>parseWildcard</code>: an xs:any or xs:anyAttribute. */
   @NonNull
-  XsdWildcard parseWildcard (@NonNull final XdmNode aNode)
+  XsdWildcard parseWildcard (@NonNull final IXdmNode aNode)
   {
     final XsdWildcard aWC = new XsdWildcard ();
     aWC.m_sTargetNS = m_aC.m_sTNS;
@@ -1040,7 +1040,7 @@ final class XsdComponentParser
    * reference, element or wildcard) with its occurrence bounds.
    */
   @NonNull
-  XsdParticle parseParticle (@NonNull final XdmNode aNode)
+  XsdParticle parseParticle (@NonNull final IXdmNode aNode)
   {
     m_aC.enterNesting ();
     try
@@ -1104,7 +1104,7 @@ final class XsdComponentParser
   }
 
   /** go-xslt <code>parseComplexTypeInto</code>: fill a complex type from an xs:complexType element. */
-  void parseComplexTypeInto (@NonNull final XsdComplexType aCT, @NonNull final XdmNode aNode)
+  void parseComplexTypeInto (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode aNode)
   {
     m_aC.enterNesting ();
     try
@@ -1127,14 +1127,14 @@ final class XsdComponentParser
         if (!m_aC.m_sBlockDefault.isEmpty ())
           aCT.m_aBlock = XsdDerivation.parseBlockSet (m_aC.m_sBlockDefault);
       final boolean bMixed = XsdNodes.boolAttrTrue (aNode, "mixed");
-      final XdmNode aSC = XsdNodes.firstXSChild (aNode, "simpleContent");
+      final IXdmNode aSC = XsdNodes.firstXSChild (aNode, "simpleContent");
       if (aSC != null)
       {
         _parseSimpleContent (aCT, aSC);
         _applyDefaultAttrs (aCT, aNode);
         return;
       }
-      final XdmNode aCC = XsdNodes.firstXSChild (aNode, "complexContent");
+      final IXdmNode aCC = XsdNodes.firstXSChild (aNode, "complexContent");
       if (aCC != null)
       {
         _parseComplexContent (aCT, aCC, bMixed);
@@ -1165,9 +1165,9 @@ final class XsdComponentParser
 
   /** go-xslt <code>parseGroupBody</code>: the model group of a named group definition. */
   @NonNull
-  XsdModelGroup parseGroupBody (@NonNull final XdmNode aNode)
+  XsdModelGroup parseGroupBody (@NonNull final IXdmNode aNode)
   {
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
       if (XsdNodes.isXS (aChild, "sequence") || XsdNodes.isXS (aChild, "choice") || XsdNodes.isXS (aChild, "all"))
         return _parseModelGroup (aChild);
     throw XsdCompiler.invalid ("", "group without a model group");
@@ -1179,7 +1179,7 @@ final class XsdComponentParser
    * reference (attZ015).
    */
   @NonNull
-  XsdAttributeGroup parseAttrGroupBody (@NonNull final XdmNode aNode)
+  XsdAttributeGroup parseAttrGroupBody (@NonNull final IXdmNode aNode)
   {
     final XsdEffectiveAttributes aAttrs = _parseAttributes (aNode);
     final ICommonsList <XsdAttributeUse> aKept = new CommonsArrayList <> ();

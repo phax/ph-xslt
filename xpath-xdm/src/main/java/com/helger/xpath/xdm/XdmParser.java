@@ -36,14 +36,14 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
- * Reads XML with the JDK parser into an {@link XdmNode} tree, also when another
+ * Reads XML with the JDK parser into an {@link IXdmNode} tree, also when another
  * JAXP implementation is on the class path. The defaults are
  * safe: secure processing is on and external entities and the external DTD
  * subset are not loaded.
  * <p>
  * With a {@link #setSchemaSet(IXdmSchemaSet) schema set} the document is
  * validated (strict) after the tree is built, and the nodes carry the schema
- * information (see {@link IXdmSchemaSet#validateDocument(XdmNode)}).
+ * information (see {@link IXdmSchemaSet#validateDocument(IXdmNode)}).
  *
  * @author Philip Helger
  */
@@ -131,7 +131,7 @@ public class XdmParser
    * attributes then carry their {@link XdmSchemaType}, <code>xsi:nil</code>
    * sets the nilled property, schema IDs and IDREFs are recognised, and
    * whitespace in element-only content is dropped (see
-   * {@link IXdmSchemaSet#validateDocument(XdmNode)}).
+   * {@link IXdmSchemaSet#validateDocument(IXdmNode)}).
    *
    * @param aSchemaSet
    *        The compiled schema set (thread-safe, may be shared);
@@ -155,7 +155,7 @@ public class XdmParser
    *         if the document cannot be read
    */
   @NonNull
-  public XdmNode parse (@NonNull final InputSource aSource) throws XdmParseException
+  public IXdmNode parse (@NonNull final InputSource aSource) throws XdmParseException
   {
     ValueEnforcer.notNull (aSource, "Source");
     try
@@ -188,7 +188,7 @@ public class XdmParser
       aReader.setProperty ("http://www.oracle.com/xml/jaxp/properties/maxElementDepth",
                            Integer.toString (m_nMaxElementDepth));
       aReader.parse (aSource);
-      final XdmNode aDocument = aBuilder.getDocument ();
+      final IXdmNode aDocument = aBuilder.getDocument ();
       if (m_aSchemaSet != null)
         m_aSchemaSet.validateDocument (aDocument);
       return aDocument;
@@ -200,14 +200,14 @@ public class XdmParser
   }
 
   @NonNull
-  public XdmNode parse (@NonNull final String sXml) throws XdmParseException
+  public IXdmNode parse (@NonNull final String sXml) throws XdmParseException
   {
     ValueEnforcer.notNull (sXml, "Xml");
     return parse (new InputSource (new StringReader (sXml)));
   }
 
   @NonNull
-  public XdmNode parse (@NonNull final Path aPath) throws XdmParseException
+  public IXdmNode parse (@NonNull final Path aPath) throws XdmParseException
   {
     ValueEnforcer.notNull (aPath, "Path");
     return parse (new InputSource (aPath.toUri ().toString ()));

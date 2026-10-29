@@ -35,8 +35,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.XdmValidationException;
@@ -72,9 +72,9 @@ public final class Atomizer
    * The namespaces of a node, for typed values of type xs:QName and xs:NOTATION.
    */
   @NonNull
-  private static StaticContext _getNamespaceContext (@NonNull final XdmNode aNode)
+  private static StaticContext _getNamespaceContext (@NonNull final IXdmNode aNode)
   {
-    final XdmNode aElement = aNode.isElement () ? aNode : aNode.getParent ();
+    final IXdmNode aElement = aNode.isElement () ? aNode : aNode.getParent ();
     final StaticContext ret = new StaticContext ();
     if (aElement != null)
       for (final Map.Entry <String, String> aEntry : aElement.getInScopeNamespaces ().entrySet ())
@@ -88,7 +88,7 @@ public final class Atomizer
   /**
    * Typed value of a node of a schema-validated tree (XDM 3.1 sections 6.2.4 and 6.3.4).
    */
-  private static void _addSchemaTypedValue (@NonNull final XdmNode aNode,
+  private static void _addSchemaTypedValue (@NonNull final IXdmNode aNode,
                                             @NonNull final XdmSchemaType aSchemaType,
                                             final XdmSequence.@NonNull Builder aBuilder)
   {
@@ -124,7 +124,7 @@ public final class Atomizer
    *
    * @return <code>false</code> if the value cannot be computed this way.
    */
-  private static boolean _addDefinitionTypedValue (@NonNull final XdmNode aNode,
+  private static boolean _addDefinitionTypedValue (@NonNull final IXdmNode aNode,
                                                    @NonNull final IXdmTypeDefinition aType,
                                                    final XdmSequence.@NonNull Builder aBuilder)
   {
@@ -168,7 +168,7 @@ public final class Atomizer
     }
   }
 
-  private static void _addTypedValue (@NonNull final XdmNode aNode, final XdmSequence.@NonNull Builder aBuilder)
+  private static void _addTypedValue (@NonNull final IXdmNode aNode, final XdmSequence.@NonNull Builder aBuilder)
   {
     final XdmSchemaType aSchemaType = aNode.getSchemaType ();
     if (aSchemaType != null)
@@ -202,7 +202,7 @@ public final class Atomizer
     if (aItem instanceof final XdmAtomic aAtomic)
       aBuilder.add (aAtomic);
     else
-      if (aItem instanceof final XdmNode aNode)
+      if (aItem instanceof final IXdmNode aNode)
         _addTypedValue (aNode, aBuilder);
       else
         throw XPathException.of ("FOTY0013", "Cannot atomize " + _describe (aItem));
@@ -285,7 +285,7 @@ public final class Atomizer
    * @return The typed value, zero or more atomic values.
    */
   @NonNull
-  public static XdmSequence getTypedValues (@NonNull final XdmNode aNode)
+  public static XdmSequence getTypedValues (@NonNull final IXdmNode aNode)
   {
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     _addTypedValue (aNode, aBuilder);
@@ -294,7 +294,7 @@ public final class Atomizer
 
   /**
    * The typed value of a node whose typed value is a single atomic value, see
-   * {@link #getTypedValues(XdmNode)}.
+   * {@link #getTypedValues(IXdmNode)}.
    *
    * @param aNode
    *        The node.
@@ -304,7 +304,7 @@ public final class Atomizer
    *         types).
    */
   @NonNull
-  public static XdmAtomic getTypedValue (@NonNull final XdmNode aNode)
+  public static XdmAtomic getTypedValue (@NonNull final IXdmNode aNode)
   {
     final XdmSequence aValues = getTypedValues (aNode);
     if (aValues.size () != 1)
@@ -325,7 +325,7 @@ public final class Atomizer
     if (aSeq.isEmpty ())
       return false;
     final IXdmItem aFirst = aSeq.get (0);
-    if (aFirst instanceof XdmNode)
+    if (aFirst instanceof IXdmNode)
       return true;
     if (aSeq.size () > 1)
       throw XPathException.of ("FORG0006",
@@ -369,7 +369,7 @@ public final class Atomizer
   {
     if (aItem instanceof final XdmAtomic aAtomic)
       return aAtomic.getLexical ();
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
       return aNode.getStringValue ();
     throw XPathException.of ("FOTY0014", "The string value of " + _describe (aItem) + " is not defined");
   }

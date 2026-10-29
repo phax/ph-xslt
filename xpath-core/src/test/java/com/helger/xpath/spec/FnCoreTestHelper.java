@@ -30,7 +30,7 @@ import com.helger.xpath.spec.SpecTestHelper.SpecCase;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Port of go-xslt's <code>coreRun</code> (functions_core_test.go): like
@@ -69,7 +69,7 @@ final class FnCoreTestHelper
       if (aItem instanceof final XdmAtomic aAtomic)
         aSB.append (aAtomic.getLexical ());
       else
-        if (aItem instanceof final XdmNode aNode)
+        if (aItem instanceof final IXdmNode aNode)
           aSB.append (aNode.getStringValue ());
     }
     return aSB.toString ();

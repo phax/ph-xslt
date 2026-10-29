@@ -10,7 +10,7 @@ paragraph) first.
 
 * Module `xsd-core`, one package `com.helger.xsd` (go-xslt keeps everything in one Go package; the port keeps the
   package-private access that implies).
-* Depends on `xpath-xdm` (the `XdmNode` tree, `XdmParser`) and `xpath-core` (`EAtomicType`, `XdmAtomic`,
+* Depends on `xpath-xdm` (the `IXdmNode` tree, `XdmParser`) and `xpath-core` (`EAtomicType`, `XdmAtomic`,
   `AtomicCaster`, `AtomicComparator`, `XsdLexical`, `XPathCompiler`, `EXsdVersion`). Never on Xerces-J, never on
   JAXP validation.
 * The version switch is `com.helger.xpath.context.EXsdVersion` (`V10`, `V11`), threaded as `XsdCompiler.m_eVersion`

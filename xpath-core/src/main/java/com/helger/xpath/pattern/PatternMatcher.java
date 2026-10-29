@@ -44,7 +44,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Matches one item against a parsed pattern (XSLT 3.0 section 5.5.3). One
@@ -82,7 +82,7 @@ final class PatternMatcher
   }
 
   private final DynamicContext m_aCtx;
-  private final XdmNode m_aCandidate;
+  private final IXdmNode m_aCandidate;
   private final Set <IExpr> m_aPositionalPredicates;
 
   /**
@@ -95,7 +95,7 @@ final class PatternMatcher
    *        <code>last()</code> (identity set).
    */
   PatternMatcher (@NonNull final DynamicContext aCtx,
-                  @NonNull final XdmNode aCandidate,
+                  @NonNull final IXdmNode aCandidate,
                   @NonNull final Set <IExpr> aPositionalPredicates)
   {
     m_aCtx = aCtx;
@@ -108,7 +108,7 @@ final class PatternMatcher
    *         <code>root(.)//(EE)</code>: the root of the tree or any node that
    *         is not an attribute or namespace node.
    */
-  private static boolean _isEligibleAnchor (@NonNull final XdmNode aNode)
+  private static boolean _isEligibleAnchor (@NonNull final IXdmNode aNode)
   {
     if (aNode.getParent () == null)
       return true;
@@ -121,15 +121,15 @@ final class PatternMatcher
   {
     if (!aSet.isComplement ())
       return !aSet.getNodes ().isEmpty ();
-    final ICommonsSet <XdmNode> aExcluded = aSet.getNodes ();
-    final XdmNode aRoot = m_aCandidate.getRoot ();
+    final ICommonsSet <IXdmNode> aExcluded = aSet.getNodes ();
+    final IXdmNode aRoot = m_aCandidate.getRoot ();
     if (!aExcluded.contains (aRoot))
       return true;
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aRoot);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.pop ();
+      final IXdmNode aCur = aStack.pop ();
       if (!aExcluded.contains (aCur))
         return true;
       for (int i = aCur.getChildCount () - 1; i >= 0; --i)
@@ -138,7 +138,7 @@ final class PatternMatcher
     return false;
   }
 
-  private static boolean _contains (@NonNull final XdmSequence aSeq, @NonNull final XdmNode aNode)
+  private static boolean _contains (@NonNull final XdmSequence aSeq, @NonNull final IXdmNode aNode)
   {
     for (final IXdmItem aItem : aSeq)
       if (aItem == aNode)
@@ -191,9 +191,9 @@ final class PatternMatcher
    */
   private boolean _predicatesMatch (@NonNull final StepExpr aStep,
                                     @NonNull final EAxis eAxis,
-                                    @NonNull final XdmNode aContext,
+                                    @NonNull final IXdmNode aContext,
                                     final boolean bTop,
-                                    @NonNull final XdmNode aNode)
+                                    @NonNull final IXdmNode aNode)
   {
     final List <IExpr> aPreds = aStep.predicates ();
     if (aPreds.isEmpty ())
@@ -221,7 +221,7 @@ final class PatternMatcher
       return true;
 
     // The candidate list: the nodes of the axis passing the node test
-    final ICommonsList <XdmNode> aCands = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aCands = new CommonsArrayList <> ();
     if (bTop)
       aCands.add (aNode);
     else
@@ -240,15 +240,15 @@ final class PatternMatcher
       return _isKept (aValue, nPos);
     }
     // Several predicates: filter the whole list predicate by predicate
-    ICommonsList <XdmNode> aCur = aCands;
+    ICommonsList <IXdmNode> aCur = aCands;
     for (final IExpr aPred : aPreds)
     {
-      final ICommonsList <XdmNode> aKept = new CommonsArrayList <> ();
+      final ICommonsList <IXdmNode> aKept = new CommonsArrayList <> ();
       final int nSize = aCur.size ();
       for (int i = 0; i < nSize; ++i)
       {
         m_aCtx.checkInterrupt ();
-        final XdmNode aItem = aCur.get (i);
+        final IXdmNode aItem = aCur.get (i);
         final XdmSequence aValue = XPathEvaluator.evaluate (aPred, m_aCtx.withFocus (aItem, i + 1, nSize));
         if (_isKept (aValue, i + 1))
           aKept.add (aItem);
@@ -265,7 +265,7 @@ final class PatternMatcher
    * node.
    */
   @NonNull
-  private AnchorSet _getPostfixContexts (@NonNull final StepExpr aStep, @NonNull final XdmNode aNode)
+  private AnchorSet _getPostfixContexts (@NonNull final StepExpr aStep, @NonNull final IXdmNode aNode)
   {
     final IExpr aInner = aStep.postfix ();
     final AnchorSet aInnerAnchors = getAnchors (aInner, aNode);
@@ -280,7 +280,7 @@ final class PatternMatcher
                                                                                                     : AnchorSet.createEmpty ();
     }
     final AnchorSet ret = AnchorSet.createEmpty ();
-    for (final XdmNode aContext : aInnerAnchors.getNodes ())
+    for (final IXdmNode aContext : aInnerAnchors.getNodes ())
       if (_contains (XPathEvaluator.evaluate (aFiltered, m_aCtx.withFocus (aContext, 1, 1)), aNode))
         ret.add (aContext);
     return ret;
@@ -294,14 +294,14 @@ final class PatternMatcher
     private final boolean m_bFirstOnly;
     private final AnchorSet m_aResult = AnchorSet.createEmpty ();
     private AnchorSet m_aMergedResult;
-    private ICommonsSet <XdmNode> m_aStartNodes;
+    private ICommonsSet <IXdmNode> m_aStartNodes;
     private boolean m_bFound;
     /**
      * Per step the nodes already searched, so that paths with several
      * descendant steps do not explore the same (step, node) pair twice;
      * <code>null</code> if the path cannot reach a pair twice.
      */
-    private final ICommonsList <ICommonsSet <XdmNode>> m_aVisited;
+    private final ICommonsList <ICommonsSet <IXdmNode>> m_aVisited;
 
     PathSearch (final IExpr.@NonNull PathExpr aPath, final boolean bFirstOnly)
     {
@@ -330,14 +330,14 @@ final class PatternMatcher
     }
 
     @NonNull
-    private ICommonsSet <XdmNode> _getStartNodes ()
+    private ICommonsSet <IXdmNode> _getStartNodes ()
     {
-      ICommonsSet <XdmNode> ret = m_aStartNodes;
+      ICommonsSet <IXdmNode> ret = m_aStartNodes;
       if (ret == null)
       {
         ret = new CommonsHashSet <> ();
         for (final IXdmItem aItem : XPathEvaluator.evaluate (m_aPath.start (), m_aCtx.withFocus (m_aCandidate, 1, 1)))
-          if (aItem instanceof final XdmNode aNode)
+          if (aItem instanceof final IXdmNode aNode)
             ret.add (aNode);
         m_aStartNodes = ret;
       }
@@ -345,7 +345,7 @@ final class PatternMatcher
     }
 
     /** The node is a context node of the first step. */
-    private void _accept (@NonNull final XdmNode aNode)
+    private void _accept (@NonNull final IXdmNode aNode)
     {
       switch (m_eMode)
       {
@@ -368,7 +368,7 @@ final class PatternMatcher
     }
 
     /** Every node except the given ones is a context node of the first step. */
-    private void _acceptAllExcept (@NonNull final ICommonsSet <XdmNode> aExcluded)
+    private void _acceptAllExcept (@NonNull final ICommonsSet <IXdmNode> aExcluded)
     {
       switch (m_eMode)
       {
@@ -384,13 +384,13 @@ final class PatternMatcher
         }
         case ABSOLUTE:
         {
-          final XdmNode aRoot = m_aCandidate.getRoot ();
+          final IXdmNode aRoot = m_aCandidate.getRoot ();
           if (aRoot.isDocument () && !aExcluded.contains (aRoot))
             m_bFound = true;
           break;
         }
         case ROOTED:
-          for (final XdmNode aNode : _getStartNodes ())
+          for (final IXdmNode aNode : _getStartNodes ())
             if (!aExcluded.contains (aNode))
             {
               m_bFound = true;
@@ -411,7 +411,7 @@ final class PatternMatcher
       return m_bFound;
     }
 
-    private void _continue (final int nStep, @NonNull final XdmNode aContext)
+    private void _continue (final int nStep, @NonNull final IXdmNode aContext)
     {
       if (nStep == 0)
         _accept (aContext);
@@ -424,20 +424,20 @@ final class PatternMatcher
      * every node of the tree as context node, except the given ones.
      */
     private void _searchAllNodesExcept (final int nStep,
-                                        @NonNull final XdmNode aNode,
-                                        @NonNull final ICommonsSet <XdmNode> aExcluded)
+                                        @NonNull final IXdmNode aNode,
+                                        @NonNull final ICommonsSet <IXdmNode> aExcluded)
     {
-      final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+      final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
       aStack.push (aNode.getRoot ());
       while (!aStack.isEmpty () && !_isDone ())
       {
         m_aCtx.checkInterrupt ();
-        final XdmNode aCur = aStack.pop ();
+        final IXdmNode aCur = aStack.pop ();
         if (!aExcluded.contains (aCur))
           search (nStep, aCur);
         if (aCur.isElement ())
         {
-          for (final XdmNode aNS : aCur.getNamespaceNodes ())
+          for (final IXdmNode aNS : aCur.getNamespaceNodes ())
             aStack.push (aNS);
           for (int i = aCur.getAttributeCount () - 1; i >= 0; --i)
             aStack.push (aCur.getAttributeAtIndex (i));
@@ -452,7 +452,7 @@ final class PatternMatcher
      * @param aNode
      *        The node.
      */
-    void search (final int nStep, @NonNull final XdmNode aNode)
+    void search (final int nStep, @NonNull final IXdmNode aNode)
     {
       if (_isDone ())
         return;
@@ -480,7 +480,7 @@ final class PatternMatcher
             _searchAllNodesExcept (nStep - 1, aNode, aContexts.getNodes ());
         }
         else
-          for (final XdmNode aContext : new CommonsArrayList <> (aContexts.getNodes ()))
+          for (final IXdmNode aContext : new CommonsArrayList <> (aContexts.getNodes ()))
           {
             if (_isDone ())
               return;
@@ -495,7 +495,7 @@ final class PatternMatcher
         eAxis = EAxis.SELF;
       final ENodeKind eKind = aNode.getKind ();
       final boolean bAttrOrNs = eKind == ENodeKind.ATTRIBUTE || eKind == ENodeKind.NAMESPACE;
-      final XdmNode aParent = aNode.getParent ();
+      final IXdmNode aParent = aNode.getParent ();
       switch (eAxis)
       {
         case ATTRIBUTE:
@@ -546,7 +546,7 @@ final class PatternMatcher
           if (_predicatesMatch (aStep, eAxis, aNode, false, aNode))
             _continue (nStep, aNode);
           if (!bAttrOrNs)
-            for (XdmNode aAnc = aParent; aAnc != null && !_isDone (); aAnc = aAnc.getParent ())
+            for (IXdmNode aAnc = aParent; aAnc != null && !_isDone (); aAnc = aAnc.getParent ())
             {
               m_aCtx.checkInterrupt ();
               if (_predicatesMatch (aStep, eAxis, aAnc, false, aNode))
@@ -554,7 +554,7 @@ final class PatternMatcher
             }
           break;
         case DESCENDANT:
-          for (XdmNode aAnc = aParent; aAnc != null && !_isDone (); aAnc = aAnc.getParent ())
+          for (IXdmNode aAnc = aParent; aAnc != null && !_isDone (); aAnc = aAnc.getParent ())
           {
             m_aCtx.checkInterrupt ();
             if (_predicatesMatch (aStep, eAxis, aAnc, false, aNode))
@@ -577,7 +577,7 @@ final class PatternMatcher
    * @return All anchors from which the pattern selects the node.
    */
   @NonNull
-  AnchorSet getAnchors (@NonNull final IExpr aPattern, @NonNull final XdmNode aNode)
+  AnchorSet getAnchors (@NonNull final IExpr aPattern, @NonNull final IXdmNode aNode)
   {
     if (aPattern instanceof final IExpr.SetExpr aSet)
     {
@@ -602,7 +602,7 @@ final class PatternMatcher
   }
 
   /** @return <code>true</code> if the path pattern matches the node. */
-  boolean matchesPath (final IExpr.@NonNull PathExpr aPath, @NonNull final XdmNode aNode)
+  boolean matchesPath (final IExpr.@NonNull PathExpr aPath, @NonNull final IXdmNode aNode)
   {
     final PathSearch aSearch = new PathSearch (aPath, true);
     aSearch.search (aPath.steps ().size () - 1, aNode);
@@ -616,7 +616,7 @@ final class PatternMatcher
    *        The candidate node.
    * @return <code>true</code> if the node matches.
    */
-  boolean matchesNode (@NonNull final IExpr aPattern, @NonNull final XdmNode aNode)
+  boolean matchesNode (@NonNull final IExpr aPattern, @NonNull final IXdmNode aNode)
   {
     if (aPattern instanceof final IExpr.SetExpr aSet)
     {

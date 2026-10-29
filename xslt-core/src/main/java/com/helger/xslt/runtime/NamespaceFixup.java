@@ -24,8 +24,8 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -46,7 +46,7 @@ public final class NamespaceFixup
   private NamespaceFixup ()
   {}
 
-  private static boolean _isBound (@NonNull final XdmNode aElement,
+  private static boolean _isBound (@NonNull final IXdmNode aElement,
                                    @NonNull final String sPrefix,
                                    @NonNull final String sUri)
   {
@@ -54,7 +54,7 @@ public final class NamespaceFixup
     return sCur == null ? sUri.isEmpty () : sCur.equals (sUri);
   }
 
-  private static void _fixElement (@NonNull final XdmNode aElement)
+  private static void _fixElement (@NonNull final IXdmNode aElement)
   {
     final XdmQName aName = aElement.getName ();
     final String sPrefix = aName.prefix ();
@@ -81,7 +81,7 @@ public final class NamespaceFixup
     }
   }
 
-  private static boolean _conflicts (@NonNull final XdmNode aElement,
+  private static boolean _conflicts (@NonNull final IXdmNode aElement,
                                      @NonNull final Map <String, String> aDeclared,
                                      @NonNull final String sPrefix,
                                      @NonNull final String sUri)
@@ -113,7 +113,7 @@ public final class NamespaceFixup
    *         changed, the new binding is declared on the element.
    */
   @NonNull
-  public static XdmQName getAttributeNameFor (@NonNull final XdmNode aElement, @NonNull final XdmQName aName)
+  public static XdmQName getAttributeNameFor (@NonNull final IXdmNode aElement, @NonNull final XdmQName aName)
   {
     if (!aName.hasNamespace ())
       return aName.hasPrefix () ? new XdmQName ("", aName.localName (), "") : aName;
@@ -148,7 +148,7 @@ public final class NamespaceFixup
    * @param aElement
    *        The new element, with its content.
    */
-  public static void applyNoInherit (@NonNull final XdmNode aElement)
+  public static void applyNoInherit (@NonNull final IXdmNode aElement)
   {
     final Map <String, String> aDeclared = aElement.getDeclaredNamespaces ();
     // The binding of the element's own name is a namespace node of it too
@@ -156,7 +156,7 @@ public final class NamespaceFixup
       aDeclared.put (aElement.getName ().prefix (), aElement.getName ().namespaceUri ());
     for (int i = 0; i < aElement.getChildCount (); ++i)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (!aChild.isElement ())
         continue;
       final Map <String, String> aOwn = aChild.getDeclaredNamespaces ();
@@ -172,23 +172,23 @@ public final class NamespaceFixup
    * @param aRoot
    *        The root of the tree (document, element or any other node).
    */
-  public static void finish (@Nullable final XdmNode aRoot)
+  public static void finish (@Nullable final IXdmNode aRoot)
   {
     if (aRoot == null)
       return;
     if (aRoot.isElement () || aRoot.isDocument ())
     {
-      final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+      final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
       aStack.push (aRoot);
       while (!aStack.isEmpty ())
       {
-        final XdmNode aCur = aStack.pop ();
+        final IXdmNode aCur = aStack.pop ();
         if (aCur.isElement ())
           _fixElement (aCur);
         final int nChildren = aCur.getChildCount ();
         for (int i = nChildren - 1; i >= 0; --i)
         {
-          final XdmNode aChild = aCur.getChildAtIndex (i);
+          final IXdmNode aChild = aCur.getChildAtIndex (i);
           if (aChild.isElement ())
             aStack.push (aChild);
         }

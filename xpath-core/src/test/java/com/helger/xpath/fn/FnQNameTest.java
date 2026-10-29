@@ -28,7 +28,7 @@ import org.junit.Test;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -72,7 +72,7 @@ public final class FnQNameTest
   @Test
   public void testResolveQName ()
   {
-    final XdmNode aDoc = parse ("<r xmlns='urn:d' xmlns:a='urn:a'/>");
+    final IXdmNode aDoc = parse ("<r xmlns='urn:d' xmlns:a='urn:a'/>");
     final XdmSequence aSeq = eval ("resolve-QName('a:x', /*)", aDoc);
     assertEquals (new XdmQName ("urn:a", "x"), ((XdmAtomic) aSeq.get (0)).getValue ());
     assertEquals ("urn:d", str ("namespace-uri-from-QName(resolve-QName('x', /*))", aDoc));

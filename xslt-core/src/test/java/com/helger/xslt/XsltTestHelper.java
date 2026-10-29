@@ -25,7 +25,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -49,7 +49,7 @@ public final class XsltTestHelper
   {}
 
   @NonNull
-  public static XdmNode parse (@NonNull final String sXml)
+  public static IXdmNode parse (@NonNull final String sXml)
   {
     try
     {

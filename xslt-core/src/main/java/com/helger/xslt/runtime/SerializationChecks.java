@@ -27,7 +27,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.xdm.ENodeKind;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Serialization errors that depend on the result tree and that the serializer
@@ -79,7 +79,7 @@ public final class SerializationChecks
    * @throws XPathException
    *         with the serialization error code
    */
-  public static void check (@NonNull final SerializationParams aParams, @Nullable final XdmNode aTree)
+  public static void check (@NonNull final SerializationParams aParams, @Nullable final IXdmNode aTree)
   {
     final String sMethod = aParams.getMethod ();
     final boolean bXml = SerializationParams.METHOD_XML.equals (sMethod) || SerializationParams.METHOD_XHTML.equals (sMethod);
@@ -122,11 +122,11 @@ public final class SerializationChecks
     if (bHtml)
     {
       final boolean bCheckC1 = !_isHtml5 (aParams);
-      final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+      final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
       aStack.push (aTree);
       while (!aStack.isEmpty ())
       {
-        final XdmNode aCur = aStack.pop ();
+        final IXdmNode aCur = aStack.pop ();
         if (aCur.getKind () == ENodeKind.PROCESSING_INSTRUCTION && aCur.getValue ().indexOf ('>') >= 0)
           throw new XPathException ("SERE0015", "The html output method cannot write '>' in a processing instruction");
         if (bCheckC1)

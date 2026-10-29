@@ -30,8 +30,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -49,17 +49,17 @@ import com.helger.xpath.xdm.XdmQName;
 @NotThreadSafe
 public final class ContentOutput implements IXsltOutput
 {
-  private XdmNode m_aParent;
+  private IXdmNode m_aParent;
   private final boolean m_bDocument;
   private boolean m_bHasChildren;
   private boolean m_bLastAtomic;
-  private XdmNode m_aLastText;
+  private IXdmNode m_aLastText;
 
   /**
    * @param aParent
    *        The element or document node to fill. It may already have content.
    */
-  public ContentOutput (@NonNull final XdmNode aParent)
+  public ContentOutput (@NonNull final IXdmNode aParent)
   {
     ValueEnforcer.isTrue (aParent.isElement () || aParent.isDocument (), "Parent must be an element or document");
     m_aParent = aParent;
@@ -76,7 +76,7 @@ public final class ContentOutput implements IXsltOutput
    *         have replaced an element with one that has another prefix.
    */
   @NonNull
-  public XdmNode getParent ()
+  public IXdmNode getParent ()
   {
     return m_aParent;
   }
@@ -89,7 +89,7 @@ public final class ContentOutput implements IXsltOutput
       m_aLastText.setValue (m_aLastText.getValue () + s);
     else
     {
-      final XdmNode aText = XdmNode.createText (s);
+      final IXdmNode aText = IXdmNode.createText (s);
       m_aParent.appendChild (aText);
       m_aLastText = aText;
     }
@@ -105,11 +105,11 @@ public final class ContentOutput implements IXsltOutput
                                 "A " + sWhat + " node cannot be added to an element after its children");
   }
 
-  private void _addAttribute (@NonNull final XdmNode aAttr, final boolean bNew)
+  private void _addAttribute (@NonNull final IXdmNode aAttr, final boolean bNew)
   {
     _checkAttributeOrNamespace ("attribute");
     final XdmQName aName = aAttr.getName ();
-    final XdmNode aExisting = m_aParent.getAttribute (aName.namespaceUri (), aName.localName ());
+    final IXdmNode aExisting = m_aParent.getAttribute (aName.namespaceUri (), aName.localName ());
     if (aExisting != null)
     {
       // A later attribute of the same name replaces the earlier one
@@ -124,7 +124,7 @@ public final class ContentOutput implements IXsltOutput
     {
       // A copy keeps the type annotation; the validation of the constructing
       // instruction decides about it (schema-awareness)
-      final XdmNode aCopy = NodeCopier.createAttribute (aFixed, aAttr.getValue ());
+      final IXdmNode aCopy = NodeCopier.createAttribute (aFixed, aAttr.getValue ());
       NodeCopier.copyAnnotation (aAttr, aCopy);
       m_aParent.addAttribute (aCopy);
     }
@@ -146,21 +146,21 @@ public final class ContentOutput implements IXsltOutput
     {
       sNew = sBase + "_" + n++;
     } while (aDeclared.containsKey (sNew));
-    final XdmNode aNew = XdmNode.createElement (new XdmQName (aOld.namespaceUri (), aOld.localName (), sNew));
+    final IXdmNode aNew = IXdmNode.createElement (new XdmQName (aOld.namespaceUri (), aOld.localName (), sNew));
     for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
       if (!aEntry.getKey ().equals (aOld.prefix ()))
         aNew.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     aNew.declareNamespace (sNew, aOld.namespaceUri ());
     for (int i = 0; i < m_aParent.getAttributeCount (); ++i)
     {
-      final XdmNode aAttr = m_aParent.getAttributeAtIndex (i);
+      final IXdmNode aAttr = m_aParent.getAttributeAtIndex (i);
       aNew.addAttribute (NodeCopier.createAttribute (aAttr.getName (), aAttr.getValue ()));
     }
     aNew.setBaseUri (m_aParent.getBaseUri ());
     m_aParent = aNew;
   }
 
-  private void _addNamespace (@NonNull final XdmNode aNS)
+  private void _addNamespace (@NonNull final IXdmNode aNS)
   {
     _checkAttributeOrNamespace ("namespace");
     final String sPrefix = aNS.getName () == null ? "" : aNS.getName ().localName ();
@@ -182,7 +182,7 @@ public final class ContentOutput implements IXsltOutput
     m_aParent.declareNamespace (sPrefix, sUri);
   }
 
-  private void _appendNode (@NonNull final XdmNode aNode, final boolean bNew)
+  private void _appendNode (@NonNull final IXdmNode aNode, final boolean bNew)
   {
     switch (aNode.getKind ())
     {
@@ -206,7 +206,7 @@ public final class ContentOutput implements IXsltOutput
           // Kept as a node of its own, so that the flag is not merged away
           if (!aNode.getValue ().isEmpty ())
           {
-            final XdmNode aText = XdmNode.createText (aNode.getValue ());
+            final IXdmNode aText = IXdmNode.createText (aNode.getValue ());
             aText.setDisableOutputEscaping (true);
             m_aParent.appendChild (aText);
             m_aLastText = null;
@@ -218,7 +218,7 @@ public final class ContentOutput implements IXsltOutput
         break;
       default:
       {
-        final XdmNode aChild = bNew && aNode.getParent () == null ? aNode : NodeCopier.copyDeep (aNode, true, true);
+        final IXdmNode aChild = bNew && aNode.getParent () == null ? aNode : NodeCopier.copyDeep (aNode, true, true);
         // As content its base URI follows from its new position
         if (aChild.isElement ())
           aChild.setBaseUri (null);
@@ -240,7 +240,7 @@ public final class ContentOutput implements IXsltOutput
       m_bLastAtomic = true;
       return;
     }
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
     {
       m_bLastAtomic = false;
       _appendNode (aNode, false);
@@ -279,7 +279,7 @@ public final class ContentOutput implements IXsltOutput
     _appendFlat (aItem);
   }
 
-  public void appendNew (@NonNull final XdmNode aNode)
+  public void appendNew (@NonNull final IXdmNode aNode)
   {
     m_bLastAtomic = false;
     _appendNode (aNode, true);
@@ -306,7 +306,7 @@ public final class ContentOutput implements IXsltOutput
 
       public void append (@NonNull final IXdmItem aItem)
       {
-        if (aItem instanceof final XdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE))
+        if (aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE))
           throw new XPathException ("XTDE0420", "An attribute or namespace node cannot be added to a document node");
         aOuter.m_bLastAtomic = m_bAtomic;
         aOuter.append (aItem);
@@ -314,7 +314,7 @@ public final class ContentOutput implements IXsltOutput
         aOuter.m_bLastAtomic = false;
       }
 
-      public void appendNew (@NonNull final XdmNode aNode)
+      public void appendNew (@NonNull final IXdmNode aNode)
       {
         if (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE)
           throw new XPathException ("XTDE0420", "An attribute or namespace node cannot be added to a document node");

@@ -35,7 +35,7 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformRequest;
@@ -105,12 +105,12 @@ public final class XsltTransformer
   }
 
   @NonNull
-  private static String _detectMethod (@Nullable final XdmNode aTree)
+  private static String _detectMethod (@Nullable final IXdmNode aTree)
   {
     if (aTree != null)
       for (int i = 0; i < aTree.getChildCount (); ++i)
       {
-        final XdmNode aChild = aTree.getChildAtIndex (i);
+        final IXdmNode aChild = aTree.getChildAtIndex (i);
         if (aChild.isElement ())
         {
           final XdmQName aName = aChild.getName ();
@@ -137,25 +137,25 @@ public final class XsltTransformer
    *         copy, a removed one does not.
    */
   @Nullable
-  private static XdmNode _mapToStripped (@NonNull final XdmNode aRoot,
-                                         @NonNull final XdmNode aStrippedRoot,
-                                         @NonNull final XdmNode aNode)
+  private static IXdmNode _mapToStripped (@NonNull final IXdmNode aRoot,
+                                         @NonNull final IXdmNode aStrippedRoot,
+                                         @NonNull final IXdmNode aNode)
   {
-    final ICommonsList <XdmNode> aPath = new CommonsArrayList <> ();
-    for (XdmNode aCur = aNode; aCur != null && aCur != aRoot; aCur = aCur.getParent ())
+    final ICommonsList <IXdmNode> aPath = new CommonsArrayList <> ();
+    for (IXdmNode aCur = aNode; aCur != null && aCur != aRoot; aCur = aCur.getParent ())
       aPath.add (aCur);
-    XdmNode aOrig = aRoot;
-    XdmNode aCopy = aStrippedRoot;
+    IXdmNode aOrig = aRoot;
+    IXdmNode aCopy = aStrippedRoot;
     for (int nLevel = aPath.size () - 1; nLevel >= 0; --nLevel)
     {
-      final XdmNode aWanted = aPath.get (nLevel);
-      XdmNode aFound = null;
+      final IXdmNode aWanted = aPath.get (nLevel);
+      IXdmNode aFound = null;
       if (aWanted.isAttribute ())
         aFound = aCopy.getAttribute (aWanted.getName ().namespaceUri (), aWanted.getName ().localName ());
       else
         if (aWanted.getKind () == ENodeKind.NAMESPACE)
         {
-          for (final XdmNode aNS : aCopy.getNamespaceNodes ())
+          for (final IXdmNode aNS : aCopy.getNamespaceNodes ())
             if (Objects.equals (aNS.getName (), aWanted.getName ()))
               aFound = aNS;
         }
@@ -164,7 +164,7 @@ public final class XsltTransformer
           int nCopyIdx = 0;
           for (int i = 0; i < aOrig.getChildCount (); ++i)
           {
-            final XdmNode aChild = aOrig.getChildAtIndex (i);
+            final IXdmNode aChild = aOrig.getChildAtIndex (i);
             final boolean bKept = !aChild.isText () ||
                                   nCopyIdx < aCopy.getChildCount () && aCopy.getChildAtIndex (nCopyIdx).isText ();
             if (aChild == aWanted)
@@ -186,14 +186,14 @@ public final class XsltTransformer
   }
 
   @Nullable
-  private static XdmNode _toStripped (@NonNull final Engine aEngine,
-                                      @NonNull final ICommonsMap <XdmNode, XdmNode> aStrippedRoots,
-                                      @NonNull final XdmNode aNode)
+  private static IXdmNode _toStripped (@NonNull final Engine aEngine,
+                                      @NonNull final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots,
+                                      @NonNull final IXdmNode aNode)
   {
-    final XdmNode aRoot = aNode.getRoot ();
+    final IXdmNode aRoot = aNode.getRoot ();
     if (!aRoot.isDocument ())
       return aNode;
-    final XdmNode aStripped = aStrippedRoots.computeIfAbsent (aRoot, aEngine::stripWhitespace);
+    final IXdmNode aStripped = aStrippedRoots.computeIfAbsent (aRoot, aEngine::stripWhitespace);
     if (aStripped == aRoot)
       return aNode;
     return _mapToStripped (aRoot, aStripped, aNode);
@@ -206,9 +206,9 @@ public final class XsltTransformer
     // Whitespace stripping applies to the trees of the global context item
     // and of the initial match selection; a node that is stripped itself is
     // gone (strip-space-023, mode-1802)
-    final ICommonsMap <XdmNode, XdmNode> aStrippedRoots = new CommonsHashMap <> ();
+    final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots = new CommonsHashMap <> ();
     IXdmItem aGlobalItem = m_aRequest.getGlobalContextItem ();
-    if (aGlobalItem instanceof final XdmNode aNode)
+    if (aGlobalItem instanceof final IXdmNode aNode)
       aGlobalItem = _toStripped (aEngine, aStrippedRoots, aNode);
     XdmSequence aMatchSelection = m_aRequest.getInitialMatchSelection ();
     if (aMatchSelection != null)
@@ -216,7 +216,7 @@ public final class XsltTransformer
       final XdmSequence.Builder aNew = new XdmSequence.Builder ();
       for (final IXdmItem aItem : aMatchSelection)
       {
-        final IXdmItem aMapped = aItem instanceof final XdmNode aNode ? _toStripped (aEngine, aStrippedRoots, aNode) : aItem;
+        final IXdmItem aMapped = aItem instanceof final IXdmNode aNode ? _toStripped (aEngine, aStrippedRoots, aNode) : aItem;
         if (aMapped != null)
           aNew.add (aMapped);
       }
@@ -348,7 +348,7 @@ public final class XsltTransformer
     final boolean bBuildTree = !bRawOnly &&
                                aOutputDef.isBuildTree (sDeclaredMethod != null ? sDeclaredMethod : SerializationParams.METHOD_XML);
     final XdmSequence aRaw;
-    XdmNode aTree = null;
+    IXdmNode aTree = null;
     if (bBuildTree)
     {
       final ICommonsList <IXdmItem> aItems = new CommonsArrayList <> ();
@@ -357,13 +357,13 @@ public final class XsltTransformer
         final IXdmItem aItem = aBuffer.get (i);
         // Result tree construction is sequence normalization (XSLT 3.0
         // section 2.3.6.1), which rejects attribute and namespace nodes
-        if (aItem instanceof final XdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE) ||
+        if (aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE) ||
             aItem instanceof XdmMap ||
             aItem instanceof IXdmFunction)
           throw new XPathException ("SENR0001", "The principal result contains an attribute or namespace node, a map or a function");
         aItems.add (aItem);
       }
-      aTree = XdmNode.createDocument ();
+      aTree = IXdmNode.createDocument ();
       if (m_aRequest.getBaseOutputUri () != null)
         aTree.setBaseUri (m_aRequest.getBaseOutputUri ());
       final ContentOutput aContent = new ContentOutput (aTree);

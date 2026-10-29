@@ -38,8 +38,8 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltException;
@@ -66,7 +66,7 @@ public final class XSLT30CaseRunnerTest
     private final Function <XsltTransformRequest, XsltTransformResult> m_aTransform;
     private final Wrapper <XsltCompileOptions> m_aOptions = new Wrapper <> ();
     private final Wrapper <String> m_aText = new Wrapper <> ();
-    private final Wrapper <XdmNode> m_aNode = new Wrapper <> ();
+    private final Wrapper <IXdmNode> m_aNode = new Wrapper <> ();
     private final Wrapper <XsltTransformRequest> m_aRequest = new Wrapper <> ();
 
     FakeCompiler (final Function <XsltTransformRequest, XsltTransformResult> aTransform)
@@ -89,7 +89,7 @@ public final class XSLT30CaseRunnerTest
       return _executable ();
     }
 
-    public XsltExecutable compile (final XdmNode aStylesheet, final XsltCompileOptions aOptions)
+    public XsltExecutable compile (final IXdmNode aStylesheet, final XsltCompileOptions aOptions)
     {
       m_aNode.set (aStylesheet);
       m_aOptions.set (aOptions);
@@ -175,7 +175,7 @@ public final class XSLT30CaseRunnerTest
     assertEquals (1, aReq.templateParams ().size ());
     assertEquals (new XdmQName ("urn:my", "t"), aReq.templateParams ().getFirstOrNull ().name ());
     assertTrue (aReq.templateParams ().getFirstOrNull ().tunnel ());
-    final XdmNode aContext = (XdmNode) aReq.getGlobalContextItem ();
+    final IXdmNode aContext = (IXdmNode) aReq.getGlobalContextItem ();
     assertTrue (aContext.isDocument ());
     assertEquals (m_aDir.resolve ("src.xml").toUri ().toString (), aContext.getDocumentUri ());
     assertEquals (m_aDir.resolve ("out/result.xml").toUri ().toString (), aReq.getBaseOutputUri ());
@@ -197,7 +197,7 @@ public final class XSLT30CaseRunnerTest
     final XsltTransformRequest aReq = aFake.m_aRequest.get ();
     assertEquals (new XdmQName ("m"), aReq.getInitialMode ());
     assertEquals (2, aReq.getInitialMatchSelection ().size ());
-    assertEquals ("doc", ((XdmNode) aReq.getGlobalContextItem ()).getName ().localName ());
+    assertEquals ("doc", ((IXdmNode) aReq.getGlobalContextItem ()).getName ().localName ());
     assertNull (aReq.getInitialTemplate ());
   }
 

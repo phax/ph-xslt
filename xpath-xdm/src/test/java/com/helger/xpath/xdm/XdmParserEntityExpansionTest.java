@@ -40,7 +40,7 @@ public final class XdmParserEntityExpansionTest
     final long nStart = System.currentTimeMillis ();
     try
     {
-      final XdmNode aDoc = new XdmParser ().parse (sXml);
+      final IXdmNode aDoc = new XdmParser ().parse (sXml);
       fail (sName + ": expected a parse error, got a string value of length " + aDoc.getStringValue ().length ());
     }
     catch (final XdmParseException ex)

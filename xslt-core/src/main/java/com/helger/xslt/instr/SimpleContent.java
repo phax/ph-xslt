@@ -23,7 +23,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Constructing simple content (XSLT 3.0 section 5.7.2), as for the value of
@@ -57,7 +57,7 @@ public final class SimpleContent
     boolean bLastText = false;
     for (final IXdmItem aItem : aSeq)
     {
-      if (aItem instanceof final XdmNode aNode && aNode.isText ())
+      if (aItem instanceof final IXdmNode aNode && aNode.isText ())
       {
         final String s = aNode.getValue ();
         if (s.isEmpty ())

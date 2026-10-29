@@ -23,7 +23,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * An output that records what a sequence constructor writes, including which
@@ -46,7 +46,7 @@ public final class BufferedOutput implements IXsltOutput
     m_aNew.add (Boolean.FALSE);
   }
 
-  public void appendNew (@NonNull final XdmNode aNode)
+  public void appendNew (@NonNull final IXdmNode aNode)
   {
     m_aItems.add (aNode);
     m_aNew.add (Boolean.TRUE);
@@ -84,7 +84,7 @@ public final class BufferedOutput implements IXsltOutput
   public void replay (final int nIndex, @NonNull final IXsltOutput aTarget)
   {
     if (isNew (nIndex))
-      aTarget.appendNew ((XdmNode) m_aItems.get (nIndex));
+      aTarget.appendNew ((IXdmNode) m_aItems.get (nIndex));
     else
       aTarget.append (m_aItems.get (nIndex));
   }
@@ -110,7 +110,7 @@ public final class BufferedOutput implements IXsltOutput
   {
     for (int i = 0; i < m_aItems.size (); ++i)
       if (isNew (i))
-        NamespaceFixup.finish ((XdmNode) m_aItems.get (i));
+        NamespaceFixup.finish ((IXdmNode) m_aItems.get (i));
     return XdmSequence.of (m_aItems);
   }
 }

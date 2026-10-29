@@ -34,8 +34,8 @@ import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.eval.XPathEvaluator;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -156,7 +156,7 @@ public final class CompiledXsltPattern implements XsltPattern
         return true;
       if (m_aExpr instanceof final IExpr.FilterExpr aFilter && aFilter.primary () instanceof IExpr.ContextItemExpr)
         return !XPathEvaluator.evaluate (aFilter, aRealCtx.withFocus (aItem, 1, 1)).isEmpty ();
-      if (!(aItem instanceof final XdmNode aNode))
+      if (!(aItem instanceof final IXdmNode aNode))
         return false;
       return new PatternMatcher (aRealCtx, aNode, m_aPositionalPredicates).matchesNode (m_aExpr, aNode);
     }

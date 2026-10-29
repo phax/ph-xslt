@@ -25,7 +25,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Constraining facets (go-xslt <code>facets.go</code>): the compile-time check
@@ -569,7 +569,7 @@ final class XsdFacetValidator
   static void checkIn (@NonNull final XsdFacetSet aFacets,
                        @NonNull final String sValue,
                        @NonNull final EAtomicType ePrim,
-                       @Nullable final XdmNode aAt)
+                       @Nullable final IXdmNode aAt)
   {
     checkPatternEnumIn (aFacets, sValue, ePrim, aAt);
     _checkLength (aFacets, sValue, ePrim);
@@ -635,7 +635,7 @@ final class XsdFacetValidator
   static void checkPatternEnumIn (@NonNull final XsdFacetSet aFacets,
                                   @NonNull final String sValue,
                                   @NonNull final EAtomicType ePrim,
-                                  @Nullable final XdmNode aAt)
+                                  @Nullable final IXdmNode aAt)
   {
     // Pattern groups: match at least one alternative in every group (base
     // patterns are a separate group, checked at that level, so AND across

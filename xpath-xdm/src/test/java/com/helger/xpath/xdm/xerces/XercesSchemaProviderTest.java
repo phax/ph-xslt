@@ -28,8 +28,8 @@ import org.junit.Test;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.xdm.EIDKind;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmValidationException;
@@ -108,23 +108,23 @@ public final class XercesSchemaProviderTest
   public void testValidateElement () throws Exception
   {
     final IXdmSchemaSet aSet = _compile ();
-    final XdmNode aDoc = new XdmParser ().parse ("<t:a xmlns:t='urn:t' size='7'>\n  <c>12</c>\n  <c>2020-01-01</c>\n</t:a>");
-    final XdmNode aA = aDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = new XdmParser ().parse ("<t:a xmlns:t='urn:t' size='7'>\n  <c>12</c>\n  <c>2020-01-01</c>\n</t:a>");
+    final IXdmNode aA = aDoc.getChildAtIndex (0);
     aSet.validateElement (aA, null, true);
     assertEquals (new XdmQName (NS, "at"), aA.getSchemaType ().getName ());
     assertNotNull (aA.getSchemaType ().getDefinition ());
     // Whitespace of element-only content is gone
     assertEquals (2, aA.getChildCount ());
-    final XdmNode aC2 = aA.getChildAtIndex (1);
+    final IXdmNode aC2 = aA.getChildAtIndex (1);
     assertEquals ("date", aC2.getSchemaType ().getValueDefinition ().getName ().localName ());
     assertEquals ("size", aA.getAttribute ("", "size").getSchemaType ().getName ().localName ());
 
     // Against a named type, with an undeclared element name
-    final XdmNode aX = new XdmParser ().parse ("<x><c>1</c></x>").getChildAtIndex (0);
+    final IXdmNode aX = new XdmParser ().parse ("<x><c>1</c></x>").getChildAtIndex (0);
     aSet.validateElement (aX, aSet.getTypeDefinition (new XdmQName (NS, "at")), false);
     assertEquals ("at", aX.getSchemaType ().getName ().localName ());
 
-    final XdmNode aBad = new XdmParser ().parse ("<t:a xmlns:t='urn:t'><c>x</c></t:a>").getChildAtIndex (0);
+    final IXdmNode aBad = new XdmParser ().parse ("<t:a xmlns:t='urn:t'><c>x</c></t:a>").getChildAtIndex (0);
     try
     {
       aSet.validateElement (aBad, null, false);
@@ -141,8 +141,8 @@ public final class XercesSchemaProviderTest
   public void testValidateDocument () throws Exception
   {
     final XdmParser aParser = new XdmParser ().setSchemaSet (_compile ());
-    final XdmNode aDoc = aParser.parse ("<t:a xmlns:t='urn:t' size='7' key=' k '>\n  <c>12</c>\n  <c>2020-01-01</c>\n</t:a>");
-    final XdmNode aA = aDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = aParser.parse ("<t:a xmlns:t='urn:t' size='7' key=' k '>\n  <c>12</c>\n  <c>2020-01-01</c>\n</t:a>");
+    final IXdmNode aA = aDoc.getChildAtIndex (0);
     assertEquals (new XdmQName (NS, "at"), aA.getSchemaType ().getName ());
     assertEquals (EXdmContentType.ELEMENT_ONLY, aA.getSchemaType ().getDefinition ().getContentType ());
     // Whitespace of element-only content is gone

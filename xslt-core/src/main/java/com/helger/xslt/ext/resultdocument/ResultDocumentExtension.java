@@ -35,7 +35,7 @@ import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.serialize.XdmSerializer;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformResult;
@@ -168,10 +168,10 @@ public final class ResultDocumentExtension implements IXsltExtension
       final String sBase = aEl.getStaticBaseUri ();
       if (sBase != null && FnUri.isAbsoluteUri (sBase))
         sUri = FnUri.resolveUri (sHref, sBase);
-      final XdmNode aDoc = aCtx.getDynamicContext ().getResourceResolver ().resolveDocument (sUri);
+      final IXdmNode aDoc = aCtx.getDynamicContext ().getResourceResolver ().resolveDocument (sUri);
       if (aDoc == null)
         throw new XPathException ("SEPM0017", "The serialization parameter document '" + sUri + "' cannot be retrieved");
-      XdmNode aRoot = null;
+      IXdmNode aRoot = null;
       for (int i = 0; i < aDoc.getChildCount (); ++i)
         if (aDoc.getChildAtIndex (i).isElement ())
           aRoot = aDoc.getChildAtIndex (i);
@@ -180,22 +180,22 @@ public final class ResultDocumentExtension implements IXsltExtension
       final ICommonsMap <String, String> aAttrs = new CommonsHashMap <> ();
       for (int i = 0; i < aRoot.getChildCount (); ++i)
       {
-        final XdmNode aParam = aRoot.getChildAtIndex (i);
+        final IXdmNode aParam = aRoot.getChildAtIndex (i);
         if (!aParam.isElement () || !SerializationParams.NS_OUTPUT.equals (aParam.getName ().namespaceUri ()))
           continue;
         if ("use-character-maps".equals (aParam.getName ().localName ()))
         {
           for (int j = 0; j < aParam.getChildCount (); ++j)
           {
-            final XdmNode aMap = aParam.getChildAtIndex (j);
-            final XdmNode aChar = aMap.isElement () ? aMap.getAttribute ("", "character") : null;
-            final XdmNode aString = aMap.isElement () ? aMap.getAttribute ("", "map-string") : null;
+            final IXdmNode aMap = aParam.getChildAtIndex (j);
+            final IXdmNode aChar = aMap.isElement () ? aMap.getAttribute ("", "character") : null;
+            final IXdmNode aString = aMap.isElement () ? aMap.getAttribute ("", "map-string") : null;
             if (aChar != null && aString != null && aChar.getValue ().codePointCount (0, aChar.getValue ().length ()) == 1)
               aDef.addInlineCharacterMapping (aChar.getValue ().codePointAt (0), aString.getValue ());
           }
           continue;
         }
-        final XdmNode aValue = aParam.getAttribute ("", "value");
+        final IXdmNode aValue = aParam.getAttribute ("", "value");
         if (aValue != null)
           aAttrs.put (aParam.getName ().localName (), aValue.getValue ());
       }
@@ -246,12 +246,12 @@ public final class ResultDocumentExtension implements IXsltExtension
     }
 
     @NonNull
-    private static String _detectMethod (@Nullable final XdmNode aTree)
+    private static String _detectMethod (@Nullable final IXdmNode aTree)
     {
       if (aTree != null)
         for (int i = 0; i < aTree.getChildCount (); ++i)
         {
-          final XdmNode aChild = aTree.getChildAtIndex (i);
+          final IXdmNode aChild = aTree.getChildAtIndex (i);
           if (aChild.isElement ())
           {
             final XdmQName aName = aChild.getName ();
@@ -297,7 +297,7 @@ public final class ResultDocumentExtension implements IXsltExtension
         // a copy of the content is built for that
         final BufferedOutput aContentBuffer = new BufferedOutput ();
         m_aBody.execute (aCtx.with (SECONDARY_OUTPUT, null), aContentBuffer);
-        final XdmNode aTree = XdmNode.createDocument ();
+        final IXdmNode aTree = IXdmNode.createDocument ();
         final ContentOutput aContent = new ContentOutput (aTree);
         // Sequence normalisation puts the item separator into the tree as
         // text (Serialization 3.1 section 2), where validation sees it
@@ -305,7 +305,7 @@ public final class ResultDocumentExtension implements IXsltExtension
         for (int i = 0; i < aContentBuffer.size (); ++i)
         {
           if (i > 0 && sSeparator != null && !"#absent".equals (sSeparator))
-            aContent.appendNew (XdmNode.createText (sSeparator));
+            aContent.appendNew (IXdmNode.createText (sSeparator));
           aContent.append (aContentBuffer.get (i));
         }
         aContent.finishTree ();
@@ -322,7 +322,7 @@ public final class ResultDocumentExtension implements IXsltExtension
                                       @NonNull final OutputDefinition aDef,
                                       @NonNull final String sMethod,
                                       @NonNull final XdmSequence aRaw,
-                                      @Nullable final XdmNode aTree)
+                                      @Nullable final IXdmNode aTree)
     {
       final SerializationParams aParams = aDef.createSerializationParams (sMethod);
       for (final IOutputCustomizer aCustomizer : XsltExtensionRegistry.getInstance ().getAllOutputCustomizers ())
@@ -377,13 +377,13 @@ public final class ResultDocumentExtension implements IXsltExtension
       final boolean bBuildTree = aDef.isBuildTree (sDeclaredMethod != null ? sDeclaredMethod
                                                                             : SerializationParams.METHOD_XML);
       final XdmSequence aRaw;
-      XdmNode aTree = null;
+      IXdmNode aTree = null;
       if (bBuildTree)
       {
         final ICommonsList <IXdmItem> aItems = new CommonsArrayList <> ();
         for (int i = 0; i < aBuffer.size (); ++i)
           aItems.add (aBuffer.get (i));
-        aTree = XdmNode.createDocument ();
+        aTree = IXdmNode.createDocument ();
         if (!sAbsolute.isEmpty ())
           aTree.setBaseUri (sAbsolute);
         final ContentOutput aContent = new ContentOutput (aTree);

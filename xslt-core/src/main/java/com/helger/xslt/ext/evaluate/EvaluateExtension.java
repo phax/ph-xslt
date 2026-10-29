@@ -41,8 +41,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.compile.Avt;
 import com.helger.xslt.compile.CompileContext;
@@ -121,7 +121,7 @@ public final class EvaluateExtension implements IXsltExtension
   @NonNull
   private static StaticContext _createStaticContext (@NonNull final XsltContext aCtx,
                                                      @NonNull final XslElement aEl,
-                                                     @Nullable final XdmNode aNamespaceNode,
+                                                     @Nullable final IXdmNode aNamespaceNode,
                                                      @Nullable final String sBaseUri,
                                                      @NonNull final Iterable <XdmQName> aVariables)
   {
@@ -190,11 +190,11 @@ public final class EvaluateExtension implements IXsltExtension
         }
       }
       // The namespace context
-      XdmNode aNamespaceNode = null;
+      IXdmNode aNamespaceNode = null;
       if (aNamespaceContext != null)
       {
         final XdmSequence aNS = aNamespaceContext.evaluate (aRtCtx);
-        if (aNS.size () != 1 || !(aNS.get (0) instanceof final XdmNode aNode))
+        if (aNS.size () != 1 || !(aNS.get (0) instanceof final IXdmNode aNode))
           throw new XPathException ("XTTE3170", "The namespace-context attribute of xsl:evaluate must select a single node");
         aNamespaceNode = aNode;
       }

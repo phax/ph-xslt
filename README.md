@@ -67,7 +67,7 @@ basis of this project. See [NOTICE](NOTICE).
 
 v0.1.0 - work in progress
 * Initial project setup
-* Added the module `xpath-xdm` with `XdmNode`, `XdmQName`, `XdmParser` and `XdmTreeBuilder`
+* Added the module `xpath-xdm` with `IXdmNode`, `XdmQName`, `XdmParser` and `XdmTreeBuilder`
 * Added the module `xpath-core` with the XPath 3.1 engine and the F&O 3.1 function library
 * Added the module `xpath-conformance` that runs the W3C QT3 test suite; every failing case is documented with its
   reason in `xpath-conformance/docs/accepted-failures/qt3.md`, and an undocumented failure fails the build
@@ -123,7 +123,8 @@ v0.1.0 - work in progress
 * Checked against go-xslt v0.3.9: the package-version upper bound `to 3.3.*`, the type error for a boolean arithmetic operand, the syntax error for `attribute(N, T?)` and the function conversion rules for the arguments of every built-in were already in place; new tests pin them (`ArgumentConversionTest`, `BuiltinSignatureCatalogueTest`, `BuiltinOddArgumentsTest`, `FunctionsArgsSpecTest`, `XsltFunctionCatalogueTest`)
 * The declared signature of `fn:root#0` is `node()` (was `node()?`), as in F&O 3.1; an argument conversion error names the function and the argument position
 * `XdmTreeBuilder` shares one `XdmQName` instance per distinct element and attribute name of a document, which reduces the heap of a parsed tree by 4 to 12 %
-* `XdmNode` keeps its rarely set properties (declared namespaces, built-in type annotation, nilled, document and base URI, disable-output-escaping, entities) in a separate object created on demand, which shrinks a node from 104 to 72 bytes and a parsed tree by 15 to 20 %
+* The node model is the sealed interface `IXdmNode` (was the class `XdmNode`), implemented below the sealed `AbstractXdmNode` by one class per node kind (`XdmDocumentNode`, `XdmElementNode`, `XdmAttributeNode`, `XdmTextNode`, `XdmCommentNode`, `XdmProcessingInstructionNode`, `XdmNamespaceNode`) that only carries the fields of its kind; rarely set properties live in a separate object created on demand. A node needs 48 to 64 bytes instead of 104, which reduces the heap of a parsed tree by 24 to 30 %
+* Text nodes created by `XdmTreeBuilder` carry the location of their first character event
 
 # Contributing
 

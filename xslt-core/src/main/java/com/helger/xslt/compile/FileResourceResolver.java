@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.xpath.context.IResourceResolver;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 
@@ -77,14 +77,14 @@ public final class FileResourceResolver implements IResourceResolver
   }
 
   @Nullable
-  public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
     final Path aPath = _getPath (sAbsoluteUri);
     if (aPath == null)
       return null;
     try
     {
-      final XdmNode ret = new XdmParser ().setLoadExternalEntities (m_bLoadExternalEntities).parse (aPath);
+      final IXdmNode ret = new XdmParser ().setLoadExternalEntities (m_bLoadExternalEntities).parse (aPath);
       if (ret.getDocumentUri () == null)
         ret.setDocumentUri (sAbsoluteUri);
       return ret;

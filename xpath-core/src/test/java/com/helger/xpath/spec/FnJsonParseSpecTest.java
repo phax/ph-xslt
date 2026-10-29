@@ -29,7 +29,7 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.spec.SpecTestHelper.Env;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Port of go-xslt <code>internal/xpath/fn_json_parse_spec_test.go</code> (commit 04ccada):
@@ -54,7 +54,7 @@ public final class FnJsonParseSpecTest
     }
 
     @Nullable
-    public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
     {
       return null;
     }

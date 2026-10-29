@@ -33,7 +33,7 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 
@@ -76,7 +76,7 @@ final class XsdCompiler
                                                                                         "error");
 
   /** A pending top-level component: its declaration plus the document it came from. */
-  record Work (@NonNull XsdSchemaDocument sd, @NonNull XdmNode node)
+  record Work (@NonNull XsdSchemaDocument sd, @NonNull IXdmNode node)
   {}
 
   /**
@@ -167,7 +167,7 @@ final class XsdCompiler
     }
   }
 
-  private void _parseGlobalElement (@NonNull final XdmNode aNode)
+  private void _parseGlobalElement (@NonNull final IXdmNode aNode)
   {
     final String sName = XsdNodes.declName (aNode);
     if (sName.isEmpty ())
@@ -202,7 +202,7 @@ final class XsdCompiler
     aDecl.m_aAlternatives = m_aComponents.parseAlternatives (aNode);
   }
 
-  private void _parseGlobalAttribute (@NonNull final XdmNode aNode)
+  private void _parseGlobalAttribute (@NonNull final IXdmNode aNode)
   {
     final String sName = XsdNodes.declName (aNode);
     if (sName.isEmpty ())
@@ -239,19 +239,19 @@ final class XsdCompiler
    * (iterative walk).
    */
   @NonNull
-  private static ICommonsList <XdmNode> _collectSelfRefs (@NonNull final XdmNode aNode,
+  private static ICommonsList <IXdmNode> _collectSelfRefs (@NonNull final IXdmNode aNode,
                                                           @NonNull final String sKind,
                                                           @NonNull final XsdName aSelf,
                                                           final boolean bFirstOnly)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
-    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> ();
-    final ICommonsList <XdmNode> aChildren = XsdNodes.children (aNode);
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aChildren = XsdNodes.children (aNode);
     for (int i = aChildren.size () - 1; i >= 0; i--)
       aStack.add (aChildren.get (i));
     while (aStack.isNotEmpty ())
     {
-      final XdmNode aCur = aStack.removeLast ();
+      final IXdmNode aCur = aStack.removeLast ();
       if (!aCur.isElement ())
         continue;
       if (XsdNodes.isXS (aCur, sKind))
@@ -264,7 +264,7 @@ final class XsdCompiler
             return ret;
         }
       }
-      final ICommonsList <XdmNode> aKids = XsdNodes.children (aCur);
+      final ICommonsList <IXdmNode> aKids = XsdNodes.children (aCur);
       for (int i = aKids.size () - 1; i >= 0; i--)
         aStack.add (aKids.get (i));
     }
@@ -275,7 +275,7 @@ final class XsdCompiler
    * go-xslt <code>redefineHasSelfRef</code>: whether the redefinition contains a
    * same-kind reference to the name being redefined.
    */
-  private static boolean _redefineHasSelfRef (@NonNull final XdmNode aNode,
+  private static boolean _redefineHasSelfRef (@NonNull final IXdmNode aNode,
                                               @NonNull final String sKind,
                                               @NonNull final XsdName aSelf)
   {
@@ -289,7 +289,7 @@ final class XsdCompiler
    */
   private void _checkRedefineSyntax (@NonNull final ICommonsList <Work> aRedefs)
   {
-    final ICommonsMap <XdmNode, ICommonsSet <String>> aSeen = new CommonsHashMap <> ();
+    final ICommonsMap <IXdmNode, ICommonsSet <String>> aSeen = new CommonsHashMap <> ();
     for (final Work w : aRedefs)
     {
       final String sName = XsdNodes.declName (w.node ());
@@ -302,11 +302,11 @@ final class XsdCompiler
       if (!"group".equals (sKind) && !"attributeGroup".equals (sKind))
         continue;
       final XsdName aSelf = new XsdName (w.sd ().m_sTNS, sName);
-      final ICommonsList <XdmNode> aRefs = _collectSelfRefs (w.node (), sKind, aSelf, false);
+      final ICommonsList <IXdmNode> aRefs = _collectSelfRefs (w.node (), sKind, aSelf, false);
       if (aRefs.size () > 1)
         throw invalid ("src-redefine.6.1.1",
                        "redefined " + sKind + " " + XsdLexHelper.quote (sName) + " refers to itself more than once");
-      for (final XdmNode aRef : aRefs)
+      for (final IXdmNode aRef : aRefs)
       {
         final String sMin = XsdNodes.attr (aRef, "minOccurs");
         final String sMax = XsdNodes.attr (aRef, "maxOccurs");
@@ -377,15 +377,15 @@ final class XsdCompiler
    * restriction of the type it redefines, a redefined complexType must derive
    * from itself.
    */
-  private boolean _redefineSelfDerives (@NonNull final XdmNode aNode, @NonNull final XsdName aName)
+  private boolean _redefineSelfDerives (@NonNull final IXdmNode aNode, @NonNull final XsdName aName)
   {
-    XdmNode aDeriv = null;
+    IXdmNode aDeriv = null;
     if ("simpleType".equals (XsdNodes.localName (aNode)))
       aDeriv = XsdNodes.firstXSChild (aNode, "restriction");
     else
       for (final String sModel : new String [] { "complexContent", "simpleContent" })
       {
-        final XdmNode aModel = XsdNodes.firstXSChild (aNode, sModel);
+        final IXdmNode aModel = XsdNodes.firstXSChild (aNode, sModel);
         if (aModel != null)
         {
           aDeriv = XsdNodes.firstXSChild (aModel, "restriction");
@@ -654,10 +654,10 @@ final class XsdCompiler
    * derives from (restriction base, list item type, union member types).
    */
   @NonNull
-  private static ICommonsList <StDep> _simpleTypeDeps (@NonNull final XdmNode aNode)
+  private static ICommonsList <StDep> _simpleTypeDeps (@NonNull final IXdmNode aNode)
   {
     final ICommonsList <StDep> ret = new CommonsArrayList <> ();
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       String sRef = null;
       boolean bHard = true;
@@ -749,7 +749,7 @@ final class XsdCompiler
       final Work w = aByName.get (aName);
       if (w != null)
       {
-        for (final XdmNode aChild : XsdNodes.children (w.node ()))
+        for (final IXdmNode aChild : XsdNodes.children (w.node ()))
           if (XsdNodes.isXS (aChild, "attributeGroup"))
           {
             final String sRef = XsdNodes.attr (aChild, "ref");
@@ -766,15 +766,15 @@ final class XsdCompiler
   }
 
   @Nullable
-  private static XsdName _complexTypeBase (@NonNull final XdmNode aNode)
+  private static XsdName _complexTypeBase (@NonNull final IXdmNode aNode)
   {
     for (final String sKind : new String [] { "simpleContent", "complexContent" })
     {
-      final XdmNode aContent = XsdNodes.firstXSChild (aNode, sKind);
+      final IXdmNode aContent = XsdNodes.firstXSChild (aNode, sKind);
       if (aContent != null)
         for (final String sDeriv : new String [] { "restriction", "extension" })
         {
-          final XdmNode aDeriv = XsdNodes.firstXSChild (aContent, sDeriv);
+          final IXdmNode aDeriv = XsdNodes.firstXSChild (aContent, sDeriv);
           if (aDeriv != null)
           {
             final String sBase = XsdNodes.attr (aDeriv, "base");
@@ -814,7 +814,7 @@ final class XsdCompiler
   }
 
   @NonNull
-  private XsdName _named (@NonNull final XsdSchemaDocument aSD, @NonNull final XdmNode aChild)
+  private XsdName _named (@NonNull final XsdSchemaDocument aSD, @NonNull final IXdmNode aChild)
   {
     final String sName = XsdNodes.declName (aChild);
     if (!XsdLexHelper.isNCName (sName))
@@ -879,7 +879,7 @@ final class XsdCompiler
    *         if it is not well-formed
    */
   @NonNull
-  static XdmNode parseDocument (@NonNull final XsdSchemaSource aSource, @NonNull final String sWhat)
+  static IXdmNode parseDocument (@NonNull final XsdSchemaSource aSource, @NonNull final String sWhat)
   {
     try
     {
@@ -892,7 +892,7 @@ final class XsdCompiler
   }
 
   /** @return <code>true</code> if the element is xs:schema. */
-  static boolean isSchemaElement (@Nullable final XdmNode aElement)
+  static boolean isSchemaElement (@Nullable final IXdmNode aElement)
   {
     return XsdNodes.isXS (aElement, "schema");
   }
@@ -902,16 +902,16 @@ final class XsdCompiler
    * a component's element; empty unless documentation is kept.
    */
   @NonNull
-  ICommonsList <XsdDocumentation> docsOf (@Nullable final XdmNode aNode)
+  ICommonsList <XsdDocumentation> docsOf (@Nullable final IXdmNode aNode)
   {
     final ICommonsList <XsdDocumentation> ret = new CommonsArrayList <> ();
     if (!m_bKeepDocs || aNode == null)
       return ret;
-    for (final XdmNode aAnn : XsdNodes.children (aNode))
+    for (final IXdmNode aAnn : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXS (aAnn, "annotation"))
         continue;
-      for (final XdmNode aDoc : XsdNodes.children (aAnn))
+      for (final IXdmNode aDoc : XsdNodes.children (aAnn))
       {
         if (!XsdNodes.isXS (aDoc, "documentation"))
           continue;
@@ -970,9 +970,9 @@ final class XsdCompiler
    * go-xslt <code>withinRedefine</code>: whether a node lies inside an
    * xs:redefine element.
    */
-  static boolean withinRedefine (@NonNull final XdmNode aNode)
+  static boolean withinRedefine (@NonNull final IXdmNode aNode)
   {
-    for (XdmNode p = aNode.getParent (); p != null; p = p.getParent ())
+    for (IXdmNode p = aNode.getParent (); p != null; p = p.getParent ())
     {
       if (XsdNodes.isXS (p, "redefine"))
         return true;
@@ -1042,7 +1042,7 @@ final class XsdCompiler
    *         if it does not resolve
    */
   @NonNull
-  IXsdType resolveType (@NonNull final XdmNode aNode, @NonNull final String sQName)
+  IXsdType resolveType (@NonNull final IXdmNode aNode, @NonNull final String sQName)
   {
     final XsdName n = XsdNodes.resolveQName (aNode, sQName);
     if (XsdConstants.NS_XS.equals (n.space ()))
@@ -1105,7 +1105,7 @@ final class XsdCompiler
    * namespace.
    */
   @NonNull
-  IXsdType resolveTypeTolerant (@NonNull final XdmNode aNode, @NonNull final String sQName)
+  IXsdType resolveTypeTolerant (@NonNull final IXdmNode aNode, @NonNull final String sQName)
   {
     try
     {
@@ -1132,7 +1132,7 @@ final class XsdCompiler
    *         if it does not resolve or is complex
    */
   @NonNull
-  XsdSimpleType resolveSimpleType (@NonNull final XdmNode aNode, @NonNull final String sQName)
+  XsdSimpleType resolveSimpleType (@NonNull final IXdmNode aNode, @NonNull final String sQName)
   {
     final IXsdType aType = resolveType (aNode, sQName);
     if (aType instanceof final XsdSimpleType aST)
@@ -1144,7 +1144,7 @@ final class XsdCompiler
    * go-xslt <code>checkValueConstraint</code>: a fixed/default value on the
    * node must be a valid value of the type.
    */
-  void checkValueConstraint (@Nullable final IXsdType aType, @NonNull final XdmNode aNode)
+  void checkValueConstraint (@Nullable final IXsdType aType, @NonNull final IXdmNode aNode)
   {
     String v = XsdNodes.attr (aNode, "fixed");
     if (v == null)
@@ -1192,7 +1192,7 @@ final class XsdCompiler
    * (type= | inline | default anyType) and nillable/default/fixed. Used for
    * global and local elements.
    */
-  void fillElementCommon (@NonNull final XsdElementDecl aDecl, @NonNull final XdmNode aNode)
+  void fillElementCommon (@NonNull final XsdElementDecl aDecl, @NonNull final IXdmNode aNode)
   {
     aDecl.m_aDocs = docsOf (aNode);
     aDecl.m_aMsgs = XsdMessages.messagesOf (aNode);
@@ -1230,7 +1230,7 @@ final class XsdCompiler
       aDecl.m_aType = aType;
       return;
     }
-    final XdmNode aInlineST = XsdNodes.firstXSChild (aNode, "simpleType");
+    final IXdmNode aInlineST = XsdNodes.firstXSChild (aNode, "simpleType");
     if (aInlineST != null)
     {
       final XsdSimpleType aST = new XsdSimpleType ();
@@ -1238,7 +1238,7 @@ final class XsdCompiler
       aDecl.m_aType = aST;
       return;
     }
-    final XdmNode aInlineCT = XsdNodes.firstXSChild (aNode, "complexType");
+    final IXdmNode aInlineCT = XsdNodes.firstXSChild (aNode, "complexType");
     if (aInlineCT != null)
     {
       final XsdComplexType aCT = new XsdComplexType ();
@@ -1257,7 +1257,7 @@ final class XsdCompiler
    * declaration (type= | inline | xs:anySimpleType).
    */
   @NonNull
-  XsdSimpleType attributeType (@NonNull final XdmNode aNode)
+  XsdSimpleType attributeType (@NonNull final IXdmNode aNode)
   {
     final String sTypeRef = XsdNodes.attr (aNode, "type");
     if (sTypeRef != null)
@@ -1269,7 +1269,7 @@ final class XsdCompiler
         m_aSimpleTypes.checkNotationUsable (aST);
       return aST;
     }
-    final XdmNode aInline = XsdNodes.firstXSChild (aNode, "simpleType");
+    final IXdmNode aInline = XsdNodes.firstXSChild (aNode, "simpleType");
     if (aInline != null)
     {
       final XsdSimpleType aST = new XsdSimpleType ();
@@ -1300,7 +1300,7 @@ final class XsdCompiler
       return ret;
     }
     final XsdSchemaSource aPrimarySource = aSources.get (0);
-    final XdmNode aPrimary = XsdNodes.rootElement (parseDocument (aPrimarySource, "schema"));
+    final IXdmNode aPrimary = XsdNodes.rootElement (parseDocument (aPrimarySource, "schema"));
     if (!isSchemaElement (aPrimary))
       throw invalid ("", "document element is not xs:schema");
 
@@ -1324,7 +1324,7 @@ final class XsdCompiler
       if (aVisited.contains ("c:" + sKey) || aVisited.contains ("overridden:" + sKey))
         continue;
       aVisited.add ("c:" + sKey);
-      final XdmNode aExtra;
+      final IXdmNode aExtra;
       try
       {
         aExtra = new XdmParser ().parse (aSource.createInputSource ());
@@ -1335,7 +1335,7 @@ final class XsdCompiler
         // components
         continue;
       }
-      final XdmNode aEl = XsdNodes.rootElement (aExtra);
+      final IXdmNode aEl = XsdNodes.rootElement (aExtra);
       if (!isSchemaElement (aEl))
         continue;
       m_aCollector.collect (aEl, aSource.getBaseDir (), "", aCollected, aVisited, "");
@@ -1355,7 +1355,7 @@ final class XsdCompiler
     final ICommonsList <Work> aAGW = new CommonsArrayList <> ();
     final ICommonsSet <XsdName> aNotationNames = new CommonsHashSet <> ();
     for (final XsdSchemaDocument aSD : aCollected)
-      for (final XdmNode aChild : XsdNodes.children (aSD.m_aElement))
+      for (final IXdmNode aChild : XsdNodes.children (aSD.m_aElement))
       {
         if (!aChild.isElement ())
           continue;
@@ -1455,11 +1455,11 @@ final class XsdCompiler
     final ICommonsList <Work> aGroupRedefs = new CommonsArrayList <> ();
     final ICommonsList <Work> aTypeRedefs = new CommonsArrayList <> ();
     for (final XsdSchemaDocument aSD : aCollected)
-      for (final XdmNode aRD : XsdNodes.children (aSD.m_aElement))
+      for (final IXdmNode aRD : XsdNodes.children (aSD.m_aElement))
       {
         if (!XsdNodes.isXS (aRD, "redefine"))
           continue;
-        for (final XdmNode aChild : XsdNodes.children (aRD))
+        for (final IXdmNode aChild : XsdNodes.children (aRD))
           if (XsdNodes.isXSElement (aChild))
             switch (XsdNodes.localName (aChild))
             {

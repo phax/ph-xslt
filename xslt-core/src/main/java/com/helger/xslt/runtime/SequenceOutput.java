@@ -21,7 +21,7 @@ import org.jspecify.annotations.NonNull;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * An output that keeps the items of a sequence constructor as they are. New
@@ -40,7 +40,7 @@ public final class SequenceOutput implements IXsltOutput
     m_aItems.add (aItem);
   }
 
-  public void appendNew (@NonNull final XdmNode aNode)
+  public void appendNew (@NonNull final IXdmNode aNode)
   {
     NamespaceFixup.finish (aNode);
     m_aItems.add (aNode);

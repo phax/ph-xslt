@@ -28,7 +28,7 @@ import org.junit.Test;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.xdm.EIDKind;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmValidationException;
@@ -86,11 +86,11 @@ public final class XsdBridgeSpecTest
   }
 
   @NonNull
-  private static XdmNode _parseElement (@NonNull final String sXml)
+  private static IXdmNode _parseElement (@NonNull final String sXml)
   {
     try
     {
-      final XdmNode aRoot = XsdNodes.rootElement (new XdmParser ().parse (sXml));
+      final IXdmNode aRoot = XsdNodes.rootElement (new XdmParser ().parse (sXml));
       assertNotNull (aRoot);
       return aRoot;
     }
@@ -129,20 +129,20 @@ public final class XsdBridgeSpecTest
   public void testPSVIProperties () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = _compile ();
-    final XdmNode aEl = _parseElement ("<eAttrs req=\"1\"/>");
+    final IXdmNode aEl = _parseElement ("<eAttrs req=\"1\"/>");
     aSet.validateElement (aEl, null, false);
     assertEquals ("d", aEl.getAttribute ("", "opt").getValue ());
     assertEquals ("f", aEl.getAttribute ("", "fix").getValue ());
     assertTrue (aEl.getAttribute ("", "req").getSchemaType ().hasAtomicBase ("int"));
     assertTrue (aEl.getAttribute ("", "opt").getSchemaType ().hasAtomicBase ("string"));
 
-    final XdmNode aNil = _parseElement ("<eNil" + XSI + " xsi:nil=\"true\"/>");
+    final IXdmNode aNil = _parseElement ("<eNil" + XSI + " xsi:nil=\"true\"/>");
     aSet.validateElement (aNil, null, false);
     assertTrue (aNil.isNilled ());
 
-    final XdmNode aIDs = _parseElement ("<eIDs><item id=\"a\" refs=\"a a\"/></eIDs>");
+    final IXdmNode aIDs = _parseElement ("<eIDs><item id=\"a\" refs=\"a a\"/></eIDs>");
     aSet.validateElement (aIDs, null, true);
-    final XdmNode aItem = aIDs.getChildAtIndex (0);
+    final IXdmNode aItem = aIDs.getChildAtIndex (0);
     assertEquals (EIDKind.ID, aItem.getAttribute ("", "id").getIDKind ());
     assertEquals (EIDKind.IDREFS, aItem.getAttribute ("", "refs").getIDKind ());
     assertTrue (aItem.getAttribute ("", "refs").getSchemaType ().isList ());
@@ -174,12 +174,12 @@ public final class XsdBridgeSpecTest
   public void testStripsElementOnlyWhitespace () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = _compile ();
-    final XdmNode aEl = _parseElement ("<eBase>\n  <a> x </a>\n</eBase>");
+    final IXdmNode aEl = _parseElement ("<eBase>\n  <a> x </a>\n</eBase>");
     aSet.validateElement (aEl, null, false);
     assertEquals (1, aEl.getChildCount ());
     assertTrue (aEl.getChildAtIndex (0).isElement ());
     assertEquals (" x ", aEl.getChildAtIndex (0).getChildAtIndex (0).getValue ());
-    final XdmNode aMixed = _parseElement ("<eMixed>\n  <a>x</a>\n</eMixed>");
+    final IXdmNode aMixed = _parseElement ("<eMixed>\n  <a>x</a>\n</eMixed>");
     aSet.validateElement (aMixed, null, false);
     assertEquals (3, aMixed.getChildCount ());
   }
@@ -188,9 +188,9 @@ public final class XsdBridgeSpecTest
   public void testNotAssessedBelowSkip () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = _compile ();
-    final XdmNode aEl = _parseElement ("<eSkip><eDef>x</eDef></eSkip>");
+    final IXdmNode aEl = _parseElement ("<eSkip><eDef>x</eDef></eSkip>");
     aSet.validateElement (aEl, null, false);
-    final XdmNode aChild = aEl.getChildAtIndex (0);
+    final IXdmNode aChild = aEl.getChildAtIndex (0);
     assertNull (aChild.getSchemaType ());
     assertEquals ("anyType", aChild.getTypeAnnotation ().localName ());
   }
@@ -200,7 +200,7 @@ public final class XsdBridgeSpecTest
   {
     try
     {
-      _compile ().validateDocument (XdmNode.createDocument ());
+      _compile ().validateDocument (IXdmNode.createDocument ());
       fail ("no document element");
     }
     catch (final IllegalArgumentException | XdmValidationException ex)
@@ -231,7 +231,7 @@ public final class XsdBridgeSpecTest
     {
       assertTrue (ex.isDocumentConstraint ());
     }
-    final XdmNode aValid = _parseElement (sHead + "<e xml:id=\"a\"/></doc>");
+    final IXdmNode aValid = _parseElement (sHead + "<e xml:id=\"a\"/></doc>");
     aSet.validateElement (aValid, null, true);
     assertEquals (EIDKind.ID, aValid.getChildAtIndex (0).getAttribute ("http://www.w3.org/XML/1998/namespace", "id").getIDKind ());
   }
@@ -245,7 +245,7 @@ public final class XsdBridgeSpecTest
   <xs:element name="root"><xs:complexType><xs:sequence><xs:any processContents="lax" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
 </xs:schema>""", null)), EXsdVersion.V10, null));
     final String sHead = "<root xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">";
-    final XdmNode aValid = _parseElement (sHead + "<e xsi:type=\"xs:int\">5</e></root>");
+    final IXdmNode aValid = _parseElement (sHead + "<e xsi:type=\"xs:int\">5</e></root>");
     aSet.validateElement (aValid, null, true);
     assertEquals ("int", aValid.getChildAtIndex (0).getSchemaType ().getName ().localName ());
     for (final String sBad : new String [] { "<e xsi:type=\"xs:int\">x</e>",

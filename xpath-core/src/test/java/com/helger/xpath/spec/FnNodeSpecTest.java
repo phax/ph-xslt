@@ -24,8 +24,8 @@ import static com.helger.xpath.spec.SpecTestHelper.run;
 
 import org.junit.Test;
 
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -73,10 +73,10 @@ public final class FnNodeSpecTest
   @Test
   public void nodeSpecPathParentless ()
   {
-    final XdmNode aEmp = XdmNode.createElement (new XdmQName ("employee"));
-    aEmp.addAttribute (XdmNode.createAttribute (new XdmQName (XdmConstants.NS_XML, "id", "xml"), "ID21256"));
-    final XdmNode aEmpNr = XdmNode.createElement (new XdmQName ("empnr"));
-    aEmpNr.appendChild (XdmNode.createText ("E21543"));
+    final IXdmNode aEmp = IXdmNode.createElement (new XdmQName ("employee"));
+    aEmp.addAttribute (IXdmNode.createAttribute (new XdmQName (XdmConstants.NS_XML, "id", "xml"), "ID21256"));
+    final IXdmNode aEmpNr = IXdmNode.createElement (new XdmQName ("empnr"));
+    aEmpNr.appendChild (IXdmNode.createText ("E21543"));
     aEmp.appendChild (aEmpNr);
     final String sRoot = "Q{http://www.w3.org/2005/xpath-functions}root()";
     run (env ().contextItem (aEmp),

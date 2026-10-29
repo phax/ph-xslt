@@ -202,14 +202,14 @@ A sequence constructor writes to an `IXsltOutput`:
 Outputs you create:
 
 - `new SequenceOutput ()` → `getSequence ()`: the raw items (xsl:function results, `as` typed values).
-- `new ContentOutput (XdmNode.createElement (name))`: builds element content by the rules for constructing complex
+- `new ContentOutput (IXdmNode.createElement (name))`: builds element content by the rules for constructing complex
   content (atomic values → text with spaces between adjacent ones, merging, XTDE0410/0420/0430/0440/0450); then
   `out.appendNew (element)`. For a document node that becomes a tree on its own (a temporary tree), call
   `finishTree ()` afterwards.
 - `new BufferedOutput ()`: records items with their "new" flag; inspect (`size`, `get`, `isNew`) and `replay`
   them later (xsl:try rollback, xsl:where-populated, xsl:on-empty).
 
-Helpers: `XdmNode.createElement/createAttribute/createText/createComment/createProcessingInstruction/
+Helpers: `IXdmNode.createElement/createAttribute/createText/createComment/createProcessingInstruction/
 createNamespace/createDocument`, `NodeCopier.copyDeep (node, bCopyNamespaces)`, `NodeCopier.copyShallow`,
 `SimpleContent.join (seq, separator)` (value of xsl:attribute etc.), `NamespaceFixup.finish (root)`.
 

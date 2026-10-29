@@ -30,7 +30,7 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * The whole-schema component checks of go-xslt <code>structure.go</code> (element declarations
@@ -757,7 +757,7 @@ final class XsdComponentChecks
       return;
     final ICommonsOrderedMap <XsdName, ICommonsList <XsdName>> aGraph = new CommonsLinkedHashMap <> ();
     for (final XsdSchemaDocument aSD : aDocs)
-      for (final XdmNode aChild : XsdNodes.children (aSD.m_aElement))
+      for (final IXdmNode aChild : XsdNodes.children (aSD.m_aElement))
       {
         if (!XsdNodes.isXS (aChild, "attributeGroup"))
           continue;
@@ -765,7 +765,7 @@ final class XsdComponentChecks
         if (sName == null)
           continue;
         final XsdName aSelf = new XsdName (aSD.m_sTNS, XsdWhiteSpace.collapse (sName));
-        for (final XdmNode aSub : XsdNodes.children (aChild))
+        for (final IXdmNode aSub : XsdNodes.children (aChild))
           if (XsdNodes.isXS (aSub, "attributeGroup"))
           {
             final String sRef = XsdNodes.attr (aSub, "ref");

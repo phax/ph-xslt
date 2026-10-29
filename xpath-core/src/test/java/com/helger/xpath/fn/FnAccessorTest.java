@@ -29,7 +29,7 @@ import org.junit.Test;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -44,7 +44,7 @@ public final class FnAccessorTest
   @Test
   public void testStringAndData ()
   {
-    final XdmNode aDoc = parse (XML);
+    final IXdmNode aDoc = parse (XML);
     assertEquals ("xty", str ("string()", aDoc));
     assertEquals ("1", str ("string(/r/@a)", aDoc));
     assertEquals ("", str ("string(())"));
@@ -64,7 +64,7 @@ public final class FnAccessorTest
   @Test
   public void testNames ()
   {
-    final XdmNode aDoc = parse (XML);
+    final IXdmNode aDoc = parse (XML);
     assertEquals ("p:e", str ("name(/r/*[1])", aDoc));
     assertEquals ("e", str ("local-name(/r/*[1])", aDoc));
     assertEquals ("urn:p", str ("namespace-uri(/r/*[1])", aDoc));
@@ -88,7 +88,7 @@ public final class FnAccessorTest
   @Test
   public void testNilledRootHasChildren ()
   {
-    final XdmNode aDoc = parse (XML);
+    final IXdmNode aDoc = parse (XML);
     assertEquals ("false", str ("nilled(/r)", aDoc));
     assertTrue (eval ("nilled(/r/@a)", aDoc).isEmpty ());
     assertEquals ("true", str ("root(/r/e[1]) is /", aDoc));
@@ -101,7 +101,7 @@ public final class FnAccessorTest
   @Test
   public void testPath ()
   {
-    final XdmNode aDoc = parse (XML);
+    final IXdmNode aDoc = parse (XML);
     assertEquals ("/", str ("path(/)", aDoc));
     assertEquals ("/Q{}r[1]/Q{urn:p}e[1]", str ("path(/r/*[1])", aDoc));
     assertEquals ("/Q{}r[1]/Q{}e[2]", str ("path(/r/e[2])", aDoc));
@@ -114,8 +114,8 @@ public final class FnAccessorTest
     assertTrue (eval ("path(())").isEmpty ());
 
     // A tree that is not rooted in a document node
-    final XdmNode aElement = XdmNode.createElement (new XdmQName ("a"));
-    final XdmNode aChild = XdmNode.createElement (new XdmQName ("b"));
+    final IXdmNode aElement = IXdmNode.createElement (new XdmQName ("a"));
+    final IXdmNode aChild = IXdmNode.createElement (new XdmQName ("b"));
     aElement.appendChild (aChild);
     assertEquals ("Q{http://www.w3.org/2005/xpath-functions}root()", FnAccessor.getPath (aElement));
     assertEquals ("Q{http://www.w3.org/2005/xpath-functions}root()/Q{}b[1]", FnAccessor.getPath (aChild));
@@ -124,7 +124,7 @@ public final class FnAccessorTest
   @Test
   public void testGenerateId ()
   {
-    final XdmNode aDoc = parse (XML);
+    final IXdmNode aDoc = parse (XML);
     assertEquals ("", str ("generate-id(())"));
     assertEquals ("true", str ("generate-id(/r) = generate-id(/r)", aDoc));
     assertEquals ("false", str ("generate-id(/r) = generate-id(/r/e[1])", aDoc));
@@ -136,7 +136,7 @@ public final class FnAccessorTest
   @Test
   public void testBaseAndDocumentUri ()
   {
-    final XdmNode aDoc = parse ("<r xml:base='http://example.org/dir/'><a xml:base='sub/'><b/></a><c xml:base='http://other.org/x'/></r>");
+    final IXdmNode aDoc = parse ("<r xml:base='http://example.org/dir/'><a xml:base='sub/'><b/></a><c xml:base='http://other.org/x'/></r>");
     assertTrue (eval ("base-uri(/)", aDoc).isEmpty ());
     assertEquals ("http://example.org/dir/", str ("base-uri(/r)", aDoc));
     assertEquals ("http://example.org/dir/sub/", str ("base-uri(//b)", aDoc));
@@ -146,7 +146,7 @@ public final class FnAccessorTest
     assertTrue (eval ("document-uri(/)", aDoc).isEmpty ());
 
     aDoc.setDocumentUri ("http://example.org/doc.xml");
-    final XdmNode aDoc2 = parse ("<r><a xml:base='x/'/></r>");
+    final IXdmNode aDoc2 = parse ("<r><a xml:base='x/'/></r>");
     aDoc2.setDocumentUri ("http://example.org/base/doc.xml");
     assertEquals ("http://example.org/doc.xml", str ("document-uri(/)", aDoc));
     assertTrue (eval ("document-uri(/r)", aDoc).isEmpty ());
@@ -154,7 +154,7 @@ public final class FnAccessorTest
     assertEquals ("http://example.org/base/x/", str ("base-uri(//a)", aDoc2));
 
     // A parentless attribute has no base URI
-    assertEquals (null, FnAccessor.getBaseUri (XdmNode.createAttribute (new XdmQName ("a"), "v")));
+    assertEquals (null, FnAccessor.getBaseUri (IXdmNode.createAttribute (new XdmQName ("a"), "v")));
     assertError ("XPTY0004", "base-uri()", XdmAtomic.integer (1));
   }
 }

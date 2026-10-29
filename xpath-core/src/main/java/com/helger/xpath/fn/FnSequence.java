@@ -49,8 +49,8 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.EIDKind;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 
 /**
  * Function family: fn:empty, exists, head, tail, insert-before, remove,
@@ -324,25 +324,25 @@ public final class FnSequence
    * @return The node given as argument at the index, or the context node.
    */
   @NonNull
-  private static XdmNode _getNodeArg (@NonNull final DynamicContext aCtx,
+  private static IXdmNode _getNodeArg (@NonNull final DynamicContext aCtx,
                                       @NonNull final List <XdmSequence> aArgs,
                                       final int nIndex,
                                       @NonNull final String sFunc)
   {
     if (aArgs.size () > nIndex)
-      return (XdmNode) aArgs.get (nIndex).get (0);
+      return (IXdmNode) aArgs.get (nIndex).get (0);
     final IXdmItem aItem = aCtx.getContextItem ();
     if (aItem == null)
       throw XPathException.noContext ("fn:" + sFunc + " has no context item");
-    if (!(aItem instanceof final XdmNode aNode))
+    if (!(aItem instanceof final IXdmNode aNode))
       throw XPathException.type ("The context item of fn:" + sFunc + " is not a node");
     return aNode;
   }
 
   @NonNull
-  private static XdmNode _getDocumentRoot (@NonNull final XdmNode aNode, @NonNull final String sFunc)
+  private static IXdmNode _getDocumentRoot (@NonNull final IXdmNode aNode, @NonNull final String sFunc)
   {
-    final XdmNode aRoot = aNode.getRoot ();
+    final IXdmNode aRoot = aNode.getRoot ();
     if (!aRoot.isDocument ())
       throw XPathException.of ("FODC0001", "The tree searched by fn:" + sFunc + " is not rooted at a document node");
     return aRoot;
@@ -383,7 +383,7 @@ public final class FnSequence
                                   final boolean bElementWithID)
   {
     final String sFunc = bElementWithID ? "element-with-id" : "id";
-    final XdmNode aRoot = _getDocumentRoot (_getNodeArg (aCtx, aArgs, 1, sFunc), sFunc);
+    final IXdmNode aRoot = _getDocumentRoot (_getNodeArg (aCtx, aArgs, 1, sFunc), sFunc);
     final ICommonsSet <String> aWanted = new CommonsHashSet <> ();
     for (final IXdmItem aItem : aArgs.get (0))
       aWanted.addAll (_tokenize (((XdmAtomic) aItem).getString ()));
@@ -391,19 +391,19 @@ public final class FnSequence
       return XdmSequence.EMPTY;
 
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aRoot);
     int nCount = 0;
     while (!aStack.isEmpty ())
     {
       if ((++nCount & 0x3ff) == 0)
         aCtx.checkInterrupt ();
-      final XdmNode aNode = aStack.pop ();
+      final IXdmNode aNode = aStack.pop ();
       if (aNode.isElement ())
       {
         for (int i = 0; i < aNode.getAttributeCount (); ++i)
         {
-          final XdmNode aAttr = aNode.getAttributeAtIndex (i);
+          final IXdmNode aAttr = aNode.getAttributeAtIndex (i);
           if (aAttr.getIDKind () == EIDKind.ID && aWanted.contains (aAttr.getValue ().trim ()))
           {
             aBuilder.add (aNode);
@@ -417,7 +417,7 @@ public final class FnSequence
             aBuilder.add (aNode);
           else
           {
-            final XdmNode aParent = aNode.getParent ();
+            final IXdmNode aParent = aNode.getParent ();
             if (aParent != null && aParent.isElement ())
               aBuilder.add (aParent);
           }
@@ -425,7 +425,7 @@ public final class FnSequence
       }
       for (int i = aNode.getChildCount () - 1; i >= 0; --i)
       {
-        final XdmNode aChild = aNode.getChildAtIndex (i);
+        final IXdmNode aChild = aNode.getChildAtIndex (i);
         if (aChild.isElement ())
           aStack.push (aChild);
       }
@@ -433,7 +433,7 @@ public final class FnSequence
     return NodeSorter.sortAndDeduplicate (aBuilder.build ());
   }
 
-  private static boolean _isIDRef (@NonNull final XdmNode aNode)
+  private static boolean _isIDRef (@NonNull final IXdmNode aNode)
   {
     final EIDKind eKind = aNode.getIDKind ();
     return eKind == EIDKind.IDREF || eKind == EIDKind.IDREFS;
@@ -450,7 +450,7 @@ public final class FnSequence
   @NonNull
   private static XdmSequence _idref (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
-    final XdmNode aRoot = _getDocumentRoot (_getNodeArg (aCtx, aArgs, 1, "idref"), "idref");
+    final IXdmNode aRoot = _getDocumentRoot (_getNodeArg (aCtx, aArgs, 1, "idref"), "idref");
     // Each string is one candidate ID value (after whitespace collapsing);
     // a string that is not a single token can never match
     final ICommonsSet <String> aWanted = new CommonsHashSet <> ();
@@ -464,28 +464,28 @@ public final class FnSequence
       return XdmSequence.EMPTY;
 
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aRoot);
     int nCount = 0;
     while (!aStack.isEmpty ())
     {
       if ((++nCount & 0x3ff) == 0)
         aCtx.checkInterrupt ();
-      final XdmNode aNode = aStack.pop ();
+      final IXdmNode aNode = aStack.pop ();
       if (aNode.isElement ())
       {
         if (_isIDRef (aNode) && _matchesIDRef (aNode.getStringValue (), aWanted))
           aBuilder.add (aNode);
         for (int i = 0; i < aNode.getAttributeCount (); ++i)
         {
-          final XdmNode aAttr = aNode.getAttributeAtIndex (i);
+          final IXdmNode aAttr = aNode.getAttributeAtIndex (i);
           if (_isIDRef (aAttr) && _matchesIDRef (aAttr.getValue (), aWanted))
             aBuilder.add (aAttr);
         }
       }
       for (int i = aNode.getChildCount () - 1; i >= 0; --i)
       {
-        final XdmNode aChild = aNode.getChildAtIndex (i);
+        final IXdmNode aChild = aNode.getChildAtIndex (i);
         if (aChild.isElement ())
           aStack.push (aChild);
       }
@@ -499,9 +499,9 @@ public final class FnSequence
     final XdmSequence aTestArg = aArgs.get (0);
     final String sTest = aTestArg.isEmpty () ? "" : ((XdmAtomic) aTestArg.get (0)).getString ()
                                                                                   .toLowerCase (Locale.ROOT);
-    for (XdmNode aNode = _getNodeArg (aCtx, aArgs, 1, "lang"); aNode != null; aNode = aNode.getParent ())
+    for (IXdmNode aNode = _getNodeArg (aCtx, aArgs, 1, "lang"); aNode != null; aNode = aNode.getParent ())
     {
-      final XdmNode aLang = aNode.getKind () == ENodeKind.ELEMENT ? aNode.getAttribute (XdmConstants.NS_XML, "lang")
+      final IXdmNode aLang = aNode.getKind () == ENodeKind.ELEMENT ? aNode.getAttribute (XdmConstants.NS_XML, "lang")
                                                                   : null;
       if (aLang != null)
       {
@@ -520,18 +520,18 @@ public final class FnSequence
     final XdmSequence aNodes = NodeSorter.sortAndDeduplicate (aInput);
     if (aNodes.size () <= 1)
       return aNodes;
-    final Set <XdmNode> aInSet = Collections.newSetFromMap (new IdentityHashMap <> ());
+    final Set <IXdmNode> aInSet = Collections.newSetFromMap (new IdentityHashMap <> ());
     for (final IXdmItem aItem : aNodes)
-      aInSet.add ((XdmNode) aItem);
+      aInSet.add ((IXdmNode) aItem);
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     if (bInnermost)
     {
       // Mark every ancestor of a node in the set
-      final Set <XdmNode> aHasDescendant = Collections.newSetFromMap (new IdentityHashMap <> ());
+      final Set <IXdmNode> aHasDescendant = Collections.newSetFromMap (new IdentityHashMap <> ());
       for (final IXdmItem aItem : aNodes)
       {
         aCtx.checkInterrupt ();
-        for (XdmNode aAnc = ((XdmNode) aItem).getParent (); aAnc != null; aAnc = aAnc.getParent ())
+        for (IXdmNode aAnc = ((IXdmNode) aItem).getParent (); aAnc != null; aAnc = aAnc.getParent ())
           if (!aHasDescendant.add (aAnc))
             break;
       }
@@ -545,7 +545,7 @@ public final class FnSequence
       {
         aCtx.checkInterrupt ();
         boolean bHasAncestor = false;
-        for (XdmNode aAnc = ((XdmNode) aItem).getParent (); aAnc != null; aAnc = aAnc.getParent ())
+        for (IXdmNode aAnc = ((IXdmNode) aItem).getParent (); aAnc != null; aAnc = aAnc.getParent ())
           if (aInSet.contains (aAnc))
           {
             bHasAncestor = true;

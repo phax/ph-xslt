@@ -39,7 +39,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -59,17 +59,17 @@ public final class AtomizerTest
     return XdmArray.of (List.of (aMembers));
   }
 
-  private static XdmNode _doc ()
+  private static IXdmNode _doc ()
   {
-    final XdmNode aDoc = XdmNode.createDocument ();
-    final XdmNode aRoot = XdmNode.createElement (new XdmQName ("a"));
-    aRoot.addAttribute (XdmNode.createAttribute (new XdmQName ("att"), "v"));
-    aRoot.appendChild (XdmNode.createText ("hello "));
-    final XdmNode aB = XdmNode.createElement (new XdmQName ("b"));
-    aB.appendChild (XdmNode.createText ("world"));
+    final IXdmNode aDoc = IXdmNode.createDocument ();
+    final IXdmNode aRoot = IXdmNode.createElement (new XdmQName ("a"));
+    aRoot.addAttribute (IXdmNode.createAttribute (new XdmQName ("att"), "v"));
+    aRoot.appendChild (IXdmNode.createText ("hello "));
+    final IXdmNode aB = IXdmNode.createElement (new XdmQName ("b"));
+    aB.appendChild (IXdmNode.createText ("world"));
     aRoot.appendChild (aB);
-    aRoot.appendChild (XdmNode.createComment ("c"));
-    aRoot.appendChild (XdmNode.createProcessingInstruction ("pi", "data"));
+    aRoot.appendChild (IXdmNode.createComment ("c"));
+    aRoot.appendChild (IXdmNode.createProcessingInstruction ("pi", "data"));
     aDoc.appendChild (aRoot);
     return aDoc;
   }
@@ -92,8 +92,8 @@ public final class AtomizerTest
   @Test
   public void testAtomizeNodes ()
   {
-    final XdmNode aDoc = _doc ();
-    final XdmNode aRoot = aDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = _doc ();
+    final IXdmNode aRoot = aDoc.getChildAtIndex (0);
     final XdmSequence aRes = Atomizer.atomize (_seq (i (7),
                                                      aDoc,
                                                      aRoot,
@@ -146,17 +146,17 @@ public final class AtomizerTest
   @Test
   public void testTypedValue ()
   {
-    _assertAtomic (EAtomicType.UNTYPED_ATOMIC, "t", Atomizer.getTypedValue (XdmNode.createText ("t")));
-    _assertAtomic (EAtomicType.STRING, "c", Atomizer.getTypedValue (XdmNode.createComment ("c")));
+    _assertAtomic (EAtomicType.UNTYPED_ATOMIC, "t", Atomizer.getTypedValue (IXdmNode.createText ("t")));
+    _assertAtomic (EAtomicType.STRING, "c", Atomizer.getTypedValue (IXdmNode.createComment ("c")));
     _assertAtomic (EAtomicType.UNTYPED_ATOMIC,
                    "",
-                   Atomizer.getTypedValue (XdmNode.createElement (new XdmQName ("e"))));
+                   Atomizer.getTypedValue (IXdmNode.createElement (new XdmQName ("e"))));
   }
 
   @Test
   public void testEffectiveBooleanValue ()
   {
-    final XdmNode aElem = XdmNode.createElement (new XdmQName ("e"));
+    final IXdmNode aElem = IXdmNode.createElement (new XdmQName ("e"));
     assertFalse (Atomizer.getEffectiveBooleanValue (XdmSequence.EMPTY));
     assertTrue (Atomizer.getEffectiveBooleanValue (_seq (aElem)));
     assertTrue (Atomizer.getEffectiveBooleanValue (_seq (aElem, aElem)));
@@ -195,7 +195,7 @@ public final class AtomizerTest
   {
     assertEquals ("1.0E6", Atomizer.getStringValue (dbl (1e6)));
     assertEquals ("hello world", Atomizer.getStringValue (_doc ()));
-    assertEquals ("c", Atomizer.getStringValue (XdmNode.createComment ("c")));
+    assertEquals ("c", Atomizer.getStringValue (IXdmNode.createComment ("c")));
     assertError ("FOTY0014", () -> Atomizer.getStringValue (XdmMap.EMPTY));
     assertError ("FOTY0014", () -> Atomizer.getStringValue (XdmArray.EMPTY));
     assertError ("FOTY0014", () -> Atomizer.getStringValue (FUNCTION));

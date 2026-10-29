@@ -28,8 +28,8 @@ import com.helger.xpath.ops.XsdLexical;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -92,7 +92,7 @@ public final class FnQName
     if (aArgs.get (0).isEmpty ())
       return XdmSequence.EMPTY;
     final String sLexical = ((XdmAtomic) aArgs.get (0).get (0)).getString ();
-    final XdmNode aElement = (XdmNode) aArgs.get (1).get (0);
+    final IXdmNode aElement = (IXdmNode) aArgs.get (1).get (0);
     final String [] aParts = _splitLexical (sLexical);
     if (aParts == null)
       throw XPathException.of ("FOCA0002", "'" + sLexical + "' is not a valid lexical QName");

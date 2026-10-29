@@ -34,7 +34,7 @@ import org.openjdk.jol.info.GraphLayout;
 import com.helger.xml.microdom.IMicroDocument;
 import com.helger.xml.microdom.serialize.MicroReader;
 import com.helger.xpath.xdm.ENodeKind;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 
@@ -45,7 +45,7 @@ import net.sf.saxon.tree.tiny.TinyTree;
 
 /**
  * Measures the retained heap of one parsed document in three tree models: ph-xslt
- * {@link XdmNode}, ph-xml MicroDOM and Saxon TinyTree. The primary figure is the deep size of
+ * {@link IXdmNode}, ph-xml MicroDOM and Saxon TinyTree. The primary figure is the deep size of
  * the object graph reachable from the tree (JOL); a heap delta after full GC is printed as a
  * cross-check.
  *
@@ -94,15 +94,15 @@ public final class MainMemoryBenchmark
   }
 
   @NonNull
-  private static long [] _countXdmNodes (@NonNull final XdmNode aRoot)
+  private static long [] _countXdmNodes (@NonNull final IXdmNode aRoot)
   {
     // elements, attributes, text, other
     final long [] ret = new long [4];
-    final Deque <XdmNode> aStack = new ArrayDeque <> ();
+    final Deque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aRoot);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aNode = aStack.pop ();
+      final IXdmNode aNode = aStack.pop ();
       final ENodeKind eKind = aNode.getKind ();
       if (eKind == ENodeKind.ELEMENT)
         ret[0]++;
@@ -119,7 +119,7 @@ public final class MainMemoryBenchmark
   }
 
   @NonNull
-  private static XdmNode _parseXdm (@NonNull final File aFile)
+  private static IXdmNode _parseXdm (@NonNull final File aFile)
   {
     try
     {
@@ -175,7 +175,7 @@ public final class MainMemoryBenchmark
       final File aFile = new File (aDoc[1]);
       final long nFileSize = Files.size (Path.of (aFile.getPath ()));
 
-      final XdmNode aXdm = _parseXdm (aFile);
+      final IXdmNode aXdm = _parseXdm (aFile);
       final long [] aCounts = _countXdmNodes (aXdm);
       final long nXdm = GraphLayout.parseInstance (aXdm).totalSize ();
 

@@ -34,7 +34,7 @@ import com.helger.xpath.context.EXmlVersion;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
@@ -275,7 +275,7 @@ public final class QT3CaseRunner
     {
       // A deliberately malformed source is not loaded; reading it is the
       // engine's job (FODC0002)
-      final XdmNode aDoc = aResolver.getSourceDocument (aSrc);
+      final IXdmNode aDoc = aResolver.getSourceDocument (aSrc);
       if (aDoc == null)
         continue;
       if (".".equals (aSrc.role ()))

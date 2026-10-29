@@ -46,7 +46,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -411,14 +411,14 @@ public final class AtomicComparatorTest
     assertTrue (_g (EComparisonOp.GENERAL_EQ, _seq (untyped ("PT60M")), _seq (aDTD)));
   }
 
-  private static XdmNode _elem (final String sName, final Object... aContent)
+  private static IXdmNode _elem (final String sName, final Object... aContent)
   {
-    final XdmNode ret = XdmNode.createElement (new XdmQName (sName));
+    final IXdmNode ret = IXdmNode.createElement (new XdmQName (sName));
     for (final Object o : aContent)
       if (o instanceof final String s)
-        ret.appendChild (XdmNode.createText (s));
+        ret.appendChild (IXdmNode.createText (s));
       else
-        ret.appendChild ((XdmNode) o);
+        ret.appendChild ((IXdmNode) o);
     return ret;
   }
 
@@ -482,81 +482,81 @@ public final class AtomicComparatorTest
   @Test
   public void testDeepEqualNodes ()
   {
-    final XdmNode a1 = _elem ("a", "x", _elem ("b", "y"));
-    a1.addAttribute (XdmNode.createAttribute (new XdmQName ("p"), "1"));
-    a1.addAttribute (XdmNode.createAttribute (new XdmQName ("urn:x", "q", "x"), "2"));
-    final XdmNode a2 = _elem ("a", "x", XdmNode.createComment ("ignored"), _elem ("b", "y"));
+    final IXdmNode a1 = _elem ("a", "x", _elem ("b", "y"));
+    a1.addAttribute (IXdmNode.createAttribute (new XdmQName ("p"), "1"));
+    a1.addAttribute (IXdmNode.createAttribute (new XdmQName ("urn:x", "q", "x"), "2"));
+    final IXdmNode a2 = _elem ("a", "x", IXdmNode.createComment ("ignored"), _elem ("b", "y"));
     // attribute order and prefixes do not matter
-    a2.addAttribute (XdmNode.createAttribute (new XdmQName ("urn:x", "q", "other"), "2"));
-    a2.addAttribute (XdmNode.createAttribute (new XdmQName ("p"), "1"));
-    a2.appendChild (XdmNode.createProcessingInstruction ("pi", "ignored"));
+    a2.addAttribute (IXdmNode.createAttribute (new XdmQName ("urn:x", "q", "other"), "2"));
+    a2.addAttribute (IXdmNode.createAttribute (new XdmQName ("p"), "1"));
+    a2.appendChild (IXdmNode.createProcessingInstruction ("pi", "ignored"));
     assertTrue (_deq (_seq (a1), _seq (a2)));
 
-    final XdmNode a3 = _elem ("a", "x", _elem ("b", "z"));
-    a3.addAttribute (XdmNode.createAttribute (new XdmQName ("p"), "1"));
-    a3.addAttribute (XdmNode.createAttribute (new XdmQName ("urn:x", "q"), "2"));
+    final IXdmNode a3 = _elem ("a", "x", _elem ("b", "z"));
+    a3.addAttribute (IXdmNode.createAttribute (new XdmQName ("p"), "1"));
+    a3.addAttribute (IXdmNode.createAttribute (new XdmQName ("urn:x", "q"), "2"));
     assertFalse (_deq (_seq (a1), _seq (a3)));
 
-    final XdmNode a4 = _elem ("a", "x", _elem ("b", "y"));
-    a4.addAttribute (XdmNode.createAttribute (new XdmQName ("p"), "1"));
+    final IXdmNode a4 = _elem ("a", "x", _elem ("b", "y"));
+    a4.addAttribute (IXdmNode.createAttribute (new XdmQName ("p"), "1"));
     assertFalse (_deq (_seq (a1), _seq (a4)));
 
-    final XdmNode a5 = _elem ("a", "x", _elem ("b", "y"));
-    a5.addAttribute (XdmNode.createAttribute (new XdmQName ("p"), "1"));
-    a5.addAttribute (XdmNode.createAttribute (new XdmQName ("urn:x", "q"), "3"));
+    final IXdmNode a5 = _elem ("a", "x", _elem ("b", "y"));
+    a5.addAttribute (IXdmNode.createAttribute (new XdmQName ("p"), "1"));
+    a5.addAttribute (IXdmNode.createAttribute (new XdmQName ("urn:x", "q"), "3"));
     assertFalse (_deq (_seq (a1), _seq (a5)));
 
     // name differences
     assertFalse (_deq (_seq (_elem ("a")), _seq (_elem ("b"))));
-    assertFalse (_deq (_seq (XdmNode.createElement (new XdmQName ("urn:1", "a"))),
-                       _seq (XdmNode.createElement (new XdmQName ("urn:2", "a")))));
+    assertFalse (_deq (_seq (IXdmNode.createElement (new XdmQName ("urn:1", "a"))),
+                       _seq (IXdmNode.createElement (new XdmQName ("urn:2", "a")))));
     // whitespace text matters for untyped elements
     assertFalse (_deq (_seq (_elem ("a", " ")), _seq (_elem ("a"))));
 
     // documents
-    final XdmNode d1 = XdmNode.createDocument ();
-    d1.appendChild (XdmNode.createComment ("c"));
+    final IXdmNode d1 = IXdmNode.createDocument ();
+    d1.appendChild (IXdmNode.createComment ("c"));
     d1.appendChild (_elem ("r", "t"));
-    final XdmNode d2 = XdmNode.createDocument ();
+    final IXdmNode d2 = IXdmNode.createDocument ();
     d2.appendChild (_elem ("r", "t"));
     assertTrue (_deq (_seq (d1), _seq (d2)));
     assertFalse (_deq (_seq (d1), _seq (_elem ("r", "t"))));
 
     // other kinds
-    assertTrue (_deq (_seq (XdmNode.createText ("t")), _seq (XdmNode.createText ("t"))));
-    assertFalse (_deq (_seq (XdmNode.createText ("t")), _seq (XdmNode.createComment ("t"))));
-    assertTrue (_deq (_seq (XdmNode.createComment ("c")), _seq (XdmNode.createComment ("c"))));
-    assertTrue (_deq (_seq (XdmNode.createProcessingInstruction ("a", "d")),
-                      _seq (XdmNode.createProcessingInstruction ("a", "d"))));
-    assertFalse (_deq (_seq (XdmNode.createProcessingInstruction ("a", "d")),
-                       _seq (XdmNode.createProcessingInstruction ("b", "d"))));
-    assertTrue (_deq (_seq (XdmNode.createAttribute (new XdmQName ("a"), "v")),
-                      _seq (XdmNode.createAttribute (new XdmQName ("a"), "v"))));
-    assertFalse (_deq (_seq (XdmNode.createAttribute (new XdmQName ("a"), "v")),
-                       _seq (XdmNode.createAttribute (new XdmQName ("b"), "v"))));
+    assertTrue (_deq (_seq (IXdmNode.createText ("t")), _seq (IXdmNode.createText ("t"))));
+    assertFalse (_deq (_seq (IXdmNode.createText ("t")), _seq (IXdmNode.createComment ("t"))));
+    assertTrue (_deq (_seq (IXdmNode.createComment ("c")), _seq (IXdmNode.createComment ("c"))));
+    assertTrue (_deq (_seq (IXdmNode.createProcessingInstruction ("a", "d")),
+                      _seq (IXdmNode.createProcessingInstruction ("a", "d"))));
+    assertFalse (_deq (_seq (IXdmNode.createProcessingInstruction ("a", "d")),
+                       _seq (IXdmNode.createProcessingInstruction ("b", "d"))));
+    assertTrue (_deq (_seq (IXdmNode.createAttribute (new XdmQName ("a"), "v")),
+                      _seq (IXdmNode.createAttribute (new XdmQName ("a"), "v"))));
+    assertFalse (_deq (_seq (IXdmNode.createAttribute (new XdmQName ("a"), "v")),
+                       _seq (IXdmNode.createAttribute (new XdmQName ("b"), "v"))));
     assertTrue (AtomicComparator.deepEqual (_seq (_elem ("a", "X")), _seq (_elem ("a", "x")), CASE_INSENSITIVE, CTX));
   }
 
   @Test
   public void testDeepEqualDeepTree ()
   {
-    final XdmNode aRoot1 = _elem ("a");
-    final XdmNode aRoot2 = _elem ("a");
-    XdmNode aCur1 = aRoot1;
-    XdmNode aCur2 = aRoot2;
+    final IXdmNode aRoot1 = _elem ("a");
+    final IXdmNode aRoot2 = _elem ("a");
+    IXdmNode aCur1 = aRoot1;
+    IXdmNode aCur2 = aRoot2;
     for (int n = 0; n < 100_000; ++n)
     {
-      final XdmNode aNew1 = _elem ("a");
-      final XdmNode aNew2 = _elem ("a");
+      final IXdmNode aNew1 = _elem ("a");
+      final IXdmNode aNew2 = _elem ("a");
       aCur1.appendChild (aNew1);
       aCur2.appendChild (aNew2);
       aCur1 = aNew1;
       aCur2 = aNew2;
     }
-    aCur1.appendChild (XdmNode.createText ("x"));
-    aCur2.appendChild (XdmNode.createText ("x"));
+    aCur1.appendChild (IXdmNode.createText ("x"));
+    aCur2.appendChild (IXdmNode.createText ("x"));
     assertTrue (_deq (_seq (aRoot1), _seq (aRoot2)));
-    aCur2.appendChild (XdmNode.createText ("y"));
+    aCur2.appendChild (IXdmNode.createText ("y"));
     assertFalse (_deq (_seq (aRoot1), _seq (aRoot2)));
   }
 }

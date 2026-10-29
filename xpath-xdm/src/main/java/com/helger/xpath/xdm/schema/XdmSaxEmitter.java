@@ -30,7 +30,7 @@ import org.xml.sax.helpers.AttributesImpl;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.ICommonsOrderedMap;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -55,7 +55,7 @@ public final class XdmSaxEmitter
     return sPrefix == null || sPrefix.isEmpty () ? aName.localName () : sPrefix + ":" + aName.localName ();
   }
 
-  private static void _startElement (@NonNull final XdmNode aElement,
+  private static void _startElement (@NonNull final IXdmNode aElement,
                                      @NonNull final Map <String, String> aNamespaces,
                                      @NonNull final ContentHandler aHandler) throws SAXException
   {
@@ -63,7 +63,7 @@ public final class XdmSaxEmitter
       if (!"xml".equals (aEntry.getKey ()))
         aHandler.startPrefixMapping (aEntry.getKey (), aEntry.getValue ());
     final AttributesImpl aAttrs = new AttributesImpl ();
-    for (final XdmNode aAttr : aElement.getAllAttributes ())
+    for (final IXdmNode aAttr : aElement.getAllAttributes ())
     {
       final XdmQName aName = aAttr.getName ();
       aAttrs.addAttribute (aName.namespaceUri (), aName.localName (), _qname (aName), "CDATA", aAttr.getValue ());
@@ -72,7 +72,7 @@ public final class XdmSaxEmitter
     aHandler.startElement (aName.namespaceUri (), aName.localName (), _qname (aName), aAttrs);
   }
 
-  private static void _endElement (@NonNull final XdmNode aElement,
+  private static void _endElement (@NonNull final IXdmNode aElement,
                                    @NonNull final Map <String, String> aNamespaces,
                                    @NonNull final ContentHandler aHandler) throws SAXException
   {
@@ -97,7 +97,7 @@ public final class XdmSaxEmitter
    * @throws SAXException
    *         from the handlers
    */
-  public static void emitElement (@NonNull final XdmNode aElement,
+  public static void emitElement (@NonNull final IXdmNode aElement,
                                   @NonNull final ContentHandler aHandler,
                                   @Nullable final LexicalHandler aLexicalHandler,
                                   final boolean bParsedEntitiesAsUnparsed) throws SAXException
@@ -106,7 +106,7 @@ public final class XdmSaxEmitter
       throw new IllegalArgumentException ("Not an element: " + aElement);
     aHandler.startDocument ();
     // The unparsed entities of the document, for values of type xs:ENTITY
-    final XdmNode aRoot = aElement.getRoot ();
+    final IXdmNode aRoot = aElement.getRoot ();
     if (aHandler instanceof final DTDHandler aDTDHandler && aRoot.isDocument ())
       for (final String sName : aRoot.getAllUnparsedEntityNames ())
       {
@@ -117,14 +117,14 @@ public final class XdmSaxEmitter
       for (final String sName : aRoot.getAllParsedEntityNames ())
         aDTDHandler.unparsedEntityDecl (sName, null, sName, "");
     // Stack entries: a node to open, or (with bClose) an element to close
-    record Entry (@NonNull XdmNode node, boolean close, @Nullable Map <String, String> namespaces)
+    record Entry (@NonNull IXdmNode node, boolean close, @Nullable Map <String, String> namespaces)
     {}
     final ArrayDeque <Entry> aStack = new ArrayDeque <> ();
     aStack.push (new Entry (aElement, false, null));
     while (!aStack.isEmpty ())
     {
       final Entry aCur = aStack.pop ();
-      final XdmNode aNode = aCur.node ();
+      final IXdmNode aNode = aCur.node ();
       if (aCur.close ())
       {
         _endElement (aNode, aCur.namespaces (), aHandler);

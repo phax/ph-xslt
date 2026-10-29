@@ -26,7 +26,7 @@ import static org.junit.Assert.assertEquals;
 import org.jspecify.annotations.NonNull;
 import org.junit.Test;
 
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -47,21 +47,21 @@ public final class AxesSpecTest
   }
 
   @NonNull
-  private static XdmNode _el ()
+  private static IXdmNode _el ()
   {
-    return XdmNode.createElement (new XdmQName ("a"));
+    return IXdmNode.createElement (new XdmQName ("a"));
   }
 
   @NonNull
-  private static XdmNode _doc (@NonNull final XdmNode... aKids)
+  private static IXdmNode _doc (@NonNull final IXdmNode... aKids)
   {
-    final XdmNode aDoc = XdmNode.createDocument ();
-    for (final XdmNode aKid : aKids)
+    final IXdmNode aDoc = IXdmNode.createDocument ();
+    for (final IXdmNode aKid : aKids)
       aDoc.appendChild (aKid);
     return aDoc;
   }
 
-  private static void _runDoc (@NonNull final XdmNode aDoc, @NonNull final String sWant)
+  private static void _runDoc (@NonNull final IXdmNode aDoc, @NonNull final String sWant)
   {
     run (env ().contextItem (aDoc), ok ("count(self::document-node(element(a)))", sWant));
   }
@@ -189,8 +189,8 @@ public final class AxesSpecTest
   @Test
   public void caKindTestAnnotated ()
   {
-    final XdmNode aDoc = parse ("<r a=\"5\" b=\"x y\"><e>7</e><n/><v/></r>");
-    final XdmNode aRoot = aDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = parse ("<r a=\"5\" b=\"x y\"><e>7</e><n/><v/></r>");
+    final IXdmNode aRoot = aDoc.getChildAtIndex (0);
     aRoot.getAttributeAtIndex (0).setTypeAnnotation (_xs ("integer"));
     aRoot.getAttributeAtIndex (1).setTypeAnnotation (_xs ("NMTOKENS"));
     aRoot.getChildAtIndex (0).setTypeAnnotation (_xs ("integer"));
@@ -248,11 +248,11 @@ public final class AxesSpecTest
     );
 
     // The namespace nodes of an element are the namespace axis itself.
-    final XdmNode aDoc = parse (sSrc);
-    final XdmNode aW = aDoc.getChildAtIndex (0).getChildAtIndex (0).getChildAtIndex (0);
+    final IXdmNode aDoc = parse (sSrc);
+    final IXdmNode aW = aDoc.getChildAtIndex (0).getChildAtIndex (0).getChildAtIndex (0);
     assertEquals (3, aW.getNamespaceNodes ().size ());
     assertEquals (0, aDoc.getNamespaceNodes ().size ());
-    // go-xslt also checks its namespace-inheritance barrier (SetNSBarrier); XdmNode has no such flag.
+    // go-xslt also checks its namespace-inheritance barrier (SetNSBarrier); IXdmNode has no such flag.
   }
 
   /**
@@ -264,12 +264,12 @@ public final class AxesSpecTest
   public void caDocumentNodeTest ()
   {
     _runDoc (_doc (_el ()), "1");
-    _runDoc (_doc (XdmNode.createComment ("c"), _el ()), "1");
+    _runDoc (_doc (IXdmNode.createComment ("c"), _el ()), "1");
     _runDoc (_doc (_el (), _el ()), "0");
-    _runDoc (_doc (XdmNode.createText ("x"), _el ()), "0");
-    _runDoc (_doc (XdmNode.createText ("x")), "0");
+    _runDoc (_doc (IXdmNode.createText ("x"), _el ()), "0");
+    _runDoc (_doc (IXdmNode.createText ("x")), "0");
     // The axes of an attribute without a parent are empty.
-    run (env ().contextItem (XdmNode.createAttribute (new XdmQName ("a"), "1")),
+    run (env ().contextItem (IXdmNode.createAttribute (new XdmQName ("a"), "1")),
          ok ("count(following::node()) + count(preceding::node()) + count(..)", "0"));
   }
 

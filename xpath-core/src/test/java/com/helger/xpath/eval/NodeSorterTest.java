@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for class {@link NodeSorter}.
@@ -39,11 +39,11 @@ public final class NodeSorterTest
   @Test
   public void testSort ()
   {
-    final XdmNode aDoc = parse ("<r><a/><b/><c/></r>");
-    final XdmNode aR = aDoc.getChildAtIndex (0);
-    final XdmNode aA = aR.getChildAtIndex (0);
-    final XdmNode aB = aR.getChildAtIndex (1);
-    final XdmNode aC = aR.getChildAtIndex (2);
+    final IXdmNode aDoc = parse ("<r><a/><b/><c/></r>");
+    final IXdmNode aR = aDoc.getChildAtIndex (0);
+    final IXdmNode aA = aR.getChildAtIndex (0);
+    final IXdmNode aB = aR.getChildAtIndex (1);
+    final IXdmNode aC = aR.getChildAtIndex (2);
     assertEquals ("r a b c", names (NodeSorter.sortAndDeduplicate (XdmSequence.of (aC, aA, aR, aB, aC, aA))));
     final XdmSequence aSorted = XdmSequence.of (aA, aB);
     assertSame (aSorted, NodeSorter.sortAndDeduplicate (aSorted));
@@ -55,8 +55,8 @@ public final class NodeSorterTest
   @Test
   public void testSortAcrossTrees ()
   {
-    final XdmNode aDoc1 = parse ("<a/>");
-    final XdmNode aDoc2 = parse ("<b/>");
+    final IXdmNode aDoc1 = parse ("<a/>");
+    final IXdmNode aDoc2 = parse ("<b/>");
     final XdmSequence aRes = NodeSorter.sortAndDeduplicate (XdmSequence.of (aDoc2.getChildAtIndex (0),
                                                                            aDoc1.getChildAtIndex (0),
                                                                            aDoc2.getChildAtIndex (0)));

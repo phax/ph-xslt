@@ -31,8 +31,8 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.xdm.EIDKind;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.XdmTreeBuilder;
@@ -66,9 +66,9 @@ final class XsdBridge implements IXdmSchemaSet
   private static final String ANONYMOUS_PREFIX = "#t";
 
   /** The cloned subtree of a validation and, in document order, its elements and attributes with the originals. */
-  private record Cloned (@NonNull XdmNode root,
-                         @NonNull ICommonsList <XdmNode> clones,
-                         @NonNull ICommonsList <XdmNode> originals)
+  private record Cloned (@NonNull IXdmNode root,
+                         @NonNull ICommonsList <IXdmNode> clones,
+                         @NonNull ICommonsList <IXdmNode> originals)
   {}
 
   /** The annotation of a node: its type and the type its value was validated against. */
@@ -215,37 +215,37 @@ final class XsdBridge implements IXdmSchemaSet
    * Iterative.
    */
   @NonNull
-  private static Cloned _cloneForValidation (@NonNull final XdmNode aElement)
+  private static Cloned _cloneForValidation (@NonNull final IXdmNode aElement)
   {
-    final ICommonsList <XdmNode> aClones = new CommonsArrayList <> ();
-    final ICommonsList <XdmNode> aOriginals = new CommonsArrayList <> ();
-    final XdmNode aRoot = XdmNode.createElement (aElement.getName ());
-    final ArrayDeque <XdmNode []> aWork = new ArrayDeque <> ();
-    aWork.push (new XdmNode [] { aElement, aRoot });
+    final ICommonsList <IXdmNode> aClones = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aOriginals = new CommonsArrayList <> ();
+    final IXdmNode aRoot = IXdmNode.createElement (aElement.getName ());
+    final ArrayDeque <IXdmNode []> aWork = new ArrayDeque <> ();
+    aWork.push (new IXdmNode [] { aElement, aRoot });
     while (!aWork.isEmpty ())
     {
-      final XdmNode [] aPair = aWork.pop ();
-      final XdmNode aOrig = aPair[0];
-      final XdmNode aCopy = aPair[1];
+      final IXdmNode [] aPair = aWork.pop ();
+      final IXdmNode aOrig = aPair[0];
+      final IXdmNode aCopy = aPair[1];
       aCopy.setLocation (aOrig.getLine (), aOrig.getColumn ());
       aClones.add (aCopy);
       aOriginals.add (aOrig);
       for (final Map.Entry <String, String> aEntry : aOrig.getDeclaredNamespaces ().entrySet ())
         aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());
-      for (final XdmNode aAttr : aOrig.getAllAttributes ())
+      for (final IXdmNode aAttr : aOrig.getAllAttributes ())
       {
-        final XdmNode aAttrCopy = XdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
+        final IXdmNode aAttrCopy = IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
         aAttrCopy.setLocation (aAttr.getLine (), aAttr.getColumn ());
         aCopy.addAttribute (aAttrCopy);
         aClones.add (aAttrCopy);
         aOriginals.add (aAttr);
       }
-      final ICommonsList <XdmNode []> aChildren = new CommonsArrayList <> ();
+      final ICommonsList <IXdmNode []> aChildren = new CommonsArrayList <> ();
       StringBuilder aText = null;
       final int nChildren = aOrig.getChildCount ();
       for (int i = 0; i <= nChildren; i++)
       {
-        final XdmNode aChild = i < nChildren ? aOrig.getChildAtIndex (i) : null;
+        final IXdmNode aChild = i < nChildren ? aOrig.getChildAtIndex (i) : null;
         if (aChild != null && aChild.isText ())
         {
           if (aText == null)
@@ -255,14 +255,14 @@ final class XsdBridge implements IXdmSchemaSet
         }
         if (aText != null && aText.length () > 0)
         {
-          aCopy.appendChild (XdmNode.createText (aText.toString ()));
+          aCopy.appendChild (IXdmNode.createText (aText.toString ()));
           aText = null;
         }
         if (aChild != null && aChild.isElement ())
         {
-          final XdmNode aChildCopy = XdmNode.createElement (aChild.getName ());
+          final IXdmNode aChildCopy = IXdmNode.createElement (aChild.getName ());
           aCopy.appendChild (aChildCopy);
-          aChildren.add (new XdmNode [] { aChild, aChildCopy });
+          aChildren.add (new IXdmNode [] { aChild, aChildCopy });
         }
       }
       for (int i = aChildren.size () - 1; i >= 0; i--)
@@ -322,7 +322,7 @@ final class XsdBridge implements IXdmSchemaSet
    * node's own type otherwise.
    */
   @NonNull
-  private static IXsdType _valueTypeOf (@NonNull final IXsdType aType, @NonNull final String sValue, @NonNull final XdmNode aAt)
+  private static IXsdType _valueTypeOf (@NonNull final IXsdType aType, @NonNull final String sValue, @NonNull final IXdmNode aAt)
   {
     if (aType instanceof final XsdSimpleType aSimple && aSimple != XsdSimpleType.ABSENT && aSimple.m_eVariety == EXsdVariety.UNION)
     {
@@ -348,7 +348,7 @@ final class XsdBridge implements IXdmSchemaSet
    * 1.1 section 3.4.5.1).
    */
   @NonNull
-  private static XdmQName _fixupAttributeName (@NonNull final XdmNode aElement, @NonNull final XsdName aName)
+  private static XdmQName _fixupAttributeName (@NonNull final IXdmNode aElement, @NonNull final XsdName aName)
   {
     if (aName.space ().isEmpty ())
       return new XdmQName (aName.local ());
@@ -374,12 +374,12 @@ final class XsdBridge implements IXdmSchemaSet
    */
   private void _annotate (@NonNull final Cloned aCloned, @NonNull final XsdValidationRun aRun)
   {
-    final ICommonsMap <XdmNode, IXsdType> aTypes = aRun.getNodeTypes ();
+    final ICommonsMap <IXdmNode, IXsdType> aTypes = aRun.getNodeTypes ();
     final ICommonsMap <TypeKey, XdmSchemaType> aCache = new CommonsHashMap <> ();
     for (int i = 0; i < aCloned.clones ().size (); i++)
     {
-      final XdmNode aCopy = aCloned.clones ().get (i);
-      final XdmNode aOrig = aCloned.originals ().get (i);
+      final IXdmNode aCopy = aCloned.clones ().get (i);
+      final IXdmNode aOrig = aCloned.originals ().get (i);
       final boolean bElement = aOrig.isElement ();
       final IXsdType aType = aTypes.get (aCopy);
       if (aType == null)
@@ -422,15 +422,15 @@ final class XsdBridge implements IXdmSchemaSet
    */
   private boolean _supplyDefaults (@NonNull final Cloned aCloned, @NonNull final XsdValidationRun aRun)
   {
-    final ICommonsMap <XdmNode, ICommonsList <DefaultAttr>> aDefaults = aRun.getNodeDefaults ();
+    final ICommonsMap <IXdmNode, ICommonsList <DefaultAttr>> aDefaults = aRun.getNodeDefaults ();
     if (aDefaults.isEmpty ())
       return false;
     final ICommonsMap <TypeKey, XdmSchemaType> aCache = new CommonsHashMap <> ();
     boolean bChanged = false;
     for (int i = 0; i < aCloned.clones ().size (); i++)
     {
-      final XdmNode aCopy = aCloned.clones ().get (i);
-      final XdmNode aOrig = aCloned.originals ().get (i);
+      final IXdmNode aCopy = aCloned.clones ().get (i);
+      final IXdmNode aOrig = aCloned.originals ().get (i);
       if (!aOrig.isElement ())
         continue;
       final ICommonsList <DefaultAttr> aList = aDefaults.get (aCopy);
@@ -442,7 +442,7 @@ final class XsdBridge implements IXdmSchemaSet
         // by more than one episode
         if (aOrig.getAttribute (aDefault.name ().space (), aDefault.name ().local ()) != null)
           continue;
-        final XdmNode aAttr = XdmNode.createAttribute (_fixupAttributeName (aOrig, aDefault.name ()), aDefault.value ());
+        final IXdmNode aAttr = IXdmNode.createAttribute (_fixupAttributeName (aOrig, aDefault.name ()), aDefault.value ());
         aAttr.setLocation (aOrig.getLine (), aOrig.getColumn ());
         aOrig.addAttribute (aAttr);
         bChanged = true;
@@ -473,16 +473,16 @@ final class XsdBridge implements IXdmSchemaSet
   private static boolean _stripElementOnlyWhitespace (@NonNull final Cloned aCloned, @NonNull final XsdValidationRun aRun)
   {
     boolean bChanged = false;
-    final ICommonsMap <XdmNode, IXsdType> aTypes = aRun.getNodeTypes ();
+    final ICommonsMap <IXdmNode, IXsdType> aTypes = aRun.getNodeTypes ();
     for (int i = 0; i < aCloned.clones ().size (); i++)
     {
-      final XdmNode aOrig = aCloned.originals ().get (i);
+      final IXdmNode aOrig = aCloned.originals ().get (i);
       if (!aOrig.isElement () || aOrig.getChildCount () == 0)
         continue;
       if (!(aTypes.get (aCloned.clones ().get (i)) instanceof final XsdComplexType aCT) ||
           aCT.m_eKind != EXsdContentKind.ELEMENT_ONLY)
         continue;
-      for (final XdmNode aChild : aOrig.getAllChildren ())
+      for (final IXdmNode aChild : aOrig.getAllChildren ())
         if (aChild.isText () && _isXmlWhitespace (aChild.getValue ()))
         {
           aOrig.removeChild (aChild);
@@ -508,7 +508,7 @@ final class XsdBridge implements IXdmSchemaSet
    * @throws XdmValidationException
    *         if it is not valid; nothing is changed then
    */
-  private boolean _validateInPlace (@NonNull final XdmNode aElement,
+  private boolean _validateInPlace (@NonNull final IXdmNode aElement,
                                     @Nullable final IXsdType aType,
                                     final boolean bDocument) throws XdmValidationException
   {
@@ -548,7 +548,7 @@ final class XsdBridge implements IXdmSchemaSet
     return bAdded || bStripped;
   }
 
-  public void validateElement (@NonNull final XdmNode aElement,
+  public void validateElement (@NonNull final IXdmNode aElement,
                                @Nullable final IXdmTypeDefinition aType,
                                final boolean bDocumentLevel) throws XdmValidationException
   {
@@ -572,11 +572,11 @@ final class XsdBridge implements IXdmSchemaSet
     }
   }
 
-  public void validateDocument (@NonNull final XdmNode aDocument) throws XdmValidationException
+  public void validateDocument (@NonNull final IXdmNode aDocument) throws XdmValidationException
   {
     if (!aDocument.isDocument ())
       throw new IllegalArgumentException ("Not a document node");
-    final XdmNode aRoot = XsdNodes.rootElement (aDocument);
+    final IXdmNode aRoot = XsdNodes.rootElement (aDocument);
     if (aRoot == null)
       throw new IllegalArgumentException ("The document has no document element");
     try

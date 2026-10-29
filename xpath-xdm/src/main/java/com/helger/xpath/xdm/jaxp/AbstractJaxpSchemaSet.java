@@ -41,7 +41,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.xdm.EIDKind;
 import com.helger.xpath.xdm.ENodeKind;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmTreeBuilder;
 import com.helger.xpath.xdm.XdmValidationException;
@@ -116,14 +116,14 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
   }
 
   @NonNull
-  private static ICommonsList <XdmNode> _getElementsInOrder (@NonNull final XdmNode aRoot)
+  private static ICommonsList <IXdmNode> _getElementsInOrder (@NonNull final IXdmNode aRoot)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aRoot);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.pop ();
+      final IXdmNode aCur = aStack.pop ();
       if (aCur.isElement ())
         ret.add (aCur);
       for (int i = aCur.getChildCount () - 1; i >= 0; --i)
@@ -137,7 +137,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
    * or a new declaration (namespace fixup as in XSD 1.1 section 3.4.5.1).
    */
   @NonNull
-  private static XdmQName _fixupAttributeName (@NonNull final XdmNode aElement, @NonNull final XdmQName aName)
+  private static XdmQName _fixupAttributeName (@NonNull final IXdmNode aElement, @NonNull final XdmQName aName)
   {
     final String sUri = aName.namespaceUri ();
     if (sUri.isEmpty ())
@@ -159,9 +159,9 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     return new XdmQName (sUri, aName.localName (), sPrefix);
   }
 
-  private static boolean _hasTextOrElementChild (@NonNull final XdmNode aElement)
+  private static boolean _hasTextOrElementChild (@NonNull final IXdmNode aElement)
   {
-    for (final XdmNode aChild : aElement.getAllChildren ())
+    for (final IXdmNode aChild : aElement.getAllChildren ())
       if (aChild.isText () || aChild.isElement ())
         return true;
     return false;
@@ -180,37 +180,37 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
    *        schema.
    * @return <code>true</code> if the structure of the original changed.
    */
-  private static boolean _transferAnnotations (@NonNull final XdmNode aOriginal,
-                                               @NonNull final XdmNode aTyped,
+  private static boolean _transferAnnotations (@NonNull final IXdmNode aOriginal,
+                                               @NonNull final IXdmNode aTyped,
                                                final boolean bDocument)
   {
-    final ICommonsList <XdmNode> aOrigElements = _getElementsInOrder (aOriginal);
-    final ICommonsList <XdmNode> aTypedElements = _getElementsInOrder (aTyped);
+    final ICommonsList <IXdmNode> aOrigElements = _getElementsInOrder (aOriginal);
+    final ICommonsList <IXdmNode> aTypedElements = _getElementsInOrder (aTyped);
     if (aOrigElements.size () != aTypedElements.size ())
       throw new IllegalStateException ("Validated copy has a different structure");
     boolean bChanged = false;
     for (int i = 0; i < aOrigElements.size (); ++i)
     {
-      final XdmNode aOrig = aOrigElements.get (i);
-      final XdmNode aCopy = aTypedElements.get (i);
+      final IXdmNode aOrig = aOrigElements.get (i);
+      final IXdmNode aCopy = aTypedElements.get (i);
       aOrig.setSchemaType (aCopy.getSchemaType ());
       aOrig.setTypeAnnotation (aCopy.getSchemaType () == null ? aCopy.getTypeAnnotation () : null);
       aOrig.setNilled (aCopy.isNilled ());
       aOrig.setIDKind (aCopy.getIDKind ());
-      for (final XdmNode aCopyAttr : aCopy.getAllAttributes ())
+      for (final IXdmNode aCopyAttr : aCopy.getAllAttributes ())
       {
         final XdmQName aName = aCopyAttr.getName ();
-        XdmNode aOrigAttr = aOrig.getAttribute (aName.namespaceUri (), aName.localName ());
+        IXdmNode aOrigAttr = aOrig.getAttribute (aName.namespaceUri (), aName.localName ());
         if (aOrigAttr == null)
         {
           // A default attribute added by the schema
           if (bDocument)
           {
-            aOrigAttr = XdmNode.createAttribute (aName, aCopyAttr.getValue ());
+            aOrigAttr = IXdmNode.createAttribute (aName, aCopyAttr.getValue ());
             aOrigAttr.setLocation (aOrig.getLine (), aOrig.getColumn ());
           }
           else
-            aOrigAttr = XdmNode.createAttribute (_fixupAttributeName (aOrig, aName), aCopyAttr.getValue ());
+            aOrigAttr = IXdmNode.createAttribute (_fixupAttributeName (aOrig, aName), aCopyAttr.getValue ());
           aOrig.addAttribute (aOrigAttr);
           bChanged = true;
         }
@@ -227,7 +227,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
       if (aOrig.getChildCount () == 0 && aCopy.getChildCount () == 1 && aCopy.getChildAtIndex (0).isText ())
       {
         // Default element content added by the schema
-        aOrig.appendChild (XdmNode.createText (aCopy.getChildAtIndex (0).getValue ()));
+        aOrig.appendChild (IXdmNode.createText (aCopy.getChildAtIndex (0).getValue ()));
         bChanged = true;
       }
       else
@@ -235,21 +235,21 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
         {
           // Whitespace text nodes of element-only content are not part of
           // the validated tree
-          final ICommonsList <XdmNode> aRemove = new CommonsArrayList <> ();
-          for (final XdmNode aChild : aOrig.getAllChildren ())
+          final ICommonsList <IXdmNode> aRemove = new CommonsArrayList <> ();
+          for (final IXdmNode aChild : aOrig.getAllChildren ())
             if (aChild.getKind () == ENodeKind.TEXT && aChild.getValue ().isBlank ())
               aRemove.add (aChild);
-          for (final XdmNode aChild : aRemove)
+          for (final IXdmNode aChild : aRemove)
             aOrig.removeChild (aChild);
           bChanged |= aRemove.isNotEmpty ();
           if (bDocument && !_hasTextOrElementChild (aOrig) && aCopy.getChildCount () > aOrig.getChildCount ())
           {
             // Default element content of an element with only comments or
             // processing instructions: the validator reports it at the end
-            final XdmNode aLast = aCopy.getChildAtIndex (aCopy.getChildCount () - 1);
+            final IXdmNode aLast = aCopy.getChildAtIndex (aCopy.getChildCount () - 1);
             if (aLast.isText ())
             {
-              aOrig.appendChild (XdmNode.createText (aLast.getValue ()));
+              aOrig.appendChild (IXdmNode.createText (aLast.getValue ()));
               bChanged = true;
             }
           }
@@ -295,7 +295,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
    * @return The validated copy of the element, with the type annotations.
    */
   @NonNull
-  private XdmNode _validateCopy (@NonNull final XdmNode aElement,
+  private IXdmNode _validateCopy (@NonNull final IXdmNode aElement,
                                  @Nullable final IXdmTypeDefinition aType,
                                  final boolean bDocumentLevel,
                                  final boolean bParsedEntitiesAsUnparsed) throws SAXException
@@ -319,8 +319,8 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
                                                          getDeclaredAttributeTypes (aValidator),
                                                          this::getDefinition));
     XdmSaxEmitter.emitElement (aElement, aValidator, aBuilder, bParsedEntitiesAsUnparsed);
-    XdmNode aTyped = null;
-    for (final XdmNode aChild : aBuilder.getDocument ().getAllChildren ())
+    IXdmNode aTyped = null;
+    for (final IXdmNode aChild : aBuilder.getDocument ().getAllChildren ())
       if (aChild.isElement ())
         aTyped = aChild;
     if (aTyped == null)
@@ -334,7 +334,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     return ex.getMessage () == null ? ex.toString () : ex.getMessage ();
   }
 
-  public void validateElement (@NonNull final XdmNode aElement,
+  public void validateElement (@NonNull final IXdmNode aElement,
                                @Nullable final IXdmTypeDefinition aType,
                                final boolean bDocumentLevel) throws XdmValidationException
   {
@@ -342,7 +342,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     {
       // Leniently, an xs:ENTITY value may also name a parsed entity of the
       // DTD (as go-xslt does)
-      final XdmNode aTyped = _validateCopy (aElement, aType, bDocumentLevel, true);
+      final IXdmNode aTyped = _validateCopy (aElement, aType, bDocumentLevel, true);
       if (_transferAnnotations (aElement, aTyped, false))
         aElement.assignDocumentOrder ();
     }
@@ -355,11 +355,11 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     }
   }
 
-  public void validateDocument (@NonNull final XdmNode aDocument) throws XdmValidationException
+  public void validateDocument (@NonNull final IXdmNode aDocument) throws XdmValidationException
   {
     ValueEnforcer.isTrue (aDocument.isDocument (), "Not a document node");
-    XdmNode aRoot = null;
-    for (final XdmNode aChild : aDocument.getAllChildren ())
+    IXdmNode aRoot = null;
+    for (final IXdmNode aChild : aDocument.getAllChildren ())
       if (aChild.isElement ())
         aRoot = aChild;
     if (aRoot == null)
@@ -367,7 +367,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     try
     {
       // Only unparsed entities, as when validating while parsing
-      final XdmNode aTyped = _validateCopy (aRoot, null, true, false);
+      final IXdmNode aTyped = _validateCopy (aRoot, null, true, false);
       if (_transferAnnotations (aRoot, aTyped, true))
         aDocument.assignDocumentOrder ();
     }

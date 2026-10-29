@@ -18,7 +18,7 @@ package com.helger.xslt.conformance;
 
 import org.jspecify.annotations.NonNull;
 
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltCompiler;
 import com.helger.xslt.XsltExecutable;
@@ -41,7 +41,7 @@ public interface IXSLT30Compiler
     }
 
     @NonNull
-    public XsltExecutable compile (@NonNull final XdmNode aStylesheet, @NonNull final XsltCompileOptions aOptions)
+    public XsltExecutable compile (@NonNull final IXdmNode aStylesheet, @NonNull final XsltCompileOptions aOptions)
     {
       return XsltCompiler.compile (aStylesheet, aOptions);
     }
@@ -65,5 +65,5 @@ public interface IXSLT30Compiler
    * @return The compiled stylesheet.
    */
   @NonNull
-  XsltExecutable compile (@NonNull XdmNode aStylesheet, @NonNull XsltCompileOptions aOptions);
+  XsltExecutable compile (@NonNull IXdmNode aStylesheet, @NonNull XsltCompileOptions aOptions);
 }

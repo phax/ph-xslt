@@ -30,7 +30,7 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * The grammar matcher (go-xslt <code>content.go</code>): does the child
@@ -442,7 +442,7 @@ final class XsdContentMatcher
    * @return Their expanded names, in order.
    */
   @NonNull
-  static XsdName [] namesOf (@NonNull final List <XdmNode> aKids)
+  static XsdName [] namesOf (@NonNull final List <IXdmNode> aKids)
   {
     final XsdName [] ret = new XsdName [aKids.size ()];
     for (int i = 0; i < ret.length; i++)
@@ -467,7 +467,7 @@ final class XsdContentMatcher
   @NonNull
   static XsdMatchResult contentMatches (@NonNull final XsdSchema aSchema,
                                         @Nullable final XsdParticle aParticle,
-                                        @NonNull final List <XdmNode> aKids)
+                                        @NonNull final List <IXdmNode> aKids)
   {
     if (aParticle == null)
       return new XsdMatchResult (aKids.isEmpty (), true);
@@ -512,7 +512,7 @@ final class XsdContentMatcher
   @NonNull
   static XsdMatchResult contentMatchesOpen (@NonNull final XsdSchema aSchema,
                                             @Nullable final XsdParticle aParticle,
-                                            @NonNull final List <XdmNode> aKids,
+                                            @NonNull final List <IXdmNode> aKids,
                                             @Nullable final XsdOpenContent aOpenContent)
   {
     if (aOpenContent == null || aOpenContent.m_aWildcard == null)
@@ -589,7 +589,7 @@ final class XsdContentMatcher
   @Nullable
   static BitSet greedyOpenAttribution (@NonNull final XsdSchema aSchema,
                                        @Nullable final XsdParticle aParticle,
-                                       @NonNull final List <XdmNode> aKids,
+                                       @NonNull final List <IXdmNode> aKids,
                                        @NonNull final XsdOpenContent aOpenContent)
   {
     if (aOpenContent.m_aWildcard == null ||

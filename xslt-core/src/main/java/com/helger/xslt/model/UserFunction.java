@@ -34,7 +34,7 @@ import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.instr.SequenceConstructor;
@@ -125,7 +125,7 @@ public final class UserFunction implements IXPathFunction
   }
 
   /** Identity of a node as part of a memo key. */
-  private record NodeKey (@NonNull XdmNode node)
+  private record NodeKey (@NonNull IXdmNode node)
   {
     @Override
     public boolean equals (final Object o)
@@ -155,7 +155,7 @@ public final class UserFunction implements IXPathFunction
         if (aItem instanceof final XdmAtomic aAtomic)
           aItems.add (aAtomic.getType ().getQualifiedName () + " " + AtomicComparator.getMapKey (aAtomic));
         else
-          if (aItem instanceof final XdmNode aNode)
+          if (aItem instanceof final IXdmNode aNode)
             aItems.add (new NodeKey (aNode));
           else
             return null;

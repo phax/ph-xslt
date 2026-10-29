@@ -22,8 +22,8 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 
 /**
  * Function family: fn:in-scope-prefixes, fn:namespace-uri-for-prefix.
@@ -44,7 +44,7 @@ public final class FnNode
   {
     final String sNS = XdmConstants.NS_FN;
     aLib.register (sNS, "in-scope-prefixes", "(element()) as xs:string*", (aCtx, aArgs) -> {
-      final XdmNode aElement = (XdmNode) aArgs.get (0).get (0);
+      final IXdmNode aElement = (IXdmNode) aArgs.get (0).get (0);
       final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
       for (final String sPrefix : aElement.getInScopeNamespaces ().keySet ())
         aBuilder.add (XdmAtomic.string (sPrefix));
@@ -53,7 +53,7 @@ public final class FnNode
     aLib.register (sNS, "namespace-uri-for-prefix", "(xs:string?, element()) as xs:anyURI?", (aCtx, aArgs) -> {
       final XdmSequence aPrefixArg = aArgs.get (0);
       final String sPrefix = aPrefixArg.isEmpty () ? "" : ((XdmAtomic) aPrefixArg.get (0)).getString ();
-      final XdmNode aElement = (XdmNode) aArgs.get (1).get (0);
+      final IXdmNode aElement = (IXdmNode) aArgs.get (1).get (0);
       final String sUri = aElement.lookupNamespaceUri (sPrefix);
       return sUri == null ? XdmSequence.EMPTY : XdmSequence.of (XdmAtomic.anyUri (sUri));
     });

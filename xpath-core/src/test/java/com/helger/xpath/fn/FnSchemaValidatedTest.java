@@ -31,7 +31,7 @@ import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.jaxp.JdkSchemaProvider;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
@@ -72,7 +72,7 @@ public final class FnSchemaValidatedTest
                                     "  <t:mixed>m <t:b>n</t:b> o</t:mixed>\n" +
                                     "</t:root>";
 
-  private static XdmNode s_aDoc;
+  private static IXdmNode s_aDoc;
 
   @BeforeClass
   public static void beforeClass () throws Exception
@@ -120,7 +120,7 @@ public final class FnSchemaValidatedTest
     assertEquals ("m n o", _str ("string(/t:root/t:mixed)"));
     // Whitespace in element-only content was dropped
     assertEquals ("x", _str ("string(/t:root/t:item[1])"));
-    final XdmNode aInt = (XdmNode) _eval ("/t:root/t:int[1]").get (0);
+    final IXdmNode aInt = (IXdmNode) _eval ("/t:root/t:int[1]").get (0);
     assertEquals (XdmAtomic.class, Atomizer.getTypedValue (aInt).getClass ());
   }
 

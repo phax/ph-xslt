@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Host hook that gives the XPath functions access to external resources
@@ -43,7 +43,7 @@ public interface IResourceResolver
    *         (stability).
    */
   @Nullable
-  XdmNode resolveDocument (@NonNull String sAbsoluteUri);
+  IXdmNode resolveDocument (@NonNull String sAbsoluteUri);
 
   /**
    * @param sAbsoluteUri
@@ -90,7 +90,7 @@ public interface IResourceResolver
       return null;
     final ICommonsList <String> ret = new CommonsArrayList <> ();
     for (final IXdmItem aItem : aItems)
-      if (aItem instanceof final XdmNode aNode && aNode.getDocumentUri () != null)
+      if (aItem instanceof final IXdmNode aNode && aNode.getDocumentUri () != null)
         ret.add (aNode.getDocumentUri ());
     return ret;
   }

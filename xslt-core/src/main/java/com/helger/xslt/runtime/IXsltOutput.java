@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Where a sequence constructor writes its result (XSLT 3.0 section 5.7). Two
@@ -52,7 +52,7 @@ public interface IXsltOutput
    * @param aNode
    *        The new node.
    */
-  void appendNew (@NonNull XdmNode aNode);
+  void appendNew (@NonNull IXdmNode aNode);
 
   /**
    * Append a new text node.
@@ -62,7 +62,7 @@ public interface IXsltOutput
    */
   default void appendText (@NonNull final String sText)
   {
-    appendNew (XdmNode.createText (sText));
+    appendNew (IXdmNode.createText (sText));
   }
 
   /**

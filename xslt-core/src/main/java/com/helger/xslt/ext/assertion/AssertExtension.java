@@ -25,7 +25,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.compile.Avt;
 import com.helger.xslt.compile.CompileContext;
@@ -68,7 +68,7 @@ public final class AssertExtension implements IXsltExtension
         continue;
       }
       bLastAtomic = false;
-      if (aItem instanceof final XdmNode aNode)
+      if (aItem instanceof final IXdmNode aNode)
       {
         if (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE)
           aSB.append (aNode.getValue ());

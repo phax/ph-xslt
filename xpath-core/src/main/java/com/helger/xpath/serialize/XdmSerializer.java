@@ -30,7 +30,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Serializes XDM sequences (Serialization 3.1) with the output methods xml,
@@ -111,7 +111,7 @@ public final class XdmSerializer
         bPrevString = true;
       }
       else
-        if (aItem instanceof final XdmNode aNode)
+        if (aItem instanceof final IXdmNode aNode)
         {
           switch (aNode.getKind ())
           {
@@ -130,7 +130,7 @@ public final class XdmSerializer
                 aText.append (aNode.getValue ());
               break;
             case DOCUMENT:
-              for (final XdmNode aChild : aNode.getAllChildren ())
+              for (final IXdmNode aChild : aNode.getAllChildren ())
               {
                 if (aChild.getKind () == ENodeKind.TEXT && !aChild.isDisableOutputEscaping ())
                   aText.append (aChild.getValue ());
@@ -164,7 +164,7 @@ public final class XdmSerializer
         aRaw.append (sText);
       else
       {
-        final XdmNode aNode = (XdmNode) aItem;
+        final IXdmNode aNode = (IXdmNode) aItem;
         if (aNode.getKind () == ENodeKind.ELEMENT || aNode.getKind () == ENodeKind.TEXT)
           aRaw.append (aNode.getStringValue ());
       }

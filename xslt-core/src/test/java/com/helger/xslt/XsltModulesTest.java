@@ -23,7 +23,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.Test;
 
 import com.helger.xpath.context.IResourceResolver;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 import static org.junit.Assert.assertEquals;
 
@@ -44,12 +44,12 @@ public final class XsltModulesTest
     }
 
     @Nullable
-    public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
     {
       final String s = m_aDocs.get (sAbsoluteUri);
       if (s == null)
         return null;
-      final XdmNode ret = XsltTestHelper.parse (s);
+      final IXdmNode ret = XsltTestHelper.parse (s);
       ret.setDocumentUri (sAbsoluteUri);
       return ret;
     }

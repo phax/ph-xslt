@@ -31,8 +31,8 @@ import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.regex.XPathRegex;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -232,9 +232,9 @@ public final class FnRegex
   }
 
   @NonNull
-  private static XdmNode _createElement (@NonNull final String sLocalName)
+  private static IXdmNode _createElement (@NonNull final String sLocalName)
   {
-    final XdmNode ret = XdmNode.createElement (new XdmQName (XdmConstants.NS_FN, sLocalName, FN_PREFIX));
+    final IXdmNode ret = IXdmNode.createElement (new XdmQName (XdmConstants.NS_FN, sLocalName, FN_PREFIX));
     // The result elements are typed by the schema of F&O 3.1 section 5.6.5;
     // their complex types are approximated by xs:anyType
     ret.setTypeAnnotation (ANY_TYPE);
@@ -270,7 +270,7 @@ public final class FnRegex
    *
    * @return The number of the next group to consider.
    */
-  private static int _fillGroups (@NonNull final XdmNode aParent,
+  private static int _fillGroups (@NonNull final IXdmNode aParent,
                                    @NonNull final String sInput,
                                    @NonNull final Matcher aMatcher,
                                    @NonNull final XPathRegex aRegex,
@@ -293,9 +293,9 @@ public final class FnRegex
         continue;
       }
       if (nStart > nPos)
-        aParent.appendChild (XdmNode.createText (sInput.substring (nPos, nStart)));
-      final XdmNode aGroup = _createElement ("group");
-      final XdmNode aNr = XdmNode.createAttribute (new XdmQName ("", "nr"), Integer.toString (nGroup));
+        aParent.appendChild (IXdmNode.createText (sInput.substring (nPos, nStart)));
+      final IXdmNode aGroup = _createElement ("group");
+      final IXdmNode aNr = IXdmNode.createAttribute (new XdmQName ("", "nr"), Integer.toString (nGroup));
       aNr.setTypeAnnotation (POSITIVE_INTEGER);
       aGroup.addAttribute (aNr);
       nNext = _fillGroups (aGroup, sInput, aMatcher, aRegex, nNext + 1, nGroup, nStart, nEnd);
@@ -303,17 +303,17 @@ public final class FnRegex
       nPos = nEnd;
     }
     if (nTo > nPos)
-      aParent.appendChild (XdmNode.createText (sInput.substring (nPos, nTo)));
+      aParent.appendChild (IXdmNode.createText (sInput.substring (nPos, nTo)));
     return nNext;
   }
 
   @NonNull
-  private static XdmNode _buildAnalyzeResult (@NonNull final DynamicContext aCtx,
+  private static IXdmNode _buildAnalyzeResult (@NonNull final DynamicContext aCtx,
                                               @NonNull final String sInput,
                                               @NonNull final XPathRegex aRegex)
   {
-    final XdmNode aDoc = XdmNode.createDocument ();
-    final XdmNode aRoot = _createElement ("analyze-string-result");
+    final IXdmNode aDoc = IXdmNode.createDocument ();
+    final IXdmNode aRoot = _createElement ("analyze-string-result");
     aRoot.declareNamespace (FN_PREFIX, XdmConstants.NS_FN);
     aDoc.appendChild (aRoot);
     final Matcher aMatcher = aRegex.matcher (aCtx, sInput);
@@ -322,19 +322,19 @@ public final class FnRegex
     {
       if (aMatcher.start () > nPos)
       {
-        final XdmNode aNonMatch = _createElement ("non-match");
-        aNonMatch.appendChild (XdmNode.createText (sInput.substring (nPos, aMatcher.start ())));
+        final IXdmNode aNonMatch = _createElement ("non-match");
+        aNonMatch.appendChild (IXdmNode.createText (sInput.substring (nPos, aMatcher.start ())));
         aRoot.appendChild (aNonMatch);
       }
-      final XdmNode aMatch = _createElement ("match");
+      final IXdmNode aMatch = _createElement ("match");
       _fillGroups (aMatch, sInput, aMatcher, aRegex, 1, 0, aMatcher.start (), aMatcher.end ());
       aRoot.appendChild (aMatch);
       nPos = aMatcher.end ();
     }
     if (nPos < sInput.length ())
     {
-      final XdmNode aNonMatch = _createElement ("non-match");
-      aNonMatch.appendChild (XdmNode.createText (sInput.substring (nPos)));
+      final IXdmNode aNonMatch = _createElement ("non-match");
+      aNonMatch.appendChild (IXdmNode.createText (sInput.substring (nPos)));
       aRoot.appendChild (aNonMatch);
     }
     aDoc.assignDocumentOrder ();
@@ -351,7 +351,7 @@ public final class FnRegex
     if (aRegex.matchesEmptyString ())
       throw XPathException.of ("FORX0003", "The regular expression '" + sPattern + "' matches a zero-length string");
 
-    final XdmNode aRoot = XPathRegex.withStackFallback ( () -> _buildAnalyzeResult (aCtx, sInput, aRegex));
+    final IXdmNode aRoot = XPathRegex.withStackFallback ( () -> _buildAnalyzeResult (aCtx, sInput, aRegex));
     return XdmSequence.of (aRoot);
   }
 

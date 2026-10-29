@@ -48,8 +48,8 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.EIDKind;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformRequest;
@@ -95,7 +95,7 @@ public final class Engine
   // NaN equals nothing: a unique key that is never searched for
   private static final Object NAN_KEY = new Object ();
 
-  private record KeyIndexId (@NonNull XdmQName name, @NonNull XdmNode root, @Nullable PackageUnit unit)
+  private record KeyIndexId (@NonNull XdmQName name, @NonNull IXdmNode root, @Nullable PackageUnit unit)
   {}
 
   private final CompiledStylesheet m_aSheet;
@@ -107,7 +107,7 @@ public final class Engine
   private final ICommonsSet <XdmQName> m_aGlobalsInProgress = new CommonsHashSet <> ();
   private final ICommonsMap <VariableDef, XdmSequence> m_aOriginalValues = new CommonsHashMap <> ();
   private final ICommonsSet <VariableDef> m_aOriginalsInProgress = new CommonsHashSet <> ();
-  private final ICommonsMap <KeyIndexId, ICommonsMap <Object, ICommonsList <XdmNode>>> m_aKeyIndexes = new CommonsHashMap <> ();
+  private final ICommonsMap <KeyIndexId, ICommonsMap <Object, ICommonsList <IXdmNode>>> m_aKeyIndexes = new CommonsHashMap <> ();
   private final ICommonsSet <XdmQName> m_aKeysInProgress = new CommonsHashSet <> ();
   private final ICommonsList <String> m_aMessages = new CommonsArrayList <> ();
   private final ICommonsList <XsltTransformResult.SecondaryResult> m_aSecondaryResults = new CommonsArrayList <> ();
@@ -161,9 +161,9 @@ public final class Engine
     }
 
     @Nullable
-    public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
     {
-      final XdmNode aDoc = m_aDelegate == null ? null : m_aDelegate.resolveDocument (sAbsoluteUri);
+      final IXdmNode aDoc = m_aDelegate == null ? null : m_aDelegate.resolveDocument (sAbsoluteUri);
       return aDoc == null ? null : stripWhitespace (aDoc);
     }
 
@@ -424,7 +424,7 @@ public final class Engine
    * @return The stripped copy or the document itself.
    */
   @NonNull
-  public XdmNode stripWhitespace (@NonNull final XdmNode aDoc)
+  public IXdmNode stripWhitespace (@NonNull final IXdmNode aDoc)
   {
     final SpaceRules aRules = m_aSheet.getSpaceRules ();
     if (aRules.isNoStripping ())
@@ -622,7 +622,7 @@ public final class Engine
     _runTemplate (aRule.getTemplate (), aBase, aParams, aOut);
   }
 
-  private void _applyToChildren (@NonNull final XdmNode aNode,
+  private void _applyToChildren (@NonNull final IXdmNode aNode,
                                  final boolean bAttributes,
                                  @NonNull final Mode aMode,
                                  @NonNull final XsltContext aCtx,
@@ -673,7 +673,7 @@ public final class Engine
       applyTemplates (aCtx, aMembers.build (), aMode, aParams, aOut);
       return;
     }
-    if (!(aItem instanceof final XdmNode aNode))
+    if (!(aItem instanceof final IXdmNode aNode))
     {
       // Atomic values and maps
       switch (eOnNoMatch)
@@ -709,7 +709,7 @@ public final class Engine
       case SHALLOW_COPY:
         if (eKind == ENodeKind.ELEMENT)
         {
-          final XdmNode aCopy = NodeCopier.copyShallow (aNode);
+          final IXdmNode aCopy = NodeCopier.copyShallow (aNode);
           // Like xsl:copy, the copy keeps the base URI (base-uri-053)
           final String sBase = FnAccessor.getBaseUri (aNode);
           if (sBase != null)
@@ -727,7 +727,7 @@ public final class Engine
               _applyToChildren (aNode, false, aMode, aCtx, aParams, aDocOut);
             else
             {
-              final XdmNode aDoc = XdmNode.createDocument ();
+              final IXdmNode aDoc = IXdmNode.createDocument ();
               final String sBase = FnAccessor.getBaseUri (aNode);
               if (sBase != null)
                 aDoc.setBaseUri (sBase);
@@ -757,7 +757,7 @@ public final class Engine
   private static void _checkTypedMode (@NonNull final Mode aMode, @NonNull final IXdmItem aItem)
   {
     final String sTyped = aMode.getTyped ();
-    if (sTyped == null || !(aItem instanceof final XdmNode aNode) || !aNode.isElement () && !aNode.isAttribute ())
+    if (sTyped == null || !(aItem instanceof final IXdmNode aNode) || !aNode.isElement () && !aNode.isAttribute ())
       return;
     final XdmQName aType = aNode.getTypeAnnotation ();
     final boolean bTyped = aType != null &&
@@ -970,21 +970,21 @@ public final class Engine
     return AtomicComparator.getMapKey (aValue);
   }
 
-  private static void _addToIndex (@NonNull final ICommonsMap <Object, ICommonsList <XdmNode>> aIndex,
+  private static void _addToIndex (@NonNull final ICommonsMap <Object, ICommonsList <IXdmNode>> aIndex,
                                    @NonNull final Object aKey,
-                                   @NonNull final XdmNode aNode)
+                                   @NonNull final IXdmNode aNode)
   {
-    final ICommonsList <XdmNode> aList = aIndex.computeIfAbsent (aKey, k -> new CommonsArrayList <> ());
+    final ICommonsList <IXdmNode> aList = aIndex.computeIfAbsent (aKey, k -> new CommonsArrayList <> ());
     if (aList.isEmpty () || aList.getLast () != aNode)
       aList.add (aNode);
   }
 
-  private void _indexNode (@NonNull final XdmNode aNode,
+  private void _indexNode (@NonNull final IXdmNode aNode,
                            @NonNull final ICommonsList <KeyDefinition> aDefs,
                            @NonNull final XsltContext aUseCtx,
                            @Nullable final ICollation aCollation,
                            final boolean bComposite,
-                           @NonNull final ICommonsMap <Object, ICommonsList <XdmNode>> aIndex)
+                           @NonNull final ICommonsMap <Object, ICommonsList <IXdmNode>> aIndex)
   {
     for (final KeyDefinition aDef : aDefs)
     {
@@ -1015,11 +1015,11 @@ public final class Engine
   }
 
   @NonNull
-  private ICommonsMap <Object, ICommonsList <XdmNode>> _buildKeyIndex (@NonNull final ICommonsList <KeyDefinition> aDefs,
-                                                                     @NonNull final XdmNode aRoot,
+  private ICommonsMap <Object, ICommonsList <IXdmNode>> _buildKeyIndex (@NonNull final ICommonsList <KeyDefinition> aDefs,
+                                                                     @NonNull final IXdmNode aRoot,
                                                                      @NonNull final XsltContext aCtx)
   {
-    final ICommonsMap <Object, ICommonsList <XdmNode>> ret = new CommonsHashMap <> ();
+    final ICommonsMap <Object, ICommonsList <IXdmNode>> ret = new CommonsHashMap <> ();
     final String sCollation = aDefs.getFirst ().getCollation ();
     final ICollation aCollation = CollationRegistry.CODEPOINT_URI.equals (sCollation) ? null
                                                                                        : CollationRegistry.getCollationOrThrow (sCollation);
@@ -1029,14 +1029,14 @@ public final class Engine
     for (final KeyDefinition aDef : aDefs)
       if (aDef.getMatch ().pattern ().getSource ().contains ("namespace-node"))
         bNamespaces = true;
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aRoot);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aNode = aStack.pop ();
+      final IXdmNode aNode = aStack.pop ();
       _indexNode (aNode, aDefs, aUseCtx, aCollation, bComposite, ret);
       if (bNamespaces)
-        for (final XdmNode aNS : aNode.getNamespaceNodes ())
+        for (final IXdmNode aNS : aNode.getNamespaceNodes ())
           _indexNode (aNS, aDefs, aUseCtx, aCollation, bComposite, ret);
       for (int i = 0; i < aNode.getAttributeCount (); ++i)
         _indexNode (aNode.getAttributeAtIndex (i), aDefs, aUseCtx, aCollation, bComposite, ret);
@@ -1064,7 +1064,7 @@ public final class Engine
   public XdmSequence findKeyNodes (@NonNull final XsltContext aCtx,
                                    @NonNull final XdmQName aName,
                                    @NonNull final XdmSequence aValues,
-                                   @NonNull final XdmNode aTop)
+                                   @NonNull final IXdmNode aTop)
   {
     ICommonsList <KeyDefinition> aDefs = m_aSheet.getKey (aName);
     PackageUnit aUnit = null;
@@ -1080,9 +1080,9 @@ public final class Engine
     }
     if (aDefs == null)
       throw new XPathException ("XTDE1260", "There is no key named " + aName.getEQName ());
-    final XdmNode aRoot = aTop.getRoot ();
+    final IXdmNode aRoot = aTop.getRoot ();
     final KeyIndexId aId = new KeyIndexId (aName, aRoot, aUnit);
-    ICommonsMap <Object, ICommonsList <XdmNode>> aIndex = m_aKeyIndexes.get (aId);
+    ICommonsMap <Object, ICommonsList <IXdmNode>> aIndex = m_aKeyIndexes.get (aId);
     if (aIndex == null)
     {
       if (!m_aKeysInProgress.add (aName))
@@ -1107,18 +1107,18 @@ public final class Engine
       final ICommonsList <Object> aKey = new CommonsArrayList <> ();
       for (final IXdmItem aAtom : aAtoms)
         aKey.add (_getKeyValue ((XdmAtomic) aAtom, aCollation));
-      final ICommonsList <XdmNode> aNodes = aIndex.get (aKey);
+      final ICommonsList <IXdmNode> aNodes = aIndex.get (aKey);
       if (aNodes != null)
-        for (final XdmNode aNode : aNodes)
+        for (final IXdmNode aNode : aNodes)
           aResult.add (aNode);
     }
     else
       for (final IXdmItem aAtom : aAtoms)
       {
         final Object aKey = _getKeyValue ((XdmAtomic) aAtom, aCollation);
-        final ICommonsList <XdmNode> aNodes = aKey == NAN_KEY ? null : aIndex.get (aKey);
+        final ICommonsList <IXdmNode> aNodes = aKey == NAN_KEY ? null : aIndex.get (aKey);
         if (aNodes != null)
-          for (final XdmNode aNode : aNodes)
+          for (final IXdmNode aNode : aNodes)
             aResult.add (aNode);
       }
     XdmSequence ret = NodeSorter.sortAndDeduplicate (aResult.build ());
@@ -1126,7 +1126,7 @@ public final class Engine
     {
       final XdmSequence.Builder aFiltered = new XdmSequence.Builder ();
       for (final IXdmItem aItem : ret)
-        for (XdmNode aCur = (XdmNode) aItem; aCur != null; aCur = aCur.getParent ())
+        for (IXdmNode aCur = (IXdmNode) aItem; aCur != null; aCur = aCur.getParent ())
           if (aCur == aTop)
           {
             aFiltered.add (aItem);
@@ -1152,7 +1152,7 @@ public final class Engine
    *         FODC0002 if the document cannot be retrieved
    */
   @Nullable
-  public XdmNode getDocument (@NonNull final XsltContext aCtx, @NonNull final String sUri)
+  public IXdmNode getDocument (@NonNull final XsltContext aCtx, @NonNull final String sUri)
   {
     String sDocUri = sUri;
     String sFragment = null;
@@ -1162,10 +1162,10 @@ public final class Engine
       sDocUri = sUri.substring (0, nHash);
       sFragment = sUri.substring (nHash + 1);
     }
-    XdmNode aDoc;
+    IXdmNode aDoc;
     final String sKey = "fn:doc#" + sDocUri;
     final ICommonsMap <String, Object> aCache = m_aRootDyn.getRunCache ();
-    if (aCache.get (sKey) instanceof final XdmNode aCached)
+    if (aCache.get (sKey) instanceof final IXdmNode aCached)
       aDoc = aCached;
     else
     {
@@ -1189,19 +1189,19 @@ public final class Engine
     }
     if (sFragment == null || sFragment.isEmpty ())
       return aDoc;
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aDoc);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.pop ();
+      final IXdmNode aCur = aStack.pop ();
       if (aCur.isElement ())
       {
-        final XdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
+        final IXdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
         if (aXmlId != null && sFragment.equals (aXmlId.getValue ().trim ()))
           return aCur;
         for (int i = 0; i < aCur.getAttributeCount (); ++i)
         {
-          final XdmNode aAttr = aCur.getAttributeAtIndex (i);
+          final IXdmNode aAttr = aCur.getAttributeAtIndex (i);
           if (aAttr.getIDKind () != EIDKind.NONE && sFragment.equals (aAttr.getValue ().trim ()))
             return aCur;
         }

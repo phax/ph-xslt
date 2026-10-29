@@ -24,7 +24,7 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.context.IResourceResolver;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Port of go-xslt's <code>rsResolver</code> (fn_resource_test.go): an
@@ -35,8 +35,8 @@ import com.helger.xpath.xdm.XdmNode;
 final class FnSpecResolver implements IResourceResolver
 {
   private final ICommonsMap <String, String> m_aTexts = new CommonsHashMap <> ();
-  private final ICommonsMap <String, XdmNode> m_aDocs = new CommonsHashMap <> ();
-  private final ICommonsMap <String, ICommonsList <XdmNode>> m_aColls = new CommonsHashMap <> ();
+  private final ICommonsMap <String, IXdmNode> m_aDocs = new CommonsHashMap <> ();
+  private final ICommonsMap <String, ICommonsList <IXdmNode>> m_aColls = new CommonsHashMap <> ();
   private final boolean m_bCollections;
 
   /**
@@ -65,9 +65,9 @@ final class FnSpecResolver implements IResourceResolver
    * @return The document node.
    */
   @NonNull
-  static XdmNode doc (@NonNull final String sXml, @NonNull final String sBase)
+  static IXdmNode doc (@NonNull final String sXml, @NonNull final String sBase)
   {
-    final XdmNode ret = SpecTestHelper.parse (sXml);
+    final IXdmNode ret = SpecTestHelper.parse (sXml);
     ret.setDocumentUri (sBase);
     ret.setBaseUri (sBase);
     return ret;
@@ -81,21 +81,21 @@ final class FnSpecResolver implements IResourceResolver
   }
 
   @NonNull
-  FnSpecResolver doc (@NonNull final String sUri, @NonNull final XdmNode aDoc)
+  FnSpecResolver doc (@NonNull final String sUri, @NonNull final IXdmNode aDoc)
   {
     m_aDocs.put (sUri, aDoc);
     return this;
   }
 
   @NonNull
-  FnSpecResolver coll (@NonNull final String sUri, @NonNull final XdmNode... aDocs)
+  FnSpecResolver coll (@NonNull final String sUri, @NonNull final IXdmNode... aDocs)
   {
     m_aColls.put (sUri, new CommonsArrayList <> (aDocs));
     return this;
   }
 
   @Nullable
-  public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
     return m_aDocs.get (sAbsoluteUri);
   }
@@ -108,7 +108,7 @@ final class FnSpecResolver implements IResourceResolver
 
   @Override
   @Nullable
-  public ICommonsList <XdmNode> resolveCollection (@NonNull final String sAbsoluteUri)
+  public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sAbsoluteUri)
   {
     return m_bCollections ? m_aColls.get (sAbsoluteUri) : null;
   }

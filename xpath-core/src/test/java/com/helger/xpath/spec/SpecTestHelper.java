@@ -37,7 +37,7 @@ import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -179,7 +179,7 @@ public final class SpecTestHelper
   }
 
   @NonNull
-  public static XdmNode parse (@NonNull final String sXml)
+  public static IXdmNode parse (@NonNull final String sXml)
   {
     try
     {
@@ -249,7 +249,7 @@ public final class SpecTestHelper
     final IXdmItem aItem = aSeq.get (0);
     if (aItem instanceof final XdmAtomic aAtomic)
       return aAtomic.getLexical ();
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
       return aNode.getStringValue ();
     return "";
   }

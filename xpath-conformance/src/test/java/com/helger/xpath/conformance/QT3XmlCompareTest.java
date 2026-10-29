@@ -24,7 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for classes {@link QT3XmlCompare} and {@link QT3XmlSerializer}.
@@ -83,7 +83,7 @@ public final class QT3XmlCompareTest
       aSB.append ("</e>");
     final String s = aSB.toString ();
     assertTrue (QT3XmlCompare.isXmlEqual (s, s, false));
-    final XdmNode aDoc = QT3XmlCompare.parseFragment (s);
+    final IXdmNode aDoc = QT3XmlCompare.parseFragment (s);
     assertNotNull (aDoc);
     assertEquals ("<_x_>" + s.replace ("<e></e>", "<e/>") + "</_x_>", QT3XmlSerializer.serialize (aDoc));
   }
@@ -92,7 +92,7 @@ public final class QT3XmlCompareTest
   public void testParseFragment ()
   {
     assertNull (QT3XmlCompare.parseFragment ("<a"));
-    final XdmNode aDoc = QT3XmlCompare.parseFragment ("<a x='&lt;'>t&amp;</a>");
+    final IXdmNode aDoc = QT3XmlCompare.parseFragment ("<a x='&lt;'>t&amp;</a>");
     assertNotNull (aDoc);
     assertEquals ("<_x_><a x=\"&lt;\">t&amp;</a></_x_>", QT3XmlSerializer.serialize (aDoc));
   }

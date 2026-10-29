@@ -34,7 +34,7 @@ import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -90,7 +90,7 @@ public final class QT3AssertionChecker
     if (aSeq.isEmpty ())
       return Boolean.FALSE;
     final IXdmItem aFirst = aSeq.getFirst ();
-    if (aFirst instanceof XdmNode)
+    if (aFirst instanceof IXdmNode)
       return Boolean.TRUE;
     if (!aSeq.isSingleton () || !(aFirst instanceof final XdmAtomic aAtomic))
       return null;

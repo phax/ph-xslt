@@ -28,7 +28,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Port of go-xslt's <code>fn_analyze_string_test.go</code>: fn:analyze-string
@@ -46,7 +46,7 @@ public final class FnAnalyzeStringSpecTest
    * text.
    */
   @NonNull
-  private static String _render (@NonNull final XdmNode aNode)
+  private static String _render (@NonNull final IXdmNode aNode)
   {
     // Iterative, with an explicit stack of pending output
     final StringBuilder aSB = new StringBuilder ();
@@ -60,14 +60,14 @@ public final class FnAnalyzeStringSpecTest
         aSB.append (sText);
         continue;
       }
-      final XdmNode aCur = (XdmNode) aTop;
+      final IXdmNode aCur = (IXdmNode) aTop;
       if (aCur.isText ())
       {
         aSB.append (aCur.getValue ());
         continue;
       }
       aSB.append (aCur.getName ().localName ());
-      final XdmNode aNr = aCur.getAttribute ("", "nr");
+      final IXdmNode aNr = aCur.getAttribute ("", "nr");
       if (aNr != null)
         aSB.append (aNr.getValue ());
       aSB.append ('[');
@@ -135,12 +135,12 @@ public final class FnAnalyzeStringSpecTest
         aErrors.add (aCase[0] + ": " + ex.getMessage ());
         continue;
       }
-      if (aResult.size () != 1 || !(aResult.get (0) instanceof XdmNode))
+      if (aResult.size () != 1 || !(aResult.get (0) instanceof IXdmNode))
       {
         aErrors.add (aCase[0] + ": " + aResult.size () + " items, want 1 node");
         continue;
       }
-      final String sGot = _render ((XdmNode) aResult.get (0));
+      final String sGot = _render ((IXdmNode) aResult.get (0));
       if (!sGot.equals (aCase[1]))
         aErrors.add (aCase[0] + " =\n   " + sGot + "\n  want\n   " + aCase[1]);
     }

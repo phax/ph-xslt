@@ -26,8 +26,8 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.xdm.EIDKind;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.XdmValidationException;
@@ -233,20 +233,20 @@ public final class ValidationRequest
    * @param aNode
    *        The node (any kind).
    */
-  public static void stripAnnotations (@NonNull final XdmNode aNode)
+  public static void stripAnnotations (@NonNull final IXdmNode aNode)
   {
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aNode);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.pop ();
+      final IXdmNode aCur = aStack.pop ();
       if (aCur.isElement () || aCur.isAttribute ())
       {
         aCur.setSchemaType (null);
         aCur.setTypeAnnotation (null);
         aCur.setNilled (false);
       }
-      for (final XdmNode aAttr : aCur.getAllAttributes ())
+      for (final IXdmNode aAttr : aCur.getAllAttributes ())
       {
         aAttr.setSchemaType (null);
         aAttr.setTypeAnnotation (null);
@@ -262,7 +262,7 @@ public final class ValidationRequest
    * @return <code>true</code> if its typed value is namespace-sensitive (of
    *         type xs:QName or xs:NOTATION or derived from them).
    */
-  public static boolean isNamespaceSensitive (@NonNull final XdmNode aNode)
+  public static boolean isNamespaceSensitive (@NonNull final IXdmNode aNode)
   {
     final XdmSchemaType aSchemaType = aNode.getSchemaType ();
     if (aSchemaType == null)
@@ -280,16 +280,16 @@ public final class ValidationRequest
    * @return <code>true</code> if the node or a node of its subtree (attributes
    *         included) has namespace-sensitive content.
    */
-  public static boolean hasNamespaceSensitiveContent (@NonNull final XdmNode aNode)
+  public static boolean hasNamespaceSensitiveContent (@NonNull final IXdmNode aNode)
   {
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     aStack.push (aNode);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.pop ();
+      final IXdmNode aCur = aStack.pop ();
       if ((aCur.isElement () || aCur.isAttribute ()) && isNamespaceSensitive (aCur))
         return true;
-      for (final XdmNode aAttr : aCur.getAllAttributes ())
+      for (final IXdmNode aAttr : aCur.getAllAttributes ())
         if (isNamespaceSensitive (aAttr))
           return true;
       for (int i = aCur.getChildCount () - 1; i >= 0; --i)
@@ -309,7 +309,7 @@ public final class ValidationRequest
    * @throws XPathException
    *         XTTE0950
    */
-  public static void checkPreserveCopy (@NonNull final XdmNode aNode, final boolean bCopyNamespaces)
+  public static void checkPreserveCopy (@NonNull final IXdmNode aNode, final boolean bCopyNamespaces)
   {
     if (aNode.isAttribute () ? isNamespaceSensitive (aNode) : !bCopyNamespaces && hasNamespaceSensitiveContent (aNode))
       throw new XPathException ("XTTE0950",
@@ -317,7 +317,7 @@ public final class ValidationRequest
                                             (aNode.isAttribute () ? "without its parent element" : "and copy-namespaces='no'"));
   }
 
-  private static void _setAnyType (@NonNull final XdmNode aNode)
+  private static void _setAnyType (@NonNull final IXdmNode aNode)
   {
     if (!aNode.isElement ())
       return;
@@ -326,7 +326,7 @@ public final class ValidationRequest
     aNode.setNilled (false);
   }
 
-  private void _applyPreserve (@NonNull final XdmNode aNode)
+  private void _applyPreserve (@NonNull final IXdmNode aNode)
   {
     switch (m_eKind)
     {
@@ -354,14 +354,14 @@ public final class ValidationRequest
    *         other node kinds and for a document node of another shape.
    */
   @Nullable
-  private static XdmNode _getTarget (@NonNull final XdmNode aNode)
+  private static IXdmNode _getTarget (@NonNull final IXdmNode aNode)
   {
     if (aNode.isElement () || aNode.isAttribute ())
       return aNode;
     if (!aNode.isDocument ())
       return null;
-    XdmNode ret = null;
-    for (final XdmNode aChild : aNode.getAllChildren ())
+    IXdmNode ret = null;
+    for (final IXdmNode aChild : aNode.getAllChildren ())
       if (aChild.isElement ())
       {
         if (ret != null)
@@ -375,7 +375,7 @@ public final class ValidationRequest
   }
 
   @NonNull
-  private static UnaryOperator <String> _getNamespaceResolver (@Nullable final XdmNode aElement)
+  private static UnaryOperator <String> _getNamespaceResolver (@Nullable final IXdmNode aElement)
   {
     return sPrefix -> {
       if (aElement == null)
@@ -390,7 +390,7 @@ public final class ValidationRequest
   /**
    * Validate an attribute value against a simple type and annotate it.
    */
-  private static void _validateAttributeValue (@NonNull final XdmNode aAttr,
+  private static void _validateAttributeValue (@NonNull final IXdmNode aAttr,
                                                @NonNull final IXdmTypeDefinition aType) throws XdmValidationException
   {
     final ICommonsList <XdmTypedToken> aTokens = aType.validate (aAttr.getValue (), _getNamespaceResolver (aAttr.getParent ()));
@@ -418,14 +418,14 @@ public final class ValidationRequest
   }
 
   @NonNull
-  private static String _describe (@NonNull final XdmNode aNode)
+  private static String _describe (@NonNull final IXdmNode aNode)
   {
     return aNode.getName () != null ? aNode.getName ().getEQName () : aNode.getKind ().toString ();
   }
 
-  private void _validate (@NonNull final XdmNode aNode, final boolean bDocumentLevel)
+  private void _validate (@NonNull final IXdmNode aNode, final boolean bDocumentLevel)
   {
-    final XdmNode aTarget = _getTarget (aNode);
+    final IXdmNode aTarget = _getTarget (aNode);
     if (aTarget == null)
     {
       if (aNode.isDocument ())
@@ -465,7 +465,7 @@ public final class ValidationRequest
     }
   }
 
-  private void _validateAgainstType (@NonNull final XdmNode aNode, final boolean bDocumentLevel)
+  private void _validateAgainstType (@NonNull final IXdmNode aNode, final boolean bDocumentLevel)
   {
     if ("untyped".equals (m_sSpecialType))
     {
@@ -476,7 +476,7 @@ public final class ValidationRequest
     {
       // As xs:string, annotated xs:untypedAtomic; element children fail
       if (aNode.isElement ())
-        for (final XdmNode aChild : aNode.getAllChildren ())
+        for (final IXdmNode aChild : aNode.getAllChildren ())
           if (aChild.isElement ())
             throw new XPathException ("XTTE1540", "An element with element children cannot be validated against xs:untypedAtomic");
       stripAnnotations (aNode);
@@ -484,7 +484,7 @@ public final class ValidationRequest
         aNode.setTypeAnnotation (UNTYPED_ATOMIC);
       return;
     }
-    final XdmNode aTarget = _getTarget (aNode);
+    final IXdmNode aTarget = _getTarget (aNode);
     if (aTarget == null)
     {
       if (aNode.isDocument ())
@@ -522,7 +522,7 @@ public final class ValidationRequest
    * @throws XPathException
    *         XTTE1510, XTTE1512, XTTE1515, XTTE1540, XTTE1550, XTTE1555
    */
-  public void apply (@NonNull final XdmNode aNode)
+  public void apply (@NonNull final IXdmNode aNode)
   {
     final boolean bDocumentLevel = aNode.isDocument () || m_eKind == EKind.DOCUMENT || m_eKind == EKind.SOURCE_DOCUMENT;
     if (m_aType != null || m_sSpecialType != null)

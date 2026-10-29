@@ -31,7 +31,7 @@ import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Explaining a content-model mismatch (go-xslt <code>explain.go</code>).
@@ -457,7 +457,7 @@ final class XsdExplain
   private static final class CardDefect
   {
     final String m_sKind;
-    final XdmNode m_aKid;
+    final IXdmNode m_aKid;
     /** missing: the alternatives; order: what was expected */
     final ICommonsList <Label> m_aAlts;
     /** too-many: the label the earlier occurrences used */
@@ -466,7 +466,7 @@ final class XsdExplain
     final AncEntry m_aGroup;
 
     CardDefect (@NonNull final String sKind,
-                @Nullable final XdmNode aKid,
+                @Nullable final IXdmNode aKid,
                 @Nullable final ICommonsList <Label> aAlts,
                 @Nullable final Label aPrev,
                 @Nullable final AncEntry aGroup)
@@ -533,7 +533,7 @@ final class XsdExplain
   @Nullable
   private static ICommonsList <CardDefect> _explainContent (@NonNull final XsdSchema aSchema,
                                                             @Nullable final XsdParticle aParticle,
-                                                            @NonNull final ICommonsList <XdmNode> aKids)
+                                                            @NonNull final ICommonsList <IXdmNode> aKids)
   {
     if (aParticle == null || aKids.size () > MAX_KIDS)
       return null;
@@ -557,7 +557,7 @@ final class XsdExplain
     {
       if (aDefects.size () >= NFA_MAX_ERRORS)
         return aDefects;
-      final XdmNode aKid = aKids.get (i);
+      final IXdmNode aKid = aKids.get (i);
       final XsdName aName = XsdInstanceValidator.nameOf (aKid);
       final StepResult aStep = _step (aSchema, aNfa, aCur, aName);
       if (!aStep.next ().isEmpty ())
@@ -668,7 +668,7 @@ final class XsdExplain
    * to it, Clark notation otherwise.
    */
   @NonNull
-  private static String _displayName (@NonNull final XdmNode aElement, @NonNull final XsdName aName)
+  private static String _displayName (@NonNull final IXdmNode aElement, @NonNull final XsdName aName)
   {
     if (aName.space ().isEmpty ())
       return aName.local ();
@@ -687,7 +687,7 @@ final class XsdExplain
   }
 
   @NonNull
-  private static String _display (@NonNull final Label aLabel, @NonNull final XdmNode aElement)
+  private static String _display (@NonNull final Label aLabel, @NonNull final IXdmNode aElement)
   {
     if (aLabel.m_aDecl != null)
       return _displayName (aElement, aLabel.m_aDecl.m_aName);
@@ -695,7 +695,7 @@ final class XsdExplain
   }
 
   @NonNull
-  private static String _joinAlts (@NonNull final XdmNode aElement,
+  private static String _joinAlts (@NonNull final IXdmNode aElement,
                                    @NonNull final ICommonsList <Label> aAlts,
                                    final int nMax)
   {
@@ -787,7 +787,7 @@ final class XsdExplain
    * B"; iterative, a group reached twice is listed once.
    */
   @NonNull
-  private static ICommonsList <String> _groupElementNames (@NonNull final XdmNode aElement,
+  private static ICommonsList <String> _groupElementNames (@NonNull final IXdmNode aElement,
                                                            @NonNull final XsdModelGroup aGroup)
   {
     final ICommonsList <String> ret = new CommonsArrayList <> ();
@@ -849,9 +849,9 @@ final class XsdExplain
    */
   @NonNull
   static ICommonsList <XsdErrorCollector.Entry> cardinalityErrors (@NonNull final XsdSchema aSchema,
-                                                                   @NonNull final XdmNode aElement,
+                                                                   @NonNull final IXdmNode aElement,
                                                                    @Nullable final XsdParticle aParticle,
-                                                                   @NonNull final ICommonsList <XdmNode> aKids)
+                                                                   @NonNull final ICommonsList <IXdmNode> aKids)
   {
     final ICommonsList <XsdErrorCollector.Entry> ret = new CommonsArrayList <> ();
     final ICommonsList <CardDefect> aDefects = _explainContent (aSchema, aParticle, aKids);
@@ -867,7 +867,7 @@ final class XsdExplain
       String sParticle = "";
       String sMessage = "";
       ICommonsList <XsdMessage> aMsgs = new CommonsArrayList <> ();
-      final XdmNode aKid = aDefect.m_aKid;
+      final IXdmNode aKid = aDefect.m_aKid;
       switch (aDefect.m_sKind)
       {
         case KIND_MISSING:

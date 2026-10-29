@@ -47,8 +47,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmDateTimeValue;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -111,7 +111,7 @@ public final class ExprTestHelper
                        _isImplemented ( () -> XdmDateTimeValue.parse (EAtomicType.DATE, "2020-01-01")));
   }
 
-  public static XdmNode parse (final String sXml)
+  public static IXdmNode parse (final String sXml)
   {
     try
     {
@@ -191,7 +191,7 @@ public final class ExprTestHelper
     {
       if (aSB.length () > 0)
         aSB.append (' ');
-      final XdmNode aNode = (XdmNode) aItem;
+      final IXdmNode aNode = (IXdmNode) aItem;
       if (aNode.isElement () || aNode.isAttribute ())
         aSB.append (aNode.getName ().localName ());
       else
@@ -211,7 +211,7 @@ public final class ExprTestHelper
     {
       if (aSB.length () > 0)
         aSB.append (' ');
-      aSB.append (aItem instanceof final XdmNode aNode ? aNode.getStringValue () : ((XdmAtomic) aItem).getString ());
+      aSB.append (aItem instanceof final IXdmNode aNode ? aNode.getStringValue () : ((XdmAtomic) aItem).getString ());
     }
     return aSB.toString ();
   }

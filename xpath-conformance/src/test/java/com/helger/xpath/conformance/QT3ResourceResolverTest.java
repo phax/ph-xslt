@@ -31,7 +31,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.helger.collection.commons.ICommonsList;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for class {@link QT3ResourceResolver}.
@@ -90,7 +90,7 @@ public final class QT3ResourceResolverTest
     final QT3DocumentCache aCache = new QT3DocumentCache ();
     final QT3ResourceResolver aResolver = new QT3ResourceResolver (aEnv, aCache);
 
-    final XdmNode aDoc = aResolver.getSourceDocument (aEnv.getAllSources ().getFirstOrNull ());
+    final IXdmNode aDoc = aResolver.getSourceDocument (aEnv.getAllSources ().getFirstOrNull ());
     assertNotNull (aDoc);
     final String sFileUri = QT3ResourceResolver.getFileUri (aDir.resolve ("sub/doc.xml"));
     assertEquals (sFileUri, aDoc.getDocumentUri ());
@@ -111,7 +111,7 @@ public final class QT3ResourceResolverTest
     assertNull (aResolver.resolveText ("http://x/none.txt", null));
     assertNull (aResolver.resolveText ("sub/none.txt", null));
 
-    final ICommonsList <XdmNode> aColl = aResolver.resolveCollection ("http://x/coll");
+    final ICommonsList <IXdmNode> aColl = aResolver.resolveCollection ("http://x/coll");
     assertNotNull (aColl);
     assertEquals (2, aColl.size ());
     assertSame (aDoc, aColl.getFirstOrNull ());

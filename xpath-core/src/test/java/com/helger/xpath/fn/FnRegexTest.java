@@ -27,7 +27,7 @@ import com.helger.xpath.CompiledXPath;
 import com.helger.xpath.XPathCompiler;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for class {@link FnRegex}.
@@ -37,7 +37,7 @@ import com.helger.xpath.xdm.XdmNode;
 public final class FnRegexTest
 {
   /** Serialise an element tree compactly: name, attributes and content. */
-  private static void _dump (final XdmNode aNode, final StringBuilder aSB)
+  private static void _dump (final IXdmNode aNode, final StringBuilder aSB)
   {
     if (aNode.isText ())
     {
@@ -45,10 +45,10 @@ public final class FnRegexTest
       return;
     }
     aSB.append ('<').append (aNode.getName ().localName ());
-    for (final XdmNode aAttr : aNode.getAllAttributes ())
+    for (final IXdmNode aAttr : aNode.getAllAttributes ())
       aSB.append (' ').append (aAttr.getName ().localName ()).append ('=').append (aAttr.getValue ());
     aSB.append ('>');
-    for (final XdmNode aChild : aNode.getAllChildren ())
+    for (final IXdmNode aChild : aNode.getAllChildren ())
       _dump (aChild, aSB);
     aSB.append ("</").append (aNode.getName ().localName ()).append ('>');
   }
@@ -57,10 +57,10 @@ public final class FnRegexTest
   {
     final CompiledXPath aCompiled = XPathCompiler.compile (sExpr, new StaticContext ());
     final XdmSequence aResult = aCompiled.evaluate (aCompiled.createDynamicContext ());
-    final XdmNode aRoot = (XdmNode) aResult.get (0);
+    final IXdmNode aRoot = (IXdmNode) aResult.get (0);
     assertEquals ("http://www.w3.org/2005/xpath-functions", aRoot.getName ().namespaceUri ());
     final StringBuilder aSB = new StringBuilder ();
-    for (final XdmNode aChild : aRoot.getAllChildren ())
+    for (final IXdmNode aChild : aRoot.getAllChildren ())
       _dump (aChild, aSB);
     return aSB.toString ();
   }

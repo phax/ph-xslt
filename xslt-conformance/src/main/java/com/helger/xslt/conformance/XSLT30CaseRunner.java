@@ -46,8 +46,8 @@ import com.helger.xpath.conformance.QT3Outcome;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -240,10 +240,10 @@ public final class XSLT30CaseRunner
    * <code>&lt;?xml-stylesheet href="#id"?&gt;</code> (XSLT 3.0 section 3.13).
    */
   @NonNull
-  private static XdmNode _findEmbeddedStylesheet (@NonNull final XdmNode aDoc)
+  private static IXdmNode _findEmbeddedStylesheet (@NonNull final IXdmNode aDoc)
   {
     String sID = null;
-    for (final XdmNode aChild : aDoc.getAllChildren ())
+    for (final IXdmNode aChild : aDoc.getAllChildren ())
       if (aChild.getKind () == ENodeKind.PROCESSING_INSTRUCTION &&
           "xml-stylesheet".equals (aChild.getName ().localName ()))
       {
@@ -257,14 +257,14 @@ public final class XSLT30CaseRunner
     if (sID != null)
     {
       // Iterative walk in document order
-      final ICommonsList <XdmNode> aStack = new CommonsArrayList <> (aDoc);
+      final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> (aDoc);
       while (aStack.isNotEmpty ())
       {
-        final XdmNode aNode = aStack.removeLast ();
+        final IXdmNode aNode = aStack.removeLast ();
         if (aNode.isElement ())
         {
-          final XdmNode aXmlID = aNode.getAttribute (XdmConstants.NS_XML, "id");
-          final XdmNode aID = aNode.getAttribute ("", "id");
+          final IXdmNode aXmlID = aNode.getAttribute (XdmConstants.NS_XML, "id");
+          final IXdmNode aID = aNode.getAttribute ("", "id");
           if ((aXmlID != null && sID.equals (aXmlID.getValue ())) || (aID != null && sID.equals (aID.getValue ())))
             return aNode;
         }
@@ -417,7 +417,7 @@ public final class XSLT30CaseRunner
       {
         // The source carries the stylesheet (defines-stylesheet="true")
         aOptions.setBaseUri (sBaseUri);
-        final XdmNode aDoc;
+        final IXdmNode aDoc;
         try
         {
           aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aStylesheet);
@@ -443,7 +443,7 @@ public final class XSLT30CaseRunner
 
     // The principal source: role ".", or a source with neither role nor uri
     // when there is no role "." source; the last one found wins, like Go
-    XdmNode aSource = null;
+    IXdmNode aSource = null;
     String sSourceSelect = "";
     if (aEnv != null)
     {
@@ -495,7 +495,7 @@ public final class XSLT30CaseRunner
                                                     null,
                                                     aResolver,
                                                     sBaseUri);
-                if (aSel.isSingleton () && aSel.getFirst () instanceof final XdmNode aNode)
+                if (aSel.isSingleton () && aSel.getFirst () instanceof final IXdmNode aNode)
                   aSource = aNode;
                 sSourceSelect = "";
               }
@@ -519,7 +519,7 @@ public final class XSLT30CaseRunner
         final Path aPath = XSLT30ResourceResolver.getAbsolutePath (aEnv.baseDir (), aSrc.file ());
         try
         {
-          final XdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
+          final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
           XSLT30SchemaSupport.validateSource (aDoc, sMode, aExecutable, aEnv);
           aResolver.putDocument (aPath, aDoc);
         }

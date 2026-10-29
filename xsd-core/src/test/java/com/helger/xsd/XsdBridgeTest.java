@@ -37,8 +37,8 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.xdm.EIDKind;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -103,11 +103,11 @@ public final class XsdBridgeTest
   }
 
   @NonNull
-  private static XdmNode _parseElement (@NonNull final String sXml)
+  private static IXdmNode _parseElement (@NonNull final String sXml)
   {
     try
     {
-      final XdmNode aRoot = XsdNodes.rootElement (new XdmParser ().parse (sXml));
+      final IXdmNode aRoot = XsdNodes.rootElement (new XdmParser ().parse (sXml));
       assertNotNull (aRoot);
       return aRoot;
     }
@@ -262,21 +262,21 @@ public final class XsdBridgeTest
   public void testValidateAnnotates () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
-    final XdmNode aEl = _parseElement ("<t:head xmlns:t=\"urn:t\" kind=\"99999\"><t:zip>12345</t:zip><t:n>7</t:n></t:head>");
+    final IXdmNode aEl = _parseElement ("<t:head xmlns:t=\"urn:t\" kind=\"99999\"><t:zip>12345</t:zip><t:n>7</t:n></t:head>");
     aSet.validateElement (aEl, null, false);
     // The root is complex: its type is exact, and it has no typed value
     XdmSchemaType aType = aEl.getSchemaType ();
     assertNotNull (aType);
     assertEquals (_qn (NS, "Addr"), aType.getName ());
     assertFalse (aType.isSimple ());
-    final XdmNode aZip = aEl.getChildAtIndex (0);
+    final IXdmNode aZip = aEl.getChildAtIndex (0);
     aType = aZip.getSchemaType ();
     assertEquals (_qn (NS, "Zip"), aType.getName ());
     assertTrue (aType.isSimple ());
     assertTrue (aType.hasAtomicBase ("string"));
     // A built-in type is named too: schema-element(N) and element(*, xs:int)
     // ask whether the type of the node is T or derived from it
-    final XdmNode aN = aEl.getChildAtIndex (1);
+    final IXdmNode aN = aEl.getChildAtIndex (1);
     aType = aN.getSchemaType ();
     assertEquals (_qn (XdmConstants.NS_XS, "int"), aType.getName ());
     assertTrue (aType.hasAtomicBase ("int"));
@@ -290,7 +290,7 @@ public final class XsdBridgeTest
   public void testInvalidTreeIsLeftAlone ()
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
-    final XdmNode aEl = _parseElement ("<t:head xmlns:t=\"urn:t\"><t:zip>nope</t:zip></t:head>");
+    final IXdmNode aEl = _parseElement ("<t:head xmlns:t=\"urn:t\"><t:zip>nope</t:zip></t:head>");
     try
     {
       aSet.validateElement (aEl, null, false);
@@ -325,7 +325,7 @@ public final class XsdBridgeTest
   {
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     final IXdmTypeDefinition aAddr = _type (aSet, NS, "Addr");
-    final XdmNode aEl = _parseElement ("<anything xmlns:t=\"urn:t\"><t:zip>12345</t:zip></anything>");
+    final IXdmNode aEl = _parseElement ("<anything xmlns:t=\"urn:t\"><t:zip>12345</t:zip></anything>");
     aSet.validateElement (aEl, aAddr, false);
     assertEquals (_qn (NS, "Addr"), aEl.getSchemaType ().getName ());
     try
@@ -362,13 +362,13 @@ public final class XsdBridgeTest
     final IXdmSchemaSet aSet = _compile (SCHEMA);
     for (int nPass = 0; nPass < 2; nPass++)
     {
-      final XdmNode aHead = XdmNode.createElement (new XdmQName (NS, "head", "t"));
+      final IXdmNode aHead = IXdmNode.createElement (new XdmQName (NS, "head", "t"));
       aHead.declareNamespace ("t", NS);
-      final XdmNode aZip = XdmNode.createElement (new XdmQName (NS, "zip", "t"));
+      final IXdmNode aZip = IXdmNode.createElement (new XdmQName (NS, "zip", "t"));
       final String [] aParts = nPass == 0 ? new String [] { "", "12", "", "3", "45", "" }
                                           : new String [] { "12", "34" };
       for (final String sPart : aParts)
-        aZip.appendChild (XdmNode.createText (sPart));
+        aZip.appendChild (IXdmNode.createText (sPart));
       aHead.appendChild (aZip);
       final int nTextNodes = aZip.getChildCount ();
       try
@@ -403,7 +403,7 @@ public final class XsdBridgeTest
           <xs:element name="a"><xs:complexType>
             <xs:attribute name="r" type="xs:IDREF"/></xs:complexType></xs:element>
         </xs:schema>""");
-    final XdmNode aSub = _parseElement ("<wrap><a r=\"elsewhere\"/></wrap>").getChildAtIndex (0);
+    final IXdmNode aSub = _parseElement ("<wrap><a r=\"elsewhere\"/></wrap>").getChildAtIndex (0);
     aSet.validateElement (aSub, null, false);
     try
     {
@@ -582,7 +582,7 @@ public final class XsdBridgeTest
             <xs:element name="i" type="xs:ID"/><xs:element name="r" type="xs:IDREF"/>
           </xs:sequence><xs:attribute name="id" type="xs:ID"/><xs:attribute name="refs" type="xs:IDREFS"/></xs:complexType></xs:element>
         </xs:schema>""");
-    final XdmNode aEl = _parseElement ("<e id=\"a\" refs=\" a  a \"><i>b</i><r>a</r></e>");
+    final IXdmNode aEl = _parseElement ("<e id=\"a\" refs=\" a  a \"><i>b</i><r>a</r></e>");
     aSet.validateElement (aEl, null, true);
     assertEquals (EIDKind.ID, aEl.getAttribute ("", "id").getIDKind ());
     assertEquals (EIDKind.IDREFS, aEl.getAttribute ("", "refs").getIDKind ());

@@ -34,7 +34,7 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.conformance.QT3Outcome;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformResult;
@@ -79,7 +79,7 @@ public final class XSLT30AssertionCheckerTest
     return new XSLT30Assertion (sKind, new CommonsLinkedHashMap <> (), sValue, aNS, new CommonsArrayList <> ());
   }
 
-  private static XdmNode _doc (final String sXml) throws Exception
+  private static IXdmNode _doc (final String sXml) throws Exception
   {
     return new XdmParser ().parse (sXml);
   }
@@ -87,14 +87,14 @@ public final class XSLT30AssertionCheckerTest
   /** A template-invoked result: the tree and its serialisation. */
   private static XSLT30Actual _out (final String sSerialized) throws Exception
   {
-    XdmNode aTree;
+    IXdmNode aTree;
     try
     {
       aTree = _doc (sSerialized);
     }
     catch (final Exception ex)
     {
-      aTree = XdmNode.createDocument ();
+      aTree = IXdmNode.createDocument ();
     }
     final XsltTransformResult aResult = new XsltTransformResult (XdmSequence.of (aTree),
                                                                  aTree,
@@ -254,7 +254,7 @@ public final class XSLT30AssertionCheckerTest
   @Test
   public void testResultDocumentAndMessages () throws Exception
   {
-    final XdmNode aSecTree = _doc ("<second/>");
+    final IXdmNode aSecTree = _doc ("<second/>");
     final XsltTransformResult aResult = new XsltTransformResult (XdmSequence.EMPTY,
                                                                  null,
                                                                  "",

@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * The outcome of a transformation: the principal result in raw form, as a
@@ -52,7 +52,7 @@ import com.helger.xpath.xdm.XdmNode;
  */
 @Immutable
 public record XsltTransformResult (@NonNull XdmSequence principalRaw,
-                                   @Nullable XdmNode principalTree,
+                                   @Nullable IXdmNode principalTree,
                                    @NonNull String principalSerialized,
                                    @NonNull ICommonsList <SecondaryResult> secondaryResults,
                                    @NonNull ICommonsList <String> messages,
@@ -74,7 +74,7 @@ public record XsltTransformResult (@NonNull XdmSequence principalRaw,
    *        The texts of the xsl:message instructions.
    */
   public XsltTransformResult (@NonNull final XdmSequence principalRaw,
-                              @Nullable final XdmNode principalTree,
+                              @Nullable final IXdmNode principalTree,
                               @NonNull final String principalSerialized,
                               @NonNull final ICommonsList <SecondaryResult> secondaryResults,
                               @NonNull final ICommonsList <String> messages)
@@ -85,7 +85,7 @@ public record XsltTransformResult (@NonNull XdmSequence principalRaw,
   /** One xsl:result-document result. */
   public record SecondaryResult (@NonNull String href,
                                  @NonNull XdmSequence raw,
-                                 @Nullable XdmNode tree,
+                                 @Nullable IXdmNode tree,
                                  @NonNull String serialized)
   {}
 }

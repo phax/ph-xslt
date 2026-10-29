@@ -33,7 +33,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for class {@link FnResource}.
@@ -46,15 +46,15 @@ public final class FnResourceTest
 
   private static final class TestResolver implements IResourceResolver
   {
-    private final ICommonsMap <String, XdmNode> m_aDocs = new CommonsHashMap <> ();
+    private final ICommonsMap <String, IXdmNode> m_aDocs = new CommonsHashMap <> ();
     private final ICommonsMap <String, String> m_aTexts = new CommonsHashMap <> ();
     private int m_nDocCalls = 0;
 
     @Nullable
-    public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
     {
       m_nDocCalls++;
-      final XdmNode ret = m_aDocs.get (sAbsoluteUri);
+      final IXdmNode ret = m_aDocs.get (sAbsoluteUri);
       // A fresh tree per call: stability must come from the run cache
       return ret == null ? null : parse ("<copy/>");
     }
@@ -66,11 +66,11 @@ public final class FnResourceTest
     }
 
     @Nullable
-    public ICommonsList <XdmNode> resolveCollection (@NonNull final String sAbsoluteUri)
+    public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sAbsoluteUri)
     {
       if (sAbsoluteUri.isEmpty () || sAbsoluteUri.equals (BASE + "col"))
       {
-        final XdmNode aDoc = parse ("<c/>");
+        final IXdmNode aDoc = parse ("<c/>");
         aDoc.setDocumentUri (BASE + "c.xml");
         return new CommonsArrayList <> (aDoc);
       }

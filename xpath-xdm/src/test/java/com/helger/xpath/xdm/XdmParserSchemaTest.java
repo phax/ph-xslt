@@ -63,7 +63,7 @@ public final class XdmParserSchemaTest
     return new JdkSchemaProvider ().compile (new CommonsArrayList <> (new XdmSchemaSource (null, XSD)));
   }
 
-  private static XdmNode _parseRoot (final String sXml) throws XdmParseException, XdmSchemaException
+  private static IXdmNode _parseRoot (final String sXml) throws XdmParseException, XdmSchemaException
   {
     return new XdmParser ().setSchemaSet (_schema ()).parse (sXml).getChildAtIndex (0);
   }
@@ -71,7 +71,7 @@ public final class XdmParserSchemaTest
   @Test
   public void testAnnotationsAndWhitespace () throws Exception
   {
-    final XdmNode aRoot = _parseRoot ("<root xmlns='urn:t' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>\n  <int> 12 </int>\n" +
+    final IXdmNode aRoot = _parseRoot ("<root xmlns='urn:t' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>\n  <int> 12 </int>\n" +
                                       "  <int xsi:nil='true'/>\n  <dec key='k1' refs='k1  k1'>1.5</dec>\n" +
                                       "  <mixed>a <b>x</b> c</mixed>\n</root>");
     // Whitespace in element-only content is gone
@@ -82,7 +82,7 @@ public final class XdmParserSchemaTest
     assertFalse (aRootType.isSimple ());
     assertNull (aRootType.getAtomicBase ());
 
-    final XdmNode aInt = aRoot.getChildAtIndex (0);
+    final IXdmNode aInt = aRoot.getChildAtIndex (0);
     assertEquals (new XdmQName (XdmConstants.NS_XS, "int"), aInt.getTypeAnnotation ());
     assertTrue (aInt.getSchemaType ().isSimple ());
     assertEquals ("int", aInt.getSchemaType ().getAtomicBase ().localName ());
@@ -93,7 +93,7 @@ public final class XdmParserSchemaTest
     assertSame (aInt.getSchemaType (), aRoot.getChildAtIndex (1).getSchemaType ());
     assertTrue (aRoot.getChildAtIndex (1).isNilled ());
 
-    final XdmNode aDec = aRoot.getChildAtIndex (2);
+    final IXdmNode aDec = aRoot.getChildAtIndex (2);
     assertFalse (aDec.getSchemaType ().isSimple ());
     assertEquals ("decimal", aDec.getSchemaType ().getAtomicBase ().localName ());
     assertEquals (EIDKind.ID, aDec.getAttribute ("", "key").getIDKind ());
@@ -101,7 +101,7 @@ public final class XdmParserSchemaTest
     assertTrue (aDec.getAttribute ("", "refs").getSchemaType ().isList ());
     assertEquals ("IDREF", aDec.getAttribute ("", "refs").getSchemaType ().getAtomicBase ().localName ());
 
-    final XdmNode aMixed = aRoot.getChildAtIndex (3);
+    final IXdmNode aMixed = aRoot.getChildAtIndex (3);
     assertEquals ("a x c", aMixed.getStringValue ());
     assertNull (aMixed.getSchemaType ().getAtomicBase ());
   }
@@ -109,15 +109,15 @@ public final class XdmParserSchemaTest
   @Test
   public void testElementIDs () throws Exception
   {
-    final XdmNode aRoot = _parseRoot ("<root xmlns='urn:t'><ids>a</ids><ids>b c</ids><rid>d</rid><u>e</u><u>12</u></root>");
+    final IXdmNode aRoot = _parseRoot ("<root xmlns='urn:t'><ids>a</ids><ids>b c</ids><rid>d</rid><u>e</u><u>12</u></root>");
     assertEquals (EIDKind.ID, aRoot.getChildAtIndex (0).getIDKind ());
     // A list of IDs is an ID only as a singleton
     assertEquals (EIDKind.NONE, aRoot.getChildAtIndex (1).getIDKind ());
     assertEquals (EIDKind.ID, aRoot.getChildAtIndex (2).getIDKind ());
     assertEquals ("ID", aRoot.getChildAtIndex (2).getSchemaType ().getAtomicBase ().localName ());
     // A union is an ID only if the ID member matched
-    final XdmNode aU1 = aRoot.getChildAtIndex (3);
-    final XdmNode aU2 = aRoot.getChildAtIndex (4);
+    final IXdmNode aU1 = aRoot.getChildAtIndex (3);
+    final IXdmNode aU2 = aRoot.getChildAtIndex (4);
     assertEquals (EIDKind.ID, aU1.getIDKind ());
     assertEquals (EIDKind.NONE, aU2.getIDKind ());
     assertEquals (new XdmQName ("urn:t", "u"), aU1.getTypeAnnotation ());
@@ -127,34 +127,34 @@ public final class XdmParserSchemaTest
   @Test
   public void testDtdIDsAndDefaults () throws Exception
   {
-    final XdmNode aRoot = _parseRoot ("<!DOCTYPE root [<!ATTLIST dec note ID #IMPLIED>]>" +
+    final IXdmNode aRoot = _parseRoot ("<!DOCTYPE root [<!ATTLIST dec note ID #IMPLIED>]>" +
                                       "<root xmlns='urn:t'><dec note=' n1 ' key=' k1 '>1</dec></root>");
-    final XdmNode aDec = aRoot.getChildAtIndex (0);
+    final IXdmNode aDec = aRoot.getChildAtIndex (0);
     // The DTD ID stays although the schema type is xs:string
-    final XdmNode aNote = aDec.getAttribute ("", "note");
+    final IXdmNode aNote = aDec.getAttribute ("", "note");
     assertEquals (EIDKind.ID, aNote.getIDKind ());
     assertEquals ("n1", aNote.getValue ());
     assertEquals ("string", aNote.getSchemaType ().getAtomicBase ().localName ());
     // A schema ID is normalised
-    final XdmNode aKey = aDec.getAttribute ("", "key");
+    final IXdmNode aKey = aDec.getAttribute ("", "key");
     assertEquals (EIDKind.ID, aKey.getIDKind ());
     assertEquals ("k1", aKey.getValue ());
     // A default attribute of the schema is added
-    final XdmNode aDef = aDec.getAttribute ("", "def");
+    final IXdmNode aDef = aDec.getAttribute ("", "def");
     assertNotNull (aDef);
     assertEquals ("3", aDef.getValue ());
     assertEquals ("int", aDef.getSchemaType ().getAtomicBase ().localName ());
     // Without a component model
     assertNull (aDef.getSchemaType ().getDefinition ());
     assertNotNull (aDef.getSchemaType ().getTypeDefinition ());
-    assertTrue (XdmNode.compareDocumentOrder (aKey, aDef) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aKey, aDef) < 0);
   }
 
   @Test
   public void testCommentOrder () throws Exception
   {
-    final XdmNode aRoot = _parseRoot ("<root xmlns='urn:t'><mixed>a<!--c-->b<b>x</b></mixed></root>");
-    final XdmNode aMixed = aRoot.getChildAtIndex (0);
+    final IXdmNode aRoot = _parseRoot ("<root xmlns='urn:t'><mixed>a<!--c-->b<b>x</b></mixed></root>");
+    final IXdmNode aMixed = aRoot.getChildAtIndex (0);
     assertEquals (4, aMixed.getChildCount ());
     assertEquals ("a", aMixed.getChildAtIndex (0).getValue ());
     assertEquals (ENodeKind.COMMENT, aMixed.getChildAtIndex (1).getKind ());
@@ -198,7 +198,7 @@ public final class XdmParserSchemaTest
   @Test
   public void testWithoutSchemaUnchanged () throws Exception
   {
-    final XdmNode aRoot = new XdmParser ().parse ("<root xmlns='urn:t'>\n <int>1</int>\n</root>").getChildAtIndex (0);
+    final IXdmNode aRoot = new XdmParser ().parse ("<root xmlns='urn:t'>\n <int>1</int>\n</root>").getChildAtIndex (0);
     assertEquals (3, aRoot.getChildCount ());
     assertNull (aRoot.getSchemaType ());
     assertNull (aRoot.getTypeAnnotation ());

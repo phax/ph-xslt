@@ -36,7 +36,7 @@ import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.Avt;
@@ -234,7 +234,7 @@ public final class CoreInstructions
           if (aAvt.isConstant ())
             aInstrs.add (new LiteralText (aText, aAvt.getConstantValue ()));
           else
-            aInstrs.add (new CompiledInstruction (aParent, (aRtCtx, aRtOut) -> aRtOut.appendNew (XdmNode.createText (aAvt.evaluate (aRtCtx)))));
+            aInstrs.add (new CompiledInstruction (aParent, (aRtCtx, aRtOut) -> aRtOut.appendNew (IXdmNode.createText (aAvt.evaluate (aRtCtx)))));
         }
         else
           aInstrs.add (new LiteralText (aText, aText.getValue ()));
@@ -425,7 +425,7 @@ public final class CoreInstructions
     final boolean bNoInherit = sInherit != null && !XsltNames.isXsltTrue (sInherit);
     final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.ELEMENT);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-      final XdmNode aElement = XdmNode.createElement (aName);
+      final IXdmNode aElement = IXdmNode.createElement (aName);
       for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
         if (!aEntry.getKey ().equals (aName.prefix ()) || aEntry.getValue ().equals (aName.namespaceUri ()))
           aElement.declareNamespace (aEntry.getKey (), aEntry.getValue ());
@@ -435,7 +435,7 @@ public final class CoreInstructions
       if (aSets.isNotEmpty ())
         aRtCtx.getEngine ().applyAttributeSets (aSets, aRtCtx, aContent);
       for (int i = 0; i < aAttrNames.size (); ++i)
-        aContent.appendNew (XdmNode.createAttribute (aAttrNames.get (i), aAttrValues.get (i).evaluate (aRtCtx)));
+        aContent.appendNew (IXdmNode.createAttribute (aAttrNames.get (i), aAttrValues.get (i).evaluate (aRtCtx)));
       aBody.execute (aRtCtx, aContent);
       if (bNoInherit)
         NamespaceFixup.applyNoInherit (aContent.getParent ());

@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.xpath.XPathException;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmValidationException;
 import com.helger.xpath.xdm.jaxp.JdkSchemaProvider;
@@ -108,7 +108,7 @@ public final class NoXercesTest
     final String sXsd = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'><xs:element name='a' type='xs:int'/></xs:schema>";
     final IXdmSchemaSet aSchemaSet = new JdkSchemaProvider ().compile (new CommonsArrayList <> (new XdmSchemaSource (null, sXsd)));
     final XdmParser aParser = new XdmParser ().setSchemaSet (aSchemaSet);
-    final XdmNode aA = aParser.parse ("<a> 5 </a>").getChildAtIndex (0);
+    final IXdmNode aA = aParser.parse ("<a> 5 </a>").getChildAtIndex (0);
     assertEquals ("int", aA.getSchemaType ().getAtomicBase ().localName ());
     assertNull (aA.getSchemaType ().getDefinition ());
     try

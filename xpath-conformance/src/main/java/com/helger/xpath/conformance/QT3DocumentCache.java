@@ -27,7 +27,7 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
@@ -45,9 +45,9 @@ import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 @NotThreadSafe
 public final class QT3DocumentCache
 {
-  private final ICommonsMap <Path, XdmNode> m_aDocs = new CommonsHashMap <> ();
+  private final ICommonsMap <Path, IXdmNode> m_aDocs = new CommonsHashMap <> ();
   private final ICommonsSet <Path> m_aFailed = new CommonsHashSet <> ();
-  private final ICommonsMap <String, XdmNode> m_aValidatedDocs = new CommonsHashMap <> ();
+  private final ICommonsMap <String, IXdmNode> m_aValidatedDocs = new CommonsHashMap <> ();
   private final ICommonsSet <String> m_aValidationFailed = new CommonsHashSet <> ();
 
   /**
@@ -57,9 +57,9 @@ public final class QT3DocumentCache
    *         or is not well-formed.
    */
   @Nullable
-  public XdmNode getDocument (@NonNull final Path aFile)
+  public IXdmNode getDocument (@NonNull final Path aFile)
   {
-    final XdmNode aCached = m_aDocs.get (aFile);
+    final IXdmNode aCached = m_aDocs.get (aFile);
     if (aCached != null)
       return aCached;
     if (m_aFailed.contains (aFile))
@@ -71,7 +71,7 @@ public final class QT3DocumentCache
     }
     try
     {
-      final XdmNode aDoc = new XdmParser ().parse (aFile);
+      final IXdmNode aDoc = new XdmParser ().parse (aFile);
       m_aDocs.put (aFile, aDoc);
       return aDoc;
     }
@@ -93,12 +93,12 @@ public final class QT3DocumentCache
    *         does not exist, is not well-formed or not valid.
    */
   @Nullable
-  public XdmNode getValidatedDocument (@NonNull final Path aFile,
+  public IXdmNode getValidatedDocument (@NonNull final Path aFile,
                                        @NonNull final IXdmSchemaSet aSchemaSet,
                                        @NonNull final String sSchemaKey)
   {
     final String sKey = aFile.toString () + '\n' + sSchemaKey;
-    final XdmNode aCached = m_aValidatedDocs.get (sKey);
+    final IXdmNode aCached = m_aValidatedDocs.get (sKey);
     if (aCached != null)
       return aCached;
     if (m_aValidationFailed.contains (sKey))
@@ -110,7 +110,7 @@ public final class QT3DocumentCache
     }
     try
     {
-      final XdmNode aDoc = new XdmParser ().setSchemaSet (aSchemaSet).parse (aFile);
+      final IXdmNode aDoc = new XdmParser ().setSchemaSet (aSchemaSet).parse (aFile);
       m_aValidatedDocs.put (sKey, aDoc);
       return aDoc;
     }

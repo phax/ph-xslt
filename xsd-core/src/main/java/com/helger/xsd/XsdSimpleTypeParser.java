@@ -33,7 +33,7 @@ import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Compiles <code>xs:simpleType</code> definitions (go-xslt
@@ -71,12 +71,12 @@ final class XsdSimpleTypeParser
    * annotation, exactly one of restriction/list/union, a name exactly on
    * top-level definitions, and a base by reference or inline, never both.
    */
-  private static void _checkSimpleTypeStructure (@NonNull final XdmNode aNode)
+  private static void _checkSimpleTypeStructure (@NonNull final IXdmNode aNode)
   {
     int nAnnot = 0;
     int nDeriv = 0;
     boolean bSawDeriv = false;
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -108,7 +108,7 @@ final class XsdSimpleTypeParser
       throw XsdCompiler.invalid ("st-props-correct", "a local xs:simpleType must not have a name");
     if (!bNamed && bTopLevel)
       throw XsdCompiler.invalid ("st-props-correct", "a top-level xs:simpleType requires a name");
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -125,7 +125,7 @@ final class XsdSimpleTypeParser
           continue;
       }
       int nInline = 0;
-      for (final XdmNode aSub : XsdNodes.children (aChild))
+      for (final IXdmNode aSub : XsdNodes.children (aChild))
         if (XsdNodes.isXS (aSub, "simpleType"))
           nInline++;
       final boolean bHasRef = XsdNodes.hasAttr (aChild, sRefAttr);
@@ -604,7 +604,7 @@ final class XsdSimpleTypeParser
     return XsdCompiler.invalid ("", "circular simpleType derivation");
   }
 
-  private void _parseRestriction (@NonNull final XsdSimpleType aType, @NonNull final XdmNode aRestriction)
+  private void _parseRestriction (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aRestriction)
   {
     aType.m_eVariety = EXsdVariety.ATOMIC;
     final String sBaseRef = XsdNodes.attr (aRestriction, "base");
@@ -618,7 +618,7 @@ final class XsdSimpleTypeParser
     }
     else
     {
-      final XdmNode aInline = XsdNodes.firstXSChild (aRestriction, "simpleType");
+      final IXdmNode aInline = XsdNodes.firstXSChild (aRestriction, "simpleType");
       if (aInline == null)
         throw XsdCompiler.invalid ("", "restriction without a base");
       final XsdSimpleType aBase = new XsdSimpleType ();
@@ -648,7 +648,7 @@ final class XsdSimpleTypeParser
     XsdFacetValidator.validateFacetValues (aType, m_aC.m_eVersion);
   }
 
-  private void _parseList (@NonNull final XsdSimpleType aType, @NonNull final XdmNode aList)
+  private void _parseList (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aList)
   {
     aType.m_eVariety = EXsdVariety.LIST;
     final String sItemRef = XsdNodes.attr (aList, "itemType");
@@ -672,7 +672,7 @@ final class XsdSimpleTypeParser
       aType.m_aItem = aItem;
       return;
     }
-    final XdmNode aInline = XsdNodes.firstXSChild (aList, "simpleType");
+    final IXdmNode aInline = XsdNodes.firstXSChild (aList, "simpleType");
     if (aInline == null)
       throw XsdCompiler.invalid ("", "list without an item type");
     final XsdSimpleType aItem = new XsdSimpleType ();
@@ -684,7 +684,7 @@ final class XsdSimpleTypeParser
     aType.m_aItem = aItem;
   }
 
-  private void _parseUnion (@NonNull final XsdSimpleType aType, @NonNull final XdmNode aUnion)
+  private void _parseUnion (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aUnion)
   {
     aType.m_eVariety = EXsdVariety.UNION;
     final String sMemberTypes = XsdNodes.attr (aUnion, "memberTypes");
@@ -710,7 +710,7 @@ final class XsdSimpleTypeParser
         checkSimpleFinal (aMember, XsdDerivation.UNION);
         aType.m_aMembers.add (aMember);
       }
-    for (final XdmNode aChild : XsdNodes.children (aUnion))
+    for (final IXdmNode aChild : XsdNodes.children (aUnion))
       if (XsdNodes.isXS (aChild, "simpleType"))
       {
         final XsdSimpleType aMember = new XsdSimpleType ();
@@ -764,13 +764,13 @@ final class XsdSimpleTypeParser
   }
 
   /** go-xslt <code>parseFacets</code>. */
-  void parseFacets (@NonNull final XsdSimpleType aType, @NonNull final XdmNode aRestriction)
+  void parseFacets (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aRestriction)
   {
     final ICommonsList <XsdPattern> aPatternGroup = new CommonsArrayList <> ();
     final ICommonsList <String> aPatternSrc = new CommonsArrayList <> ();
     final ICommonsSet <String> aSeen = new CommonsHashSet <> ();
     final XsdFacetSet aFacets = aType.m_aFacets;
-    for (final XdmNode f : XsdNodes.children (aRestriction))
+    for (final IXdmNode f : XsdNodes.children (aRestriction))
     {
       if (!XsdNodes.isXSElement (f))
         continue;
@@ -922,7 +922,7 @@ final class XsdSimpleTypeParser
    * @param aNode
    *        The xs:simpleType element.
    */
-  void parseSimpleTypeInto (@NonNull final XsdSimpleType aType, @NonNull final XdmNode aNode)
+  void parseSimpleTypeInto (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aNode)
   {
     m_aC.enterNesting ();
     try
@@ -936,21 +936,21 @@ final class XsdSimpleTypeParser
       else
         if (!m_aC.m_sFinalDefault.isEmpty ())
           aType.m_aFinal = XsdDerivation.parseBlockSet (m_aC.m_sFinalDefault);
-      final XdmNode aRestriction = XsdNodes.firstXSChild (aNode, "restriction");
+      final IXdmNode aRestriction = XsdNodes.firstXSChild (aNode, "restriction");
       if (aRestriction != null)
       {
         m_aOpen.put (aType, "restriction");
         _parseRestriction (aType, aRestriction);
         return;
       }
-      final XdmNode aList = XsdNodes.firstXSChild (aNode, "list");
+      final IXdmNode aList = XsdNodes.firstXSChild (aNode, "list");
       if (aList != null)
       {
         m_aOpen.put (aType, "list");
         _parseList (aType, aList);
         return;
       }
-      final XdmNode aUnion = XsdNodes.firstXSChild (aNode, "union");
+      final IXdmNode aUnion = XsdNodes.firstXSChild (aNode, "union");
       if (aUnion != null)
       {
         m_aOpen.put (aType, "union");

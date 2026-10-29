@@ -60,8 +60,8 @@ import com.helger.xpath.value.XdmArray;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -128,8 +128,8 @@ public final class SequenceTypeMatcherTest
   @Test
   public void testMatchesNodes ()
   {
-    final XdmNode aDoc = parse ("<a x='1'>t<!--c--></a>");
-    final XdmNode aA = aDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = parse ("<a x='1'>t<!--c--></a>");
+    final IXdmNode aA = aDoc.getChildAtIndex (0);
     assertTrue (SequenceTypeMatcher.matchesItem (aA, ItemType.node (_element ("a", null, false))));
     assertFalse (SequenceTypeMatcher.matchesItem (aA, ItemType.node (_element ("b", null, false))));
     assertTrue (SequenceTypeMatcher.matchesItem (aA, ItemType.node (_element (null, null, false))));
@@ -264,7 +264,7 @@ public final class SequenceTypeMatcherTest
                                                             aCtx,
                                                             "XPTY0004").get (0)).getType ());
     // atomisation of a node
-    final XdmNode aDoc = parse ("<a>7</a>");
+    final IXdmNode aDoc = parse ("<a>7</a>");
     final XdmSequence aConv = SequenceTypeMatcher.convert (XdmSequence.of (aDoc), INTEGER_OPT, aCtx, "XPTY0004");
     assertEquals (7, ((XdmAtomic) aConv.get (0)).getBigInteger ().intValue ());
     // cardinality with a custom code

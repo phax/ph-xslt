@@ -114,6 +114,6 @@ schema-awareness, but it is not a good permanent base:
   `true` for an unrelated type and even for a type name that does not exist, while the XS API
   (`XSTypeDefinition.derivedFrom`) answers `false` for both (reproduced with 2.12.2 on 2026-10-26).
   `XercesTypeDefinition` therefore checks derivation through the XS API only.
-* **Integration cost.** Validating an `XdmNode` tree means replaying it as SAX events into a copy and transferring the
-  annotations back, so every validated document is built twice. A validator working on `XdmNode` directly (as go-xslt's
+* **Integration cost.** Validating an `IXdmNode` tree means replaying it as SAX events into a copy and transferring the
+  annotations back, so every validated document is built twice. A validator working on `IXdmNode` directly (as go-xslt's
   `ValidateNode`) validates in place.

@@ -32,7 +32,7 @@ import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 
@@ -49,7 +49,7 @@ final class FnNodeTestHelper
   {}
 
   @NonNull
-  static XdmNode parse (@NonNull final String sXml)
+  static IXdmNode parse (@NonNull final String sXml)
   {
     try
     {

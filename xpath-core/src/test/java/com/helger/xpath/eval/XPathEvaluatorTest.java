@@ -93,8 +93,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -106,7 +106,7 @@ public final class XPathEvaluatorTest
 {
   private static final String XML = "<r><a id='1'><b>x</b><b>y</b></a><a id='2'><b>z</b><c/></a><d/></r>";
 
-  private static XdmNode _doc ()
+  private static IXdmNode _doc ()
   {
     return parse (XML);
   }
@@ -114,7 +114,7 @@ public final class XPathEvaluatorTest
   @NonNull
   private static String _adaptive (@NonNull final String sExpr,
                                    final boolean bCompat10,
-                                   @Nullable final XdmNode aContextNode)
+                                   @Nullable final IXdmNode aContextNode)
   {
     final CompiledXPath aXP = XPathCompiler.compile (sExpr, new StaticContext ().setXPath10Compatibility (bCompat10));
     final DynamicContext aCtx = aXP.createDynamicContext ();
@@ -132,7 +132,7 @@ public final class XPathEvaluatorTest
   private static void _assertCode (@NonNull final String sCode,
                                    @NonNull final String sExpr,
                                    final boolean bCompat10,
-                                   @Nullable final XdmNode aContextNode)
+                                   @Nullable final IXdmNode aContextNode)
   {
     try
     {
@@ -189,7 +189,7 @@ public final class XPathEvaluatorTest
   @Test
   public void testChildAndDescendant ()
   {
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     final DynamicContext aCtx = ctx (aDoc);
     assertEquals ("r", names (eval (path (child ("r")), aCtx)));
     assertEquals ("a a", names (eval (path (child ("r"), child ("a")), aCtx)));
@@ -205,14 +205,14 @@ public final class XPathEvaluatorTest
   @Test
   public void testPositionalPredicates ()
   {
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     final DynamicContext aCtx = ctx (aDoc);
     // //a/b[1] is the first b child of each a
     final XdmSequence aFirstB = eval (path (step (EAxis.DESCENDANT, nameTest ("a")), child ("b", lit (1))), aCtx);
     assertEquals ("x z", texts (aFirstB));
     // (//b)[2]
     final XdmSequence aSecond = eval (filter (absPath (descOrSelf (), child ("b")), lit (2)), aCtx);
-    assertEquals ("y", ((XdmNode) aSecond.get (0)).getStringValue ());
+    assertEquals ("y", ((IXdmNode) aSecond.get (0)).getStringValue ());
     assertTrue (eval (filter (absPath (descOrSelf (), child ("b")), dbl (1.5)), aCtx).isEmpty ());
     assertTrue (eval (filter (absPath (descOrSelf (), child ("b")), lit (0)), aCtx).isEmpty ());
     assertEquals (1, eval (filter (absPath (descOrSelf (), child ("b")), lit (XdmAtomic.decimal (new BigDecimal ("3.0")))), aCtx).size ());
@@ -221,8 +221,8 @@ public final class XPathEvaluatorTest
   @Test
   public void testReverseAxes ()
   {
-    final XdmNode aDoc = _doc ();
-    final XdmNode aC = aDoc.getChildAtIndex (0).getChildAtIndex (1).getChildAtIndex (1);
+    final IXdmNode aDoc = _doc ();
+    final IXdmNode aC = aDoc.getChildAtIndex (0).getChildAtIndex (1).getChildAtIndex (1);
     assertEquals ("c", aC.getName ().localName ());
     final DynamicContext aCtx = ctx (aC);
     // ancestor::* in document order
@@ -235,13 +235,13 @@ public final class XPathEvaluatorTest
     // preceding::b in document order, preceding::b[1] is "z"
     final XdmSequence aPreceding = eval (path (step (EAxis.PRECEDING, nameTest ("b"))), aCtx);
     assertEquals (3, aPreceding.size ());
-    assertEquals ("x", ((XdmNode) aPreceding.get (0)).getStringValue ());
+    assertEquals ("x", ((IXdmNode) aPreceding.get (0)).getStringValue ());
     assertEquals ("z",
-                  ((XdmNode) eval (path (step (EAxis.PRECEDING, nameTest ("b"), lit (1))), aCtx).get (0)).getStringValue ());
+                  ((IXdmNode) eval (path (step (EAxis.PRECEDING, nameTest ("b"), lit (1))), aCtx).get (0)).getStringValue ());
     // preceding excludes ancestors
     assertTrue (eval (path (step (EAxis.PRECEDING, nameTest ("a"), lit (1))), aCtx).size () == 1);
     assertEquals ("1",
-                  ((XdmNode) eval (path (step (EAxis.PRECEDING, nameTest ("a")), step (EAxis.ATTRIBUTE, nameTest ("id"))),
+                  ((IXdmNode) eval (path (step (EAxis.PRECEDING, nameTest ("a")), step (EAxis.ATTRIBUTE, nameTest ("id"))),
                                    aCtx).get (0)).getValue ());
     // parent and ancestor-or-self
     assertEquals ("a", names (eval (path (step (EAxis.PARENT, NodeTest.ANY_NODE)), aCtx)));
@@ -251,8 +251,8 @@ public final class XPathEvaluatorTest
   @Test
   public void testForwardAxes ()
   {
-    final XdmNode aDoc = _doc ();
-    final XdmNode aA1 = aDoc.getChildAtIndex (0).getChildAtIndex (0);
+    final IXdmNode aDoc = _doc ();
+    final IXdmNode aA1 = aDoc.getChildAtIndex (0).getChildAtIndex (0);
     final DynamicContext aCtx = ctx (aA1);
     assertEquals ("a d", names (eval (path (step (EAxis.FOLLOWING_SIBLING, anyName ())), aCtx)));
     // following excludes descendants
@@ -261,7 +261,7 @@ public final class XPathEvaluatorTest
     assertTrue (eval (path (step (EAxis.SELF, nameTest ("b"))), aCtx).isEmpty ());
     assertEquals ("a b b", names (eval (path (step (EAxis.DESCENDANT_OR_SELF, anyName ())), aCtx)));
     // attribute axis and following from an attribute
-    final XdmNode aId = aA1.getAttributeAtIndex (0);
+    final IXdmNode aId = aA1.getAttributeAtIndex (0);
     assertEquals ("id", names (eval (path (step (EAxis.ATTRIBUTE, anyName ())), aCtx)));
     assertEquals ("b b a b c d", names (eval (path (step (EAxis.FOLLOWING, anyName ())), ctx (aId))));
     assertTrue (eval (path (step (EAxis.PRECEDING, anyName ())), ctx (aId)).isEmpty ());
@@ -276,9 +276,9 @@ public final class XPathEvaluatorTest
   @Test
   public void testNamespaceAxis ()
   {
-    final XdmNode aDoc = parse ("<a xmlns='urn:d' xmlns:p='urn:p' x='1'><b xmlns:q='urn:q'/></a>");
-    final XdmNode aA = aDoc.getChildAtIndex (0);
-    final XdmNode aB = aA.getChildAtIndex (0);
+    final IXdmNode aDoc = parse ("<a xmlns='urn:d' xmlns:p='urn:p' x='1'><b xmlns:q='urn:q'/></a>");
+    final IXdmNode aA = aDoc.getChildAtIndex (0);
+    final IXdmNode aB = aA.getChildAtIndex (0);
     final IExpr aNsAxis = path (step (EAxis.NAMESPACE, NodeTest.ofKind (ENodeTestKind.NAMESPACE_NODE)));
     final XdmSequence aNsA = eval (aNsAxis, ctx (aA));
     // xml, default, p
@@ -290,14 +290,14 @@ public final class XPathEvaluatorTest
     // name test on the namespace axis matches the prefix
     final XdmSequence aP = eval (path (step (EAxis.NAMESPACE, nameTest ("p"))), ctx (aB));
     assertEquals (1, aP.size ());
-    assertEquals ("urn:p", ((XdmNode) aP.get (0)).getStringValue ());
-    assertSame (aB, ((XdmNode) aP.get (0)).getParent ());
+    assertEquals ("urn:p", ((IXdmNode) aP.get (0)).getStringValue ());
+    assertSame (aB, ((IXdmNode) aP.get (0)).getParent ());
     // document order: element < namespace nodes < attributes < children
-    final XdmNode aNs = (XdmNode) aNsA.get (1);
-    assertTrue (XdmNode.compareDocumentOrder (aA, aNs) < 0);
-    assertTrue (XdmNode.compareDocumentOrder (aNs, aA.getAttributeAtIndex (0)) < 0);
-    assertTrue (XdmNode.compareDocumentOrder ((XdmNode) aNsA.get (0), aNs) < 0);
-    assertTrue (XdmNode.compareDocumentOrder (aNs, aB) < 0);
+    final IXdmNode aNs = (IXdmNode) aNsA.get (1);
+    assertTrue (IXdmNode.compareDocumentOrder (aA, aNs) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aNs, aA.getAttributeAtIndex (0)) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder ((IXdmNode) aNsA.get (0), aNs) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aNs, aB) < 0);
     // namespace nodes are not on the following axis, but the following axis works from them
     assertEquals ("b", names (eval (path (step (EAxis.FOLLOWING, anyName ())), ctx (aNs))));
     // union keeps them in order without duplicates
@@ -308,7 +308,7 @@ public final class XPathEvaluatorTest
   @Test
   public void testUnionIntersectExcept ()
   {
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     final DynamicContext aCtx = ctx (aDoc.getChildAtIndex (0));
     final IExpr aD = path (child ("d"));
     final IExpr aAs = path (child ("a"));
@@ -329,7 +329,7 @@ public final class XPathEvaluatorTest
   @Test
   public void testPathErrors ()
   {
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     // axis step without focus
     assertEvalError ("XPDY0002", path (child ("r")));
     assertEvalError ("XPDY0002", absPath ());
@@ -347,7 +347,7 @@ public final class XPathEvaluatorTest
                   ints (eval (path (child ("r"), step (EAxis.CHILD, anyName (), lit (1)), postfix (seq (lit (1), lit (1)))),
                               ctx (aDoc))));
     // '/' in a tree without document node
-    final XdmNode aElement = XdmNode.createElement (new XdmQName ("e"));
+    final IXdmNode aElement = IXdmNode.createElement (new XdmQName ("e"));
     assertEvalError ("XPDY0050", absPath (), ctx (aElement));
     assertEvalError ("XPDY0050", absPath (child ("e")), ctx (aElement));
   }
@@ -355,8 +355,8 @@ public final class XPathEvaluatorTest
   @Test
   public void testPostfixStepSortsNodes ()
   {
-    final XdmNode aDoc = _doc ();
-    final XdmNode aR = aDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = _doc ();
+    final IXdmNode aR = aDoc.getChildAtIndex (0);
     // r/(d, a) delivers a a d in document order
     assertEquals ("a a d", names (eval (path (child ("r"), postfix (seq (path (child ("d")), path (child ("a"))))), ctx (aDoc))));
     // a filter expression first step keeps its own order
@@ -366,7 +366,7 @@ public final class XPathEvaluatorTest
   @Test
   public void testDocumentAndElementTests ()
   {
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     final NodeTest aElemR = new NodeTest (ENodeTestKind.ELEMENT, false, false, false, qn ("r"), null, false, null);
     final NodeTest aDocR = new NodeTest (ENodeTestKind.DOCUMENT, false, false, false, null, null, false, aElemR);
     assertTrue (SequenceTypeMatcher.matchesItem (aDoc, ItemType.node (aDocR)));
@@ -383,14 +383,14 @@ public final class XPathEvaluatorTest
     final XdmQName aUntyped = new XdmQName (XdmConstants.NS_XS, "untyped");
     final XdmQName aString = new XdmQName (XdmConstants.NS_XS, "string");
     final XdmQName aAnyType = new XdmQName (XdmConstants.NS_XS, "anyType");
-    final XdmNode aR = aDoc.getChildAtIndex (0);
+    final IXdmNode aR = aDoc.getChildAtIndex (0);
     assertTrue (NodeTestMatcher.matchesKindTest (new NodeTest (ENodeTestKind.ELEMENT, true, false, false, null, aUntyped, false, null),
                                                  aR));
     assertTrue (NodeTestMatcher.matchesKindTest (new NodeTest (ENodeTestKind.ELEMENT, true, false, false, null, aAnyType, false, null),
                                                  aR));
     assertFalse (NodeTestMatcher.matchesKindTest (new NodeTest (ENodeTestKind.ELEMENT, true, false, false, null, aString, false, null),
                                                   aR));
-    final XdmNode aId = aR.getChildAtIndex (0).getAttributeAtIndex (0);
+    final IXdmNode aId = aR.getChildAtIndex (0).getAttributeAtIndex (0);
     assertTrue (NodeTestMatcher.matchesKindTest (new NodeTest (ENodeTestKind.ATTRIBUTE,
                                                                false,
                                                                false,
@@ -453,7 +453,7 @@ public final class XPathEvaluatorTest
   public void testPredicates ()
   {
     assumeOps ();
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     final DynamicContext aCtx = ctx (aDoc);
     // //a[c]
     final XdmSequence aWithC = eval (absPath (descOrSelf (), child ("a", path (child ("c")))), aCtx);
@@ -476,7 +476,7 @@ public final class XPathEvaluatorTest
     assertTrue (eval (bin (EBinaryOp.ADD, seq (), lit (3))).isEmpty ());
     assertEvalError ("XPTY0004", bin (EBinaryOp.ADD, seq (lit (1), lit (2)), lit (3)));
     // untypedAtomic becomes xs:double
-    final XdmNode aDoc = parse ("<a>4</a>");
+    final IXdmNode aDoc = parse ("<a>4</a>");
     final XdmSequence aRes = eval (bin (EBinaryOp.MULTIPLY, path (child ("a")), lit (2)), ctx (aDoc));
     assertEquals (EAtomicType.DOUBLE, ((XdmAtomic) aRes.get (0)).getType ());
     assertEquals (8.0, ((XdmAtomic) aRes.get (0)).getAsDouble (), 0);
@@ -495,14 +495,14 @@ public final class XPathEvaluatorTest
     assertTrue (boolValue (eval (cmp (EComparisonOp.GENERAL_EQ, seq (lit (1), lit (2)), lit (2)))));
     assertFalse (boolValue (eval (cmp (EComparisonOp.GENERAL_EQ, seq (), seq ()))));
     // untypedAtomic in a value comparison is a string
-    final XdmNode aDoc = parse ("<a>abc</a>");
+    final IXdmNode aDoc = parse ("<a>abc</a>");
     assertTrue (boolValue (eval (cmp (EComparisonOp.VALUE_EQ, path (child ("a")), str ("abc")), ctx (aDoc))));
   }
 
   @Test
   public void testNodeComparisons ()
   {
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     final DynamicContext aCtx = ctx (aDoc.getChildAtIndex (0));
     final IExpr aD = path (child ("d"));
     final IExpr aA1 = path (child ("a", lit (1)));
@@ -740,7 +740,7 @@ public final class XPathEvaluatorTest
   public void testXPath10Compatibility ()
   {
     assumeParser ();
-    final XdmNode aDoc = _doc ();
+    final IXdmNode aDoc = _doc ();
     // generate-id-018: the first item of a sequence for a single-item parameter
     assertEquals ("true", _adaptive ("generate-id(//a) eq generate-id((//a)[1])", true, aDoc));
     _assertCode ("XPTY0004", "generate-id(//a)", false, aDoc);

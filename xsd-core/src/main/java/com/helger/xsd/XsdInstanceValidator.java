@@ -34,7 +34,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -122,27 +122,27 @@ final class XsdInstanceValidator
    * @return Its expanded name.
    */
   @NonNull
-  static XsdName nameOf (@NonNull final XdmNode aNode)
+  static XsdName nameOf (@NonNull final IXdmNode aNode)
   {
     return XsdName.of (aNode.getName ());
   }
 
   /** go-xslt <code>childElements</code>: the element children, in order (a fresh list). */
   @NonNull
-  private static ICommonsList <XdmNode> _childElements (@NonNull final XdmNode aElement)
+  private static ICommonsList <IXdmNode> _childElements (@NonNull final IXdmNode aElement)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     final int nCount = aElement.getChildCount ();
     for (int i = 0; i < nCount; i++)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (aChild.isElement ())
         ret.add (aChild);
     }
     return ret;
   }
 
-  private static boolean _hasChildElements (@NonNull final XdmNode aElement)
+  private static boolean _hasChildElements (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
     for (int i = 0; i < nCount; i++)
@@ -151,12 +151,12 @@ final class XsdInstanceValidator
     return false;
   }
 
-  private static boolean _hasNonWSText (@NonNull final XdmNode aElement)
+  private static boolean _hasNonWSText (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
     for (int i = 0; i < nCount; i++)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (aChild.isText () && !_isBlank (aChild.getValue ()))
         return true;
     }
@@ -165,7 +165,7 @@ final class XsdInstanceValidator
 
   /** go-xslt <code>elementText</code>: the concatenated text children. */
   @NonNull
-  private static String _elementText (@NonNull final XdmNode aElement)
+  private static String _elementText (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
     if (nCount == 1 && aElement.getChildAtIndex (0).isText ())
@@ -173,7 +173,7 @@ final class XsdInstanceValidator
     final StringBuilder aSB = new StringBuilder ();
     for (int i = 0; i < nCount; i++)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (aChild.isText ())
         aSB.append (aChild.getValue ());
     }
@@ -185,24 +185,24 @@ final class XsdInstanceValidator
    * children, whitespace included (the 1.1 reading of cvc-elt.3.2.1's "no
    * character children").
    */
-  private static boolean _elementHasAnyText (@NonNull final XdmNode aElement)
+  private static boolean _elementHasAnyText (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
     for (int i = 0; i < nCount; i++)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (aChild.isText () && !aChild.getValue ().isEmpty ())
         return true;
     }
     return false;
   }
 
-  private static boolean _elementHasContent (@NonNull final XdmNode aElement)
+  private static boolean _elementHasContent (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
     for (int i = 0; i < nCount; i++)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (aChild.isElement ())
         return true;
       if (aChild.isText () && !_isBlank (aChild.getValue ()))
@@ -211,7 +211,7 @@ final class XsdInstanceValidator
     return false;
   }
 
-  private static boolean _isNilled (@NonNull final XdmNode aElement)
+  private static boolean _isNilled (@NonNull final IXdmNode aElement)
   {
     final String s = XsdNodes.attrNS (aElement, XsdConstants.NS_XSI, "nil");
     return s != null && ("true".equals (s) || "1".equals (s));
@@ -228,9 +228,9 @@ final class XsdInstanceValidator
 
   /** A copy of an element whose local name no declaration can match. */
   @NonNull
-  private static XdmNode _probeOf (@NonNull final XdmNode aElement)
+  private static IXdmNode _probeOf (@NonNull final IXdmNode aElement)
   {
-    final XdmNode ret = XdmNode.createElement (new XdmQName (aElement.getName ().namespaceUri (), PROBE_NAME));
+    final IXdmNode ret = IXdmNode.createElement (new XdmQName (aElement.getName ().namespaceUri (), PROBE_NAME));
     ret.setLocation (aElement.getLine (), aElement.getColumn ());
     return ret;
   }
@@ -245,20 +245,20 @@ final class XsdInstanceValidator
    * @return The path.
    */
   @NonNull
-  static String elementPath (@NonNull final XdmNode aElement)
+  static String elementPath (@NonNull final IXdmNode aElement)
   {
     final ICommonsList <String> aSegs = new CommonsArrayList <> ();
-    for (XdmNode aCur = aElement; aCur != null && aCur.isElement (); aCur = aCur.getParent ())
+    for (IXdmNode aCur = aElement; aCur != null && aCur.isElement (); aCur = aCur.getParent ())
     {
       int nIndex = 1;
-      final XdmNode aParent = aCur.getParent ();
+      final IXdmNode aParent = aCur.getParent ();
       if (aParent != null)
       {
         nIndex = 0;
         final int nCount = aParent.getChildCount ();
         for (int i = 0; i < nCount; i++)
         {
-          final XdmNode aSibling = aParent.getChildAtIndex (i);
+          final IXdmNode aSibling = aParent.getChildAtIndex (i);
           if (aSibling.isElement () && aSibling.getName ().equals (aCur.getName ()))
             nIndex++;
           if (aSibling == aCur)
@@ -280,7 +280,7 @@ final class XsdInstanceValidator
    * location already set and leaves it alone.
    */
   @NonNull
-  private static XsdInvalidException _stamp (@NonNull final XsdInvalidException ex, @NonNull final XdmNode aElement)
+  private static XsdInvalidException _stamp (@NonNull final XsdInvalidException ex, @NonNull final IXdmNode aElement)
   {
     final XsdError aError = ex.getError ();
     final boolean bNoLocation = aError.line () == 0 && aError.column () == 0;
@@ -317,7 +317,7 @@ final class XsdInstanceValidator
    */
   static void soft (@NonNull final XsdValidationRun aRun,
                     @NonNull final XsdInvalidException ex,
-                    @NonNull final XdmNode aElement)
+                    @NonNull final IXdmNode aElement)
   {
     final XsdErrorCollector aCollector = aRun.getCollector ();
     if (aCollector == null)
@@ -330,7 +330,7 @@ final class XsdInstanceValidator
   @NonNull
   private static XsdInvalidException _invalidAt (@NonNull final String sCode,
                                                  @NonNull final String sMessage,
-                                                 @NonNull final XdmNode aElement)
+                                                 @NonNull final IXdmNode aElement)
   {
     return new XsdInvalidException (XsdError.of (sCode, sMessage).withLocation (aElement.getLine (), aElement.getColumn ()));
   }
@@ -340,12 +340,12 @@ final class XsdInstanceValidator
    * for a cvc-complex-type.2.4 diagnostic.
    */
   @NonNull
-  private static String _describeChildren (@NonNull final ICommonsList <XdmNode> aKids)
+  private static String _describeChildren (@NonNull final ICommonsList <IXdmNode> aKids)
   {
     if (aKids.isEmpty ())
       return "found: (none)";
     final ICommonsList <String> aNames = new CommonsArrayList <> ();
-    for (final XdmNode aKid : aKids)
+    for (final IXdmNode aKid : aKids)
       aNames.add (nameOf (aKid).toString ());
     return "found: " + String.join (", ", aNames);
   }
@@ -383,7 +383,7 @@ final class XsdInstanceValidator
    */
   @NonNull
   static IXsdType resolveInstanceType (@NonNull final XsdValidationRun aRun,
-                                       @NonNull final XdmNode aElement,
+                                       @NonNull final IXdmNode aElement,
                                        @NonNull final String sQName)
   {
     final XsdName aName = XsdNodes.resolveQName (aElement, sQName);
@@ -466,7 +466,7 @@ final class XsdInstanceValidator
    * takes the constraint value as its schema-normalised value.
    */
   @NonNull
-  private static String _effectiveSimpleText (@Nullable final XsdElementDecl aDecl, @NonNull final XdmNode aElement)
+  private static String _effectiveSimpleText (@Nullable final XsdElementDecl aDecl, @NonNull final IXdmNode aElement)
   {
     if (aDecl != null && !_elementHasContent (aElement))
     {
@@ -553,10 +553,10 @@ final class XsdInstanceValidator
   private static boolean _wildcardParseExists (@NonNull final XsdValidationRun aRun,
                                                @Nullable final XsdParticle aParticle,
                                                @Nullable final XsdOpenContent aOpenContent,
-                                               @NonNull final ICommonsList <XdmNode> aKids,
+                                               @NonNull final ICommonsList <IXdmNode> aKids,
                                                final int nIndex)
   {
-    final ICommonsList <XdmNode> aCopy = new CommonsArrayList <> (aKids);
+    final ICommonsList <IXdmNode> aCopy = new CommonsArrayList <> (aKids);
     aCopy.set (nIndex, _probeOf (aKids.get (nIndex)));
     final XsdMatchResult aResult = XsdContentMatcher.contentMatchesOpen (aRun.getSchema (),
                                                                          aParticle,
@@ -576,7 +576,7 @@ final class XsdInstanceValidator
    */
   private static boolean _skipWildcardParseExcuses (@NonNull final XsdValidationRun aRun,
                                                     @NonNull final ChildModel aModel,
-                                                    @NonNull final ICommonsList <XdmNode> aKids,
+                                                    @NonNull final ICommonsList <IXdmNode> aKids,
                                                     final int nIndex,
                                                     @NonNull final XsdName aName)
   {
@@ -644,7 +644,7 @@ final class XsdInstanceValidator
   @Nullable
   private static IXsdType _selectAlternativeType (@NonNull final XsdValidationRun aRun,
                                                   @NonNull final XsdElementDecl aDecl,
-                                                  @NonNull final XdmNode aElement)
+                                                  @NonNull final IXdmNode aElement)
   {
     if (!aRun.isXsd11 () || aDecl.m_aAlternatives.isEmpty ())
       return null;
@@ -657,7 +657,7 @@ final class XsdInstanceValidator
    */
   private static void _checkAsserts (@NonNull final XsdValidationRun aRun,
                                      @NonNull final XsdComplexType aType,
-                                     @NonNull final XdmNode aElement)
+                                     @NonNull final IXdmNode aElement)
   {
     if (aRun.isXsd11 () && aRun.getSchema ().m_bHasAsserts)
       throw XsdCompiler.unsupported11 ("xs:assert");
@@ -673,7 +673,7 @@ final class XsdInstanceValidator
    */
   private static void _assessWildcardChild (@NonNull final XsdValidationRun aRun,
                                             @Nullable final IXsdType aContextType,
-                                            @NonNull final XdmNode aKid,
+                                            @NonNull final IXdmNode aKid,
                                             @NonNull final XsdName aName,
                                             @NonNull final ICommonsMap <XsdName, KeyTable> aScopes,
                                             @NonNull final ChildModel aModel)
@@ -711,12 +711,12 @@ final class XsdInstanceValidator
    * ID arriving this way is counted and bound. The xsi attributes are left
    * alone, as are attributes without a declaration.
    */
-  private static void _laxAssessAttributes (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aElement)
+  private static void _laxAssessAttributes (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aElement)
   {
     final int nAttrs = aElement.getAttributeCount ();
     for (int i = 0; i < nAttrs; i++)
     {
-      final XdmNode aAttr = aElement.getAttributeAtIndex (i);
+      final IXdmNode aAttr = aElement.getAttributeAtIndex (i);
       final XsdName aName = nameOf (aAttr);
       if (XsdConstants.NS_XSI.equals (aName.space ()))
         continue;
@@ -742,7 +742,7 @@ final class XsdInstanceValidator
    *         <code>false</code> if an <code>xsi:type</code> governs the whole
    *         element.
    */
-  private static boolean _laxAssessOwn (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aElement)
+  private static boolean _laxAssessOwn (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aElement)
   {
     final String sXsiType = XsdNodes.attrNS (aElement, XsdConstants.NS_XSI, "type");
     if (sXsiType != null)
@@ -757,10 +757,10 @@ final class XsdInstanceValidator
   /** One level of the iterative walk of {@link #_laxAssessSubtree}: an element and the next child to look at. */
   private static final class LaxFrame
   {
-    final XdmNode m_aNode;
+    final IXdmNode m_aNode;
     int m_nNext;
 
-    LaxFrame (@NonNull final XdmNode aNode)
+    LaxFrame (@NonNull final IXdmNode aNode)
     {
       m_aNode = aNode;
     }
@@ -776,7 +776,7 @@ final class XsdInstanceValidator
    * the one go-xslt's recursion reports.
    */
   private static void _laxAssessSubtree (@NonNull final XsdValidationRun aRun,
-                                         @NonNull final XdmNode aRoot,
+                                         @NonNull final IXdmNode aRoot,
                                          @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
     if (!_laxAssessOwn (aRun, aRoot))
@@ -791,7 +791,7 @@ final class XsdInstanceValidator
         aStack.removeLast ();
         continue;
       }
-      final XdmNode aKid = aFrame.m_aNode.getChildAtIndex (aFrame.m_nNext++);
+      final IXdmNode aKid = aFrame.m_aNode.getChildAtIndex (aFrame.m_nNext++);
       if (!aKid.isElement ())
         continue;
       final XsdElementDecl aGlobal = aRun.getSchema ().m_aElements.get (nameOf (aKid));
@@ -810,8 +810,8 @@ final class XsdInstanceValidator
    */
   private static void _validateChildren (@NonNull final XsdValidationRun aRun,
                                          @NonNull final XsdComplexType aType,
-                                         @NonNull final XdmNode aElement,
-                                         @NonNull final ICommonsList <XdmNode> aKids,
+                                         @NonNull final IXdmNode aElement,
+                                         @NonNull final ICommonsList <IXdmNode> aKids,
                                          @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
     final XsdSchema aSchema = aRun.getSchema ();
@@ -855,11 +855,11 @@ final class XsdInstanceValidator
     }
     final boolean b11 = aRun.isXsd11 ();
     ICommonsMap <XsdName, Integer> aElemUsed = null; // allocated on first use (1.1 EDC only)
-    ICommonsList <XdmNode> aPinned = aKids; // lazily copied; wildcard-attributed children get probed out
+    ICommonsList <IXdmNode> aPinned = aKids; // lazily copied; wildcard-attributed children get probed out
     boolean bPinnedCopied = false;
     for (int i = 0; i < aKids.size (); i++)
     {
-      final XdmNode aKid = aKids.get (i);
+      final IXdmNode aKid = aKids.get (i);
       final XsdName aName = nameOf (aKid);
       final XsdElementDecl aDecl = aModel.m_aDecls.get (aName);
       if (aDecl != null)
@@ -1007,12 +1007,12 @@ final class XsdInstanceValidator
    */
   private static boolean _assessDeclaredChildren (@NonNull final XsdValidationRun aRun,
                                                   @NonNull final XsdComplexType aType,
-                                                  @NonNull final ICommonsList <XdmNode> aKids,
+                                                  @NonNull final ICommonsList <IXdmNode> aKids,
                                                   @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
     final ChildModel aModel = aRun.childModelOf (aType);
     boolean bAll = true;
-    for (final XdmNode aKid : aKids)
+    for (final IXdmNode aKid : aKids)
     {
       final XsdName aName = nameOf (aKid);
       final XsdElementDecl aDecl = aModel.m_aDecls.get (aName);
@@ -1044,8 +1044,8 @@ final class XsdInstanceValidator
    */
   private static boolean _validateChildrenOrMismatch (@NonNull final XsdValidationRun aRun,
                                                       @NonNull final XsdComplexType aType,
-                                                      @NonNull final XdmNode aElement,
-                                                      @NonNull final ICommonsList <XdmNode> aKids,
+                                                      @NonNull final IXdmNode aElement,
+                                                      @NonNull final ICommonsList <IXdmNode> aKids,
                                                       @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
     try
@@ -1066,7 +1066,7 @@ final class XsdInstanceValidator
    */
   private static void _validateComplex (@NonNull final XsdValidationRun aRun,
                                         @NonNull final XsdComplexType aType,
-                                        @NonNull final XdmNode aElement,
+                                        @NonNull final IXdmNode aElement,
                                         @NonNull final ICommonsMap <XsdName, KeyTable> aScopes,
                                         @Nullable final XsdElementDecl aDecl)
   {
@@ -1080,7 +1080,7 @@ final class XsdInstanceValidator
     {
       soft (aRun, ex, aElement);
     }
-    final ICommonsList <XdmNode> aKids = _childElements (aElement);
+    final ICommonsList <IXdmNode> aKids = _childElements (aElement);
     final boolean b11 = aRun.isXsd11 ();
     switch (aType.m_eKind)
     {
@@ -1142,9 +1142,9 @@ final class XsdInstanceValidator
    * establishes no binding an IDREF could resolve against.
    */
   @Nullable
-  private static XdmNode _idBindingParent (@NonNull final XdmNode aElement)
+  private static IXdmNode _idBindingParent (@NonNull final IXdmNode aElement)
   {
-    final XdmNode aParent = aElement.getParent ();
+    final IXdmNode aParent = aElement.getParent ();
     return aParent != null && aParent.isElement () ? aParent : null;
   }
 
@@ -1153,7 +1153,7 @@ final class XsdInstanceValidator
    */
   private static void _validateAgainstType (@NonNull final XsdValidationRun aRun,
                                             @Nullable final IXsdType aType,
-                                            @NonNull final XdmNode aElement,
+                                            @NonNull final IXdmNode aElement,
                                             @NonNull final ICommonsMap <XsdName, KeyTable> aScopes,
                                             @Nullable final XsdElementDecl aDecl)
   {
@@ -1167,7 +1167,7 @@ final class XsdInstanceValidator
       final int nAttrs = aElement.getAttributeCount ();
       for (int i = 0; i < nAttrs; i++)
       {
-        final XdmNode aAttr = aElement.getAttributeAtIndex (i);
+        final IXdmNode aAttr = aElement.getAttributeAtIndex (i);
         final String sNS = aAttr.getName ().namespaceUri ();
         if (XsdConstants.NS_XSI.equals (sNS) || XsdConstants.NS_XML.equals (sNS))
           continue;
@@ -1199,7 +1199,7 @@ final class XsdInstanceValidator
    */
   private static void _assessNilledElement (@NonNull final XsdValidationRun aRun,
                                             @Nullable final IXsdType aType,
-                                            @NonNull final XdmNode aElement)
+                                            @NonNull final IXdmNode aElement)
   {
     // A nilled element keeps its declared type annotation - only the value
     // checks are waived, so the annotation is as real as any other element's
@@ -1209,7 +1209,7 @@ final class XsdInstanceValidator
       final int nAttrs = aElement.getAttributeCount ();
       for (int i = 0; i < nAttrs; i++)
       {
-        final XdmNode aAttr = aElement.getAttributeAtIndex (i);
+        final IXdmNode aAttr = aElement.getAttributeAtIndex (i);
         final String sNS = aAttr.getName ().namespaceUri ();
         if (XsdConstants.NS_XSI.equals (sNS) || XsdConstants.NS_XML.equals (sNS))
           continue;
@@ -1224,7 +1224,7 @@ final class XsdInstanceValidator
 
   private static void _validateElementAgainstImpl (@NonNull final XsdValidationRun aRun,
                                                    @NonNull final XsdElementDecl aDecl,
-                                                   @NonNull final XdmNode aElement,
+                                                   @NonNull final IXdmNode aElement,
                                                    @NonNull final ICommonsMap <XsdName, KeyTable> aScopes,
                                                    @Nullable final ICommonsList <String> aExtraFixed)
   {
@@ -1378,7 +1378,7 @@ final class XsdInstanceValidator
    */
   static void validateElementAgainst (@NonNull final XsdValidationRun aRun,
                                       @NonNull final XsdElementDecl aDecl,
-                                      @NonNull final XdmNode aElement,
+                                      @NonNull final IXdmNode aElement,
                                       @NonNull final ICommonsMap <XsdName, KeyTable> aScopes,
                                       @Nullable final ICommonsList <String> aExtraFixed)
   {
@@ -1404,7 +1404,7 @@ final class XsdInstanceValidator
    * @throws XsdInvalidException
    *         if the element is not valid
    */
-  static void validateElement (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aElement)
+  static void validateElement (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aElement)
   {
     try
     {
@@ -1458,7 +1458,7 @@ final class XsdInstanceValidator
    */
   static void validateAsType (@NonNull final XsdValidationRun aRun,
                               @NonNull final IXsdType aType,
-                              @NonNull final XdmNode aElement)
+                              @NonNull final IXdmNode aElement)
   {
     try
     {
@@ -1494,17 +1494,17 @@ final class XsdInstanceValidator
    * @return The error, or <code>null</code> if there is none.
    */
   @Nullable
-  static XsdError checkLateHints (@NonNull final XsdSchema aSchema, @NonNull final XdmNode aRoot)
+  static XsdError checkLateHints (@NonNull final XsdSchema aSchema, @NonNull final IXdmNode aRoot)
   {
     if (aSchema.isXsd11 ())
       return null;
     final ICommonsSet <String> aSeen = new CommonsHashSet <> (); // namespaces of the elements and attributes so far
     final ICommonsSet <String> aHinted = new CommonsHashSet <> (); // {namespace, location} pairs hinted so far
-    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
     aStack.add (aRoot);
     while (aStack.isNotEmpty ())
     {
-      final XdmNode aEl = aStack.removeLast ();
+      final IXdmNode aEl = aStack.removeLast ();
       final ICommonsList <String> aAddressedNS = new CommonsArrayList <> ();
       final ICommonsList <String> aAddressedLoc = new CommonsArrayList <> ();
       final String sSchemaLocation = XsdNodes.attrNS (aEl, XsdConstants.NS_XSI, "schemaLocation");
@@ -1545,7 +1545,7 @@ final class XsdInstanceValidator
         aSeen.add (aEl.getAttributeAtIndex (i).getName ().namespaceUri ());
       for (int i = aEl.getChildCount () - 1; i >= 0; i--)
       {
-        final XdmNode aChild = aEl.getChildAtIndex (i);
+        final IXdmNode aChild = aEl.getChildAtIndex (i);
         if (aChild.isElement ())
           aStack.add (aChild);
       }
@@ -1562,7 +1562,7 @@ final class XsdInstanceValidator
    */
   @NonNull
   private static ICommonsList <XsdSchemaSource> _hintDocs (@NonNull final XsdSchema aSchema,
-                                                           @NonNull final XdmNode aRoot,
+                                                           @NonNull final IXdmNode aRoot,
                                                            @Nullable final Path aInstanceDir)
   {
     final ICommonsList <XsdSchemaSource> ret = new CommonsArrayList <> ();
@@ -1594,20 +1594,20 @@ final class XsdInstanceValidator
   }
 
   /** @return The number of nested element levels of a tree (iterative, level by level). */
-  private static int _elementDepth (@NonNull final XdmNode aRoot)
+  private static int _elementDepth (@NonNull final IXdmNode aRoot)
   {
     int nDepth = 0;
-    ICommonsList <XdmNode> aLevel = new CommonsArrayList <> (aRoot);
+    ICommonsList <IXdmNode> aLevel = new CommonsArrayList <> (aRoot);
     while (aLevel.isNotEmpty ())
     {
       nDepth++;
-      final ICommonsList <XdmNode> aNext = new CommonsArrayList <> ();
-      for (final XdmNode aNode : aLevel)
+      final ICommonsList <IXdmNode> aNext = new CommonsArrayList <> ();
+      for (final IXdmNode aNode : aLevel)
       {
         final int nCount = aNode.getChildCount ();
         for (int i = 0; i < nCount; i++)
         {
-          final XdmNode aChild = aNode.getChildAtIndex (i);
+          final IXdmNode aChild = aNode.getChildAtIndex (i);
           if (aChild.isElement ())
             aNext.add (aChild);
         }
@@ -1633,13 +1633,13 @@ final class XsdInstanceValidator
    *         if the element is nested deeper than
    *         {@link XsdValidationRun#MAX_DEPTH_BIG_STACK} levels
    */
-  static void validateRoot (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aRoot)
+  static void validateRoot (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aRoot)
   {
     validateRoot (aRun, aRoot, XsdInstanceValidator::validateElement);
   }
 
   /**
-   * {@link #validateRoot(XsdValidationRun, XdmNode)} with the assessment of
+   * {@link #validateRoot(XsdValidationRun, IXdmNode)} with the assessment of
    * the root given: its declaration ({@link #validateElement}) or a type
    * ({@link #validateAsType}).
    *
@@ -1656,8 +1656,8 @@ final class XsdInstanceValidator
    *         {@link XsdValidationRun#MAX_DEPTH_BIG_STACK} levels
    */
   static void validateRoot (@NonNull final XsdValidationRun aRun,
-                            @NonNull final XdmNode aRoot,
-                            @NonNull final BiConsumer <XsdValidationRun, XdmNode> aAssess)
+                            @NonNull final IXdmNode aRoot,
+                            @NonNull final BiConsumer <XsdValidationRun, IXdmNode> aAssess)
   {
     final int nDepth = _elementDepth (aRoot);
     if (nDepth <= XsdValidationRun.MAX_DEPTH)
@@ -1703,12 +1703,12 @@ final class XsdInstanceValidator
    */
   @NonNull
   private static XsdValidationResult _validateDocument (@NonNull final XsdSchema aSchemaIn,
-                                                        @NonNull final XdmNode aDocument,
+                                                        @NonNull final IXdmNode aDocument,
                                                         @Nullable final Path aInstanceDir,
                                                         @Nullable final XsdValidationOptions aOptions)
   {
     XsdSchema aSchema = aSchemaIn;
-    final XdmNode aRoot = XsdNodes.rootElement (aDocument);
+    final IXdmNode aRoot = XsdNodes.rootElement (aDocument);
     if (aRoot == null)
       return XsdValidationResult.createInvalid (XsdError.of ("", "no document element"));
     // xsi:schemaLocation hints on the document element may supply schema
@@ -1792,7 +1792,7 @@ final class XsdInstanceValidator
                                        @NonNull final Path aInstance,
                                        @NonNull final XsdValidationOptions aOptions)
   {
-    final XdmNode aDocument;
+    final IXdmNode aDocument;
     try
     {
       aDocument = new XdmParser ().parse (aInstance);
@@ -1821,7 +1821,7 @@ final class XsdInstanceValidator
                                            @NonNull final String sInstance,
                                            @Nullable final XsdValidationOptions aOptions)
   {
-    final XdmNode aDocument;
+    final IXdmNode aDocument;
     try
     {
       aDocument = new XdmParser ().parse (sInstance);

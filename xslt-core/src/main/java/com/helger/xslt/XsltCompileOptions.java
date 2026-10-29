@@ -27,7 +27,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -59,7 +59,7 @@ public final class XsltCompileOptions
    *        xsl:package/@package-version.
    */
   public record PackageSource (@Nullable String text,
-                               @Nullable XdmNode node,
+                               @Nullable IXdmNode node,
                                @Nullable String baseUri,
                                @Nullable String name,
                                @Nullable String version)
@@ -74,7 +74,7 @@ public final class XsltCompileOptions
      * @param baseUri
      *        The URI of the package module, or <code>null</code>.
      */
-    public PackageSource (@Nullable final String text, @Nullable final XdmNode node, @Nullable final String baseUri)
+    public PackageSource (@Nullable final String text, @Nullable final IXdmNode node, @Nullable final String baseUri)
     {
       this (text, node, baseUri, null, null);
     }

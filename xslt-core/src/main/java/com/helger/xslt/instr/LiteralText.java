@@ -20,7 +20,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.tree.XslNode;
@@ -58,7 +58,7 @@ public final class LiteralText implements IInstruction
 
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
-    final XdmNode aText = XdmNode.createText (m_sText);
+    final IXdmNode aText = IXdmNode.createText (m_sText);
     if (m_bDisableOutputEscaping)
       aText.setDisableOutputEscaping (true);
     aOut.appendNew (aText);

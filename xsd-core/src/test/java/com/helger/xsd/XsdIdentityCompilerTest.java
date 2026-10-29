@@ -24,7 +24,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import com.helger.xpath.context.EXsdVersion;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xsd.XsdTestSupport.Compiled;
@@ -72,7 +72,7 @@ public final class XsdIdentityCompilerTest
            "\"/></xs:unique></xs:element></xs:schema>";
   }
 
-  private static boolean _isValidXPath (final String sExpr, final boolean bField, final XdmNode aNode)
+  private static boolean _isValidXPath (final String sExpr, final boolean bField, final IXdmNode aNode)
   {
     try
     {
@@ -88,8 +88,8 @@ public final class XsdIdentityCompilerTest
   @Test
   public void testXPathSubsetGrammar () throws XdmParseException
   {
-    final XdmNode aDoc = new XdmParser ().parse ("<x xmlns:p=\"urn:p\"/>");
-    final XdmNode aNode = XsdNodes.rootElement (aDoc);
+    final IXdmNode aDoc = new XdmParser ().parse ("<x xmlns:p=\"urn:p\"/>");
+    final IXdmNode aNode = XsdNodes.rootElement (aDoc);
     for (final String [] aCase : CASES)
     {
       final boolean bExpected = Boolean.parseBoolean (aCase[2]);

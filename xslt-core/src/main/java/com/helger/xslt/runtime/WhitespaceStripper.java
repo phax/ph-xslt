@@ -22,8 +22,8 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.schema.EXdmContentType;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
@@ -47,12 +47,12 @@ public final class WhitespaceStripper
   private WhitespaceStripper ()
   {}
 
-  private record Job (@NonNull XdmNode source, @NonNull XdmNode target, boolean preserve)
+  private record Job (@NonNull IXdmNode source, @NonNull IXdmNode target, boolean preserve)
   {}
 
-  private static boolean _isPreserve (@NonNull final XdmNode aElement, final boolean bInherited)
+  private static boolean _isPreserve (@NonNull final IXdmNode aElement, final boolean bInherited)
   {
-    final XdmNode aSpace = aElement.getAttribute (XdmConstants.NS_XML, "space");
+    final IXdmNode aSpace = aElement.getAttribute (XdmConstants.NS_XML, "space");
     if (aSpace == null)
       return bInherited;
     final String s = aSpace.getValue ().trim ();
@@ -68,7 +68,7 @@ public final class WhitespaceStripper
    *         or a complex type with simple content: its whitespace text is
    *         never stripped (XSLT 3.0 section 4.3).
    */
-  private static boolean _hasSimpleContentType (@NonNull final XdmNode aElement)
+  private static boolean _hasSimpleContentType (@NonNull final IXdmNode aElement)
   {
     final XdmSchemaType aSchemaType = aElement.getSchemaType ();
     if (aSchemaType == null)
@@ -79,9 +79,9 @@ public final class WhitespaceStripper
     return aSchemaType.isSimple () || aSchemaType.getAtomicBase () != null;
   }
 
-  private static boolean _isStripped (@NonNull final XdmNode aText, final boolean bPreserve, @NonNull final SpaceRules aRules)
+  private static boolean _isStripped (@NonNull final IXdmNode aText, final boolean bPreserve, @NonNull final SpaceRules aRules)
   {
-    final XdmNode aParent = aText.getParent ();
+    final IXdmNode aParent = aText.getParent ();
     return !bPreserve &&
            aParent != null &&
            aParent.isElement () &&
@@ -90,21 +90,21 @@ public final class WhitespaceStripper
            aRules.isStripped (aParent.getName ());
   }
 
-  private static boolean _needsStripping (@NonNull final XdmNode aRoot, @NonNull final SpaceRules aRules)
+  private static boolean _needsStripping (@NonNull final IXdmNode aRoot, @NonNull final SpaceRules aRules)
   {
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     final ArrayDeque <Boolean> aPreserve = new ArrayDeque <> ();
     aStack.push (aRoot);
     aPreserve.push (Boolean.FALSE);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.pop ();
+      final IXdmNode aCur = aStack.pop ();
       boolean bPreserve = aPreserve.pop ().booleanValue ();
       if (aCur.isElement ())
         bPreserve = _isPreserve (aCur, bPreserve);
       for (int i = 0; i < aCur.getChildCount (); ++i)
       {
-        final XdmNode aChild = aCur.getChildAtIndex (i);
+        final IXdmNode aChild = aCur.getChildAtIndex (i);
         if (aChild.isText ())
         {
           if (_isStripped (aChild, bPreserve, aRules))
@@ -122,9 +122,9 @@ public final class WhitespaceStripper
   }
 
   @NonNull
-  private static XdmNode _copyNode (@NonNull final XdmNode aSrc)
+  private static IXdmNode _copyNode (@NonNull final IXdmNode aSrc)
   {
-    final XdmNode ret = NodeCopier.copyShallow (aSrc);
+    final IXdmNode ret = NodeCopier.copyShallow (aSrc);
     ret.setLocation (aSrc.getLine (), aSrc.getColumn ());
     ret.setTypeAnnotation (aSrc.getTypeAnnotation ());
     ret.setSchemaType (aSrc.getSchemaType ());
@@ -145,11 +145,11 @@ public final class WhitespaceStripper
    *         stripped copy.
    */
   @NonNull
-  public static XdmNode strip (@NonNull final XdmNode aRoot, @NonNull final SpaceRules aRules)
+  public static IXdmNode strip (@NonNull final IXdmNode aRoot, @NonNull final SpaceRules aRules)
   {
     if (!(aRoot.isDocument () || aRoot.isElement ()) || !_needsStripping (aRoot, aRules))
       return aRoot;
-    final XdmNode ret = _copyNode (aRoot);
+    final IXdmNode ret = _copyNode (aRoot);
     if (aRoot.isElement ())
       NodeCopier.copyNamespaces (aRoot, ret, true);
     ret.setDocumentUri (aRoot.getDocumentUri ());
@@ -164,16 +164,16 @@ public final class WhitespaceStripper
     while (!aStack.isEmpty ())
     {
       final Job aJob = aStack.pop ();
-      final XdmNode aSrc = aJob.source ();
+      final IXdmNode aSrc = aJob.source ();
       final boolean bPreserve = aSrc.isElement () ? _isPreserve (aSrc, aJob.preserve ()) : aJob.preserve ();
       for (int i = 0; i < aSrc.getAttributeCount (); ++i)
         aJob.target ().addAttribute (_copyNode (aSrc.getAttributeAtIndex (i)));
       for (int i = 0; i < aSrc.getChildCount (); ++i)
       {
-        final XdmNode aChild = aSrc.getChildAtIndex (i);
+        final IXdmNode aChild = aSrc.getChildAtIndex (i);
         if (aChild.isText () && _isStripped (aChild, bPreserve, aRules))
           continue;
-        final XdmNode aCopy = _copyNode (aChild);
+        final IXdmNode aCopy = _copyNode (aChild);
         aJob.target ().appendChild (aCopy);
         if (aChild.isElement ())
           aStack.push (new Job (aChild, aCopy, bPreserve));

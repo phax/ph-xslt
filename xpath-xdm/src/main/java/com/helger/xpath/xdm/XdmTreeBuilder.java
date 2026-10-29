@@ -32,10 +32,11 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 
 /**
- * SAX2 handler that builds an {@link XdmNode} tree. Adjacent character events
+ * SAX2 handler that builds an {@link IXdmNode} tree. Adjacent character events
  * are merged into one text node, comments inside the DTD are dropped and the
  * location of an element is the position the parser reports at the end of its
- * start tag. DTD attribute types ID, IDREF and IDREFS are recorded, and the
+ * start tag; a text node gets the position reported with its first character
+ * event. DTD attribute types ID, IDREF and IDREFS are recorded, and the
  * value of such an attribute as well as of <code>xml:id</code> is normalised
  * like a tokenised attribute (XDM 3.1 section 6.3.3). Schema information is
  * added afterwards, by {@link com.helger.xpath.xdm.schema.IXdmSchemaSet}.
@@ -48,9 +49,12 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private final ICommonsList <String> m_aPendingPrefixes = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aPendingUris = new CommonsArrayList <> ();
   private final StringBuilder m_aText = new StringBuilder ();
+  // Location of the first character event of the pending text
+  private int m_nTextLine;
+  private int m_nTextColumn;
   private Locator m_aLocator;
-  private XdmNode m_aDocument;
-  private XdmNode m_aCurrent;
+  private IXdmNode m_aDocument;
+  private IXdmNode m_aCurrent;
   private boolean m_bInDTD = false;
   // The system ID in effect for each open element
   private final ArrayDeque <String> m_aSystemIds = new ArrayDeque <> ();
@@ -62,7 +66,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
   {
     if (!m_aText.isEmpty ())
     {
-      m_aCurrent.appendChild (XdmNode.createText (m_aText.toString ()));
+      final IXdmNode aText = IXdmNode.createText (m_aText.toString ());
+      if (m_aLocator != null)
+        aText.setLocation (m_nTextLine, m_nTextColumn);
+      m_aCurrent.appendChild (aText);
       m_aText.setLength (0);
     }
   }
@@ -75,7 +82,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
    * @return The system ID in effect for the node.
    */
   @Nullable
-  private String _applyEntityBase (@NonNull final XdmNode aNode)
+  private String _applyEntityBase (@NonNull final IXdmNode aNode)
   {
     final String sParentSystemId = m_aSystemIds.isEmpty () ? m_aDocument.getDocumentUri () : m_aSystemIds.peek ();
     if (m_aLocator == null)
@@ -159,7 +166,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
    *         builder.
    */
   @Nullable
-  public XdmNode getCurrentNode ()
+  public IXdmNode getCurrentNode ()
   {
     return m_aCurrent;
   }
@@ -168,7 +175,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
    * @return The finished document. Only valid after the parse run completed.
    */
   @NonNull
-  public XdmNode getDocument ()
+  public IXdmNode getDocument ()
   {
     if (m_aDocument == null)
       throw new IllegalStateException ("No document was built yet");
@@ -184,7 +191,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   @Override
   public void startDocument ()
   {
-    m_aDocument = XdmNode.createDocument ();
+    m_aDocument = IXdmNode.createDocument ();
     m_aCurrent = m_aDocument;
     if (m_aLocator != null)
       m_aDocument.setDocumentUri (m_aLocator.getSystemId ());
@@ -211,7 +218,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
                             final Attributes aAttrs)
   {
     _flushText ();
-    final XdmNode aElement = XdmNode.createElement (_getName (sUri, sLocalName, sQName));
+    final IXdmNode aElement = IXdmNode.createElement (_getName (sUri, sLocalName, sQName));
     if (m_aLocator != null)
       aElement.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
     for (int i = 0; i < m_aPendingPrefixes.size (); ++i)
@@ -230,7 +237,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
       EIDKind eIDKind = _getIDKind (aAttrs.getType (i));
       if (eIDKind == EIDKind.NONE && aAttrName.isSameName (XdmConstants.NS_XML, "id"))
         eIDKind = EIDKind.ID;
-      final XdmNode aAttr = XdmNode.createAttribute (aAttrName,
+      final IXdmNode aAttr = IXdmNode.createAttribute (aAttrName,
                                                      eIDKind == EIDKind.NONE ? sValue : normaliseTokenised (sValue));
       aAttr.setIDKind (eIDKind);
       if (m_aLocator != null)
@@ -253,6 +260,11 @@ public final class XdmTreeBuilder extends DefaultHandler2
   @Override
   public void characters (final char [] aChars, final int nStart, final int nLength)
   {
+    if (m_aText.isEmpty () && m_aLocator != null)
+    {
+      m_nTextLine = m_aLocator.getLineNumber ();
+      m_nTextColumn = m_aLocator.getColumnNumber ();
+    }
     m_aText.append (aChars, nStart, nLength);
   }
 
@@ -290,7 +302,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   public void processingInstruction (final String sTarget, final String sData)
   {
     _flushText ();
-    final XdmNode aPI = XdmNode.createProcessingInstruction (sTarget, sData == null ? "" : sData);
+    final IXdmNode aPI = IXdmNode.createProcessingInstruction (sTarget, sData == null ? "" : sData);
     if (m_aLocator != null)
       aPI.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
     _applyEntityBase (aPI);
@@ -315,7 +327,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
     if (m_bInDTD)
       return;
     _flushText ();
-    final XdmNode aComment = XdmNode.createComment (new String (aChars, nStart, nLength));
+    final IXdmNode aComment = IXdmNode.createComment (new String (aChars, nStart, nLength));
     if (m_aLocator != null)
       aComment.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
     m_aCurrent.appendChild (aComment);

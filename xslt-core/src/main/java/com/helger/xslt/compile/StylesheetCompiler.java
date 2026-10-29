@@ -45,8 +45,8 @@ import com.helger.xpath.pattern.XsltPattern;
 import com.helger.xpath.pattern.XsltPatternParser;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 import com.helger.xslt.XsltCompileOptions;
@@ -1085,10 +1085,10 @@ public final class StylesheetCompiler
     }
     final IResourceResolver aResolver = m_aOptions.getResolver () != null ? m_aOptions.getResolver ()
                                                                          : new FileResourceResolver (m_aOptions.isLoadExternalEntities ());
-    final XdmNode aDoc = aResolver.resolveDocument (sUri);
+    final IXdmNode aDoc = aResolver.resolveDocument (sUri);
     if (aDoc == null)
       throw XsltException.at (aEl, "XTSE0020", "The parameter document '" + sUri + "' cannot be retrieved");
-    XdmNode aRoot = null;
+    IXdmNode aRoot = null;
     for (int i = 0; i < aDoc.getChildCount (); ++i)
       if (aDoc.getChildAtIndex (i).isElement ())
         aRoot = aDoc.getChildAtIndex (i);
@@ -1096,16 +1096,16 @@ public final class StylesheetCompiler
       throw XsltException.at (aEl, "XTSE0020", "'" + sUri + "' is not a serialization parameter document");
     for (int i = 0; i < aRoot.getChildCount (); ++i)
     {
-      final XdmNode aParam = aRoot.getChildAtIndex (i);
+      final IXdmNode aParam = aRoot.getChildAtIndex (i);
       if (!aParam.isElement () || !SerializationParams.NS_OUTPUT.equals (aParam.getName ().namespaceUri ()))
         continue;
       if ("use-character-maps".equals (aParam.getName ().localName ()))
       {
         for (int j = 0; j < aParam.getChildCount (); ++j)
         {
-          final XdmNode aMap = aParam.getChildAtIndex (j);
-          final XdmNode aChar = aMap.isElement () ? aMap.getAttribute ("", "character") : null;
-          final XdmNode aString = aMap.isElement () ? aMap.getAttribute ("", "map-string") : null;
+          final IXdmNode aMap = aParam.getChildAtIndex (j);
+          final IXdmNode aChar = aMap.isElement () ? aMap.getAttribute ("", "character") : null;
+          final IXdmNode aString = aMap.isElement () ? aMap.getAttribute ("", "map-string") : null;
           // An invalid parameter document is a serialization error (XSLT 3.0
           // section 26.1, Serialization 3.1 section 3.1)
           if (aChar != null && aChar.getValue ().codePointCount (0, aChar.getValue ().length ()) != 1)
@@ -1115,7 +1115,7 @@ public final class StylesheetCompiler
         }
         continue;
       }
-      final XdmNode aValue = aParam.getAttribute ("", "value");
+      final IXdmNode aValue = aParam.getAttribute ("", "value");
       if (aValue != null)
         aAttrs.put (aParam.getName ().localName (), aValue.getValue ());
     }
@@ -1459,9 +1459,9 @@ public final class StylesheetCompiler
   }
 
   @NonNull
-  private CompiledStylesheet _compile (@NonNull final XdmNode aSource)
+  private CompiledStylesheet _compile (@NonNull final IXdmNode aSource)
   {
-    XdmNode aRootSrc = aSource;
+    IXdmNode aRootSrc = aSource;
     if (aSource.isDocument ())
     {
       aRootSrc = null;
@@ -1607,7 +1607,7 @@ public final class StylesheetCompiler
    *         for static errors
    */
   @NonNull
-  public static CompiledStylesheet compile (@NonNull final XdmNode aSource, @NonNull final XsltCompileOptions aOptions)
+  public static CompiledStylesheet compile (@NonNull final IXdmNode aSource, @NonNull final XsltCompileOptions aOptions)
   {
     if (aOptions.isSchemaAware () && !XdmSchemaSupport.isAvailable ())
       throw new IllegalStateException ("A schema-aware stylesheet needs Apache Xerces-J (xerces:xercesImpl) on the class path");

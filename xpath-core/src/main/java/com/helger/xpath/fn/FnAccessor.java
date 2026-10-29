@@ -32,8 +32,8 @@ import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -71,16 +71,16 @@ public final class FnAccessor
    * @return <code>null</code> for an empty argument.
    */
   @Nullable
-  private static XdmNode _getNode (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
+  private static IXdmNode _getNode (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
     if (aArgs.isEmpty ())
     {
-      if (_getContextItem (aCtx) instanceof final XdmNode aNode)
+      if (_getContextItem (aCtx) instanceof final IXdmNode aNode)
         return aNode;
       throw XPathException.type ("The context item is not a node");
     }
     final XdmSequence aArg = aArgs.get (0);
-    return aArg.isEmpty () ? null : (XdmNode) aArg.get (0);
+    return aArg.isEmpty () ? null : (IXdmNode) aArg.get (0);
   }
 
   /**
@@ -93,7 +93,7 @@ public final class FnAccessor
   @NonNull
   public static String getStringValue (@NonNull final IXdmItem aItem)
   {
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
       return aNode.getStringValue ();
     if (aItem instanceof final XdmAtomic aAtomic)
       return aAtomic.isStringLike () ? aAtomic.getString () : aAtomic.getLexical ();
@@ -111,7 +111,7 @@ public final class FnAccessor
    * @return The base URI or <code>null</code> if there is none.
    */
   @Nullable
-  public static String getBaseUri (@NonNull final XdmNode aNode)
+  public static String getBaseUri (@NonNull final IXdmNode aNode)
   {
     switch (aNode.getKind ())
     {
@@ -130,11 +130,11 @@ public final class FnAccessor
     }
     final ICommonsList <String> aChain = new CommonsArrayList <> ();
     String sBase = null;
-    for (XdmNode aCur = aNode; aCur != null; aCur = aCur.getParent ())
+    for (IXdmNode aCur = aNode; aCur != null; aCur = aCur.getParent ())
     {
       if (aCur.isElement ())
       {
-        final XdmNode aXmlBase = aCur.getAttribute (XdmConstants.NS_XML, "base");
+        final IXdmNode aXmlBase = aCur.getAttribute (XdmConstants.NS_XML, "base");
         if (aXmlBase != null)
           aChain.add (aXmlBase.getValue ());
       }
@@ -175,7 +175,7 @@ public final class FnAccessor
    *         node).
    */
   @Nullable
-  public static XdmQName getNodeName (@NonNull final XdmNode aNode)
+  public static XdmQName getNodeName (@NonNull final IXdmNode aNode)
   {
     return switch (aNode.getKind ())
     {
@@ -185,7 +185,7 @@ public final class FnAccessor
   }
 
   @NonNull
-  private static String _getName (@Nullable final XdmNode aNode)
+  private static String _getName (@Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
@@ -194,7 +194,7 @@ public final class FnAccessor
   }
 
   @NonNull
-  private static String _getLocalName (@Nullable final XdmNode aNode)
+  private static String _getLocalName (@Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
@@ -203,7 +203,7 @@ public final class FnAccessor
   }
 
   @NonNull
-  private static String _getNamespaceUri (@Nullable final XdmNode aNode)
+  private static String _getNamespaceUri (@Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
@@ -215,18 +215,18 @@ public final class FnAccessor
   }
 
   @NonNull
-  private static String _generateId (@NonNull final DynamicContext aCtx, @Nullable final XdmNode aNode)
+  private static String _generateId (@NonNull final DynamicContext aCtx, @Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
     @SuppressWarnings ("unchecked")
-    final IdentityHashMap <XdmNode, String> aIDs = (IdentityHashMap <XdmNode, String>) aCtx.getRunCache ()
+    final IdentityHashMap <IXdmNode, String> aIDs = (IdentityHashMap <IXdmNode, String>) aCtx.getRunCache ()
                                                                                          .computeIfAbsent (RUN_CACHE_GENERATE_ID,
                                                                                                            k -> new IdentityHashMap <> ());
     return aIDs.computeIfAbsent (aNode, k -> "id" + Integer.toString (aIDs.size () + 1));
   }
 
-  private static boolean _isSameStep (@NonNull final XdmNode aLeft, @NonNull final XdmNode aRight)
+  private static boolean _isSameStep (@NonNull final IXdmNode aLeft, @NonNull final IXdmNode aRight)
   {
     if (aLeft.getKind () != aRight.getKind ())
       return false;
@@ -237,15 +237,15 @@ public final class FnAccessor
     };
   }
 
-  private static int _getSiblingPosition (@NonNull final XdmNode aNode)
+  private static int _getSiblingPosition (@NonNull final IXdmNode aNode)
   {
-    final XdmNode aParent = aNode.getParent ();
+    final IXdmNode aParent = aNode.getParent ();
     if (aParent == null)
       return 1;
     int nPos = 0;
     for (int i = 0; i < aParent.getChildCount (); ++i)
     {
-      final XdmNode aSibling = aParent.getChildAtIndex (i);
+      final IXdmNode aSibling = aParent.getChildAtIndex (i);
       if (_isSameStep (aSibling, aNode))
         nPos++;
       if (aSibling == aNode)
@@ -255,7 +255,7 @@ public final class FnAccessor
   }
 
   @NonNull
-  private static String _getStepLabel (@NonNull final XdmNode aNode)
+  private static String _getStepLabel (@NonNull final IXdmNode aNode)
   {
     final XdmQName aName = aNode.getName ();
     return switch (aNode.getKind ())
@@ -282,14 +282,14 @@ public final class FnAccessor
    * @return The result of <code>fn:path</code> for that node.
    */
   @NonNull
-  public static String getPath (@NonNull final XdmNode aNode)
+  public static String getPath (@NonNull final IXdmNode aNode)
   {
     if (aNode.isDocument ())
       return "/";
-    final XdmNode aRoot = aNode.getRoot ();
+    final IXdmNode aRoot = aNode.getRoot ();
     final boolean bRooted = aRoot.isDocument ();
     final ICommonsList <String> aSteps = new CommonsArrayList <> ();
-    for (XdmNode aCur = aNode; aCur != null && !aCur.isDocument (); aCur = aCur.getParent ())
+    for (IXdmNode aCur = aNode; aCur != null && !aCur.isDocument (); aCur = aCur.getParent ())
     {
       if (!bRooted && aCur == aRoot)
         break;
@@ -338,23 +338,23 @@ public final class FnAccessor
       return _string (aArg.isEmpty () ? "" : getStringValue (aArg.get (0)));
     });
     _register01 (aLib, "node-name", "node()?", "xs:QName?", (aCtx, aArgs) -> {
-      final XdmNode aNode = _getNode (aCtx, aArgs);
+      final IXdmNode aNode = _getNode (aCtx, aArgs);
       final XdmQName aName = aNode == null ? null : getNodeName (aNode);
       return aName == null ? XdmSequence.EMPTY : XdmSequence.of (XdmAtomic.qname (aName));
     });
     _register01 (aLib, "nilled", "node()?", "xs:boolean?", (aCtx, aArgs) -> {
-      final XdmNode aNode = _getNode (aCtx, aArgs);
+      final IXdmNode aNode = _getNode (aCtx, aArgs);
       // Only elements of a schema-validated tree can be nilled
       if (aNode == null || !aNode.isElement ())
         return XdmSequence.EMPTY;
       return XdmSequence.of (aNode.isNilled () ? XdmAtomic.TRUE : XdmAtomic.FALSE);
     });
     _register01 (aLib, "base-uri", "node()?", "xs:anyURI?", (aCtx, aArgs) -> {
-      final XdmNode aNode = _getNode (aCtx, aArgs);
+      final IXdmNode aNode = _getNode (aCtx, aArgs);
       return aNode == null ? XdmSequence.EMPTY : _anyUriOrEmpty (getBaseUri (aNode));
     });
     _register01 (aLib, "document-uri", "node()?", "xs:anyURI?", (aCtx, aArgs) -> {
-      final XdmNode aNode = _getNode (aCtx, aArgs);
+      final IXdmNode aNode = _getNode (aCtx, aArgs);
       return aNode == null || !aNode.isDocument () ? XdmSequence.EMPTY : _anyUriOrEmpty (aNode.getDocumentUri ());
     });
     _register01 (aLib, "name", "node()?", "xs:string", (aCtx, aArgs) -> _string (_getName (_getNode (aCtx, aArgs))));
@@ -369,18 +369,18 @@ public final class FnAccessor
                  "xs:anyURI",
                  (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.anyUri (_getNamespaceUri (_getNode (aCtx, aArgs)))));
     final IXPathFunction aRoot = (aCtx, aArgs) -> {
-      final XdmNode aNode = _getNode (aCtx, aArgs);
+      final IXdmNode aNode = _getNode (aCtx, aArgs);
       return aNode == null ? XdmSequence.EMPTY : XdmSequence.of (aNode.getRoot ());
     };
     // The zero-argument form never returns the empty sequence
     aLib.register (XdmConstants.NS_FN, "root", "() as node()", aRoot, true);
     aLib.register (XdmConstants.NS_FN, "root", "(node()?) as node()?", aRoot);
     _register01 (aLib, "has-children", "node()?", "xs:boolean", (aCtx, aArgs) -> {
-      final XdmNode aNode = _getNode (aCtx, aArgs);
+      final IXdmNode aNode = _getNode (aCtx, aArgs);
       return XdmSequence.of (XdmAtomic.bool (aNode != null && aNode.getChildCount () > 0));
     });
     _register01 (aLib, "path", "node()?", "xs:string?", (aCtx, aArgs) -> {
-      final XdmNode aNode = _getNode (aCtx, aArgs);
+      final IXdmNode aNode = _getNode (aCtx, aArgs);
       return aNode == null ? XdmSequence.EMPTY : _string (getPath (aNode));
     });
     _register01 (aLib,

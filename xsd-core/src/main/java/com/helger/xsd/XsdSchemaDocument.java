@@ -23,7 +23,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsSet;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * One schema document of a compile (the entry document plus every document
@@ -35,7 +35,7 @@ import com.helger.xpath.xdm.XdmNode;
 final class XsdSchemaDocument
 {
   /** The xs:schema element. */
-  final XdmNode m_aElement;
+  final IXdmNode m_aElement;
   /** The directory relative references resolve against, may be <code>null</code>. */
   final Path m_aBaseDir;
   String m_sTNS = "";
@@ -57,9 +57,9 @@ final class XsdSchemaDocument
   XsdName m_aDefaultAttrs = XsdName.NONE;
   boolean m_bHasDefaultAttrs;
   /** This document's xs:defaultOpenContent element (XSD 1.1). */
-  XdmNode m_aDefaultOpenNode;
+  IXdmNode m_aDefaultOpenNode;
 
-  XsdSchemaDocument (@NonNull final XdmNode aElement, @Nullable final Path aBaseDir)
+  XsdSchemaDocument (@NonNull final IXdmNode aElement, @Nullable final Path aBaseDir)
   {
     m_aElement = aElement;
     m_aBaseDir = aBaseDir;

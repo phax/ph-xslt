@@ -23,7 +23,7 @@ import static com.helger.xpath.spec.SpecTestHelper.run;
 
 import org.junit.Test;
 
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -165,13 +165,13 @@ public final class AtomicValueSpecTest
   @Test
   public void tyDocumentOrderUnnumbered ()
   {
-    final XdmNode aRoot = XdmNode.createElement (new XdmQName ("root"));
-    final XdmNode aA = XdmNode.createElement (new XdmQName ("a"));
+    final IXdmNode aRoot = IXdmNode.createElement (new XdmQName ("root"));
+    final IXdmNode aA = IXdmNode.createElement (new XdmQName ("a"));
     aRoot.appendChild (aA);
-    aRoot.appendChild (XdmNode.createElement (new XdmQName ("b")));
-    aRoot.addAttribute (XdmNode.createAttribute (new XdmQName ("x"), "1"));
-    final XdmNode aC = XdmNode.createElement (new XdmQName ("c"));
-    aC.appendChild (XdmNode.createText ("t"));
+    aRoot.appendChild (IXdmNode.createElement (new XdmQName ("b")));
+    aRoot.addAttribute (IXdmNode.createAttribute (new XdmQName ("x"), "1"));
+    final IXdmNode aC = IXdmNode.createElement (new XdmQName ("c"));
+    aC.appendChild (IXdmNode.createText ("t"));
     aA.appendChild (aC);
     run (env ().contextItem (aRoot),
          ok ("string-join((b, a/c, @x, a, ., a/c, b) / name(), ',')", "b,c,x,a,root,c,b"),

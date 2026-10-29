@@ -29,7 +29,7 @@ import com.helger.xpath.value.XdmArray;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.runtime.BufferedOutput;
 import com.helger.xslt.runtime.IXsltOutput;
@@ -65,7 +65,7 @@ public final class ConditionalContent implements IInstruction
    */
   public static boolean isDeemedEmpty (@NonNull final IXdmItem aItem)
   {
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
     {
       if (aNode.isText ())
         return aNode.getValue ().isEmpty ();

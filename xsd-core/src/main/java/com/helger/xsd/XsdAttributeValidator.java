@@ -28,7 +28,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Attribute assessment of an element against a complex type (go-xslt
@@ -144,7 +144,7 @@ final class XsdAttributeValidator
    */
   static void validateAttributes (@NonNull final XsdValidationRun aRun,
                                   @NonNull final XsdComplexType aType,
-                                  @NonNull final XdmNode aElement)
+                                  @NonNull final IXdmNode aElement)
   {
     final XsdEffectiveAttributes aEff = aRun.getSchema ().effectiveAttrs (aType);
     final ICommonsList <XsdAttributeUse> aUses = aEff.uses ();
@@ -154,7 +154,7 @@ final class XsdAttributeValidator
     final int nAttrs = aElement.getAttributeCount ();
     for (int nAttr = 0; nAttr < nAttrs; nAttr++)
     {
-      final XdmNode aAttr = aElement.getAttributeAtIndex (nAttr);
+      final IXdmNode aAttr = aElement.getAttributeAtIndex (nAttr);
       final XsdName aName = XsdName.of (aAttr.getName ());
       final String sValue = aAttr.getValue ();
       XsdAttributeUse aUse = aIndex.lookup (aName);

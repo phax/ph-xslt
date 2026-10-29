@@ -45,8 +45,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 import com.helger.xslt.XsltCompileOptions;
@@ -234,12 +234,12 @@ public final class StylesheetLoader
     }
   }
 
-  private static boolean _hasContent (@NonNull final XdmNode aSrc)
+  private static boolean _hasContent (@NonNull final IXdmNode aSrc)
   {
     final int n = aSrc.getChildCount ();
     for (int i = 0; i < n; ++i)
     {
-      final XdmNode aChild = aSrc.getChildAtIndex (i);
+      final IXdmNode aChild = aSrc.getChildAtIndex (i);
       if (aChild.isElement () || aChild.isText () && !XsltNames.isWhitespaceOnly (aChild.getValue ()))
         return true;
     }
@@ -319,17 +319,17 @@ public final class StylesheetLoader
   }
 
   @NonNull
-  private static XdmNode _findById (@NonNull final XdmNode aRoot, @NonNull final String sID)
+  private static IXdmNode _findById (@NonNull final IXdmNode aRoot, @NonNull final String sID)
   {
-    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
     aStack.add (aRoot);
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.removeLast ();
+      final IXdmNode aCur = aStack.removeLast ();
       if (aCur.isElement ())
       {
-        final XdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
-        final XdmNode aId = aCur.getAttribute ("", "id");
+        final IXdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
+        final IXdmNode aId = aCur.getAttribute ("", "id");
         if (aXmlId != null && sID.equals (aXmlId.getValue ().trim ()) || aId != null && sID.equals (aId.getValue ().trim ()))
           return aCur;
       }
@@ -340,7 +340,7 @@ public final class StylesheetLoader
   }
 
   @Nullable
-  private static XdmNode _getDocumentElement (@NonNull final XdmNode aDoc)
+  private static IXdmNode _getDocumentElement (@NonNull final IXdmNode aDoc)
   {
     if (aDoc.isElement ())
       return aDoc;
@@ -386,7 +386,7 @@ public final class StylesheetLoader
       throw XsltException.at (aIncludeEl,
                               aIncludeEl.isXsl ("import") ? "XTSE0210" : "XTSE0180",
                               "The stylesheet module '" + sKey + "' includes or imports itself");
-    XdmNode aDoc;
+    IXdmNode aDoc;
     if (sUri.isEmpty () || sBase != null && sUri.equals (_stripFragment (sBase)))
       aDoc = aIncludeEl.getModule ().getSourceDocument ();
     else
@@ -397,7 +397,7 @@ public final class StylesheetLoader
       if (aDoc.getDocumentUri () == null && aDoc.isDocument ())
         aDoc.setDocumentUri (sUri);
     }
-    XdmNode aRoot;
+    IXdmNode aRoot;
     if (sFragment != null)
     {
       aRoot = _findById (aDoc, sFragment);
@@ -462,7 +462,7 @@ public final class StylesheetLoader
    */
   @Nullable
   private XslElement _build (@NonNull final XslModule aModule,
-                             @NonNull final XdmNode aSrc,
+                             @NonNull final IXdmNode aSrc,
                              @Nullable final XslElement aParent,
                              final boolean bTopLevel)
   {
@@ -470,7 +470,7 @@ public final class StylesheetLoader
     final int nAttrs = aSrc.getAttributeCount ();
     for (int i = 0; i < nAttrs; ++i)
     {
-      final XdmNode aAttr = aSrc.getAttributeAtIndex (i);
+      final IXdmNode aAttr = aSrc.getAttributeAtIndex (i);
       aEl.setAttribute (aAttr.getName (), aAttr.getValue ());
     }
     if (aParent != null)
@@ -497,7 +497,7 @@ public final class StylesheetLoader
     return aEl;
   }
 
-  private void _buildChildren (@NonNull final XslModule aModule, @NonNull final XdmNode aSrc, @NonNull final XslElement aEl)
+  private void _buildChildren (@NonNull final XslModule aModule, @NonNull final IXdmNode aSrc, @NonNull final XslElement aEl)
   {
     final boolean bChildrenTopLevel = aEl.getParent () == null && aEl.isXsl () && !aModule.isSimplified ();
     final StringBuilder aText = new StringBuilder ();
@@ -506,7 +506,7 @@ public final class StylesheetLoader
     final int nChildren = aSrc.getChildCount ();
     for (int i = 0; i < nChildren; ++i)
     {
-      final XdmNode aChild = aSrc.getChildAtIndex (i);
+      final IXdmNode aChild = aSrc.getChildAtIndex (i);
       final ENodeKind eKind = aChild.getKind ();
       if (eKind == ENodeKind.TEXT)
       {
@@ -544,7 +544,7 @@ public final class StylesheetLoader
    * @return The module.
    */
   @NonNull
-  public XslModule loadModule (@NonNull final XdmNode aRootSrc, @Nullable final String sUri, final boolean bPrincipal)
+  public XslModule loadModule (@NonNull final IXdmNode aRootSrc, @Nullable final String sUri, final boolean bPrincipal)
   {
     final XslModule aModule = new XslModule (sUri, aRootSrc.getRoot ());
     m_aAllModules.add (aModule);
@@ -577,7 +577,7 @@ public final class StylesheetLoader
     final int nAttrs = aRootSrc.getAttributeCount ();
     for (int i = 0; i < nAttrs; ++i)
     {
-      final XdmNode aAttr = aRootSrc.getAttributeAtIndex (i);
+      final IXdmNode aAttr = aRootSrc.getAttributeAtIndex (i);
       aRoot.setAttribute (aAttr.getName (), aAttr.getValue ());
     }
     aModule.setRoot (aRoot);

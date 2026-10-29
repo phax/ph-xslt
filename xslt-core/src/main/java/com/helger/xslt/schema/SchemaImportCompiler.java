@@ -36,8 +36,8 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.serialize.XdmSerializer;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
@@ -101,12 +101,12 @@ public final class SchemaImportCompiler
   {
     try
     {
-      final XdmNode aDoc = aSource.text () != null ? new XdmParser ().parse (aSource.text ())
+      final IXdmNode aDoc = aSource.text () != null ? new XdmParser ().parse (aSource.text ())
                                                    : new XdmParser ().parse (Path.of (new URI (aSource.systemId ())));
-      for (final XdmNode aChild : aDoc.getAllChildren ())
+      for (final IXdmNode aChild : aDoc.getAllChildren ())
         if (aChild.isElement ())
         {
-          final XdmNode aTns = aChild.getAttribute ("", "targetNamespace");
+          final IXdmNode aTns = aChild.getAttribute ("", "targetNamespace");
           return aTns == null ? "" : aTns.getValue ().trim ();
         }
       return null;
@@ -150,7 +150,7 @@ public final class SchemaImportCompiler
   {
     // The copy declares all namespaces in scope, so that QName-valued
     // attributes of the schema keep their prefixes
-    final XdmNode aCopy = NodeCopier.copyDeep (aInline.getSource (), true);
+    final IXdmNode aCopy = NodeCopier.copyDeep (aInline.getSource (), true);
     final SerializationParams aParams = new SerializationParams ();
     aParams.setOmitXmlDeclaration (true);
     return XdmSerializer.serialize (XdmSequence.of (aCopy), aParams);
@@ -263,11 +263,11 @@ public final class SchemaImportCompiler
       if (aGroup.size () > 1)
         try
         {
-          XdmNode aMerged = null;
+          IXdmNode aMerged = null;
           for (final XdmSchemaSource aSource : aGroup)
           {
-            XdmNode aRoot = null;
-            for (final XdmNode aChild : new XdmParser ().parse (aSource.text ()).getAllChildren ())
+            IXdmNode aRoot = null;
+            for (final IXdmNode aChild : new XdmParser ().parse (aSource.text ()).getAllChildren ())
               if (aChild.isElement ())
                 aRoot = aChild;
             if (aRoot == null)
@@ -276,14 +276,14 @@ public final class SchemaImportCompiler
             {
               aMerged = NodeCopier.copyShallow (aRoot);
               NodeCopier.copyNamespaces (aRoot, aMerged, true);
-              for (final XdmNode aAttr : aRoot.getAllAttributes ())
+              for (final IXdmNode aAttr : aRoot.getAllAttributes ())
                 aMerged.addAttribute (NodeCopier.createAttribute (aAttr.getName (), aAttr.getValue ()));
             }
             else
               for (final Map.Entry <String, String> aNs : aRoot.getInScopeNamespaces ().entrySet ())
                 if (aMerged.getDeclaredNamespaces ().get (aNs.getKey ()) == null && !"xml".equals (aNs.getKey ()))
                   aMerged.declareNamespace (aNs.getKey (), aNs.getValue ());
-            for (final XdmNode aChild : aRoot.getAllChildren ())
+            for (final IXdmNode aChild : aRoot.getAllChildren ())
               if (aChild.isElement ())
                 aMerged.appendChild (NodeCopier.copyDeep (aChild, true));
           }

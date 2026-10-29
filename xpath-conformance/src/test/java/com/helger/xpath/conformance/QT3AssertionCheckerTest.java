@@ -33,7 +33,7 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -109,7 +109,7 @@ public final class QT3AssertionCheckerTest
     assertSame (Boolean.FALSE, QT3AssertionChecker.getEffectiveBooleanValue (XdmSequence.of (XdmAtomic.integer (0))));
     assertSame (Boolean.FALSE,
                 QT3AssertionChecker.getEffectiveBooleanValue (XdmSequence.of (XdmAtomic.dbl (Double.NaN))));
-    final XdmNode aText = XdmNode.createText ("x");
+    final IXdmNode aText = IXdmNode.createText ("x");
     assertSame (Boolean.TRUE, QT3AssertionChecker.getEffectiveBooleanValue (XdmSequence.of (aText, XdmAtomic.TRUE)));
     // Two atomic values: FORG0006
     assertNull (QT3AssertionChecker.getEffectiveBooleanValue (XdmSequence.of (XdmAtomic.TRUE, XdmAtomic.TRUE)));
@@ -204,7 +204,7 @@ public final class QT3AssertionCheckerTest
   @Test
   public void testSerializationAssertions ()
   {
-    final XdmSequence aResult = XdmSequence.of (XdmNode.createText ("ignored by the fake"));
+    final XdmSequence aResult = XdmSequence.of (IXdmNode.createText ("ignored by the fake"));
     final FakeEvaluator aEval = new FakeEvaluator ().answer ("serialize($result)",
                                                              _str ("<a xmlns:p='urn:p' p:x='1' y='2'>t</a>"))
                                                     .answer ("matches($qt3-s, $qt3-p, $qt3-f)", TRUE);

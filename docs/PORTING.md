@@ -14,7 +14,7 @@ Read this fully before writing code. It applies to every workstream.
 
 ## Architecture (the contract)
 
-Module `xpath-xdm` (`com.helger.xpath.xdm`): `XdmNode` (node tree, document order; `XdmSchemaType` for schema-validated trees), `XdmQName` (record, prefix not part
+Module `xpath-xdm` (`com.helger.xpath.xdm`): `IXdmNode` (node tree, document order; sealed `AbstractXdmNode` with one class per node kind; `XdmSchemaType` for schema-validated trees), `XdmQName` (record, prefix not part
 of equality), `XdmParser`/`XdmTreeBuilder` (JDK SAX to tree), `IXdmItem` (marker for all items).
 
 Module `xpath-core` (`com.helger.xpath`):
@@ -70,7 +70,7 @@ Follow `~/.claude/rules/naming.md` exactly. In short:
   methods (leaf helpers first), public methods.
 - Always import; never inline fully qualified names. Imports: `java*`/`javax*`, `org*`, `com*`, blank line between.
 - No auto-boxing/unboxing: `Integer.valueOf (n)`, `aValue.intValue ()`.
-- `instanceof` with pattern binding (`if (aItem instanceof final XdmNode aNode)`).
+- `instanceof` with pattern binding (`if (aItem instanceof final IXdmNode aNode)`).
 - No banner/section comments. Javadoc on public API. British English in comments and messages.
 - No `@Override` on pure interface method implementations.
 - Utility classes: `final`, private constructor, `@PresentForCodeCoverage private static final X INSTANCE`.

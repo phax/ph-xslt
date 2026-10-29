@@ -44,7 +44,7 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -788,21 +788,21 @@ public final class AtomicComparator
 
   /** @return The children taking part in deep-equal: elements and text nodes. */
   @NonNull
-  private static ICommonsList <XdmNode> _getDeepEqualChildren (@NonNull final XdmNode aNode)
+  private static ICommonsList <IXdmNode> _getDeepEqualChildren (@NonNull final IXdmNode aNode)
   {
     final int nCount = aNode.getChildCount ();
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> (nCount);
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> (nCount);
     for (int i = 0; i < nCount; ++i)
     {
-      final XdmNode aChild = aNode.getChildAtIndex (i);
+      final IXdmNode aChild = aNode.getChildAtIndex (i);
       if (aChild.getKind () == ENodeKind.ELEMENT || aChild.getKind () == ENodeKind.TEXT)
         ret.add (aChild);
     }
     return ret;
   }
 
-  private static boolean _attributesDeepEqual (@NonNull final XdmNode aLeft,
-                                               @NonNull final XdmNode aRight,
+  private static boolean _attributesDeepEqual (@NonNull final IXdmNode aLeft,
+                                               @NonNull final IXdmNode aRight,
                                                @Nullable final ICollation aCollation)
   {
     final int nCount = aLeft.getAttributeCount ();
@@ -810,9 +810,9 @@ public final class AtomicComparator
       return false;
     for (int i = 0; i < nCount; ++i)
     {
-      final XdmNode aAttr = aLeft.getAttributeAtIndex (i);
+      final IXdmNode aAttr = aLeft.getAttributeAtIndex (i);
       final XdmQName aName = aAttr.getName ();
-      final XdmNode aOther = aRight.getAttribute (aName.namespaceUri (), aName.localName ());
+      final IXdmNode aOther = aRight.getAttribute (aName.namespaceUri (), aName.localName ());
       if (aOther == null || !_stringsEqual (aAttr.getStringValue (), aOther.getStringValue (), aCollation))
         return false;
     }
@@ -823,8 +823,8 @@ public final class AtomicComparator
    * Compare two nodes locally; child pairs that still need comparing are
    * pushed onto the stack.
    */
-  private static boolean _nodesDeepEqual (@NonNull final XdmNode aLeft,
-                                          @NonNull final XdmNode aRight,
+  private static boolean _nodesDeepEqual (@NonNull final IXdmNode aLeft,
+                                          @NonNull final IXdmNode aRight,
                                           @Nullable final ICollation aCollation,
                                           @NonNull final ArrayDeque <DeepPair> aStack)
   {
@@ -841,8 +841,8 @@ public final class AtomicComparator
         // fall through
       case DOCUMENT:
       {
-        final ICommonsList <XdmNode> aLC = _getDeepEqualChildren (aLeft);
-        final ICommonsList <XdmNode> aRC = _getDeepEqualChildren (aRight);
+        final ICommonsList <IXdmNode> aLC = _getDeepEqualChildren (aLeft);
+        final ICommonsList <IXdmNode> aRC = _getDeepEqualChildren (aRight);
         if (aLC.size () != aRC.size ())
           return false;
         for (int i = 0; i < aLC.size (); ++i)
@@ -886,8 +886,8 @@ public final class AtomicComparator
   {
     if (aLeft instanceof final XdmAtomic aLA)
       return aRight instanceof final XdmAtomic aRA && _atomicsDeepEqual (aLA, aRA, aCollation, aCtx);
-    if (aLeft instanceof final XdmNode aLN)
-      return aRight instanceof final XdmNode aRN && _nodesDeepEqual (aLN, aRN, aCollation, aStack);
+    if (aLeft instanceof final IXdmNode aLN)
+      return aRight instanceof final IXdmNode aRN && _nodesDeepEqual (aLN, aRN, aCollation, aStack);
     if (aLeft instanceof final XdmMap aLM)
     {
       if (!(aRight instanceof final XdmMap aRM) || aLM.size () != aRM.size ())
@@ -953,7 +953,7 @@ public final class AtomicComparator
             return false;
       }
       else
-        if (!_nodesDeepEqual ((XdmNode) aPair.left (), (XdmNode) aPair.right (), aCollation, aStack))
+        if (!_nodesDeepEqual ((IXdmNode) aPair.left (), (IXdmNode) aPair.right (), aCollation, aStack))
           return false;
     }
     return true;

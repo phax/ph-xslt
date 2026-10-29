@@ -31,8 +31,8 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -142,7 +142,7 @@ final class AdaptiveWriter
     aSB.append ('"');
   }
 
-  private void _writeNode (@NonNull final XdmNode aNode)
+  private void _writeNode (@NonNull final IXdmNode aNode)
   {
     if (aNode.getKind () == ENodeKind.ATTRIBUTE)
     {
@@ -290,7 +290,7 @@ final class AdaptiveWriter
               }
             }
             else
-              if (aItem instanceof final XdmNode aNode)
+              if (aItem instanceof final IXdmNode aNode)
                 _writeNode (aNode);
               else
                 if (aItem instanceof final XdmAtomic aAtomic)

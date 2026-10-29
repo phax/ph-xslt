@@ -8,7 +8,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Copyright header is "Philip Helger" only. Tim Riep appears in `NOTICE` and `README.md` only.
 - Never read Saxon sources (MPL); work from the W3C specs and the Go code.
 - Traversals over input-controlled structure are iterative or depth-limited, never unbounded recursion.
-- Nodes are `XdmNode` (own model, built from JDK SAX). Do not switch to DOM or IMicroDom as the model.
+- Nodes are `IXdmNode` (own model, built from JDK SAX; one implementation class per node kind below the sealed
+  `AbstractXdmNode`). Do not switch to DOM or IMicroDom as the model.
 - QT3: `mvn test -pl xpath-conformance -am` (`-Dqt3.only=<set>` for one test set). Every failing case must be named in
   `xpath-conformance/docs/accepted-failures/qt3.md` with a reason, or `QT3Test` fails. Compare fail lists
   (`xpath-conformance/target/qt3-fails.txt`) by name, never by count, and run JDK 21 and 25.

@@ -36,7 +36,7 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.Avt;
@@ -196,7 +196,7 @@ public final class ControlInstructions
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
     final boolean bDefaultSelect = !aEl.hasAttr ("select");
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-      if (bDefaultSelect && aRtCtx.getContextItem () != null && !(aRtCtx.getContextItem () instanceof XdmNode))
+      if (bDefaultSelect && aRtCtx.getContextItem () != null && !(aRtCtx.getContextItem () instanceof IXdmNode))
         throw new XPathException ("XTTE0510", "xsl:apply-templates without select needs a node as context item");
       XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
@@ -364,7 +364,7 @@ public final class ControlInstructions
         continue;
       }
       bLastAtomic = false;
-      if (aItem instanceof final XdmNode aNode)
+      if (aItem instanceof final IXdmNode aNode)
       {
         if (aNode.isAttribute ())
           aSB.append (aNode.getName ().getLexicalName ()).append ("=\"").append (aNode.getValue ()).append ('"');
@@ -438,13 +438,13 @@ public final class ControlInstructions
 
   private static boolean _isPopulated (@NonNull final IXdmItem aItem)
   {
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
     {
       if (aNode.isElement () || aNode.isDocument ())
       {
         for (int i = 0; i < aNode.getChildCount (); ++i)
         {
-          final XdmNode aChild = aNode.getChildAtIndex (i);
+          final IXdmNode aChild = aNode.getChildAtIndex (i);
           if (aChild.isElement () || !aChild.getValue ().isEmpty ())
             return true;
         }

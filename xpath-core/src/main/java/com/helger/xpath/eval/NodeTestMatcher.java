@@ -25,8 +25,8 @@ import com.helger.xpath.ast.ENodeTestKind;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.xdm.ENodeKind;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.schema.EXdmSimpleVariety;
@@ -40,7 +40,7 @@ import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
  * {@link XdmSchemaType}, which answers the derivation questions; only
  * built-in type names can occur in a kind test, as there are no in-scope
  * schema types. Otherwise, unless a node carries an explicit annotation with a
- * built-in type (see {@link XdmNode#getTypeAnnotation()}), every element is
+ * built-in type (see {@link IXdmNode#getTypeAnnotation()}), every element is
  * annotated <code>xs:untyped</code>, every attribute
  * <code>xs:untypedAtomic</code>, and nothing is nilled.
  *
@@ -117,7 +117,7 @@ public final class NodeTestMatcher
     }
   }
 
-  private static boolean _isAnnotationOf (@NonNull final XdmNode aNode,
+  private static boolean _isAnnotationOf (@NonNull final IXdmNode aNode,
                                           @NonNull final XdmQName aTypeName,
                                           final boolean bElement)
   {
@@ -164,7 +164,7 @@ public final class NodeTestMatcher
    * @return <code>true</code> if the type annotation of the node is or derives
    *         from the type definition (of a schema declaration).
    */
-  private static boolean _isAnnotationDerivedFrom (@NonNull final XdmNode aNode,
+  private static boolean _isAnnotationDerivedFrom (@NonNull final IXdmNode aNode,
                                                    @NonNull final IXdmTypeDefinition aType,
                                                    final boolean bElement)
   {
@@ -186,7 +186,7 @@ public final class NodeTestMatcher
    * declaration of that name, and a nilled element needs a nillable
    * declaration.
    */
-  private static boolean _matchesSchemaElement (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
+  private static boolean _matchesSchemaElement (@NonNull final NodeTest aTest, @NonNull final IXdmNode aNode)
   {
     final IXdmElementDeclaration aHead = aTest.elementDeclaration ();
     if (aHead == null || !aNode.isElement ())
@@ -199,7 +199,7 @@ public final class NodeTestMatcher
     return _isAnnotationDerivedFrom (aNode, aDecl.getTypeDefinition (), true);
   }
 
-  private static boolean _matchesSchemaAttribute (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
+  private static boolean _matchesSchemaAttribute (@NonNull final NodeTest aTest, @NonNull final IXdmNode aNode)
   {
     final IXdmAttributeDeclaration aDecl = aTest.attributeDeclaration ();
     if (aDecl == null || !aNode.isAttribute () || !aDecl.getName ().equals (aNode.getName ()))
@@ -207,7 +207,7 @@ public final class NodeTestMatcher
     return _isAnnotationDerivedFrom (aNode, aDecl.getTypeDefinition (), false);
   }
 
-  private static boolean _matchesKindName (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
+  private static boolean _matchesKindName (@NonNull final NodeTest aTest, @NonNull final IXdmNode aNode)
   {
     if (aTest.anyName () || aTest.name () == null)
       return true;
@@ -230,13 +230,13 @@ public final class NodeTestMatcher
     return aTestName.equals (aNodeName);
   }
 
-  private static boolean _matchesDocumentInner (@NonNull final NodeTest aInner, @NonNull final XdmNode aDoc)
+  private static boolean _matchesDocumentInner (@NonNull final NodeTest aInner, @NonNull final IXdmNode aDoc)
   {
-    XdmNode aElement = null;
+    IXdmNode aElement = null;
     final int nCount = aDoc.getChildCount ();
     for (int i = 0; i < nCount; ++i)
     {
-      final XdmNode aChild = aDoc.getChildAtIndex (i);
+      final IXdmNode aChild = aDoc.getChildAtIndex (i);
       switch (aChild.getKind ())
       {
         case ELEMENT:
@@ -270,7 +270,7 @@ public final class NodeTestMatcher
    * @return <code>true</code> if the node passes the test.
    */
   public static boolean matches (@NonNull final NodeTest aTest,
-                                 @NonNull final XdmNode aNode,
+                                 @NonNull final IXdmNode aNode,
                                  @NonNull final ENodeKind ePrincipalKind)
   {
     if (aTest.kind () == ENodeTestKind.NAME)
@@ -291,7 +291,7 @@ public final class NodeTestMatcher
    *        The candidate node.
    * @return <code>true</code> if the node passes the test.
    */
-  public static boolean matchesKindTest (@NonNull final NodeTest aTest, @NonNull final XdmNode aNode)
+  public static boolean matchesKindTest (@NonNull final NodeTest aTest, @NonNull final IXdmNode aNode)
   {
     final ENodeKind eKind = aNode.getKind ();
     switch (aTest.kind ())

@@ -29,7 +29,7 @@ import com.helger.xpath.XPathCompiler;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.ops.XsdLexical;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * The compile-time half of identity constraints (go-xslt
@@ -64,7 +64,7 @@ final class XsdIdentityCompiler
   }
 
   /** go-xslt <code>validIdentityNameTest</code>: <code>*</code>, an NCName or a QName with a bound prefix. */
-  private static boolean _validNameTest (@NonNull final String s, @NonNull final XdmNode aNode)
+  private static boolean _validNameTest (@NonNull final String s, @NonNull final IXdmNode aNode)
   {
     if ("*".equals (s))
       return true;
@@ -92,7 +92,7 @@ final class XsdIdentityCompiler
   private static boolean _validStep (@NonNull final String s,
                                      final boolean bField,
                                      final boolean bLast,
-                                     @NonNull final XdmNode aNode)
+                                     @NonNull final IXdmNode aNode)
   {
     if (s.isEmpty ())
       return false;
@@ -119,7 +119,7 @@ final class XsdIdentityCompiler
   }
 
   /** go-xslt <code>validIdentityPath</code>. */
-  private static boolean _validPath (@NonNull final String sPath, final boolean bField, @NonNull final XdmNode aNode)
+  private static boolean _validPath (@NonNull final String sPath, final boolean bField, @NonNull final IXdmNode aNode)
   {
     if (sPath.isEmpty ())
       return false;
@@ -169,7 +169,7 @@ final class XsdIdentityCompiler
    * go-xslt <code>validateIdentityXPath</code>: a selector or field against
    * the restricted XPath subset of identity constraints.
    */
-  static void validateIdentityXPath (@NonNull final String sExpr, final boolean bField, @NonNull final XdmNode aNode)
+  static void validateIdentityXPath (@NonNull final String sExpr, final boolean bField, @NonNull final IXdmNode aNode)
   {
     // A QName admits no internal whitespace: a single ':' adjacent to
     // whitespace splits a QName across tokens
@@ -197,11 +197,11 @@ final class XsdIdentityCompiler
    * attribute on the element or an ancestor up to xs:schema).
    */
   @NonNull
-  String resolveXPathDefaultNamespace (@NonNull final XdmNode aNode)
+  String resolveXPathDefaultNamespace (@NonNull final IXdmNode aNode)
   {
     String sRaw = null;
-    XdmNode aCarrier = null;
-    for (XdmNode n = aNode; n != null && n.isElement (); n = n.getParent ())
+    IXdmNode aCarrier = null;
+    for (IXdmNode n = aNode; n != null && n.isElement (); n = n.getParent ())
     {
       final String v = XsdNodes.attr (n, "xpathDefaultNamespace");
       if (v != null)
@@ -236,10 +236,10 @@ final class XsdIdentityCompiler
    * xs:unique children of an element declaration.
    */
   @NonNull
-  ICommonsList <XsdIdentityConstraint> parseIdentityConstraints (@NonNull final XdmNode aNode)
+  ICommonsList <XsdIdentityConstraint> parseIdentityConstraints (@NonNull final IXdmNode aNode)
   {
     final ICommonsList <XsdIdentityConstraint> ret = new CommonsArrayList <> ();
-    for (final XdmNode aChild : XsdNodes.children (aNode))
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -257,7 +257,7 @@ final class XsdIdentityCompiler
           throw XsdCompiler.invalid ("src-identity-constraint", "@name and @ref are mutually exclusive on xs:" + sKind);
         if (XsdNodes.hasAttr (aChild, "refer"))
           throw XsdCompiler.invalid ("src-identity-constraint", "@refer is not allowed together with @ref");
-        for (final XdmNode aSub : XsdNodes.children (aChild))
+        for (final IXdmNode aSub : XsdNodes.children (aChild))
           if (aSub.isElement () && !XsdNodes.isXS (aSub, "annotation"))
             throw XsdCompiler.invalid ("src-identity-constraint", "an xs:" + sKind + " with @ref admits only an annotation child");
         final XsdIdentityConstraint aIC = new XsdIdentityConstraint (sKind);
@@ -285,7 +285,7 @@ final class XsdIdentityCompiler
                                        "keyref @refer " + aIC.m_aRefer + " is in a namespace this schema does not import");
         }
       }
-      final XdmNode aSel = XsdNodes.firstXSChild (aChild, "selector");
+      final IXdmNode aSel = XsdNodes.firstXSChild (aChild, "selector");
       if (aSel == null)
         throw XsdCompiler.invalid ("", "identity constraint without a selector");
       final String sSelector = XsdNodes.attrOrEmpty (aSel, "xpath");
@@ -293,7 +293,7 @@ final class XsdIdentityCompiler
       aIC.m_sSelNS = resolveXPathDefaultNamespace (aSel);
       aIC.m_aSelector = _compile (sSelector, XsdNodes.inScopeNamespaces (aSel), aIC.m_sSelNS);
       aIC.m_sSelectorSrc = sSelector;
-      for (final XdmNode aField : XsdNodes.children (aChild))
+      for (final IXdmNode aField : XsdNodes.children (aChild))
       {
         if (!XsdNodes.isXS (aField, "field"))
           continue;

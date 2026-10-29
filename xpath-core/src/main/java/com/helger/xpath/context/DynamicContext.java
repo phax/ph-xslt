@@ -36,7 +36,7 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -318,7 +318,7 @@ public final class DynamicContext
     final IResourceResolver ret = m_aRun.m_aResolver;
     return ret != null ? ret : new IResourceResolver ()
     {
-      public XdmNode resolveDocument (final String sAbsoluteUri)
+      public IXdmNode resolveDocument (final String sAbsoluteUri)
       {
         return null;
       }

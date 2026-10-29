@@ -26,8 +26,8 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.fn.FnAccessor;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.compile.Avt;
 import com.helger.xslt.compile.CompileContext;
@@ -99,7 +99,7 @@ public final class NodeInstructions
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
     final boolean bDoe = XsltNames.isXsltTrue (aEl.getAttr ("disable-output-escaping"));
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-      final XdmNode aText = XdmNode.createText (_evaluateValue (aRtCtx, aSelect, aBody, aSep, false));
+      final IXdmNode aText = IXdmNode.createText (_evaluateValue (aRtCtx, aSelect, aBody, aSep, false));
       if (bDoe)
         aText.setDisableOutputEscaping (true);
       aRtOut.appendNew (aText);
@@ -120,7 +120,7 @@ public final class NodeInstructions
       final Avt aAvt = aCtx.compileTextValueTemplate (aEl, sText);
       if (!aAvt.isConstant ())
         return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-          final XdmNode aText = XdmNode.createText (aAvt.evaluate (aRtCtx));
+          final IXdmNode aText = IXdmNode.createText (aAvt.evaluate (aRtCtx));
           if (bDoe)
             aText.setDisableOutputEscaping (true);
           aRtOut.appendNew (aText);
@@ -206,7 +206,7 @@ public final class NodeInstructions
     final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.ELEMENT);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmQName aQName = _computeName (aRtCtx, aEl, aName, aNamespace, true);
-      final XdmNode aElement = XdmNode.createElement (aQName);
+      final IXdmNode aElement = IXdmNode.createElement (aQName);
       final ContentOutput aContent = new ContentOutput (aElement);
       if (aSets.isNotEmpty ())
         aRtCtx.getEngine ().applyAttributeSets (aSets, aRtCtx, aContent);
@@ -231,7 +231,7 @@ public final class NodeInstructions
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmQName aQName = _computeName (aRtCtx, aEl, aName, aNamespace, false);
       final String sValue = _evaluateValue (aRtCtx, aSelect, aBody, aSep, false);
-      final XdmNode aAttr = XdmNode.createAttribute (aQName, sValue);
+      final IXdmNode aAttr = IXdmNode.createAttribute (aQName, sValue);
       if (aValidation != null && !aValidation.isStrip ())
         aValidation.apply (aAttr);
       aRtOut.appendNew (aAttr);
@@ -249,7 +249,7 @@ public final class NodeInstructions
         s = s.replace ("--", "- -");
       if (s.endsWith ("-"))
         s = s + " ";
-      aRtOut.appendNew (XdmNode.createComment (s));
+      aRtOut.appendNew (IXdmNode.createComment (s));
     });
   }
 
@@ -270,7 +270,7 @@ public final class NodeInstructions
       s = s.substring (nStart);
       while (s.contains ("?>"))
         s = s.replace ("?>", "? >");
-      aRtOut.appendNew (XdmNode.createProcessingInstruction (sName, s));
+      aRtOut.appendNew (IXdmNode.createProcessingInstruction (sName, s));
     });
   }
 
@@ -291,7 +291,7 @@ public final class NodeInstructions
         throw new XPathException ("XTDE0905", "The namespace '" + sUri + "' is reserved");
       if ("xml".equals (sPrefix) != XdmConstants.NS_XML.equals (sUri))
         throw new XPathException ("XTDE0925", "The xml prefix and the XML namespace must be used together");
-      aRtOut.appendNew (XdmNode.createNamespace (sPrefix, sUri));
+      aRtOut.appendNew (IXdmNode.createNamespace (sPrefix, sUri));
     });
   }
 
@@ -302,7 +302,7 @@ public final class NodeInstructions
     final String sBase = aEl.getStaticBaseUri ();
     final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.DOCUMENT);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-      final XdmNode aDoc = XdmNode.createDocument ();
+      final IXdmNode aDoc = IXdmNode.createDocument ();
       if (sBase != null)
         aDoc.setBaseUri (sBase);
       aBody.execute (aRtCtx, new ContentOutput (aDoc));
@@ -340,7 +340,7 @@ public final class NodeInstructions
         if (aItem == null)
           throw new XPathException ("XTTE0945", "xsl:copy is used while the context item is absent");
       }
-      if (!(aItem instanceof final XdmNode aNode))
+      if (!(aItem instanceof final IXdmNode aNode))
       {
         aRtOut.append (aItem);
         return;
@@ -354,7 +354,7 @@ public final class NodeInstructions
             aBody.execute (aCtx2, aDocOut);
           else
           {
-            final XdmNode aDoc = XdmNode.createDocument ();
+            final IXdmNode aDoc = IXdmNode.createDocument ();
             NodeCopier.copyUnparsedEntities (aNode, aDoc);
             // The copy keeps the base URI of the original (base-uri-053)
             final String sDocBase = FnAccessor.getBaseUri (aNode);
@@ -369,7 +369,7 @@ public final class NodeInstructions
         }
         case ELEMENT:
         {
-          final XdmNode aCopy = NodeCopier.copyShallow (aNode);
+          final IXdmNode aCopy = NodeCopier.copyShallow (aNode);
           aCopy.setBaseUri (FnAccessor.getBaseUri (aNode));
           if (bCopyNamespaces)
             NodeCopier.copyNamespaces (aNode, aCopy, true);
@@ -386,7 +386,7 @@ public final class NodeInstructions
         }
         default:
         {
-          final XdmNode aCopy = NodeCopier.copyShallow (aNode);
+          final IXdmNode aCopy = NodeCopier.copyShallow (aNode);
           if (aValidation != null && !aValidation.isStrip ())
           {
             if (aValidation.isPreserve ())
@@ -414,11 +414,11 @@ public final class NodeInstructions
     final boolean bKeepAnnotations = aValidation != null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
-        if (aItem instanceof final XdmNode aNode)
+        if (aItem instanceof final IXdmNode aNode)
         {
           if (bKeepAnnotations && aValidation.isPreserve ())
             ValidationRequest.checkPreserveCopy (aNode, bCopyNamespaces);
-          final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces, bKeepAnnotations);
+          final IXdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces, bKeepAnnotations);
           if (aCopy.isElement () && aCopy.getBaseUri () == null)
             aCopy.setBaseUri (sStaticBase);
           if (bKeepAnnotations)

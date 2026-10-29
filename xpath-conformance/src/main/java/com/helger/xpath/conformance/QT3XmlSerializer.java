@@ -28,7 +28,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -40,7 +40,7 @@ import com.helger.xpath.xdm.XdmQName;
 @Immutable
 public final class QT3XmlSerializer
 {
-  private record Frame (@NonNull XdmNode node, boolean closing)
+  private record Frame (@NonNull IXdmNode node, boolean closing)
   {}
 
   @PresentForCodeCoverage
@@ -83,7 +83,7 @@ public final class QT3XmlSerializer
     return aName == null ? "" : aName.getLexicalName ();
   }
 
-  private static void _startTag (@NonNull final StringBuilder aSB, @NonNull final XdmNode aElement)
+  private static void _startTag (@NonNull final StringBuilder aSB, @NonNull final IXdmNode aElement)
   {
     aSB.append ('<').append (_name (aElement.getName ()));
     for (final Map.Entry <String, String> aEntry : aElement.getDeclaredNamespaces ().entrySet ())
@@ -92,7 +92,7 @@ public final class QT3XmlSerializer
       _escape (aSB, aEntry.getValue (), true);
       aSB.append ('"');
     }
-    for (final XdmNode aAttr : aElement.getAllAttributes ())
+    for (final IXdmNode aAttr : aElement.getAllAttributes ())
     {
       aSB.append (' ').append (_name (aAttr.getName ())).append ("=\"");
       _escape (aSB, aAttr.getValue (), true);
@@ -107,7 +107,7 @@ public final class QT3XmlSerializer
    * @return Its XML form; attributes as <code>name="value"</code>.
    */
   @NonNull
-  public static String serialize (@NonNull final XdmNode aNode)
+  public static String serialize (@NonNull final IXdmNode aNode)
   {
     final StringBuilder aSB = new StringBuilder ();
     final Deque <Frame> aStack = new ArrayDeque <> ();
@@ -115,7 +115,7 @@ public final class QT3XmlSerializer
     while (!aStack.isEmpty ())
     {
       final Frame aFrame = aStack.pop ();
-      final XdmNode aCur = aFrame.node ();
+      final IXdmNode aCur = aFrame.node ();
       if (aFrame.closing ())
       {
         aSB.append ("</").append (_name (aCur.getName ())).append ('>');
@@ -172,7 +172,7 @@ public final class QT3XmlSerializer
   @NonNull
   public static String describe (@NonNull final IXdmItem aItem)
   {
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
       return serialize (aNode);
     if (aItem instanceof final XdmAtomic aAtomic)
       return aAtomic.getType ().getQualifiedName () + "(" + aAtomic.getValue () + ")";

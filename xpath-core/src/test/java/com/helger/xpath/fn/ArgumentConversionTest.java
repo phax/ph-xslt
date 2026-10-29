@@ -31,7 +31,7 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for the function conversion rules (XPath 3.1 section 3.1.5.2) applied to the arguments of every
@@ -46,7 +46,7 @@ public final class ArgumentConversionTest
 
   private static void _run (final boolean bCompat, final String [] [] aCases)
   {
-    final XdmNode aDoc = FnNodeTestHelper.parse (SRC);
+    final IXdmNode aDoc = FnNodeTestHelper.parse (SRC);
     final ICommonsList <String> aFailures = new CommonsArrayList <> ();
     for (final String [] aCase : aCases)
     {

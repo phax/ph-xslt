@@ -39,8 +39,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.Avt;
@@ -82,7 +82,7 @@ public final class NumberInstruction extends AbstractInstruction
    */
   private record NumberPattern (@NonNull XsltPattern pattern, @NonNull StaticContext staticContext)
   {
-    boolean matches (@NonNull final XdmNode aNode, @NonNull final XsltContext aCtx)
+    boolean matches (@NonNull final IXdmNode aNode, @NonNull final XsltContext aCtx)
     {
       return pattern.matches (aNode, aCtx.getDynamicContext ().withStaticContext (staticContext));
     }
@@ -136,7 +136,7 @@ public final class NumberInstruction extends AbstractInstruction
    * The default count pattern: same node kind and, for named nodes, the same
    * expanded name.
    */
-  private static boolean _isSameKindAndName (@NonNull final XdmNode aNode, @NonNull final XdmNode aTarget)
+  private static boolean _isSameKindAndName (@NonNull final IXdmNode aNode, @NonNull final IXdmNode aTarget)
   {
     if (aNode.getKind () != aTarget.getKind ())
       return false;
@@ -152,14 +152,14 @@ public final class NumberInstruction extends AbstractInstruction
     }
   }
 
-  private static boolean _hasNoSiblings (@NonNull final XdmNode aNode)
+  private static boolean _hasNoSiblings (@NonNull final IXdmNode aNode)
   {
     return aNode.getParent () == null ||
            aNode.getKind () == ENodeKind.ATTRIBUTE ||
            aNode.getKind () == ENodeKind.NAMESPACE;
   }
 
-  private static int _indexInParent (@NonNull final XdmNode aParent, @NonNull final XdmNode aChild)
+  private static int _indexInParent (@NonNull final IXdmNode aParent, @NonNull final IXdmNode aChild)
   {
     final int nCount = aParent.getChildCount ();
     for (int i = 0; i < nCount; ++i)
@@ -170,14 +170,14 @@ public final class NumberInstruction extends AbstractInstruction
 
   /** The subtree of a node (without attributes) in document order. */
   @NonNull
-  private static ICommonsList <XdmNode> _subtreeInDocumentOrder (@NonNull final XdmNode aRoot)
+  private static ICommonsList <IXdmNode> _subtreeInDocumentOrder (@NonNull final IXdmNode aRoot)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
-    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
     aStack.add (aRoot);
     while (aStack.isNotEmpty ())
     {
-      final XdmNode aNode = aStack.removeLast ();
+      final IXdmNode aNode = aStack.removeLast ();
       ret.add (aNode);
       for (int i = aNode.getChildCount () - 1; i >= 0; --i)
         aStack.add (aNode.getChildAtIndex (i));
@@ -186,30 +186,30 @@ public final class NumberInstruction extends AbstractInstruction
   }
 
   private boolean _matchesCount (@NonNull final XsltContext aCtx,
-                                 @NonNull final XdmNode aNode,
-                                 @NonNull final XdmNode aTarget)
+                                 @NonNull final IXdmNode aNode,
+                                 @NonNull final IXdmNode aTarget)
   {
     if (m_aCount == null)
       return _isSameKindAndName (aNode, aTarget);
     return m_aCount.matches (aNode, aCtx);
   }
 
-  private boolean _matchesFrom (@NonNull final XsltContext aCtx, @NonNull final XdmNode aNode)
+  private boolean _matchesFrom (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aNode)
   {
     return m_aFrom != null && m_aFrom.matches (aNode, aCtx);
   }
 
   /** 1 + the number of preceding siblings matching count. */
-  private long _siblingIndex (@NonNull final XsltContext aCtx, @NonNull final XdmNode aNode, @NonNull final XdmNode aTarget)
+  private long _siblingIndex (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aNode, @NonNull final IXdmNode aTarget)
   {
     if (_hasNoSiblings (aNode))
       return 1;
-    final XdmNode aParent = aNode.getParent ();
+    final IXdmNode aParent = aNode.getParent ();
     long ret = 1;
     final int nCount = aParent.getChildCount ();
     for (int i = 0; i < nCount; ++i)
     {
-      final XdmNode aSibling = aParent.getChildAtIndex (i);
+      final IXdmNode aSibling = aParent.getChildAtIndex (i);
       if (aSibling == aNode)
         break;
       if (_matchesCount (aCtx, aSibling, aTarget))
@@ -218,10 +218,10 @@ public final class NumberInstruction extends AbstractInstruction
     return ret;
   }
 
-  private long _countSingle (@NonNull final XsltContext aCtx, @NonNull final XdmNode aTarget)
+  private long _countSingle (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
   {
     // count is tested before from: a node matching both is still numbered
-    XdmNode aCur = aTarget;
+    IXdmNode aCur = aTarget;
     while (aCur != null)
     {
       if (_matchesCount (aCtx, aCur, aTarget))
@@ -234,10 +234,10 @@ public final class NumberInstruction extends AbstractInstruction
   }
 
   @NonNull
-  private ICommonsList <BigInteger> _countMultiple (@NonNull final XsltContext aCtx, @NonNull final XdmNode aTarget)
+  private ICommonsList <BigInteger> _countMultiple (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
   {
-    final ICommonsList <XdmNode> aChain = new CommonsArrayList <> ();
-    for (XdmNode aCur = aTarget; aCur != null; aCur = aCur.getParent ())
+    final ICommonsList <IXdmNode> aChain = new CommonsArrayList <> ();
+    for (IXdmNode aCur = aTarget; aCur != null; aCur = aCur.getParent ())
     {
       if (_matchesCount (aCtx, aCur, aTarget))
         aChain.add (aCur);
@@ -255,14 +255,14 @@ public final class NumberInstruction extends AbstractInstruction
    * match count, not before the last of them matching from. Walks in reverse
    * document order and stops at the from node.
    */
-  private long _countAny (@NonNull final XsltContext aCtx, @NonNull final XdmNode aTarget)
+  private long _countAny (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
   {
     long nCount = 0;
     if (_matchesCount (aCtx, aTarget, aTarget))
       nCount++;
     if (_matchesFrom (aCtx, aTarget))
       return nCount;
-    XdmNode aCur = aTarget;
+    IXdmNode aCur = aTarget;
     if (aTarget.getKind () == ENodeKind.ATTRIBUTE || aTarget.getKind () == ENodeKind.NAMESPACE)
     {
       // Other attributes of the parent are on neither axis
@@ -276,16 +276,16 @@ public final class NumberInstruction extends AbstractInstruction
     }
     while (true)
     {
-      final XdmNode aParent = aCur.getParent ();
+      final IXdmNode aParent = aCur.getParent ();
       if (aParent == null)
         break;
       final int nIndex = _indexInParent (aParent, aCur);
       for (int i = nIndex - 1; i >= 0; --i)
       {
-        final ICommonsList <XdmNode> aSubtree = _subtreeInDocumentOrder (aParent.getChildAtIndex (i));
+        final ICommonsList <IXdmNode> aSubtree = _subtreeInDocumentOrder (aParent.getChildAtIndex (i));
         for (int j = aSubtree.size () - 1; j >= 0; --j)
         {
-          final XdmNode aNode = aSubtree.get (j);
+          final IXdmNode aNode = aSubtree.get (j);
           aCtx.getDynamicContext ().checkInterrupt ();
           if (_matchesCount (aCtx, aNode, aTarget))
             nCount++;
@@ -353,19 +353,19 @@ public final class NumberInstruction extends AbstractInstruction
     if (m_aValue != null)
       return _computeValue (aCtx);
 
-    final XdmNode aTarget;
+    final IXdmNode aTarget;
     if (m_aSelect != null)
     {
       final XdmSequence aSel = m_aSelect.evaluate (aCtx);
       if (aSel.size () != 1)
         throw new XPathException ("XTTE1000", "The select attribute of xsl:number must select exactly one node, not " + aSel.size () + " items");
-      if (!(aSel.get (0) instanceof final XdmNode aNode))
+      if (!(aSel.get (0) instanceof final IXdmNode aNode))
         throw new XPathException ("XTTE1000", "The select attribute of xsl:number did not select a node");
       aTarget = aNode;
     }
     else
     {
-      if (!(aCtx.getContextItem () instanceof final XdmNode aNode))
+      if (!(aCtx.getContextItem () instanceof final IXdmNode aNode))
         throw new XPathException ("XTTE0990", "The context item of xsl:number is absent or not a node");
       aTarget = aNode;
     }
@@ -477,7 +477,7 @@ public final class NumberInstruction extends AbstractInstruction
     final String sOrdinal = m_aOrdinal != null ? m_aOrdinal.evaluate (aCtx) : "";
     final String sText = NumberFormatter.format (aNums, sFormat, sGroupSep, nGroupSize, sLang, sOrdinal);
     if (!sText.isEmpty ())
-      aOut.appendNew (XdmNode.createText (sText));
+      aOut.appendNew (IXdmNode.createText (sText));
   }
 
   @Nullable

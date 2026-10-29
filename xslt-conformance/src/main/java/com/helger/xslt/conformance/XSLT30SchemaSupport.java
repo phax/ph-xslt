@@ -30,8 +30,8 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmValidationException;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xpath.xdm.schema.XdmSchemaException;
@@ -125,7 +125,7 @@ public final class XSLT30SchemaSupport
     return CACHE.computeIfAbsent (List.copyOf (aFiles), XSLT30SchemaSupport::_compile).orElse (null);
   }
 
-  private static boolean _declares (@Nullable final IXdmSchemaSet aSet, @NonNull final XdmNode aRoot)
+  private static boolean _declares (@Nullable final IXdmSchemaSet aSet, @NonNull final IXdmNode aRoot)
   {
     return aSet != null && aSet.getElementDeclaration (aRoot.getName ()) != null;
   }
@@ -138,7 +138,7 @@ public final class XSLT30SchemaSupport
   @Nullable
   private static IXdmSchemaSet _chooseSchema (@NonNull final XsltExecutable aExecutable,
                                               @Nullable final XSLT30Environment aEnv,
-                                              @NonNull final XdmNode aRoot)
+                                              @NonNull final IXdmNode aRoot)
   {
     final IXdmSchemaSet aOwn = aExecutable.getSchemaSet ();
     if (_declares (aOwn, aRoot))
@@ -200,13 +200,13 @@ public final class XSLT30SchemaSupport
    * @throws XPathException
    *         XTTE1510, XTTE1512, XTTE1515 if the source is not valid
    */
-  public static void validateSource (@NonNull final XdmNode aDoc,
+  public static void validateSource (@NonNull final IXdmNode aDoc,
                                      @NonNull final String sMode,
                                      @NonNull final XsltExecutable aExecutable,
                                      @Nullable final XSLT30Environment aEnv)
   {
-    XdmNode aRoot = null;
-    for (final XdmNode aChild : aDoc.getAllChildren ())
+    IXdmNode aRoot = null;
+    for (final IXdmNode aChild : aDoc.getAllChildren ())
       if (aChild.isElement ())
         aRoot = aChild;
     if (aRoot == null)

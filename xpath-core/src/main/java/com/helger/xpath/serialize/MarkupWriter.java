@@ -37,8 +37,8 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.xdm.ENodeKind;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -185,7 +185,7 @@ final class MarkupWriter
 
   private static final class Frame
   {
-    private final XdmNode m_aElement;
+    private final IXdmNode m_aElement;
     private final int m_nDepth;
     private final String m_sQName;
     private final int m_nUndoMark;
@@ -194,7 +194,7 @@ final class MarkupWriter
     private final boolean m_bMayIndentChildren;
     private int m_nNext = 0;
 
-    Frame (@NonNull final XdmNode aElement,
+    Frame (@NonNull final IXdmNode aElement,
            final int nDepth,
            @NonNull final String sQName,
            final int nUndoMark,
@@ -391,7 +391,7 @@ final class MarkupWriter
     return aSB.toString ();
   }
 
-  private boolean _isHtmlElement (@Nullable final XdmNode aNode)
+  private boolean _isHtmlElement (@Nullable final IXdmNode aNode)
   {
     if (aNode == null || aNode.getKind () != ENodeKind.ELEMENT)
       return false;
@@ -403,7 +403,7 @@ final class MarkupWriter
     return false;
   }
 
-  private boolean _isInline (@Nullable final XdmNode aNode)
+  private boolean _isInline (@Nullable final IXdmNode aNode)
   {
     return _isHtmlElement (aNode) && INLINE_ELEMENTS.contains (aNode.getName ().localName ().toLowerCase (Locale.ROOT));
   }
@@ -419,21 +419,21 @@ final class MarkupWriter
     return true;
   }
 
-  private boolean _mayIndentIn (@NonNull final XdmNode aElement)
+  private boolean _mayIndentIn (@NonNull final IXdmNode aElement)
   {
     if (_isHtmlElement (aElement) &&
         FORMATTED_ELEMENTS.contains (aElement.getName ().localName ().toLowerCase (Locale.ROOT)))
       return false;
     for (int i = 0; i < aElement.getChildCount (); ++i)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (aChild.getKind () == ENodeKind.TEXT && !_isWhitespace (aChild.getValue ()))
         return false;
     }
     return true;
   }
 
-  private static boolean _hasElementChildren (@NonNull final XdmNode aElement)
+  private static boolean _hasElementChildren (@NonNull final IXdmNode aElement)
   {
     for (int i = 0; i < aElement.getChildCount (); ++i)
       if (aElement.getChildAtIndex (i).getKind () == ENodeKind.ELEMENT)
@@ -442,7 +442,7 @@ final class MarkupWriter
   }
 
   @Nullable
-  private static XdmNode _lastChild (@NonNull final XdmNode aElement)
+  private static IXdmNode _lastChild (@NonNull final IXdmNode aElement)
   {
     final int n = aElement.getChildCount ();
     return n == 0 ? null : aElement.getChildAtIndex (n - 1);
@@ -514,11 +514,11 @@ final class MarkupWriter
     return sPrefix;
   }
 
-  private static boolean _isContentTypeMeta (@NonNull final XdmNode aNode)
+  private static boolean _isContentTypeMeta (@NonNull final IXdmNode aNode)
   {
     if (aNode.getKind () != ENodeKind.ELEMENT || !"meta".equalsIgnoreCase (aNode.getName ().localName ()))
       return false;
-    for (final XdmNode aAttr : aNode.getAllAttributes ())
+    for (final IXdmNode aAttr : aNode.getAllAttributes ())
       if (!aAttr.getName ().hasNamespace () &&
           "http-equiv".equalsIgnoreCase (aAttr.getName ().localName ()) &&
           "content-type".equalsIgnoreCase (aAttr.getValue ().trim ()))
@@ -533,7 +533,7 @@ final class MarkupWriter
     return sMediaType + "; charset=" + m_aParams.getEncoding ();
   }
 
-  private boolean _isHead (@Nullable final XdmNode aNode)
+  private boolean _isHead (@Nullable final IXdmNode aNode)
   {
     return aNode != null &&
            aNode.getKind () == ENodeKind.ELEMENT &&
@@ -547,7 +547,7 @@ final class MarkupWriter
    * @return The qualified name used.
    */
   @NonNull
-  private String _writeStartTag (@NonNull final XdmNode aElement, final boolean bTop)
+  private String _writeStartTag (@NonNull final IXdmNode aElement, final boolean bTop)
   {
     final XdmQName aName = aElement.getName ();
     final boolean bNormalisePrefixes = m_bHtml5 && (m_bHtml || m_bXhtml);
@@ -611,7 +611,7 @@ final class MarkupWriter
                                     _isContentTypeMeta (aElement);
     final StringBuilder aAttrs = new StringBuilder ();
     final String sLocalLC = aName.localName ().toLowerCase (Locale.ROOT);
-    for (final XdmNode aAttr : aElement.getAllAttributes ())
+    for (final IXdmNode aAttr : aElement.getAllAttributes ())
     {
       final XdmQName aAttrName = aAttr.getName ();
       if (bFixContentType && !aAttrName.hasNamespace () && "content".equalsIgnoreCase (aAttrName.localName ()))
@@ -662,11 +662,11 @@ final class MarkupWriter
     return aSB.toString ();
   }
 
-  private boolean _headNeedsMeta (@NonNull final XdmNode aElement)
+  private boolean _headNeedsMeta (@NonNull final IXdmNode aElement)
   {
     if ((m_bHtml || m_bXhtml) && m_aParams.isIncludeContentType () && _isHead (aElement))
     {
-      for (final XdmNode aChild : aElement.getAllChildren ())
+      for (final IXdmNode aChild : aElement.getAllChildren ())
         if (_isContentTypeMeta (aChild))
           return false;
       return true;
@@ -704,7 +704,7 @@ final class MarkupWriter
       m_aSB.append ("<![CDATA[").append (aRun.toString ().replace ("]]>", "]]]]><![CDATA[>")).append ("]]>");
   }
 
-  private void _writeText (@NonNull final String sText, @Nullable final XdmNode aParent)
+  private void _writeText (@NonNull final String sText, @Nullable final IXdmNode aParent)
   {
     if (sText.isEmpty ())
       return;
@@ -725,7 +725,7 @@ final class MarkupWriter
     m_aCharset.mapAndEscape (m_aSB, sText, this::_escapeText);
   }
 
-  private void _writeLeaf (@NonNull final XdmNode aNode, @Nullable final XdmNode aParent)
+  private void _writeLeaf (@NonNull final IXdmNode aNode, @Nullable final IXdmNode aParent)
   {
     switch (aNode.getKind ())
     {
@@ -749,7 +749,7 @@ final class MarkupWriter
     }
   }
 
-  private boolean _isSuppressed (@NonNull final XdmNode aElement)
+  private boolean _isSuppressed (@NonNull final IXdmNode aElement)
   {
     return m_aParams.isSuppressIndentation (_plainName (aElement.getName ()));
   }
@@ -759,9 +759,9 @@ final class MarkupWriter
    * or return a frame for its children.
    */
   @Nullable
-  private Frame _openElement (@NonNull final XdmNode aElement,
+  private Frame _openElement (@NonNull final IXdmNode aElement,
                               final int nDepth,
-                              @Nullable final XdmNode aPrev,
+                              @Nullable final IXdmNode aPrev,
                               final boolean bParentMayIndent,
                               final boolean bTop)
   {
@@ -827,7 +827,7 @@ final class MarkupWriter
       m_bSuppress = false;
   }
 
-  private void _writeElement (@NonNull final XdmNode aRoot, @Nullable final XdmNode aPrev)
+  private void _writeElement (@NonNull final IXdmNode aRoot, @Nullable final IXdmNode aPrev)
   {
     final ArrayDeque <Frame> aStack = new ArrayDeque <> ();
     final Frame aRootFrame = _openElement (aRoot, 0, aPrev, true, true);
@@ -836,7 +836,7 @@ final class MarkupWriter
     while (!aStack.isEmpty ())
     {
       final Frame aFrame = aStack.peek ();
-      final XdmNode aElement = aFrame.m_aElement;
+      final IXdmNode aElement = aFrame.m_aElement;
       if (aFrame.m_nNext >= aElement.getChildCount ())
       {
         aStack.pop ();
@@ -844,7 +844,7 @@ final class MarkupWriter
         continue;
       }
       final int nIndex = aFrame.m_nNext++;
-      final XdmNode aChild = aElement.getChildAtIndex (nIndex);
+      final IXdmNode aChild = aElement.getChildAtIndex (nIndex);
       if (aChild.getKind () == ENodeKind.ELEMENT)
       {
         final Frame aChildFrame = _openElement (aChild,
@@ -866,7 +866,7 @@ final class MarkupWriter
     return s.indexOf ('"') >= 0 ? "'" + s + "'" : "\"" + s + "\"";
   }
 
-  private void _writeDoctype (@NonNull final XdmNode aFirstElement)
+  private void _writeDoctype (@NonNull final IXdmNode aFirstElement)
   {
     final String sSystem = m_aParams.getDoctypeSystem ();
     final String sPublic = m_aParams.getDoctypePublic ();
@@ -931,7 +931,7 @@ final class MarkupWriter
         _writeText (sText, null);
       else
       {
-        final XdmNode aNode = (XdmNode) aItem;
+        final IXdmNode aNode = (IXdmNode) aItem;
         if (aNode.getKind () == ENodeKind.ELEMENT)
         {
           if (!bDoctypeDone)
@@ -939,7 +939,7 @@ final class MarkupWriter
             _writeDoctype (aNode);
             bDoctypeDone = true;
           }
-          _writeElement (aNode, aPrev instanceof final XdmNode aPrevNode ? aPrevNode : null);
+          _writeElement (aNode, aPrev instanceof final IXdmNode aPrevNode ? aPrevNode : null);
         }
         else
           _writeLeaf (aNode, null);

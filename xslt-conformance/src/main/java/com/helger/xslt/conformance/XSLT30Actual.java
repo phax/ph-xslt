@@ -27,7 +27,7 @@ import com.helger.xpath.serialize.SerializationParams;
 import com.helger.xpath.serialize.XdmSerializer;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xslt.XsltTransformResult;
 
 /**
@@ -156,7 +156,7 @@ public record XSLT30Actual (@NonNull String output,
     if (aSeq.isEmpty ())
       return false;
     for (final IXdmItem aItem : aSeq)
-      if (!(aItem instanceof XdmNode))
+      if (!(aItem instanceof IXdmNode))
         return false;
     return true;
   }

@@ -41,7 +41,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
@@ -229,7 +229,7 @@ public final class SequenceTypeMatcher
   {
     if (aItem instanceof final XdmAtomic aAtomic)
       return "a value of type " + aAtomic.getType ().getQualifiedName ();
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
       return "a " + aNode.getKind ().name ().toLowerCase (Locale.ROOT) + " node";
     if (aItem instanceof XdmMap)
       return "a map";
@@ -347,7 +347,7 @@ public final class SequenceTypeMatcher
         return eType == EAtomicType.ANY_ATOMIC_TYPE || aAtomic.getType ().isDerivedFrom (eType);
       }
       case NODE:
-        return aItem instanceof final XdmNode aNode && NodeTestMatcher.matchesKindTest (aType.nodeTest (), aNode);
+        return aItem instanceof final IXdmNode aNode && NodeTestMatcher.matchesKindTest (aType.nodeTest (), aNode);
       case FUNCTION:
         return _matchesFunctionTest (aType, aItem);
       case MAP:

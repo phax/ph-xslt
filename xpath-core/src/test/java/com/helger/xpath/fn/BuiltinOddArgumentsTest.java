@@ -36,7 +36,7 @@ import com.helger.xpath.eval.BuiltInFunctionItem;
 import com.helger.xpath.eval.XPathEvaluator;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * No built-in function may fail with anything but an {@link XPathException} on an argument of any shape, whether the
@@ -77,7 +77,7 @@ public final class BuiltinOddArgumentsTest
                                                                "json-doc",
                                                                "transform",
                                                                "trace");
-    final XdmNode aDoc = FnNodeTestHelper.parse ("<r a='1'><c>x</c><!--k--></r>");
+    final IXdmNode aDoc = FnNodeTestHelper.parse ("<r a='1'><c>x</c><!--k--></r>");
     final ICommonsList <String> aProblems = new CommonsArrayList <> ();
     int nCalls = 0;
     for (final boolean bCompat : new boolean [] { false, true })

@@ -47,7 +47,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -361,14 +361,14 @@ public final class XsltTransformHandler implements ITransformHandler
   }
 
   @NonNull
-  private static XdmNode _parse (@NonNull final String sText, @Nullable final String sBaseUri, final boolean bExternal)
+  private static IXdmNode _parse (@NonNull final String sText, @Nullable final String sBaseUri, final boolean bExternal)
   {
     try
     {
       final InputSource aSource = new InputSource (new StringReader (sText));
       if (sBaseUri != null)
         aSource.setSystemId (sBaseUri);
-      final XdmNode ret = new XdmParser ().setLoadExternalEntities (bExternal).parse (aSource);
+      final IXdmNode ret = new XdmParser ().setLoadExternalEntities (bExternal).parse (aSource);
       if (sBaseUri != null && ret.getDocumentUri () == null)
         ret.setDocumentUri (sBaseUri);
       return ret;
@@ -383,12 +383,12 @@ public final class XsltTransformHandler implements ITransformHandler
    * Retrieve a stylesheet or package module by URI.
    */
   @NonNull
-  private static XdmNode _fetch (@NonNull final String sLocation, @NonNull final Host aHost)
+  private static IXdmNode _fetch (@NonNull final String sLocation, @NonNull final Host aHost)
   {
     final String sUri = _resolve (sLocation, aHost.staticBaseUri ());
     if (sUri == null)
       throw _invalid ("the location '" + sLocation + "' cannot be resolved");
-    XdmNode aDoc = aHost.compileResolver ().resolveDocument (sUri);
+    IXdmNode aDoc = aHost.compileResolver ().resolveDocument (sUri);
     if (aDoc == null)
     {
       final String sText = aHost.compileResolver ().resolveText (sUri, null);
@@ -401,7 +401,7 @@ public final class XsltTransformHandler implements ITransformHandler
 
   /** The package named by package-name and package-version. */
   @NonNull
-  private static XdmNode _findPackage (@NonNull final String sName,
+  private static IXdmNode _findPackage (@NonNull final String sName,
                                        @NonNull final String sVersionRanges,
                                        @NonNull final Host aHost)
   {
@@ -447,7 +447,7 @@ public final class XsltTransformHandler implements ITransformHandler
     {
       final String sLocation = aOpts.getString (aOpts.has ("stylesheet-location") ? "stylesheet-location"
                                                                                   : "package-location");
-      XdmNode aDoc = _fetch (sLocation, aHost);
+      IXdmNode aDoc = _fetch (sLocation, aHost);
       final String sUri = _resolve (sLocation, aHost.staticBaseUri ());
       if (sUri != null && !sUri.equals (aDoc.getDocumentUri ()))
       {
@@ -466,7 +466,7 @@ public final class XsltTransformHandler implements ITransformHandler
     }
     if (aOpts.has ("stylesheet-node") || aOpts.has ("package-node"))
     {
-      final XdmNode aNode = (XdmNode) aOpts.getItem (aOpts.has ("stylesheet-node") ? "stylesheet-node" : "package-node");
+      final IXdmNode aNode = (IXdmNode) aOpts.getItem (aOpts.has ("stylesheet-node") ? "stylesheet-node" : "package-node");
       // The node's own base URI is the default; stylesheet-base-uri is used
       // when it has none (whether it has an effect otherwise is
       // implementation-defined)
@@ -478,7 +478,7 @@ public final class XsltTransformHandler implements ITransformHandler
     if (aOpts.has ("package-name"))
     {
       final String sVersion = aOpts.has ("package-version") ? aOpts.getString ("package-version") : "*";
-      final XdmNode aPackage = _findPackage (aOpts.getString ("package-name").trim (), sVersion, aHost);
+      final IXdmNode aPackage = _findPackage (aOpts.getString ("package-name").trim (), sVersion, aHost);
       return XsltCompiler.compile (aPackage, _createCompileOptions (aOpts, aHost, FnAccessor.getBaseUri (aPackage)));
     }
     throw _invalid ("no stylesheet is supplied");
@@ -526,7 +526,7 @@ public final class XsltTransformHandler implements ITransformHandler
     IXdmItem aGlobalItem = null;
     if (aOpts.has ("source-node"))
     {
-      final XdmNode aNode = (XdmNode) aOpts.getItem ("source-node");
+      final IXdmNode aNode = (IXdmNode) aOpts.getItem ("source-node");
       ret.setInitialMatchSelection (XdmSequence.of (aNode));
       aGlobalItem = aNode.getRoot ();
     }
@@ -609,7 +609,7 @@ public final class XsltTransformHandler implements ITransformHandler
   @NonNull
   private static XdmSequence _deliver (@NonNull final String sFormat,
                                        @NonNull final XdmSequence aRaw,
-                                       @Nullable final XdmNode aTree,
+                                       @Nullable final IXdmNode aTree,
                                        @NonNull final String sSerialized,
                                        @Nullable final String sMethod,
                                        @NonNull final XsltExecutable aExec,

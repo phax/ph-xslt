@@ -39,8 +39,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformRequest;
@@ -110,8 +110,8 @@ public final class AccumulatorExtension implements IXsltExtension
   /** The values of one accumulator over one tree: before and after per node. */
   private static final class TreeValues
   {
-    private final Map <XdmNode, XdmSequence> m_aBefore = new IdentityHashMap <> ();
-    private final Map <XdmNode, XdmSequence> m_aAfter = new IdentityHashMap <> ();
+    private final Map <IXdmNode, XdmSequence> m_aBefore = new IdentityHashMap <> ();
+    private final Map <IXdmNode, XdmSequence> m_aAfter = new IdentityHashMap <> ();
     private boolean m_bDone;
   }
 
@@ -122,10 +122,10 @@ public final class AccumulatorExtension implements IXsltExtension
   /** Per-run state. */
   private static final class RunData
   {
-    private final ICommonsMap <Accumulator, Map <XdmNode, TreeValues>> m_aValues = new CommonsHashMap <> ();
-    private final Map <XdmNode, TreeRestriction> m_aRestrictions = new IdentityHashMap <> ();
+    private final ICommonsMap <Accumulator, Map <IXdmNode, TreeValues>> m_aValues = new CommonsHashMap <> ();
+    private final Map <IXdmNode, TreeRestriction> m_aRestrictions = new IdentityHashMap <> ();
     // Nodes of copies that keep the accumulator values of their original
-    private final Map <XdmNode, XdmNode> m_aOrigins = new IdentityHashMap <> ();
+    private final Map <IXdmNode, IXdmNode> m_aOrigins = new IdentityHashMap <> ();
   }
 
   private static boolean _hasContent (@NonNull final XslElement aEl)
@@ -321,11 +321,11 @@ public final class AccumulatorExtension implements IXsltExtension
    * @param bStreamed
    *        <code>true</code> if the stylesheet asked for the tree to be streamed.
    * @return The previous restriction, to be passed to
-   *         {@link #restoreTree(Engine, XdmNode, Object)}.
+   *         {@link #restoreTree(Engine, IXdmNode, Object)}.
    */
   @Nullable
   public static Object restrictTree (@NonNull final Engine aEngine,
-                                     @NonNull final XdmNode aRoot,
+                                     @NonNull final IXdmNode aRoot,
                                      @NonNull final ICommonsList <XdmQName> aNames,
                                      final boolean bStreamed)
   {
@@ -340,10 +340,10 @@ public final class AccumulatorExtension implements IXsltExtension
    *        The root of the tree.
    * @param aPrevious
    *        The return value of the matching
-   *        {@link #restrictTree(Engine, XdmNode, ICommonsList, boolean)}.
+   *        {@link #restrictTree(Engine, IXdmNode, ICommonsList, boolean)}.
    */
   public static void restoreTree (@NonNull final Engine aEngine,
-                                  @NonNull final XdmNode aRoot,
+                                  @NonNull final IXdmNode aRoot,
                                   @Nullable final Object aPrevious)
   {
     final RunData aData = _getRunData (aEngine);
@@ -372,7 +372,7 @@ public final class AccumulatorExtension implements IXsltExtension
 
   @NonNull
   private static XdmSequence _applyRule (@NonNull final Accumulator aAcc,
-                                         @NonNull final XdmNode aNode,
+                                         @NonNull final IXdmNode aNode,
                                          @NonNull final XdmSequence aValue,
                                          final boolean bEnd,
                                          @NonNull final XsltContext aBase)
@@ -402,7 +402,7 @@ public final class AccumulatorExtension implements IXsltExtension
    * attributes and namespaces are not visited.
    */
   private static void _computeTree (@NonNull final Accumulator aAcc,
-                                    @NonNull final XdmNode aRoot,
+                                    @NonNull final IXdmNode aRoot,
                                     @NonNull final TreeValues aValues,
                                     @NonNull final XsltContext aCaller)
   {
@@ -425,7 +425,7 @@ public final class AccumulatorExtension implements IXsltExtension
     while (!aStack.isEmpty ())
     {
       final Object [] aTop = aStack.peek ();
-      final XdmNode aNode = (XdmNode) aTop[0];
+      final IXdmNode aNode = (IXdmNode) aTop[0];
       if (!((Boolean) aTop[1]).booleanValue ())
       {
         aEngine.step ();
@@ -455,27 +455,27 @@ public final class AccumulatorExtension implements IXsltExtension
    * the subtree pairwise, and the ancestors of a snapshot.
    */
   private static void _recordCopy (@NonNull final Engine aEngine,
-                                   @NonNull final XdmNode aCopy,
-                                   @NonNull final XdmNode aOriginal)
+                                   @NonNull final IXdmNode aCopy,
+                                   @NonNull final IXdmNode aOriginal)
   {
-    final Map <XdmNode, XdmNode> aOrigins = _getRunData (aEngine).m_aOrigins;
-    final ArrayDeque <XdmNode []> aStack = new ArrayDeque <> ();
-    aStack.push (new XdmNode [] { aCopy, aOriginal });
+    final Map <IXdmNode, IXdmNode> aOrigins = _getRunData (aEngine).m_aOrigins;
+    final ArrayDeque <IXdmNode []> aStack = new ArrayDeque <> ();
+    aStack.push (new IXdmNode [] { aCopy, aOriginal });
     while (!aStack.isEmpty ())
     {
-      final XdmNode [] aPair = aStack.pop ();
-      final XdmNode aC = aPair[0];
-      final XdmNode aO = aPair[1];
+      final IXdmNode [] aPair = aStack.pop ();
+      final IXdmNode aC = aPair[0];
+      final IXdmNode aO = aPair[1];
       if (aC == aO || aC.getKind () != aO.getKind ())
         continue;
       aOrigins.put (aC, aO);
       if (aC.getChildCount () == aO.getChildCount ())
         for (int i = 0; i < aC.getChildCount (); ++i)
-          aStack.push (new XdmNode [] { aC.getChildAtIndex (i), aO.getChildAtIndex (i) });
+          aStack.push (new IXdmNode [] { aC.getChildAtIndex (i), aO.getChildAtIndex (i) });
     }
     // Ancestors (fn:snapshot copies them too)
-    XdmNode aC = aCopy.getParent ();
-    XdmNode aO = aOriginal.getParent ();
+    IXdmNode aC = aCopy.getParent ();
+    IXdmNode aO = aOriginal.getParent ();
     while (aC != null && aO != null && aC.getKind () == aO.getKind ())
     {
       aOrigins.put (aC, aO);
@@ -485,13 +485,13 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   @NonNull
-  private static XdmNode _originOf (@NonNull final RunData aData, @NonNull final XdmNode aNode)
+  private static IXdmNode _originOf (@NonNull final RunData aData, @NonNull final IXdmNode aNode)
   {
-    XdmNode ret = aNode;
+    IXdmNode ret = aNode;
     // Bounded: a copy of a copy of a copy ...
     for (int i = 0; i < 64; ++i)
     {
-      final XdmNode aOrigin = aData.m_aOrigins.get (ret);
+      final IXdmNode aOrigin = aData.m_aOrigins.get (ret);
       if (aOrigin == null)
         break;
       ret = aOrigin;
@@ -510,7 +510,7 @@ public final class AccumulatorExtension implements IXsltExtension
     if (aCtx == null || !_hasAccumulators (aCtx.getEngine ().getStylesheet ()) || aInput.size () != aResult.size ())
       return;
     for (int i = 0; i < aInput.size (); ++i)
-      if (aInput.get (i) instanceof final XdmNode aOriginal && aResult.get (i) instanceof final XdmNode aCopy)
+      if (aInput.get (i) instanceof final IXdmNode aOriginal && aResult.get (i) instanceof final IXdmNode aCopy)
         _recordCopy (aCtx.getEngine (), aCopy, aOriginal);
   }
 
@@ -549,11 +549,11 @@ public final class AccumulatorExtension implements IXsltExtension
     final boolean bKeepAnnotations = aValidation != null && !aValidation.isStrip ();
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
-        if (aItem instanceof final XdmNode aNode)
+        if (aItem instanceof final IXdmNode aNode)
         {
           if (bKeepAnnotations && aValidation.isPreserve ())
             ValidationRequest.checkPreserveCopy (aNode, bCopyNamespaces);
-          final XdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces, bKeepAnnotations);
+          final IXdmNode aCopy = NodeCopier.copyDeep (aNode, bCopyNamespaces, bKeepAnnotations);
           if (aCopy.isElement () && aCopy.getBaseUri () == null)
             aCopy.setBaseUri (sStaticBase);
           if (bKeepAnnotations)
@@ -599,7 +599,7 @@ public final class AccumulatorExtension implements IXsltExtension
     return aSheet.getMode (aName);
   }
 
-  private static boolean _isInitialMatchTree (@NonNull final Engine aEngine, @NonNull final XdmNode aRoot)
+  private static boolean _isInitialMatchTree (@NonNull final Engine aEngine, @NonNull final IXdmNode aRoot)
   {
     final XsltTransformRequest aRequest = aEngine.getRequest ();
     if (aRequest.getInitialTemplate () != null)
@@ -608,11 +608,11 @@ public final class AccumulatorExtension implements IXsltExtension
     if (aSelection != null)
     {
       for (final IXdmItem aItem : aSelection)
-        if (aItem instanceof final XdmNode aNode && aNode.getRoot () == aRoot)
+        if (aItem instanceof final IXdmNode aNode && aNode.getRoot () == aRoot)
           return true;
       return false;
     }
-    return aEngine.getGlobalContextItem () instanceof final XdmNode aGlobal && aGlobal.getRoot () == aRoot;
+    return aEngine.getGlobalContextItem () instanceof final IXdmNode aGlobal && aGlobal.getRoot () == aRoot;
   }
 
   @SuppressWarnings ("unchecked")
@@ -637,7 +637,7 @@ public final class AccumulatorExtension implements IXsltExtension
     if (aItem == null)
       throw new XPathException ("XPDY0002",
                                 "accumulator-" + (bAfter ? "after" : "before") + "() requires a context item");
-    if (!(aItem instanceof final XdmNode aNode) ||
+    if (!(aItem instanceof final IXdmNode aNode) ||
         aNode.getKind () == ENodeKind.ATTRIBUTE ||
         aNode.getKind () == ENodeKind.NAMESPACE)
       throw new XPathException ("XTTE3360",
@@ -646,8 +646,8 @@ public final class AccumulatorExtension implements IXsltExtension
                                             "() requires a context node other than an attribute or namespace node");
     final ICommonsMap <Mode, ICommonsSet <XdmQName>> aModes = (ICommonsMap <Mode, ICommonsSet <XdmQName>>) aSheet.getExtensionData (KEY_MODES);
     final RunData aData = _getRunData (aCtx.getEngine ());
-    final XdmNode aOrigin = _originOf (aData, aNode);
-    final XdmNode aRoot = aOrigin.getRoot ();
+    final IXdmNode aOrigin = _originOf (aData, aNode);
+    final IXdmNode aRoot = aOrigin.getRoot ();
     final TreeRestriction aRestriction = aData.m_aRestrictions.get (aRoot);
     if (aRestriction != null)
     {
@@ -675,7 +675,7 @@ public final class AccumulatorExtension implements IXsltExtension
                                                   " is not applicable to the principal source document");
         }
       }
-    final Map <XdmNode, TreeValues> aTrees = aData.m_aValues.computeIfAbsent (aAcc, k -> new IdentityHashMap <> ());
+    final Map <IXdmNode, TreeValues> aTrees = aData.m_aValues.computeIfAbsent (aAcc, k -> new IdentityHashMap <> ());
     TreeValues aValues = aTrees.get (aRoot);
     if (aValues == null)
     {

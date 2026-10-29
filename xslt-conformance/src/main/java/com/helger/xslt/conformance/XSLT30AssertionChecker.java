@@ -45,7 +45,7 @@ import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -169,7 +169,7 @@ public final class XSLT30AssertionChecker
   }
 
   @Nullable
-  private static XdmNode _tryParse (@NonNull final String sXml)
+  private static IXdmNode _tryParse (@NonNull final String sXml)
   {
     try
     {
@@ -189,14 +189,14 @@ public final class XSLT30AssertionChecker
    *         well-formed fragment.
    */
   @Nullable
-  private static XdmNode _parseMessageDocument (@NonNull final String sMessage)
+  private static IXdmNode _parseMessageDocument (@NonNull final String sMessage)
   {
-    final XdmNode aWrapped = QT3XmlCompare.parseFragment (sMessage);
+    final IXdmNode aWrapped = QT3XmlCompare.parseFragment (sMessage);
     if (aWrapped == null || aWrapped.getChildCount () != 1)
       return null;
-    final XdmNode aWrapper = aWrapped.getChildAtIndex (0);
-    final XdmNode ret = XdmNode.createDocument ();
-    for (final XdmNode aChild : aWrapper.getAllChildren ())
+    final IXdmNode aWrapper = aWrapped.getChildAtIndex (0);
+    final IXdmNode ret = IXdmNode.createDocument ();
+    for (final IXdmNode aChild : aWrapper.getAllChildren ())
       ret.appendChild (NodeCopier.copyDeep (aChild, true));
     ret.assignDocumentOrder ();
     return ret;
@@ -247,10 +247,10 @@ public final class XSLT30AssertionChecker
 
   /** @return The single document node of the raw result or <code>null</code>. */
   @Nullable
-  private static XdmNode _getRawDocument (@NonNull final XSLT30Actual aActual)
+  private static IXdmNode _getRawDocument (@NonNull final XSLT30Actual aActual)
   {
     final XdmSequence aRaw = aActual.rawValue ();
-    if (aRaw != null && aRaw.isSingleton () && aRaw.getFirst () instanceof final XdmNode aNode && aNode.isDocument ())
+    if (aRaw != null && aRaw.isSingleton () && aRaw.getFirst () instanceof final IXdmNode aNode && aNode.isDocument ())
       return aNode;
     return null;
   }
@@ -358,7 +358,7 @@ public final class XSLT30AssertionChecker
 
   @NonNull
   private QT3Outcome _evalAssertOn (@NonNull final XSLT30Assertion aAssertion,
-                                    @NonNull final XdmNode aDoc,
+                                    @NonNull final IXdmNode aDoc,
                                     @NonNull final XSLT30Actual aActual)
   {
     final ICommonsMap <XdmQName, XdmSequence> aVars = new CommonsHashMap <> ();
@@ -376,7 +376,7 @@ public final class XSLT30AssertionChecker
   @NonNull
   private QT3Outcome _checkAssert (@NonNull final XSLT30Assertion aAssertion, @NonNull final XSLT30Actual aActual)
   {
-    final XdmNode aRawDoc = _getRawDocument (aActual);
+    final IXdmNode aRawDoc = _getRawDocument (aActual);
     if (aActual.message ())
     {
       // The message itself, as a document node
@@ -392,7 +392,7 @@ public final class XSLT30AssertionChecker
       return _evalAssertOn (aAssertion, aRawDoc, aActual);
 
     final String sOutput = aActual.output ();
-    XdmNode aDoc = _tryParse (_stripDecl (sOutput));
+    IXdmNode aDoc = _tryParse (_stripDecl (sOutput));
     if (aDoc == null)
     {
       // Several top-level elements (or top-level text): a document node with
@@ -517,7 +517,7 @@ public final class XSLT30AssertionChecker
           return QT3Outcome.of (aActual.messages ().isNotEmpty (), "no-message");
         for (final String sMessage : aActual.messages ())
         {
-          final XdmNode aMessageDoc = _parseMessageDocument (sMessage);
+          final IXdmNode aMessageDoc = _parseMessageDocument (sMessage);
           final XSLT30Actual aMessage = new XSLT30Actual (sMessage,
                                                           null,
                                                           aActual.secondaries (),
@@ -604,7 +604,7 @@ public final class XSLT30AssertionChecker
       {
         String sWant = aAssertion.value ();
         String sGot = sOutput;
-        final XdmNode aDoc = QT3XmlCompare.parseFragment (sOutput);
+        final IXdmNode aDoc = QT3XmlCompare.parseFragment (sOutput);
         if (aDoc != null)
           sGot = aDoc.getStringValue ();
         // normalize-space defaults to true for this assertion
@@ -652,7 +652,7 @@ public final class XSLT30AssertionChecker
           return QT3Outcome.fail ("assert-eq-eval");
         }
         String sGot = _stripDecl (sOutput);
-        final XdmNode aDoc = QT3XmlCompare.parseFragment (sOutput);
+        final IXdmNode aDoc = QT3XmlCompare.parseFragment (sOutput);
         if (aDoc != null)
           sGot = aDoc.getStringValue ();
         return QT3Outcome.of (sWant.equals (sGot) ||

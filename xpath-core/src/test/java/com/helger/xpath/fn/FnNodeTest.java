@@ -26,7 +26,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import com.helger.xpath.value.XdmAtomic;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for class {@link FnNode}.
@@ -38,7 +38,7 @@ public final class FnNodeTest
   @Test
   public void testInScopePrefixes ()
   {
-    final XdmNode aDoc = parse ("<r xmlns='urn:d' xmlns:a='urn:a'><e xmlns='' xmlns:b='urn:b'/></r>");
+    final IXdmNode aDoc = parse ("<r xmlns='urn:d' xmlns:a='urn:a'><e xmlns='' xmlns:b='urn:b'/></r>");
     assertEquals ("xml  a", str ("in-scope-prefixes(/*:r)", aDoc));
     assertEquals ("xml a b", str ("in-scope-prefixes(//*:e)", aDoc));
     assertError ("XPTY0004", "in-scope-prefixes(/)", aDoc);
@@ -47,7 +47,7 @@ public final class FnNodeTest
   @Test
   public void testNamespaceUriForPrefix ()
   {
-    final XdmNode aDoc = parse ("<r xmlns='urn:d' xmlns:a='urn:a'><e xmlns=''/></r>");
+    final IXdmNode aDoc = parse ("<r xmlns='urn:d' xmlns:a='urn:a'><e xmlns=''/></r>");
     assertEquals ("urn:a", str ("namespace-uri-for-prefix('a', /*:r)", aDoc));
     assertEquals ("urn:d", str ("namespace-uri-for-prefix('', /*:r)", aDoc));
     assertEquals ("urn:d", str ("namespace-uri-for-prefix((), /*:r)", aDoc));

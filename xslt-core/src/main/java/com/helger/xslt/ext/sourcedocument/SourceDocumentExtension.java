@@ -21,7 +21,7 @@ import org.jspecify.annotations.NonNull;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.fn.FnUri;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.Avt;
@@ -86,17 +86,17 @@ public final class SourceDocumentExtension implements IXsltExtension
         throw new XPathException ("FODC0005", "Invalid URI '" + sHref + "' in xsl:source-document");
       }
       final Engine aEngine = aRtCtx.getEngine ();
-      XdmNode aNode = aEngine.getDocument (aRtCtx, sUri);
+      IXdmNode aNode = aEngine.getDocument (aRtCtx, sUri);
       if (aNode == null)
         throw new XPathException ("FODC0002", "The document '" + sUri + "' has no element with the given ID");
       if (aValidation != null && !aValidation.isPreserve ())
       {
-        final XdmNode aCopy = NodeCopier.copyDeep (aNode.getRoot (), true, !aValidation.isStrip ());
+        final IXdmNode aCopy = NodeCopier.copyDeep (aNode.getRoot (), true, !aValidation.isStrip ());
         aCopy.setDocumentUri (aNode.getRoot ().getDocumentUri ());
         aValidation.apply (aCopy);
         aNode = aCopy;
       }
-      final XdmNode aRoot = aNode.getRoot ();
+      final IXdmNode aRoot = aNode.getRoot ();
       // Without use-accumulators no accumulator applies to the document
       final Object aPrevious = AccumulatorExtension.restrictTree (aEngine, aRoot, aAccumulators, bStreamable);
       try

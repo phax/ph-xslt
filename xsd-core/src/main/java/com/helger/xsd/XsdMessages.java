@@ -25,7 +25,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Reading of the <code>msg:message</code> convention (go-xslt
@@ -53,18 +53,18 @@ final class XsdMessages
    */
   @NonNull
   @ReturnsMutableCopy
-  static ICommonsList <XsdMessage> messagesOf (@NonNull final XdmNode aNode)
+  static ICommonsList <XsdMessage> messagesOf (@NonNull final IXdmNode aNode)
   {
     final ICommonsList <XsdMessage> ret = new CommonsArrayList <> ();
-    for (final XdmNode aAnn : XsdNodes.children (aNode))
+    for (final IXdmNode aAnn : XsdNodes.children (aNode))
     {
       if (!XsdNodes.isXS (aAnn, "annotation"))
         continue;
-      for (final XdmNode aInfo : XsdNodes.children (aAnn))
+      for (final IXdmNode aInfo : XsdNodes.children (aAnn))
       {
         if (!XsdNodes.isXS (aInfo, "appinfo"))
           continue;
-        for (final XdmNode aMsg : XsdNodes.children (aInfo))
+        for (final IXdmNode aMsg : XsdNodes.children (aInfo))
         {
           if (!aMsg.isElement () ||
               !XsdConstants.NS_MESSAGES.equals (XsdNodes.namespaceUri (aMsg)) ||

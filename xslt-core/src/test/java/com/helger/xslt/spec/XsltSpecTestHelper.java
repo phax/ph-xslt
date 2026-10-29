@@ -33,7 +33,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xslt.XsltCompileOptions;
@@ -155,7 +155,7 @@ public final class XsltSpecTestHelper
   }
 
   @NonNull
-  private static XdmNode _parseSource (@NonNull final String sSrc, @Nullable final Path aDir)
+  private static IXdmNode _parseSource (@NonNull final String sSrc, @Nullable final Path aDir)
   {
     try
     {

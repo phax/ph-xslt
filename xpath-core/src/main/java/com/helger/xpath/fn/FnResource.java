@@ -31,8 +31,8 @@ import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 
 /**
  * Function family: fn:doc, doc-available, unparsed-text, unparsed-text-lines,
@@ -93,14 +93,14 @@ public final class FnResource
   }
 
   @NonNull
-  private static XdmNode _doc (@NonNull final DynamicContext aCtx, @NonNull final String sHref)
+  private static IXdmNode _doc (@NonNull final DynamicContext aCtx, @NonNull final String sHref)
   {
     final String sUri = _resolve (aCtx, sHref, "FODC0005", "FODC0002");
     final Map <String, Object> aCache = aCtx.getRunCache ();
     final String sKey = RUN_CACHE_DOC + sUri;
-    if (aCache.get (sKey) instanceof final XdmNode aCached)
+    if (aCache.get (sKey) instanceof final IXdmNode aCached)
       return aCached;
-    final XdmNode aDoc = aCtx.getResourceResolver ().resolveDocument (sUri);
+    final IXdmNode aDoc = aCtx.getResourceResolver ().resolveDocument (sUri);
     if (aDoc == null)
       throw XPathException.of ("FODC0002", "The document '" + sUri + "' cannot be retrieved");
     aCache.put (sKey, aDoc);

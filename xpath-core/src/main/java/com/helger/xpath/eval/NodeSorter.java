@@ -25,7 +25,7 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Sorting node sequences into document order. Owner: evaluator workstream.
@@ -52,24 +52,24 @@ public final class NodeSorter
   public static XdmSequence sortAndDeduplicate (@NonNull final XdmSequence aSeq)
   {
     final int nSize = aSeq.size ();
-    final XdmNode [] aNodes = new XdmNode [nSize];
+    final IXdmNode [] aNodes = new IXdmNode [nSize];
     boolean bSorted = true;
     for (int i = 0; i < nSize; ++i)
     {
       final IXdmItem aItem = aSeq.get (i);
-      if (!(aItem instanceof final XdmNode aNode))
+      if (!(aItem instanceof final IXdmNode aNode))
         throw XPathException.type ("Expected a sequence of nodes, but found a non-node item");
       aNodes[i] = aNode;
-      if (bSorted && i > 0 && XdmNode.compareDocumentOrder (aNodes[i - 1], aNode) >= 0)
+      if (bSorted && i > 0 && IXdmNode.compareDocumentOrder (aNodes[i - 1], aNode) >= 0)
         bSorted = false;
     }
     if (bSorted)
       return aSeq;
 
-    Arrays.sort (aNodes, XdmNode::compareDocumentOrder);
+    Arrays.sort (aNodes, IXdmNode::compareDocumentOrder);
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
-    XdmNode aPrev = null;
-    for (final XdmNode aNode : aNodes)
+    IXdmNode aPrev = null;
+    for (final IXdmNode aNode : aNodes)
     {
       if (aNode != aPrev)
         aBuilder.add (aNode);

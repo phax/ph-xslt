@@ -37,7 +37,7 @@ import com.helger.xpath.xdm.schema.XdmSchemaSource;
 /**
  * The native schema processor as {@link IXdmSchemaProvider}: schema documents
  * are compiled by {@link XsdSchema} (XSD 1.0 until phase V8) and handed out as
- * a schema set that validates {@link com.helger.xpath.xdm.XdmNode} trees in
+ * a schema set that validates {@link com.helger.xpath.xdm.IXdmNode} trees in
  * place (go-xslt <code>bridge.go</code>). Schema documents and the files they
  * reference are read from the local file system only.
  * <p>

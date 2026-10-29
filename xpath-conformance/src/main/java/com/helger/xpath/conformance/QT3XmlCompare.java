@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -47,7 +47,7 @@ public final class QT3XmlCompare
 {
   private static final String WRAPPER = "_x_";
 
-  private record Pair (@NonNull XdmNode left, @NonNull XdmNode right)
+  private record Pair (@NonNull IXdmNode left, @NonNull IXdmNode right)
   {}
 
   @PresentForCodeCoverage
@@ -80,16 +80,16 @@ public final class QT3XmlCompare
            (bIgnorePrefixes || aLeft.prefix ().equals (aRight.prefix ()));
   }
 
-  private static boolean _isSameAttributes (@NonNull final XdmNode aLeft,
-                                            @NonNull final XdmNode aRight,
+  private static boolean _isSameAttributes (@NonNull final IXdmNode aLeft,
+                                            @NonNull final IXdmNode aRight,
                                             final boolean bIgnorePrefixes)
   {
     if (aLeft.getAttributeCount () != aRight.getAttributeCount ())
       return false;
-    for (final XdmNode aLA : aLeft.getAllAttributes ())
+    for (final IXdmNode aLA : aLeft.getAllAttributes ())
     {
       boolean bFound = false;
-      for (final XdmNode aRA : aRight.getAllAttributes ())
+      for (final IXdmNode aRA : aRight.getAllAttributes ())
         if (_isSameName (aLA.getName (), aRA.getName (), bIgnorePrefixes) &&
             Objects.equals (aLA.getValue (), aRA.getValue ()))
         {
@@ -111,7 +111,7 @@ public final class QT3XmlCompare
    *         (also not as XML 1.1).
    */
   @Nullable
-  public static XdmNode parseFragment (@NonNull final String sXml)
+  public static IXdmNode parseFragment (@NonNull final String sXml)
   {
     final String sWrapped = "<" + WRAPPER + ">" + _stripDecl (sXml) + "</" + WRAPPER + ">";
     try
@@ -142,8 +142,8 @@ public final class QT3XmlCompare
    *        <code>true</code> to compare names without prefixes.
    * @return <code>true</code> if equal.
    */
-  public static boolean isNodeEqual (@NonNull final XdmNode aLeft,
-                                     @NonNull final XdmNode aRight,
+  public static boolean isNodeEqual (@NonNull final IXdmNode aLeft,
+                                     @NonNull final IXdmNode aRight,
                                      final boolean bIgnorePrefixes)
   {
     final Deque <Pair> aStack = new ArrayDeque <> ();
@@ -151,8 +151,8 @@ public final class QT3XmlCompare
     while (!aStack.isEmpty ())
     {
       final Pair aPair = aStack.pop ();
-      final XdmNode a = aPair.left ();
-      final XdmNode b = aPair.right ();
+      final IXdmNode a = aPair.left ();
+      final IXdmNode b = aPair.right ();
       if (a.getKind () != b.getKind ())
         return false;
       switch (a.getKind ())
@@ -196,8 +196,8 @@ public final class QT3XmlCompare
                                     @NonNull final String sActual,
                                     final boolean bIgnorePrefixes)
   {
-    final XdmNode aExpected = parseFragment (sExpected);
-    final XdmNode aActual = parseFragment (sActual);
+    final IXdmNode aExpected = parseFragment (sExpected);
+    final IXdmNode aActual = parseFragment (sActual);
     if (aExpected == null || aActual == null)
       return false;
     return isNodeEqual (aExpected, aActual, bIgnorePrefixes);

@@ -24,7 +24,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.compile.XPathExpr;
 import com.helger.xslt.instr.SequenceConstructor;
@@ -202,7 +202,7 @@ public final class VariableDef
         else
         {
           // A temporary tree (XSLT 3.0 section 9.4)
-          final XdmNode aDoc = XdmNode.createDocument ();
+          final IXdmNode aDoc = IXdmNode.createDocument ();
           final String sBase = m_aElement.getStaticBaseUri ();
           if (sBase != null)
             aDoc.setBaseUri (sBase);

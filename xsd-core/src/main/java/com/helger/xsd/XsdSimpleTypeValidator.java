@@ -28,7 +28,7 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.ops.XsdLexical;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Validation of values against simple types (go-xslt <code>simpletype.go</code>:
@@ -247,7 +247,7 @@ final class XsdSimpleTypeValidator
    */
   private static void _checkQNamePrefixBound (@NonNull final String sValue,
                                               @NonNull final EAtomicType ePrim,
-                                              @NonNull final XdmNode aAt)
+                                              @NonNull final IXdmNode aAt)
   {
     final int i = sValue.indexOf (':');
     if (i <= 0)
@@ -274,7 +274,7 @@ final class XsdSimpleTypeValidator
 
   private static void _checkListRecursive (@NonNull final XsdSimpleType aType,
                                            @NonNull final String sValue,
-                                           @Nullable final XdmNode aAt,
+                                           @Nullable final IXdmNode aAt,
                                            @NonNull final ICommonsSet <XsdSimpleType> aActive,
                                            final int nDepth)
   {
@@ -311,7 +311,7 @@ final class XsdSimpleTypeValidator
 
   private static void _checkUnionRecursive (@NonNull final XsdSimpleType aType,
                                             @NonNull final String sValue,
-                                            @Nullable final XdmNode aAt,
+                                            @Nullable final IXdmNode aAt,
                                             @NonNull final ICommonsSet <XsdSimpleType> aActive,
                                             final int nDepth)
   {
@@ -368,7 +368,7 @@ final class XsdSimpleTypeValidator
 
   private static void _checkAtomicRecursive (@NonNull final XsdSimpleType aType,
                                              @NonNull final String sValue,
-                                             @Nullable final XdmNode aAt,
+                                             @Nullable final IXdmNode aAt,
                                              @NonNull final ICommonsSet <XsdSimpleType> aActive,
                                              final int nDepth)
   {
@@ -413,7 +413,7 @@ final class XsdSimpleTypeValidator
 
   private static void _checkInRecursive (@NonNull final XsdSimpleType aType,
                                          @NonNull final String sValue,
-                                         @Nullable final XdmNode aAt,
+                                         @Nullable final IXdmNode aAt,
                                          @NonNull final ICommonsSet <XsdSimpleType> aActive,
                                          final int nDepth)
   {
@@ -448,7 +448,7 @@ final class XsdSimpleTypeValidator
 
   private static void _validateInRecursive (@NonNull final XsdSimpleType aType,
                                             @NonNull final String sRaw,
-                                            @Nullable final XdmNode aAt,
+                                            @Nullable final IXdmNode aAt,
                                             @NonNull final ICommonsSet <XsdSimpleType> aActive,
                                             final int nDepth)
   {
@@ -552,7 +552,7 @@ final class XsdSimpleTypeValidator
    * @throws XsdInvalidException
    *         if the value is not valid
    */
-  static void validateIn (@NonNull final XsdSimpleType aType, @NonNull final String sRaw, @Nullable final XdmNode aAt)
+  static void validateIn (@NonNull final XsdSimpleType aType, @NonNull final String sRaw, @Nullable final IXdmNode aAt)
   {
     _validateInRecursive (aType, sRaw, aAt, new CommonsHashSet <> (), 0);
   }
@@ -586,7 +586,7 @@ final class XsdSimpleTypeValidator
    * @throws XsdInvalidException
    *         if the value is not valid
    */
-  static void checkIn (@NonNull final XsdSimpleType aType, @NonNull final String sValue, @Nullable final XdmNode aAt)
+  static void checkIn (@NonNull final XsdSimpleType aType, @NonNull final String sValue, @Nullable final IXdmNode aAt)
   {
     _checkInRecursive (aType, sValue, aAt, new CommonsHashSet <> (), 0);
   }

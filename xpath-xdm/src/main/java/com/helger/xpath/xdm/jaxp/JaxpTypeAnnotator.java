@@ -35,8 +35,8 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.xdm.EIDKind;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.XdmSchemaType;
 import com.helger.xpath.xdm.XdmTreeBuilder;
@@ -162,7 +162,7 @@ final class JaxpTypeAnnotator implements ContentHandler
    * known from the schema component model, so such whitespace text nodes are
    * dropped here (XDM 3.1 section 6.7.3).
    */
-  private static void _dropElementOnlyWhitespace (@NonNull final XdmNode aElement, @NonNull final XdmSchemaType aType)
+  private static void _dropElementOnlyWhitespace (@NonNull final IXdmNode aElement, @NonNull final XdmSchemaType aType)
   {
     if (aElement.getChildCount () == 0)
       return;
@@ -174,7 +174,7 @@ final class JaxpTypeAnnotator implements ContentHandler
       return;
     for (int i = aElement.getChildCount () - 1; i >= 0; --i)
     {
-      final XdmNode aChild = aElement.getChildAtIndex (i);
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (aChild.isText () && aChild.getValue ().isBlank ())
         aElement.removeChild (aChild);
     }
@@ -212,11 +212,11 @@ final class JaxpTypeAnnotator implements ContentHandler
   {
     m_aStartTypes.add (m_aTypeInfoProvider.getElementTypeInfo ());
     m_aBuilder.startElement (sUri, sLocalName, sQName, aAttrs);
-    final XdmNode aElement = m_aBuilder.getCurrentNode ();
+    final IXdmNode aElement = m_aBuilder.getCurrentNode ();
     for (int i = 0; i < aAttrs.getLength (); ++i)
     {
       // Namespace declarations are not attributes in XDM
-      final XdmNode aAttr = aElement.getAttribute (aAttrs.getURI (i), aAttrs.getLocalName (i));
+      final IXdmNode aAttr = aElement.getAttribute (aAttrs.getURI (i), aAttrs.getLocalName (i));
       if (aAttr == null)
         continue;
       final String sValue = aAttrs.getValue (i);
@@ -250,8 +250,8 @@ final class JaxpTypeAnnotator implements ContentHandler
     m_aBuilder.endElement (sUri, sLocalName, sQName);
     // The builder added pending text and returned to the parent, whose last
     // child is the element
-    final XdmNode aParent = m_aBuilder.getCurrentNode ();
-    final XdmNode aElement = aParent.getChildAtIndex (aParent.getChildCount () - 1);
+    final IXdmNode aParent = m_aBuilder.getCurrentNode ();
+    final IXdmNode aElement = aParent.getChildAtIndex (aParent.getChildCount () - 1);
     if (aStartType == null && aEndType == null)
     {
       // Not assessed, e.g. below a skip wildcard

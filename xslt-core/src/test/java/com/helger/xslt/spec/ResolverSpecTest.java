@@ -36,7 +36,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltCompiler;
@@ -65,13 +65,13 @@ public final class ResolverSpecTest
     }
 
     @NonNull
-    private XdmNode _doc (@NonNull final String sRel)
+    private IXdmNode _doc (@NonNull final String sRel)
     {
       return FileResourceResolver.INSTANCE.resolveDocument (m_aDir.resolve (sRel).toUri ().toString ());
     }
 
     @Nullable
-    public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
     {
       return FileResourceResolver.INSTANCE.resolveDocument (sAbsoluteUri);
     }
@@ -93,7 +93,7 @@ public final class ResolverSpecTest
       if (sAbsoluteUri.endsWith ("/frag"))
       {
         // ids.xml#x1: the element with that xml:id
-        final XdmNode aRoot = _doc ("ids.xml").getChildAtIndex (0);
+        final IXdmNode aRoot = _doc ("ids.xml").getChildAtIndex (0);
         for (int i = 0; i < aRoot.getChildCount (); ++i)
           if (aRoot.getChildAtIndex (i).isElement ())
             return new CommonsArrayList <> (aRoot.getChildAtIndex (i));

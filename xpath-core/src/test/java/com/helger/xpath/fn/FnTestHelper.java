@@ -31,7 +31,7 @@ import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Helper for testing functions through complete XPath expressions.
@@ -77,7 +77,7 @@ final class FnTestHelper
       if (aItem instanceof final XdmAtomic aAtomic)
         aSB.append (aAtomic.getType ().getLocalName ()).append (':').append (aAtomic.getLexical ());
       else
-        if (aItem instanceof final XdmNode aNode)
+        if (aItem instanceof final IXdmNode aNode)
           aSB.append (aNode.getName () == null ? aNode.getKind ().toString () : aNode.getName ().localName ());
         else
           aSB.append (aItem.toString ());
@@ -97,7 +97,7 @@ final class FnTestHelper
       if (aItem instanceof final XdmAtomic aAtomic)
         aSB.append (aAtomic.getLexical ());
       else
-        if (aItem instanceof final XdmNode aNode && aNode.getName () != null)
+        if (aItem instanceof final IXdmNode aNode && aNode.getName () != null)
           aSB.append (aNode.getName ().localName ());
         else
           aSB.append (aItem.toString ());

@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.spec.SpecTestHelper.Env;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Port of go-xslt <code>internal/xpath/fn_resource_test.go</code> (commit 04ccada).
@@ -40,8 +40,8 @@ public final class FnResourceSpecTest
   @NonNull
   private static FnSpecResolver _newResolver ()
   {
-    final XdmNode aA = FnSpecResolver.doc ("<a>1</a>", "http://example.com/c/a.xml");
-    final XdmNode aB = FnSpecResolver.doc ("<b>2</b>", "http://example.com/c/b.xml");
+    final IXdmNode aA = FnSpecResolver.doc ("<a>1</a>", "http://example.com/c/a.xml");
+    final IXdmNode aB = FnSpecResolver.doc ("<b>2</b>", "http://example.com/c/b.xml");
     // go-xslt also serves "a\xffb" (not UTF-8) as bad.txt; a Java resolver
     // returns decoded text, so that case is not ported
     return new FnSpecResolver ().text ("http://example.com/t/plain.txt", "hello world")

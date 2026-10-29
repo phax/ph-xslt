@@ -31,10 +31,10 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.xdm.ENodeKind;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
- * The 13 XPath axes over {@link XdmNode} (a port of go-xslt's
+ * The 13 XPath axes over {@link IXdmNode} (a port of go-xslt's
  * <code>axes.go</code>). Every traversal is iterative. Nodes are delivered in
  * axis order: document order for forward axes, reverse document order for
  * reverse axes.
@@ -50,28 +50,28 @@ public final class AxisNavigator
   private AxisNavigator ()
   {}
 
-  private static void _add (@NonNull final XdmNode aNode,
-                            @NonNull final Predicate <XdmNode> aFilter,
-                            @NonNull final List <XdmNode> aOut)
+  private static void _add (@NonNull final IXdmNode aNode,
+                            @NonNull final Predicate <IXdmNode> aFilter,
+                            @NonNull final List <IXdmNode> aOut)
   {
     if (aFilter.test (aNode))
       aOut.add (aNode);
   }
 
   /** The descendants of aNode in document order (pre-order, without attributes). */
-  private static void _addDescendants (@NonNull final XdmNode aNode,
-                                       @NonNull final Predicate <XdmNode> aFilter,
-                                       @NonNull final List <XdmNode> aOut)
+  private static void _addDescendants (@NonNull final IXdmNode aNode,
+                                       @NonNull final Predicate <IXdmNode> aFilter,
+                                       @NonNull final List <IXdmNode> aOut)
   {
     final int nCount = aNode.getChildCount ();
     if (nCount == 0)
       return;
-    final ArrayDeque <XdmNode> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
     for (int i = nCount - 1; i >= 0; --i)
       aStack.push (aNode.getChildAtIndex (i));
     while (!aStack.isEmpty ())
     {
-      final XdmNode aCur = aStack.pop ();
+      final IXdmNode aCur = aStack.pop ();
       _add (aCur, aFilter, aOut);
       for (int i = aCur.getChildCount () - 1; i >= 0; --i)
         aStack.push (aCur.getChildAtIndex (i));
@@ -79,11 +79,11 @@ public final class AxisNavigator
   }
 
   /** aNode and its descendants in reverse document order. */
-  private static void _addSubtreeReverse (@NonNull final XdmNode aNode,
-                                          @NonNull final Predicate <XdmNode> aFilter,
-                                          @NonNull final List <XdmNode> aOut)
+  private static void _addSubtreeReverse (@NonNull final IXdmNode aNode,
+                                          @NonNull final Predicate <IXdmNode> aFilter,
+                                          @NonNull final List <IXdmNode> aOut)
   {
-    final List <XdmNode> aAll = new ArrayList <> ();
+    final List <IXdmNode> aAll = new ArrayList <> ();
     aAll.add (aNode);
     _addDescendants (aNode, x -> true, aAll);
     for (int i = aAll.size () - 1; i >= 0; --i)
@@ -91,7 +91,7 @@ public final class AxisNavigator
   }
 
   /** @return The index of aNode among the children of its parent, -1 if it is no child. */
-  private static int _getChildIndex (@NonNull final XdmNode aParent, @NonNull final XdmNode aNode)
+  private static int _getChildIndex (@NonNull final IXdmNode aParent, @NonNull final IXdmNode aNode)
   {
     final int nCount = aParent.getChildCount ();
     for (int i = 0; i < nCount; ++i)
@@ -100,16 +100,16 @@ public final class AxisNavigator
     return -1;
   }
 
-  private static boolean _isAttributeLike (@NonNull final XdmNode aNode)
+  private static boolean _isAttributeLike (@NonNull final IXdmNode aNode)
   {
     return aNode.getKind () == ENodeKind.ATTRIBUTE || aNode.getKind () == ENodeKind.NAMESPACE;
   }
 
-  private static void _addFollowing (@NonNull final XdmNode aNode,
-                                     @NonNull final Predicate <XdmNode> aFilter,
-                                     @NonNull final List <XdmNode> aOut)
+  private static void _addFollowing (@NonNull final IXdmNode aNode,
+                                     @NonNull final Predicate <IXdmNode> aFilter,
+                                     @NonNull final List <IXdmNode> aOut)
   {
-    XdmNode aCur = aNode;
+    IXdmNode aCur = aNode;
     if (_isAttributeLike (aNode))
     {
       // Everything after the owner element follows the attribute, including the
@@ -121,7 +121,7 @@ public final class AxisNavigator
     }
     for (; aCur != null; aCur = aCur.getParent ())
     {
-      final XdmNode aParent = aCur.getParent ();
+      final IXdmNode aParent = aCur.getParent ();
       if (aParent == null)
         break;
       final int nIndex = _getChildIndex (aParent, aCur);
@@ -130,22 +130,22 @@ public final class AxisNavigator
       final int nCount = aParent.getChildCount ();
       for (int i = nIndex + 1; i < nCount; ++i)
       {
-        final XdmNode aSibling = aParent.getChildAtIndex (i);
+        final IXdmNode aSibling = aParent.getChildAtIndex (i);
         _add (aSibling, aFilter, aOut);
         _addDescendants (aSibling, aFilter, aOut);
       }
     }
   }
 
-  private static void _addPreceding (@NonNull final XdmNode aNode,
-                                     @NonNull final Predicate <XdmNode> aFilter,
-                                     @NonNull final List <XdmNode> aOut)
+  private static void _addPreceding (@NonNull final IXdmNode aNode,
+                                     @NonNull final Predicate <IXdmNode> aFilter,
+                                     @NonNull final List <IXdmNode> aOut)
   {
     // The owner element of an attribute is its ancestor, so it is excluded
-    XdmNode aCur = _isAttributeLike (aNode) ? aNode.getParent () : aNode;
+    IXdmNode aCur = _isAttributeLike (aNode) ? aNode.getParent () : aNode;
     for (; aCur != null; aCur = aCur.getParent ())
     {
-      final XdmNode aParent = aCur.getParent ();
+      final IXdmNode aParent = aCur.getParent ();
       if (aParent == null)
         break;
       final int nIndex = _getChildIndex (aParent, aCur);
@@ -154,14 +154,14 @@ public final class AxisNavigator
     }
   }
 
-  private static void _addSiblings (@NonNull final XdmNode aNode,
+  private static void _addSiblings (@NonNull final IXdmNode aNode,
                                     final boolean bFollowing,
-                                    @NonNull final Predicate <XdmNode> aFilter,
-                                    @NonNull final List <XdmNode> aOut)
+                                    @NonNull final Predicate <IXdmNode> aFilter,
+                                    @NonNull final List <IXdmNode> aOut)
   {
     if (_isAttributeLike (aNode))
       return;
-    final XdmNode aParent = aNode.getParent ();
+    final IXdmNode aParent = aNode.getParent ();
     if (aParent == null)
       return;
     final int nIndex = _getChildIndex (aParent, aNode);
@@ -211,11 +211,11 @@ public final class AxisNavigator
    *        The list to append to, in axis order.
    */
   public static void collect (@NonNull final EAxis eAxis,
-                              @NonNull final XdmNode aNode,
-                              @Nullable final Predicate <XdmNode> aFilter,
-                              @NonNull final List <XdmNode> aOut)
+                              @NonNull final IXdmNode aNode,
+                              @Nullable final Predicate <IXdmNode> aFilter,
+                              @NonNull final List <IXdmNode> aOut)
   {
-    final Predicate <XdmNode> aRealFilter = aFilter != null ? aFilter : x -> true;
+    final Predicate <IXdmNode> aRealFilter = aFilter != null ? aFilter : x -> true;
     switch (eAxis)
     {
       case CHILD:
@@ -243,7 +243,7 @@ public final class AxisNavigator
         _add (aNode, aRealFilter, aOut);
         break;
       case NAMESPACE:
-        for (final XdmNode aNS : aNode.getNamespaceNodes ())
+        for (final IXdmNode aNS : aNode.getNamespaceNodes ())
           _add (aNS, aRealFilter, aOut);
         break;
       case FOLLOWING_SIBLING:
@@ -260,17 +260,17 @@ public final class AxisNavigator
         break;
       case PARENT:
       {
-        final XdmNode aParent = aNode.getParent ();
+        final IXdmNode aParent = aNode.getParent ();
         if (aParent != null)
           _add (aParent, aRealFilter, aOut);
         break;
       }
       case ANCESTOR:
-        for (XdmNode aCur = aNode.getParent (); aCur != null; aCur = aCur.getParent ())
+        for (IXdmNode aCur = aNode.getParent (); aCur != null; aCur = aCur.getParent ())
           _add (aCur, aRealFilter, aOut);
         break;
       case ANCESTOR_OR_SELF:
-        for (XdmNode aCur = aNode; aCur != null; aCur = aCur.getParent ())
+        for (IXdmNode aCur = aNode; aCur != null; aCur = aCur.getParent ())
           _add (aCur, aRealFilter, aOut);
         break;
       default:
@@ -287,9 +287,9 @@ public final class AxisNavigator
    */
   @NonNull
   @ReturnsMutableCopy
-  public static ICommonsList <XdmNode> getAxisNodes (@NonNull final EAxis eAxis, @NonNull final XdmNode aNode)
+  public static ICommonsList <IXdmNode> getAxisNodes (@NonNull final EAxis eAxis, @NonNull final IXdmNode aNode)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     collect (eAxis, aNode, null, ret);
     return ret;
   }

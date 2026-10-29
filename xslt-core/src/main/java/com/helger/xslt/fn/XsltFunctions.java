@@ -39,8 +39,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.compile.XsltElementSpecs;
 import com.helger.xslt.compile.XsltExtensionRegistry;
@@ -285,16 +285,16 @@ public final class XsltFunctions
     final XdmQName aName = _resolveName (aCtx.getStaticContext (), sName, "");
     if (aName == null)
       throw new XPathException ("XTDE1260", "'" + sName + "' is not a valid key name");
-    final XdmNode aTop;
+    final IXdmNode aTop;
     if (aArgs.size () > 2)
     {
-      aTop = (XdmNode) aArgs.get (2).get (0);
+      aTop = (IXdmNode) aArgs.get (2).get (0);
       if (!aTop.getRoot ().isDocument ())
         throw new XPathException ("XTDE1270", "The third argument of key() is not in a tree rooted at a document node");
     }
     else
     {
-      if (!(aCtx.getContextItem () instanceof final XdmNode aNode))
+      if (!(aCtx.getContextItem () instanceof final IXdmNode aNode))
         throw new XPathException (aCtx.getContextItem () == null ? "XTDE1270" : "XPTY0004",
                                   "key() with two arguments requires a node as context item");
       aTop = aNode.getRoot ();
@@ -312,7 +312,7 @@ public final class XsltFunctions
     String sFixedBase = null;
     if (aArgs.size () > 1)
     {
-      sFixedBase = FnAccessor.getBaseUri ((XdmNode) aArgs.get (1).get (0));
+      sFixedBase = FnAccessor.getBaseUri ((IXdmNode) aArgs.get (1).get (0));
       if (sFixedBase == null)
         throw new XPathException ("XTDE1162", "The base node of document() has no base URI");
     }
@@ -321,7 +321,7 @@ public final class XsltFunctions
     {
       final String sBase;
       final ICommonsList <String> aRefs = new CommonsArrayList <> ();
-      if (aItem instanceof final XdmNode aNode)
+      if (aItem instanceof final IXdmNode aNode)
       {
         sBase = sFixedBase != null ? sFixedBase : FnAccessor.getBaseUri (aNode);
         for (final IXdmItem aAtom : Atomizer.atomize (XdmSequence.of (aNode)))
@@ -344,7 +344,7 @@ public final class XsltFunctions
         {
           throw new XPathException ("FODC0005", "Invalid URI '" + sTrimmed + "' in document()");
         }
-        final XdmNode aDoc = aEngine.getDocument (aXCtx, sUri);
+        final IXdmNode aDoc = aEngine.getDocument (aXCtx, sUri);
         if (aDoc != null)
           aResult.add (aDoc);
       }
@@ -379,16 +379,16 @@ public final class XsltFunctions
                                               final boolean bPublicId)
   {
     final String sCode = bPublicId ? "XTDE1380" : "XTDE1370";
-    final XdmNode aNode;
+    final IXdmNode aNode;
     if (aArgs.size () > 1)
-      aNode = (XdmNode) aArgs.get (1).get (0);
+      aNode = (IXdmNode) aArgs.get (1).get (0);
     else
     {
-      if (!(aCtx.getContextItem () instanceof final XdmNode aCtxNode))
+      if (!(aCtx.getContextItem () instanceof final IXdmNode aCtxNode))
         throw new XPathException (sCode, "The function requires a node as context item");
       aNode = aCtxNode;
     }
-    final XdmNode aRoot = aNode.getRoot ();
+    final IXdmNode aRoot = aNode.getRoot ();
     if (!aRoot.isDocument ())
       throw new XPathException (sCode, "The node is not in a tree rooted at a document node");
     final String [] aEntity = aRoot.getUnparsedEntity (_getString (aArgs.get (0)));
@@ -413,11 +413,11 @@ public final class XsltFunctions
       aInput = aArgs.get (0);
     final XdmSequence.Builder ret = new XdmSequence.Builder ();
     for (final IXdmItem aItem : aInput)
-      if (aItem instanceof final XdmNode aNode)
+      if (aItem instanceof final IXdmNode aNode)
       {
         if (aNode.isAttribute ())
           ValidationRequest.checkPreserveCopy (aNode, true);
-        final XdmNode aCopy = NodeCopier.copyDeep (aNode, true, true);
+        final IXdmNode aCopy = NodeCopier.copyDeep (aNode, true, true);
         NamespaceFixup.finish (aCopy);
         ret.add (aCopy);
       }
@@ -427,26 +427,26 @@ public final class XsltFunctions
   }
 
   @NonNull
-  private static XdmNode _snapshotNode (@NonNull final XdmNode aNode)
+  private static IXdmNode _snapshotNode (@NonNull final IXdmNode aNode)
   {
     // Copy the ancestors shallowly (with their attributes and namespaces) and
     // the node deeply; return the copy of the node
-    final ICommonsList <XdmNode> aAncestors = new CommonsArrayList <> ();
-    final XdmNode aStart = aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE ? aNode.getParent ()
+    final ICommonsList <IXdmNode> aAncestors = new CommonsArrayList <> ();
+    final IXdmNode aStart = aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE ? aNode.getParent ()
                                                                                                              : aNode;
     if (aStart == null)
     {
-      final XdmNode ret = NodeCopier.copyDeep (aNode, true, true);
+      final IXdmNode ret = NodeCopier.copyDeep (aNode, true, true);
       NamespaceFixup.finish (ret);
       return ret;
     }
-    for (XdmNode aCur = aStart.getParent (); aCur != null; aCur = aCur.getParent ())
+    for (IXdmNode aCur = aStart.getParent (); aCur != null; aCur = aCur.getParent ())
       aAncestors.add (0, aCur);
-    XdmNode aParentCopy = null;
-    XdmNode aRoot = null;
-    for (final XdmNode aAnc : aAncestors)
+    IXdmNode aParentCopy = null;
+    IXdmNode aRoot = null;
+    for (final IXdmNode aAnc : aAncestors)
     {
-      final XdmNode aCopy = NodeCopier.copyShallow (aAnc);
+      final IXdmNode aCopy = NodeCopier.copyShallow (aAnc);
       if (aAnc.isElement ())
       {
         NodeCopier.copyNamespaces (aAnc, aCopy, aParentCopy == null);
@@ -459,7 +459,7 @@ public final class XsltFunctions
         aRoot = aCopy;
       aParentCopy = aCopy;
     }
-    final XdmNode aStartCopy;
+    final IXdmNode aStartCopy;
     if (aStart == aNode)
       aStartCopy = NodeCopier.copyDeep (aStart, true, true);
     else
@@ -483,7 +483,7 @@ public final class XsltFunctions
       return aStartCopy;
     if (aNode.isAttribute ())
       return aStartCopy.getAttribute (aNode.getName ().namespaceUri (), aNode.getName ().localName ());
-    for (final XdmNode aNS : aStartCopy.getNamespaceNodes ())
+    for (final IXdmNode aNS : aStartCopy.getNamespaceNodes ())
       if (aNS.getStringValue ().equals (aNode.getStringValue ()) && Objects.equals (aNS.getName (), aNode.getName ()))
         return aNS;
     return aStartCopy;
@@ -503,7 +503,7 @@ public final class XsltFunctions
       aInput = aArgs.get (0);
     final XdmSequence.Builder ret = new XdmSequence.Builder ();
     for (final IXdmItem aItem : aInput)
-      ret.add (aItem instanceof final XdmNode aNode ? _snapshotNode (aNode) : aItem);
+      ret.add (aItem instanceof final IXdmNode aNode ? _snapshotNode (aNode) : aItem);
     return ret.build ();
   }
 

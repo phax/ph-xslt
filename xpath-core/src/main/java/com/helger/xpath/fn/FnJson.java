@@ -45,8 +45,8 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -172,13 +172,13 @@ public final class FnJson
   /** A map or array element being built by fn:json-to-xml. */
   private static final class XmlFrame
   {
-    private final XdmNode m_aElement;
+    private final IXdmNode m_aElement;
     private final boolean m_bObject;
     private final ICommonsSet <String> m_aKeys;
     private String m_sKey;
     private boolean m_bKeyEscaped;
 
-    XmlFrame (@NonNull final XdmNode aElement, final boolean bObject)
+    XmlFrame (@NonNull final IXdmNode aElement, final boolean bObject)
     {
       m_aElement = aElement;
       m_bObject = bObject;
@@ -191,7 +191,7 @@ public final class FnJson
   {
     private final String m_sDuplicates;
     private final ArrayDeque <XmlFrame> m_aStack = new ArrayDeque <> ();
-    private XdmNode m_aResult;
+    private IXdmNode m_aResult;
 
     XmlHandler (@NonNull final String sDuplicates)
     {
@@ -199,12 +199,12 @@ public final class FnJson
     }
 
     @NonNull
-    private static XdmNode _element (@NonNull final String sLocalName)
+    private static IXdmNode _element (@NonNull final String sLocalName)
     {
-      return XdmNode.createElement (new XdmQName (NS_FN, sLocalName, ""));
+      return IXdmNode.createElement (new XdmQName (NS_FN, sLocalName, ""));
     }
 
-    private void _value (@NonNull final XdmNode aElement)
+    private void _value (@NonNull final IXdmNode aElement)
     {
       final XmlFrame aTop = m_aStack.peek ();
       if (aTop == null)
@@ -226,19 +226,19 @@ public final class FnJson
               break;
           }
         }
-        aElement.addAttribute (XdmNode.createAttribute (new XdmQName ("key"), aTop.m_sKey));
+        aElement.addAttribute (IXdmNode.createAttribute (new XdmQName ("key"), aTop.m_sKey));
         if (aTop.m_bKeyEscaped)
-          aElement.addAttribute (XdmNode.createAttribute (new XdmQName ("escaped-key"), "true"));
+          aElement.addAttribute (IXdmNode.createAttribute (new XdmQName ("escaped-key"), "true"));
       }
       aTop.m_aElement.appendChild (aElement);
     }
 
     @NonNull
-    private static XdmNode _textElement (@NonNull final String sLocalName, @NonNull final String sText)
+    private static IXdmNode _textElement (@NonNull final String sLocalName, @NonNull final String sText)
     {
-      final XdmNode ret = _element (sLocalName);
+      final IXdmNode ret = _element (sLocalName);
       if (!sText.isEmpty ())
-        ret.appendChild (XdmNode.createText (sText));
+        ret.appendChild (IXdmNode.createText (sText));
       return ret;
     }
 
@@ -271,9 +271,9 @@ public final class FnJson
 
     public void string (final String sValue, final boolean bEscaped)
     {
-      final XdmNode aElement = _textElement ("string", sValue);
+      final IXdmNode aElement = _textElement ("string", sValue);
       if (bEscaped)
-        aElement.addAttribute (XdmNode.createAttribute (new XdmQName ("escaped"), "true"));
+        aElement.addAttribute (IXdmNode.createAttribute (new XdmQName ("escaped"), "true"));
       _value (aElement);
     }
 
@@ -471,10 +471,10 @@ public final class FnJson
     // validate=true needs the schema for the namespace among the in-scope
     // schema definitions (F&O 3.1 section 17.5.1)
     final IXdmSchemaSet aSchemaSet = aCtx.getStaticContext ().getSchemaSet ();
-    final XdmNode aRoot = aHandler.m_aResult;
+    final IXdmNode aRoot = aHandler.m_aResult;
     if (aOptions.validate () && (aSchemaSet == null || aSchemaSet.getElementDeclaration (aRoot.getName ()) == null))
       throw XPathException.of ("FOJS0004", "The option validate=true requires a schema-aware processor");
-    final XdmNode aDoc = XdmNode.createDocument ();
+    final IXdmNode aDoc = IXdmNode.createDocument ();
     aRoot.declareNamespace ("", NS_FN);
     aDoc.appendChild (aRoot);
     if (aOptions.validate ())
@@ -509,9 +509,9 @@ public final class FnJson
   }
 
   /** @return The value of a boolean attribute, <code>false</code> if absent. */
-  private static boolean _getBooleanAttr (@NonNull final XdmNode aElement, @NonNull final String sName)
+  private static boolean _getBooleanAttr (@NonNull final IXdmNode aElement, @NonNull final String sName)
   {
-    final XdmNode aAttr = aElement.getAttribute ("", sName);
+    final IXdmNode aAttr = aElement.getAttribute ("", sName);
     if (aAttr == null)
       return false;
     switch (aAttr.getValue ().trim ())
@@ -527,13 +527,13 @@ public final class FnJson
     }
   }
 
-  private static void _checkElement (@NonNull final XdmNode aElement, final boolean bInMap)
+  private static void _checkElement (@NonNull final IXdmNode aElement, final boolean bInMap)
   {
     final XdmQName aName = aElement.getName ();
     if (!NS_FN.equals (aName.namespaceUri ()))
       throw _invalid ("element " + aName.getEQName () + " is not in the namespace " + NS_FN);
     final String sLocal = aName.localName ();
-    for (final XdmNode aAttr : aElement.getAllAttributes ())
+    for (final IXdmNode aAttr : aElement.getAllAttributes ())
     {
       final XdmQName aAttrName = aAttr.getName ();
       if (aAttrName.hasNamespace ())
@@ -557,7 +557,7 @@ public final class FnJson
     {
       case "map":
       case "array":
-        for (final XdmNode aChild : aElement.getAllChildren ())
+        for (final IXdmNode aChild : aElement.getAllChildren ())
           if (aChild.getKind () == ENodeKind.TEXT && !_isWhitespace (aChild.getValue ()))
             throw _invalid ("text content in " + sLocal);
         break;
@@ -565,7 +565,7 @@ public final class FnJson
       case "number":
       case "boolean":
       case "null":
-        for (final XdmNode aChild : aElement.getAllChildren ())
+        for (final IXdmNode aChild : aElement.getAllChildren ())
           if (aChild.getKind () == ENodeKind.ELEMENT)
             throw _invalid ("element content in " + sLocal);
         break;
@@ -650,11 +650,11 @@ public final class FnJson
   }
 
   /** A pending element of fn:xml-to-json, or a literal to write. */
-  private record XmlTask (XdmNode element, boolean inMap, int depth, String literal)
+  private record XmlTask (IXdmNode element, boolean inMap, int depth, String literal)
   {}
 
   @NonNull
-  private static String _xmlToJson (@NonNull final XdmNode aRoot, final boolean bIndent)
+  private static String _xmlToJson (@NonNull final IXdmNode aRoot, final boolean bIndent)
   {
     final StringBuilder aSB = new StringBuilder ();
     final ArrayDeque <XmlTask> aStack = new ArrayDeque <> ();
@@ -667,7 +667,7 @@ public final class FnJson
         aSB.append (aTask.literal ());
         continue;
       }
-      final XdmNode aElement = aTask.element ();
+      final IXdmNode aElement = aTask.element ();
       _checkElement (aElement, aTask.inMap ());
       final int nDepth = aTask.depth ();
       switch (aElement.getName ().localName ())
@@ -676,8 +676,8 @@ public final class FnJson
         case "array":
         {
           final boolean bMap = "map".equals (aElement.getName ().localName ());
-          final ICommonsList <XdmNode> aChildren = new CommonsArrayList <> ();
-          for (final XdmNode aChild : aElement.getAllChildren ())
+          final ICommonsList <IXdmNode> aChildren = new CommonsArrayList <> ();
+          for (final IXdmNode aChild : aElement.getAllChildren ())
             if (aChild.getKind () == ENodeKind.ELEMENT)
               aChildren.add (aChild);
           aSB.append (bMap ? '{' : '[');
@@ -690,14 +690,14 @@ public final class FnJson
           final String [] aPrefixes = new String [aChildren.size ()];
           for (int i = 0; i < aChildren.size (); ++i)
           {
-            final XdmNode aChild = aChildren.get (i);
+            final IXdmNode aChild = aChildren.get (i);
             final StringBuilder aPrefix = new StringBuilder ();
             if (i > 0)
               aPrefix.append (',');
             _newline (aPrefix, bIndent, nDepth + 1);
             if (bMap)
             {
-              final XdmNode aKeyAttr = aChild.getAttribute ("", "key");
+              final IXdmNode aKeyAttr = aChild.getAttribute ("", "key");
               if (aKeyAttr == null)
                 throw _invalid ("a child of map has no key attribute");
               final boolean bKeyEscaped = _getBooleanAttr (aChild, "escaped-key");
@@ -771,11 +771,11 @@ public final class FnJson
     final boolean bIndent = aArgs.size () > 1 &&
                             !aArgs.get (1).isEmpty () &&
                             FnOptionMap.getBoolean ((XdmMap) aArgs.get (1).get (0), "indent", false, aCtx);
-    XdmNode aNode = (XdmNode) aArgs.get (0).get (0);
+    IXdmNode aNode = (IXdmNode) aArgs.get (0).get (0);
     if (aNode.getKind () == ENodeKind.DOCUMENT)
     {
-      XdmNode aElement = null;
-      for (final XdmNode aChild : aNode.getAllChildren ())
+      IXdmNode aElement = null;
+      for (final IXdmNode aChild : aNode.getAllChildren ())
         switch (aChild.getKind ())
         {
           case ELEMENT:
@@ -810,7 +810,7 @@ public final class FnJson
         aParams = SerializationParamsReader.fromMap (aMap, aCtx);
       else
         if (SerializationParamsReader.isParamsElement (aParamItem))
-          aParams = SerializationParamsReader.fromElement ((XdmNode) aParamItem);
+          aParams = SerializationParamsReader.fromElement ((IXdmNode) aParamItem);
         else
           throw XPathException.type ("The serialization parameters must be a map or an output:serialization-parameters element");
     }
@@ -820,7 +820,7 @@ public final class FnJson
   }
 
   @NonNull
-  private static XdmNode _parse (@NonNull final String sXml)
+  private static IXdmNode _parse (@NonNull final String sXml)
   {
     try
     {
@@ -837,45 +837,45 @@ public final class FnJson
   {
     if (aArgs.get (0).isEmpty ())
       return XdmSequence.EMPTY;
-    final XdmNode aDoc = _parse (((XdmAtomic) aArgs.get (0).get (0)).getString ());
+    final IXdmNode aDoc = _parse (((XdmAtomic) aArgs.get (0).get (0)).getString ());
     aDoc.setDocumentUri (null);
     aDoc.setBaseUri (aCtx.getStaticContext ().getBaseUri ());
     return XdmSequence.of (aDoc);
   }
 
   /** Deep copy of a node into a new parent, iteratively. */
-  private static void _copyChildren (@NonNull final XdmNode aFrom, @NonNull final XdmNode aTo)
+  private static void _copyChildren (@NonNull final IXdmNode aFrom, @NonNull final IXdmNode aTo)
   {
-    final ArrayDeque <XdmNode []> aStack = new ArrayDeque <> ();
-    aStack.push (new XdmNode [] { aFrom, aTo });
+    final ArrayDeque <IXdmNode []> aStack = new ArrayDeque <> ();
+    aStack.push (new IXdmNode [] { aFrom, aTo });
     while (!aStack.isEmpty ())
     {
-      final XdmNode [] aPair = aStack.pop ();
-      for (final XdmNode aChild : aPair[0].getAllChildren ())
+      final IXdmNode [] aPair = aStack.pop ();
+      for (final IXdmNode aChild : aPair[0].getAllChildren ())
       {
-        final XdmNode aCopy;
+        final IXdmNode aCopy;
         switch (aChild.getKind ())
         {
           case ELEMENT:
-            aCopy = XdmNode.createElement (aChild.getName ());
+            aCopy = IXdmNode.createElement (aChild.getName ());
             for (final var aEntry : aChild.getDeclaredNamespaces ().entrySet ())
               aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());
-            for (final XdmNode aAttr : aChild.getAllAttributes ())
+            for (final IXdmNode aAttr : aChild.getAllAttributes ())
             {
-              final XdmNode aAttrCopy = XdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
+              final IXdmNode aAttrCopy = IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
               aAttrCopy.setIDKind (aAttr.getIDKind ());
               aCopy.addAttribute (aAttrCopy);
             }
-            aStack.push (new XdmNode [] { aChild, aCopy });
+            aStack.push (new IXdmNode [] { aChild, aCopy });
             break;
           case TEXT:
-            aCopy = XdmNode.createText (aChild.getValue ());
+            aCopy = IXdmNode.createText (aChild.getValue ());
             break;
           case COMMENT:
-            aCopy = XdmNode.createComment (aChild.getValue ());
+            aCopy = IXdmNode.createComment (aChild.getValue ());
             break;
           case PROCESSING_INSTRUCTION:
-            aCopy = XdmNode.createProcessingInstruction (aChild.getName ().localName (), aChild.getValue ());
+            aCopy = IXdmNode.createProcessingInstruction (aChild.getName ().localName (), aChild.getValue ());
             break;
           default:
             continue;
@@ -906,9 +906,9 @@ public final class FnJson
     }
     if (s.contains ("<!DOCTYPE"))
       throw XPathException.of ("FODC0006", "A DOCTYPE declaration is not allowed in an XML fragment");
-    final XdmNode aWrapperDoc = _parse ("<fragment-wrapper>" + s + "</fragment-wrapper>");
-    final XdmNode aWrapper = aWrapperDoc.getChildAtIndex (0);
-    final XdmNode aDoc = XdmNode.createDocument ();
+    final IXdmNode aWrapperDoc = _parse ("<fragment-wrapper>" + s + "</fragment-wrapper>");
+    final IXdmNode aWrapper = aWrapperDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = IXdmNode.createDocument ();
     _copyChildren (aWrapper, aDoc);
     aDoc.setBaseUri (aCtx.getStaticContext ().getBaseUri ());
     aDoc.assignDocumentOrder ();

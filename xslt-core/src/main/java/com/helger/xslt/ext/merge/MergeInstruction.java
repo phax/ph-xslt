@@ -32,7 +32,7 @@ import com.helger.xpath.fn.FnUri;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.CompileContext;
@@ -141,7 +141,7 @@ public final class MergeInstruction
         {
           final IXdmItem aItem = aUris.get (i);
           final String sRef;
-          if (aItem instanceof final XdmNode aNode)
+          if (aItem instanceof final IXdmNode aNode)
             sRef = aNode.getStringValue ();
           else
             if (aItem instanceof final XdmAtomic aAtomic && aAtomic.isStringLike ())
@@ -159,7 +159,7 @@ public final class MergeInstruction
           {
             throw new XPathException ("FODC0005", "Invalid URI '" + sTrimmed + "' in xsl:merge-source");
           }
-          XdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, sUri);
+          IXdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, sUri);
           if (aDoc == null)
             throw new XPathException ("FODC0002", "Cannot retrieve the document '" + sUri + "'");
           // Validate a copy, the document itself is shared by all retrievals
@@ -167,7 +167,7 @@ public final class MergeInstruction
           final ValidationRequest aValidation = aSource.validation ();
           if (aValidation != null && !aValidation.isPreserve ())
           {
-            final XdmNode aCopy = NodeCopier.copyDeep (aDoc.getRoot (), true, !aValidation.isStrip ());
+            final IXdmNode aCopy = NodeCopier.copyDeep (aDoc.getRoot (), true, !aValidation.isStrip ());
             aCopy.setDocumentUri (aDoc.getRoot ().getDocumentUri ());
             aValidation.apply (aCopy);
             aDoc = aCopy;

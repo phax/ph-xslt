@@ -36,8 +36,8 @@ import com.helger.xpath.pattern.XsltPattern;
 import com.helger.xpath.pattern.XsltPatternParser;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -90,7 +90,7 @@ public final class PatternMatchSpecTest
 
   /** @return The single node the expression selects from the document. */
   @NonNull
-  private static XdmNode _select (@NonNull final XdmNode aDoc, @NonNull final String sExpr)
+  private static IXdmNode _select (@NonNull final IXdmNode aDoc, @NonNull final String sExpr)
   {
     final StaticContext aSC = _createStaticContext ();
     final XdmSequence aSeq = XPathCompiler.compile (sExpr, aSC)
@@ -99,10 +99,10 @@ public final class PatternMatchSpecTest
                                                                              .withVariable (VAR_AS, XdmSequence.EMPTY)
                                                                              .withVariable (VAR_F, XdmSequence.EMPTY));
     assertEquals (sExpr, 1, aSeq.size ());
-    return (XdmNode) aSeq.get (0);
+    return (IXdmNode) aSeq.get (0);
   }
 
-  private static void _checkMatches (@NonNull final XdmNode aDoc,
+  private static void _checkMatches (@NonNull final IXdmNode aDoc,
                                      @NonNull final DynamicContext aCtx,
                                      @NonNull final Object [] [] aCases)
   {
@@ -137,7 +137,7 @@ public final class PatternMatchSpecTest
   @Test
   public void spPatternMatch ()
   {
-    final XdmNode aDoc = parse (PAT_DOC);
+    final IXdmNode aDoc = parse (PAT_DOC);
     final XdmSequence aAs = XdmSequence.of (_select (aDoc, "/r/a[1]"), _select (aDoc, "/r/a[2]"));
     final DynamicContext aCtx = new DynamicContext (_createStaticContext ()).withFocus (aDoc, 1, 1)
                                                                             .withVariable (VAR_V,
@@ -232,7 +232,7 @@ public final class PatternMatchSpecTest
   @Test
   public void spPatternMatchError ()
   {
-    final XdmNode aDoc = parse (PAT_DOC);
+    final IXdmNode aDoc = parse (PAT_DOC);
     final DynamicContext aCtx = new DynamicContext (_createStaticContext ()).withFocus (aDoc, 1, 1);
     assertFalse (_pattern ("b[1 idiv 0]").matches (_select (aDoc, "/r/a[1]/b[1]"), aCtx));
   }
@@ -488,7 +488,7 @@ public final class PatternMatchSpecTest
   @Test
   public void spPatternMayMatchNamespace ()
   {
-    final XdmNode aDoc = parse (PAT_DOC);
+    final IXdmNode aDoc = parse (PAT_DOC);
     final StaticContext aSC = _createStaticContext ();
     final XdmSequence aNamespaces = XPathCompiler.compile ("//namespace-node()", aSC)
                                                  .evaluate (new DynamicContext (aSC).withFocus (aDoc, 1, 1));

@@ -29,7 +29,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.conformance.QT3XmlCompare;
 import com.helger.xpath.xdm.ENodeKind;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -51,7 +51,7 @@ public final class XSLT30XmlCompare
   private static final Pattern WHITESPACE = Pattern.compile ("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
   private static final Pattern EDGE_WHITESPACE = Pattern.compile ("^\\s+|\\s+$", Pattern.UNICODE_CHARACTER_CLASS);
 
-  private record Pair (@NonNull XdmNode left, @NonNull XdmNode right)
+  private record Pair (@NonNull IXdmNode left, @NonNull IXdmNode right)
   {}
 
   @PresentForCodeCoverage
@@ -60,16 +60,16 @@ public final class XSLT30XmlCompare
   private XSLT30XmlCompare ()
   {}
 
-  private static boolean _isBlankText (@NonNull final XdmNode aNode)
+  private static boolean _isBlankText (@NonNull final IXdmNode aNode)
   {
     return aNode.getKind () == ENodeKind.TEXT && trimSpace (aNode.getValue ()).isEmpty ();
   }
 
   @NonNull
-  private static ICommonsList <XdmNode> _significantChildren (@NonNull final XdmNode aNode)
+  private static ICommonsList <IXdmNode> _significantChildren (@NonNull final IXdmNode aNode)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
-    for (final XdmNode aChild : aNode.getAllChildren ())
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
+    for (final IXdmNode aChild : aNode.getAllChildren ())
       if (!_isBlankText (aChild))
         ret.add (aChild);
     return ret;
@@ -80,13 +80,13 @@ public final class XSLT30XmlCompare
     return aLeft.localName ().equals (aRight.localName ()) && aLeft.namespaceUri ().equals (aRight.namespaceUri ());
   }
 
-  private static boolean _isSameAttributes (@NonNull final XdmNode aLeft, @NonNull final XdmNode aRight)
+  private static boolean _isSameAttributes (@NonNull final IXdmNode aLeft, @NonNull final IXdmNode aRight)
   {
     if (aLeft.getAttributeCount () != aRight.getAttributeCount ())
       return false;
-    for (final XdmNode aLA : aLeft.getAllAttributes ())
+    for (final IXdmNode aLA : aLeft.getAllAttributes ())
     {
-      final XdmNode aRA = aRight.getAttribute (aLA.getName ().namespaceUri (), aLA.getName ().localName ());
+      final IXdmNode aRA = aRight.getAttribute (aLA.getName ().namespaceUri (), aLA.getName ().localName ());
       if (aRA == null || !Objects.equals (aLA.getValue (), aRA.getValue ()))
         return false;
     }
@@ -94,7 +94,7 @@ public final class XSLT30XmlCompare
   }
 
   @NonNull
-  private static String _value (@NonNull final XdmNode aNode, final boolean bNormalizeSpace)
+  private static String _value (@NonNull final IXdmNode aNode, final boolean bNormalizeSpace)
   {
     final String s = Objects.toString (aNode.getValue (), "");
     return bNormalizeSpace ? normalizeSpace (s) : s;
@@ -140,8 +140,8 @@ public final class XSLT30XmlCompare
    *        whitespace normalised.
    * @return <code>true</code> if equal.
    */
-  public static boolean isNodeEqual (@NonNull final XdmNode aLeft,
-                                     @NonNull final XdmNode aRight,
+  public static boolean isNodeEqual (@NonNull final IXdmNode aLeft,
+                                     @NonNull final IXdmNode aRight,
                                      final boolean bNormalizeSpace)
   {
     final Deque <Pair> aStack = new ArrayDeque <> ();
@@ -149,8 +149,8 @@ public final class XSLT30XmlCompare
     while (!aStack.isEmpty ())
     {
       final Pair aPair = aStack.pop ();
-      final XdmNode a = aPair.left ();
-      final XdmNode b = aPair.right ();
+      final IXdmNode a = aPair.left ();
+      final IXdmNode b = aPair.right ();
       if (a.getKind () != b.getKind ())
         return false;
       switch (a.getKind ())
@@ -160,8 +160,8 @@ public final class XSLT30XmlCompare
         {
           if (a.isElement () && (!_isSameName (a.getName (), b.getName ()) || !_isSameAttributes (a, b)))
             return false;
-          final ICommonsList <XdmNode> aLC = _significantChildren (a);
-          final ICommonsList <XdmNode> aRC = _significantChildren (b);
+          final ICommonsList <IXdmNode> aLC = _significantChildren (a);
+          final ICommonsList <IXdmNode> aRC = _significantChildren (b);
           if (aLC.size () != aRC.size ())
             return false;
           for (int i = 0; i < aLC.size (); ++i)
@@ -216,8 +216,8 @@ public final class XSLT30XmlCompare
                                     @NonNull final String sActual,
                                     final boolean bNormalizeSpace)
   {
-    final XdmNode aExpected = QT3XmlCompare.parseFragment (sExpected);
-    final XdmNode aActual = QT3XmlCompare.parseFragment (sActual);
+    final IXdmNode aExpected = QT3XmlCompare.parseFragment (sExpected);
+    final IXdmNode aActual = QT3XmlCompare.parseFragment (sActual);
     if (aExpected == null || aActual == null)
       return isSerialEqual (sExpected, sActual, true);
     return isNodeEqual (aExpected, aActual, bNormalizeSpace);

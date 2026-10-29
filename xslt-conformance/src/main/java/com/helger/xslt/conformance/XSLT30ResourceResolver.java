@@ -37,8 +37,8 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.conformance.QT3ResourceResolver;
 import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 
 /**
  * Resolves what a stylesheet reads at run time (<code>document()</code>,
@@ -57,7 +57,7 @@ import com.helger.xpath.xdm.XdmNode;
 public final class XSLT30ResourceResolver implements IResourceResolver
 {
   private final XSLT30DocumentCache m_aDocs;
-  private final ICommonsMap <Path, XdmNode> m_aPrepared = new CommonsHashMap <> ();
+  private final ICommonsMap <Path, IXdmNode> m_aPrepared = new CommonsHashMap <> ();
   private final ICommonsMap <String, Path> m_aByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, String> m_aEncodingByUri = new CommonsHashMap <> ();
   private final ICommonsMap <String, ICommonsList <Path>> m_aCollections = new CommonsHashMap <> ();
@@ -220,18 +220,18 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    * @param aDoc
    *        The document.
    */
-  public void putDocument (@NonNull final Path aPath, @NonNull final XdmNode aDoc)
+  public void putDocument (@NonNull final Path aPath, @NonNull final IXdmNode aDoc)
   {
     m_aPrepared.put (aPath, aDoc);
   }
 
   @Nullable
-  public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
     final Path aPath = _getPath (sAbsoluteUri);
     if (aPath == null)
       return null;
-    final XdmNode aPrepared = m_aPrepared.get (aPath);
+    final IXdmNode aPrepared = m_aPrepared.get (aPath);
     return aPrepared != null ? aPrepared : m_aDocs.getDocument (aPath);
   }
 
@@ -307,16 +307,16 @@ public final class XSLT30ResourceResolver implements IResourceResolver
 
   /** The element with the given xml:id or id attribute, or <code>null</code>. */
   @Nullable
-  private static XdmNode _findById (@NonNull final XdmNode aRoot, @NonNull final String sID)
+  private static IXdmNode _findById (@NonNull final IXdmNode aRoot, @NonNull final String sID)
   {
-    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> (aRoot);
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> (aRoot);
     while (aStack.isNotEmpty ())
     {
-      final XdmNode aCur = aStack.removeLast ();
+      final IXdmNode aCur = aStack.removeLast ();
       if (aCur.isElement ())
       {
-        final XdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
-        final XdmNode aId = aCur.getAttribute ("", "id");
+        final IXdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
+        final IXdmNode aId = aCur.getAttribute ("", "id");
         if (aXmlId != null && sID.equals (aXmlId.getValue ().trim ()) || aId != null && sID.equals (aId.getValue ().trim ()))
           return aCur;
       }
@@ -328,7 +328,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
 
   @Nullable
   @ReturnsMutableCopy
-  public ICommonsList <XdmNode> resolveCollection (@NonNull final String sUri)
+  public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sUri)
   {
     final ICommonsList <Path> aPaths = _getCollectionPaths (sUri);
     if (aPaths == null)
@@ -336,10 +336,10 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     ICommonsList <String> aFragments = m_aCollectionFragments.get (sUri);
     if (aFragments == null)
       aFragments = m_aCollectionFragments.get (sUri.endsWith ("/") ? sUri.substring (0, sUri.length () - 1) : sUri + "/");
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     for (int i = 0; i < aPaths.size (); ++i)
     {
-      final XdmNode aDoc = m_aDocs.getDocument (aPaths.get (i));
+      final IXdmNode aDoc = m_aDocs.getDocument (aPaths.get (i));
       if (aDoc == null)
         continue;
       // A member "file#id" is the element with that ID (collection-004)
@@ -348,7 +348,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
         ret.add (aDoc);
       else
       {
-        final XdmNode aElement = _findById (aDoc, sFragment);
+        final IXdmNode aElement = _findById (aDoc, sFragment);
         if (aElement != null)
           ret.add (aElement);
       }

@@ -33,7 +33,7 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * The JSON output method (Serialization 3.1 section 9). Nested maps and arrays
@@ -149,7 +149,7 @@ final class JsonWriter
   }
 
   @NonNull
-  private String _serializeNode (@NonNull final XdmNode aNode)
+  private String _serializeNode (@NonNull final IXdmNode aNode)
   {
     if (aNode.getKind () == ENodeKind.ATTRIBUTE || aNode.getKind () == ENodeKind.NAMESPACE)
       throw XPathException.of ("SENR0001", "An attribute or namespace node cannot be serialized as JSON");
@@ -254,7 +254,7 @@ final class JsonWriter
           }
         }
         else
-          if (aItem instanceof final XdmNode aNode)
+          if (aItem instanceof final IXdmNode aNode)
             appendString (m_aSB, _serializeNode (aNode), m_aCharset, false);
           else
             if (aItem instanceof final XdmAtomic aAtomic)

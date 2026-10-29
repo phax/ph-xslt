@@ -30,8 +30,8 @@ import org.junit.Test;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmValidationException;
@@ -80,17 +80,17 @@ public final class XsdBridgeDifferentialTest
   private static XsdSchema _withHints (@NonNull final XsdSchema aSchema,
                                        @NonNull final ICommonsList <Path> aDocs,
                                        @NonNull final Path aInstance,
-                                       @NonNull final XdmNode aRoot)
+                                       @NonNull final IXdmNode aRoot)
   {
     final ICommonsList <String> aLocations = new CommonsArrayList <> ();
-    final XdmNode aSchemaLocation = aRoot.getAttribute (XdmConstants.NS_XSI, "schemaLocation");
+    final IXdmNode aSchemaLocation = aRoot.getAttribute (XdmConstants.NS_XSI, "schemaLocation");
     if (aSchemaLocation != null)
     {
       final String [] aFields = aSchemaLocation.getValue ().trim ().split ("\\s+");
       for (int i = 0; i + 1 < aFields.length; i += 2)
         aLocations.add (aFields[i + 1]);
     }
-    final XdmNode aNoNamespace = aRoot.getAttribute (XdmConstants.NS_XSI, "noNamespaceSchemaLocation");
+    final IXdmNode aNoNamespace = aRoot.getAttribute (XdmConstants.NS_XSI, "noNamespaceSchemaLocation");
     if (aNoNamespace != null)
       aLocations.add (aNoNamespace.getValue ().trim ());
     final Path aBaseDir = aSchema.getBaseDir () != null ? aSchema.getBaseDir ()
@@ -125,7 +125,7 @@ public final class XsdBridgeDifferentialTest
                                    @NonNull final Path aInstance,
                                    @NonNull final Tally aTally)
   {
-    final XdmNode aDocument;
+    final IXdmNode aDocument;
     try
     {
       aDocument = new XdmParser ().parse (aInstance);
@@ -135,8 +135,8 @@ public final class XsdBridgeDifferentialTest
       aTally.m_aParseSkip.incrementAndGet ();
       return;
     }
-    XdmNode aRoot = null;
-    for (final XdmNode aChild : aDocument.getAllChildren ())
+    IXdmNode aRoot = null;
+    for (final IXdmNode aChild : aDocument.getAllChildren ())
       if (aChild.isElement ())
         aRoot = aChild;
     if (aRoot == null)

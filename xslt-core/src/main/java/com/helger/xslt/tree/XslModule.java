@@ -19,7 +19,7 @@ package com.helger.xslt.tree;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * One stylesheet module (the principal module or one reached through
@@ -30,12 +30,12 @@ import com.helger.xpath.xdm.XdmNode;
 public final class XslModule
 {
   private final String m_sUri;
-  private final XdmNode m_aSourceDocument;
+  private final IXdmNode m_aSourceDocument;
   private XslElement m_aRoot;
   private boolean m_bSimplified;
   private String m_sPackageQualifier = "";
 
-  public XslModule (@Nullable final String sUri, @NonNull final XdmNode aSourceDocument)
+  public XslModule (@Nullable final String sUri, @NonNull final IXdmNode aSourceDocument)
   {
     m_sUri = sUri;
     m_aSourceDocument = aSourceDocument;
@@ -54,7 +54,7 @@ public final class XslModule
    *         returns it.
    */
   @NonNull
-  public XdmNode getSourceDocument ()
+  public IXdmNode getSourceDocument ()
   {
     return m_aSourceDocument;
   }

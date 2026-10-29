@@ -28,7 +28,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xpath.ops.XsdLexical;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Structural validation of schema documents against the schema for schemas
@@ -337,12 +337,12 @@ final class XsdSchemaForSchemas
     return true;
   }
 
-  private static void _checkAttrValues (@NonNull final XdmNode aElement,
+  private static void _checkAttrValues (@NonNull final IXdmNode aElement,
                                         @NonNull final ICommonsSet <String> aSeenIDs,
                                         @NonNull final EXsdVersion eVersion)
   {
     final String sElem = XsdNodes.localName (aElement);
-    for (final XdmNode a : XsdNodes.attributes (aElement))
+    for (final IXdmNode a : XsdNodes.attributes (aElement))
     {
       final String sNS = XsdNodes.namespaceUri (a);
       final String sLocal = XsdNodes.localName (a);
@@ -409,7 +409,7 @@ final class XsdSchemaForSchemas
    * go-xslt <code>checkOccurs</code>: minOccurs a nonNegativeInteger,
    * maxOccurs one or <code>unbounded</code>, minOccurs not above maxOccurs.
    */
-  private static void _checkOccurs (@NonNull final XdmNode aElement)
+  private static void _checkOccurs (@NonNull final IXdmNode aElement)
   {
     long nMin = 1;
     long nMax = 1;
@@ -437,13 +437,13 @@ final class XsdSchemaForSchemas
       throw XsdCompiler.invalid ("", "minOccurs (" + nMin + ") exceeds maxOccurs");
   }
 
-  private static boolean _hasXSChild (@NonNull final XdmNode aElement, @NonNull final String sLocal)
+  private static boolean _hasXSChild (@NonNull final IXdmNode aElement, @NonNull final String sLocal)
   {
     return XsdNodes.firstXSChild (aElement, sLocal) != null;
   }
 
   /** The S4S consistency of an (default) open content element. */
-  private static void _checkOpenContentElement (@NonNull final XdmNode aEl, @NonNull final String sElem)
+  private static void _checkOpenContentElement (@NonNull final IXdmNode aEl, @NonNull final String sElem)
   {
     String sMode = "interleave";
     final String sModeAttr = XsdNodes.attr (aEl, "mode");
@@ -460,11 +460,11 @@ final class XsdSchemaForSchemas
       throw XsdCompiler.invalid ("", "xs:" + sElem + " with mode=" + XsdLexHelper.quote (sMode) + " requires an xs:any child");
     // Inside a complexContent restriction an openContent needs a particle
     // sibling to attach to
-    final XdmNode aParent = aEl.getParent ();
+    final IXdmNode aParent = aEl.getParent ();
     if ("openContent".equals (sElem) && XsdNodes.isXS (aParent, "restriction"))
     {
       boolean bHasParticle = false;
-      for (final XdmNode aSib : XsdNodes.children (aParent))
+      for (final IXdmNode aSib : XsdNodes.children (aParent))
         if (XsdNodes.isXS (aSib, "group") ||
             XsdNodes.isXS (aSib, "sequence") ||
             XsdNodes.isXS (aSib, "choice") ||
@@ -477,7 +477,7 @@ final class XsdSchemaForSchemas
         throw XsdCompiler.invalid ("", "xs:openContent in a restriction requires a sibling particle");
     }
     // The open-content xs:any is not a particle: no occurrence attributes
-    for (final XdmNode aChild : XsdNodes.children (aEl))
+    for (final IXdmNode aChild : XsdNodes.children (aEl))
     {
       if (!XsdNodes.isXS (aChild, "any"))
         continue;
@@ -493,10 +493,10 @@ final class XsdSchemaForSchemas
    * reference and has no local-only attributes; xs:defaultOpenContent precedes
    * every component declaration.
    */
-  private static void _checkTopLevelChildren (@NonNull final XdmNode aEl)
+  private static void _checkTopLevelChildren (@NonNull final IXdmNode aEl)
   {
     boolean bSeenComponent = false;
-    for (final XdmNode aChild : XsdNodes.children (aEl))
+    for (final IXdmNode aChild : XsdNodes.children (aEl))
     {
       if (!XsdNodes.isXSElement (aChild))
         continue;
@@ -547,7 +547,7 @@ final class XsdSchemaForSchemas
    * Representation Constraints of one XSD element that are independent of the
    * wider schema.
    */
-  private static void _checkDeclConstraints (@NonNull final XdmNode aEl, @NonNull final EXsdVersion eVersion)
+  private static void _checkDeclConstraints (@NonNull final IXdmNode aEl, @NonNull final EXsdVersion eVersion)
   {
     final String sElem = XsdNodes.localName (aEl);
     // An identity constraint is annotation? selector field+ (and a refer on
@@ -557,7 +557,7 @@ final class XsdSchemaForSchemas
       int nSel = 0;
       int nField = 0;
       boolean bSawSel = false;
-      for (final XdmNode aChild : XsdNodes.children (aEl))
+      for (final IXdmNode aChild : XsdNodes.children (aEl))
       {
         if (!XsdNodes.isXSElement (aChild))
           continue;
@@ -616,7 +616,7 @@ final class XsdSchemaForSchemas
 
     // The particle of a named model group definition has no occurrence
     if ("group".equals (sElem) && XsdNodes.hasAttr (aEl, "name"))
-      for (final XdmNode aChild : XsdNodes.children (aEl))
+      for (final IXdmNode aChild : XsdNodes.children (aEl))
       {
         if (!XsdNodes.isXSElement (aChild))
           continue;
@@ -643,7 +643,7 @@ final class XsdSchemaForSchemas
       case "group":
       case "attributeGroup":
         if (XsdNodes.hasAttr (aEl, "ref"))
-          for (final XdmNode aChild : XsdNodes.children (aEl))
+          for (final IXdmNode aChild : XsdNodes.children (aEl))
             if (XsdNodes.isXSElement (aChild) && !"annotation".equals (XsdNodes.localName (aChild)))
               throw XsdCompiler.invalid ("",
                                          "xs:" + sElem + " with a ref must not have " + XsdNodes.localName (aChild) + " children");
@@ -656,7 +656,7 @@ final class XsdSchemaForSchemas
     if ("attribute".equals (sElem) || "element".equals (sElem))
     {
       int nTypes = 0;
-      for (final XdmNode aChild : XsdNodes.children (aEl))
+      for (final IXdmNode aChild : XsdNodes.children (aEl))
         if (XsdNodes.isXS (aChild, "simpleType") || XsdNodes.isXS (aChild, "complexType"))
           nTypes++;
       if (nTypes > 1)
@@ -674,7 +674,7 @@ final class XsdSchemaForSchemas
         int nAnyAttrs = 0;
         boolean bSeenAttr = false;
         boolean bSeenAnyAttr = false;
-        for (final XdmNode aChild : XsdNodes.children (aEl))
+        for (final IXdmNode aChild : XsdNodes.children (aEl))
         {
           if (!XsdNodes.isXSElement (aChild))
             continue;
@@ -719,7 +719,7 @@ final class XsdSchemaForSchemas
     if (sName != null && NCNAME_ELEMS.contains (sElem) && !XsdLexHelper.isNCName (XsdWhiteSpace.collapse (sName)))
       throw XsdCompiler.invalid ("", "invalid name " + XsdLexHelper.quote (sName) + " for xs:" + sElem);
     // An inline type definition must be anonymous
-    final XdmNode aParent = aEl.getParent ();
+    final IXdmNode aParent = aEl.getParent ();
     if (sName != null && XsdNodes.isXSElement (aParent))
     {
       final String sParent = XsdNodes.localName (aParent);
@@ -752,7 +752,7 @@ final class XsdSchemaForSchemas
             throw XsdCompiler.invalid ("", "xs:all minOccurs must be 0 or 1");
         }
         if (eVersion == EXsdVersion.V10)
-          for (final XdmNode aChild : XsdNodes.children (aEl))
+          for (final IXdmNode aChild : XsdNodes.children (aEl))
           {
             if (!XsdNodes.isXS (aChild, "element"))
               continue;
@@ -769,7 +769,7 @@ final class XsdSchemaForSchemas
       case "sequence":
       case "choice":
         // An xs:all may only be the whole content model
-        for (final XdmNode aChild : XsdNodes.children (aEl))
+        for (final IXdmNode aChild : XsdNodes.children (aEl))
           if (XsdNodes.isXS (aChild, "all"))
             throw XsdCompiler.invalid ("", "xs:all may only appear as the top-level content model");
         break;
@@ -790,7 +790,7 @@ final class XsdSchemaForSchemas
       case "simpleType":
       case "simpleContent":
         // A simple-type restriction may not derive from the ur-types
-        for (final XdmNode aChild : XsdNodes.children (aEl))
+        for (final IXdmNode aChild : XsdNodes.children (aEl))
         {
           if (!XsdNodes.isXS (aChild, "restriction"))
             continue;
@@ -880,12 +880,12 @@ final class XsdSchemaForSchemas
   }
 
   /** The checks of one XSD element (go-xslt <code>validateSchemaAttrs</code> minus the recursion). */
-  private static void _checkElement (@NonNull final XdmNode aEl, @NonNull final EXsdVersion eVersion)
+  private static void _checkElement (@NonNull final IXdmNode aEl, @NonNull final EXsdVersion eVersion)
   {
     final String sElem = XsdNodes.localName (aEl);
     final ICommonsSet <String> aAllowed = ALLOWED_ATTRS.get (sElem);
     if (aAllowed != null)
-      for (final XdmNode a : XsdNodes.attributes (aEl))
+      for (final IXdmNode a : XsdNodes.attributes (aEl))
       {
         if (!XsdNodes.namespaceUri (a).isEmpty ())
         {
@@ -900,7 +900,7 @@ final class XsdSchemaForSchemas
       throw XsdCompiler.invalid ("", "xml:lang " + XsdLexHelper.quote (sLang) + " is not a valid xs:language");
     // Element-only content everywhere except inside appinfo/documentation
     if (!"appinfo".equals (sElem) && !"documentation".equals (sElem))
-      for (final XdmNode aChild : XsdNodes.children (aEl))
+      for (final IXdmNode aChild : XsdNodes.children (aEl))
       {
         if (aChild.isText () && !aChild.getValue ().strip ().isEmpty ())
           throw XsdCompiler.invalid ("", "character data is not allowed inside xs:" + sElem);
@@ -915,7 +915,7 @@ final class XsdSchemaForSchemas
       }
     final ICommonsSet <String> aAllowedChildren = ALLOWED_CHILDREN.get (sElem);
     if (aAllowedChildren != null)
-      for (final XdmNode aChild : XsdNodes.children (aEl))
+      for (final IXdmNode aChild : XsdNodes.children (aEl))
       {
         if (!XsdNodes.isXSElement (aChild))
           continue;
@@ -931,7 +931,7 @@ final class XsdSchemaForSchemas
     {
       // Grammar order: the inline type precedes the identity constraints
       boolean bSeenIC = false;
-      for (final XdmNode aChild : XsdNodes.children (aEl))
+      for (final IXdmNode aChild : XsdNodes.children (aEl))
       {
         if (!XsdNodes.isXSElement (aChild))
           continue;
@@ -967,7 +967,7 @@ final class XsdSchemaForSchemas
       {
         boolean bSeenOther = false;
         int nAnnots = 0;
-        for (final XdmNode aChild : XsdNodes.children (aEl))
+        for (final IXdmNode aChild : XsdNodes.children (aEl))
         {
           if (!XsdNodes.isXSElement (aChild))
             continue;
@@ -990,12 +990,12 @@ final class XsdSchemaForSchemas
     // restriction/extension children depend on the context
     final ICommonsMap <String, ICommonsSet <String>> aAllowedD = DERIV_CHILDREN_BY_PARENT.get (sElem);
     if (aAllowedD != null)
-      for (final XdmNode aBody : XsdNodes.children (aEl))
+      for (final IXdmNode aBody : XsdNodes.children (aEl))
       {
         if (!XsdNodes.isXS (aBody, "restriction") && !XsdNodes.isXS (aBody, "extension"))
           continue;
         final ICommonsSet <String> aAllowedBody = aAllowedD.get (XsdNodes.localName (aBody));
-        for (final XdmNode aChild : XsdNodes.children (aBody))
+        for (final IXdmNode aChild : XsdNodes.children (aBody))
         {
           if (!XsdNodes.isXSElement (aChild))
             continue;
@@ -1017,17 +1017,17 @@ final class XsdSchemaForSchemas
    * @throws XsdInvalidException
    *         for the first invalid value
    */
-  static void validateAttrValues (@NonNull final XdmNode aRoot, @NonNull final EXsdVersion eVersion)
+  static void validateAttrValues (@NonNull final IXdmNode aRoot, @NonNull final EXsdVersion eVersion)
   {
     final ICommonsSet <String> aSeenIDs = new CommonsHashSet <> ();
-    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
     aStack.add (aRoot);
     while (aStack.isNotEmpty ())
     {
-      final XdmNode aCur = aStack.removeLast ();
+      final IXdmNode aCur = aStack.removeLast ();
       if (XsdNodes.isXSElement (aCur))
         _checkAttrValues (aCur, aSeenIDs, eVersion);
-      final ICommonsList <XdmNode> aChildren = XsdNodes.children (aCur);
+      final ICommonsList <IXdmNode> aChildren = XsdNodes.children (aCur);
       for (int i = aChildren.size () - 1; i >= 0; i--)
         if (aChildren.get (i).isElement ())
           aStack.add (aChildren.get (i));
@@ -1042,13 +1042,13 @@ final class XsdSchemaForSchemas
    * @throws XsdInvalidException
    *         for the first violation
    */
-  static void validateSchemaAttrs (@NonNull final XdmNode aRoot, @NonNull final EXsdVersion eVersion)
+  static void validateSchemaAttrs (@NonNull final IXdmNode aRoot, @NonNull final EXsdVersion eVersion)
   {
-    final ICommonsList <XdmNode> aStack = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
     aStack.add (aRoot);
     while (aStack.isNotEmpty ())
     {
-      final XdmNode aCur = aStack.removeLast ();
+      final IXdmNode aCur = aStack.removeLast ();
       final boolean bXS = XsdNodes.isXSElement (aCur);
       if (bXS)
       {
@@ -1060,7 +1060,7 @@ final class XsdSchemaForSchemas
           continue;
         }
       }
-      final ICommonsList <XdmNode> aChildren = XsdNodes.children (aCur);
+      final ICommonsList <IXdmNode> aChildren = XsdNodes.children (aCur);
       for (int i = aChildren.size () - 1; i >= 0; i--)
         if (aChildren.get (i).isElement ())
           aStack.add (aChildren.get (i));

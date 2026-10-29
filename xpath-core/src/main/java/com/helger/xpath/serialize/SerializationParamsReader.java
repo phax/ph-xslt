@@ -39,7 +39,7 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -358,7 +358,7 @@ public final class SerializationParamsReader
   }
 
   @NonNull
-  private static XdmQName _resolveQName (@NonNull final String sLexical, @NonNull final XdmNode aContext)
+  private static XdmQName _resolveQName (@NonNull final String sLexical, @NonNull final IXdmNode aContext)
   {
     String sPrefix = "";
     String sLocal = sLexical;
@@ -385,12 +385,12 @@ public final class SerializationParamsReader
     return new XdmQName (sUri, sLocal, sPrefix);
   }
 
-  private static void _readCharacterMaps (@NonNull final SerializationParams aParams, @NonNull final XdmNode aElement)
+  private static void _readCharacterMaps (@NonNull final SerializationParams aParams, @NonNull final IXdmNode aElement)
   {
     if (aElement.getAttributeCount () > 0)
       throw XPathException.of ("SEPM0017", "use-character-maps must not have attributes");
     final ICommonsSet <Integer> aSeen = new CommonsHashSet <> ();
-    for (final XdmNode aChild : aElement.getAllChildren ())
+    for (final IXdmNode aChild : aElement.getAllChildren ())
     {
       if (aChild.getKind () == ENodeKind.TEXT)
       {
@@ -404,7 +404,7 @@ public final class SerializationParamsReader
         throw XPathException.of ("SEPM0017", "Unexpected element " + aChild.getName () + " in use-character-maps");
       String sChar = null;
       String sMapString = null;
-      for (final XdmNode aAttr : aChild.getAllAttributes ())
+      for (final IXdmNode aAttr : aChild.getAllAttributes ())
       {
         final XdmQName aAttrName = aAttr.getName ();
         if (aAttrName.isSameName ("", "character"))
@@ -430,7 +430,7 @@ public final class SerializationParamsReader
   private static void _applyElementParam (@NonNull final SerializationParams aParams,
                                           @NonNull final String sName,
                                           @NonNull final String sRawValue,
-                                          @NonNull final XdmNode aElement)
+                                          @NonNull final IXdmNode aElement)
   {
     final String sValue = "item-separator".equals (sName) ? sRawValue : sRawValue.trim ();
     switch (sName)
@@ -532,7 +532,7 @@ public final class SerializationParamsReader
    */
   public static boolean isParamsElement (@NonNull final IXdmItem aItem)
   {
-    return aItem instanceof final XdmNode aNode &&
+    return aItem instanceof final IXdmNode aNode &&
            aNode.getKind () == ENodeKind.ELEMENT &&
            aNode.getName ().isSameName (SerializationParams.NS_OUTPUT, "serialization-parameters");
   }
@@ -550,15 +550,15 @@ public final class SerializationParamsReader
    *         twice, SEPM0019 for a parameter given twice.
    */
   @NonNull
-  public static SerializationParams fromElement (@NonNull final XdmNode aElement)
+  public static SerializationParams fromElement (@NonNull final IXdmNode aElement)
   {
     final SerializationParams ret = new SerializationParams ();
-    for (final XdmNode aAttr : aElement.getAllAttributes ())
+    for (final IXdmNode aAttr : aElement.getAllAttributes ())
       if (!aAttr.getName ().hasNamespace ())
         throw XPathException.of ("SEPM0017",
                                  "Unexpected attribute " + aAttr.getName () + " on serialization-parameters");
     final ICommonsSet <XdmQName> aSeen = new CommonsHashSet <> ();
-    for (final XdmNode aChild : aElement.getAllChildren ())
+    for (final IXdmNode aChild : aElement.getAllChildren ())
     {
       if (aChild.getKind () == ENodeKind.TEXT)
       {
@@ -587,7 +587,7 @@ public final class SerializationParamsReader
         continue;
       }
       String sValue = null;
-      for (final XdmNode aAttr : aChild.getAllAttributes ())
+      for (final IXdmNode aAttr : aChild.getAllAttributes ())
       {
         if (aAttr.getName ().isSameName ("", "value"))
           sValue = aAttr.getValue ();
@@ -595,7 +595,7 @@ public final class SerializationParamsReader
           if (!aAttr.getName ().hasNamespace ())
             throw XPathException.of ("SEPM0017", "Unexpected attribute " + aAttr.getName () + " on " + sLocal);
       }
-      for (final XdmNode aGrandChild : aChild.getAllChildren ())
+      for (final IXdmNode aGrandChild : aChild.getAllChildren ())
         if (aGrandChild.getKind () == ENodeKind.ELEMENT ||
             aGrandChild.getKind () == ENodeKind.TEXT && !aGrandChild.getValue ().isBlank ())
           throw XPathException.of ("SEPM0017", "Serialization parameter " + sLocal + " must be empty");

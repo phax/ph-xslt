@@ -28,7 +28,7 @@ import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.fn.FnAccessor;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -43,7 +43,7 @@ public final class XslElement extends XslNode
   /** XSLT 3.0 as a version number. */
   public static final BigDecimal VERSION_30 = new BigDecimal ("3.0");
 
-  private final XdmNode m_aSource;
+  private final IXdmNode m_aSource;
   private final XdmQName m_aName;
   private final ICommonsOrderedMap <XdmQName, String> m_aAttrs = new CommonsLinkedHashMap <> ();
   private final ICommonsList <XslNode> m_aChildren = new CommonsArrayList <> ();
@@ -53,7 +53,7 @@ public final class XslElement extends XslNode
   private int m_nPrecedence;
   private int m_nImportLo;
 
-  public XslElement (@NonNull final XslModule aModule, @NonNull final XdmNode aSource)
+  public XslElement (@NonNull final XslModule aModule, @NonNull final IXdmNode aSource)
   {
     super (aModule);
     m_aSource = aSource;
@@ -62,7 +62,7 @@ public final class XslElement extends XslNode
 
   /** @return The parsed source element (namespaces, base URI, location). */
   @NonNull
-  public XdmNode getSource ()
+  public IXdmNode getSource ()
   {
     return m_aSource;
   }

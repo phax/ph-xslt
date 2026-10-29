@@ -24,7 +24,7 @@ import org.jspecify.annotations.NonNull;
 import org.junit.Test;
 
 import com.helger.xpath.spec.SpecTestHelper.SpecCase;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Port of go-xslt's <code>fn_uri_spec_test.go</code>: the URI functions of
@@ -152,7 +152,7 @@ public final class FnUriSpecTest
   public void testURIBaseURI ()
   {
     // go-xslt's context base URI is also the document's base URI here
-    final XdmNode aDoc = SpecTestHelper.parse ("<r xml:base=\"x/\"><t/></r>");
+    final IXdmNode aDoc = SpecTestHelper.parse ("<r xml:base=\"x/\"><t/></r>");
     aDoc.setBaseUri ("http://h/doc.xml");
     FnCoreTestHelper.coreRun (env ("<r xml:base=\"http://ex.com/a/\"><s xml:base=\"sub/\" a=\"1\"><t>x<!--c--><?pi d?></t></s><u xml:base=\"/top/\"/></r>"),
                              ok ("base-uri(/r)", "http://ex.com/a/"),

@@ -31,7 +31,7 @@ import org.junit.Test;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.context.EXsdVersion;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xsd.XsdTestSupport.Compiled;
 import com.helger.xsd.XsdTestSupport.EVerdict;
@@ -76,16 +76,16 @@ public final class XsdContentMatcherTest
     return new CommonsArrayList <> (aNames);
   }
 
-  private static List <XdmNode> _kids (final List <String> aNames)
+  private static List <IXdmNode> _kids (final List <String> aNames)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     for (final String sName : aNames)
     {
       final int nClose = sName.indexOf ('}');
       final XdmQName aQName = sName.startsWith ("{") ? new XdmQName (sName.substring (1, nClose),
                                                                     sName.substring (nClose + 1))
                                                      : new XdmQName (sName);
-      ret.add (XdmNode.createElement (aQName));
+      ret.add (IXdmNode.createElement (aQName));
     }
     return ret;
   }
@@ -468,7 +468,7 @@ public final class XsdContentMatcherTest
       aGroup.m_aParticles.add (aDeep);
       aDeep = new XsdParticle (1, 1, aGroup);
     }
-    final List <XdmNode> aKids = _kids (_of ("a"));
+    final List <IXdmNode> aKids = _kids (_of ("a"));
     assertFalse (XsdBigMatch.particleDeterministic (aSchema, aDeep));
     assertFalse (XsdContentMatcher.contentMatches (aSchema, aDeep, aKids).decided ());
     assertEquals (new XsdMatchResult (false, false), XsdBigMatch.countMatch (aSchema, aDeep, aKids));

@@ -26,7 +26,7 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.context.IResourceResolver;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xslt.XsltCompileOptions;
@@ -62,7 +62,7 @@ public final class PackageRegistry
   public record ResolvedPackage (@NonNull String key,
                                  @NonNull String name,
                                  @NonNull PackageVersion version,
-                                 @NonNull XdmNode root,
+                                 @NonNull IXdmNode root,
                                  @Nullable String baseUri)
   {}
 
@@ -72,7 +72,7 @@ public final class PackageRegistry
     private final int m_nIndex;
     private boolean m_bLoaded;
     private boolean m_bNotPackage;
-    private XdmNode m_aRoot;
+    private IXdmNode m_aRoot;
     private String m_sName;
     private String m_sVersion;
 
@@ -95,7 +95,7 @@ public final class PackageRegistry
   }
 
   @Nullable
-  private static XdmNode _getDocumentElement (@Nullable final XdmNode aNode)
+  private static IXdmNode _getDocumentElement (@Nullable final IXdmNode aNode)
   {
     if (aNode == null || aNode.isElement ())
       return aNode;
@@ -106,7 +106,7 @@ public final class PackageRegistry
   }
 
   @Nullable
-  private XdmNode _parse (final XsltCompileOptions.@NonNull PackageSource aSource)
+  private IXdmNode _parse (final XsltCompileOptions.@NonNull PackageSource aSource)
   {
     if (aSource.node () != null)
       return _getDocumentElement (aSource.node ());
@@ -117,7 +117,7 @@ public final class PackageRegistry
         final InputSource aIS = new InputSource (new StringReader (aSource.text ()));
         if (aSource.baseUri () != null)
           aIS.setSystemId (aSource.baseUri ());
-        final XdmNode aDoc = new XdmParser ().setLoadExternalEntities (m_aOptions.isLoadExternalEntities ()).parse (aIS);
+        final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (m_aOptions.isLoadExternalEntities ()).parse (aIS);
         if (aSource.baseUri () != null && aDoc.getDocumentUri () == null)
           aDoc.setDocumentUri (aSource.baseUri ());
         return _getDocumentElement (aDoc);
@@ -133,7 +133,7 @@ public final class PackageRegistry
                                                                          : new FileResourceResolver (m_aOptions.isLoadExternalEntities ());
     try
     {
-      final XdmNode aDoc = aResolver.resolveDocument (aSource.baseUri ());
+      final IXdmNode aDoc = aResolver.resolveDocument (aSource.baseUri ());
       if (aDoc != null && aDoc.isDocument () && aDoc.getDocumentUri () == null)
         aDoc.setDocumentUri (aSource.baseUri ());
       return _getDocumentElement (aDoc);
@@ -149,14 +149,14 @@ public final class PackageRegistry
     if (aEntry.m_bLoaded)
       return;
     aEntry.m_bLoaded = true;
-    final XdmNode aRoot = _parse (aEntry.m_aSource);
+    final IXdmNode aRoot = _parse (aEntry.m_aSource);
     if (aRoot != null &&
         XsltNames.NS_XSL.equals (aRoot.getName ().namespaceUri ()) &&
         "package".equals (aRoot.getName ().localName ()))
     {
       aEntry.m_aRoot = aRoot;
-      final XdmNode aName = aRoot.getAttribute ("", "name");
-      final XdmNode aVersion = aRoot.getAttribute ("", "package-version");
+      final IXdmNode aName = aRoot.getAttribute ("", "name");
+      final IXdmNode aVersion = aRoot.getAttribute ("", "package-version");
       aEntry.m_sName = aName == null ? null : aName.getValue ().trim ();
       aEntry.m_sVersion = aVersion == null ? null : aVersion.getValue ().trim ();
     }

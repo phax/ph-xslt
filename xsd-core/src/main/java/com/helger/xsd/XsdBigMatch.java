@@ -30,7 +30,7 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsSet;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Large-instance counting matcher (go-xslt <code>bigmatch.go</code>). The
@@ -205,7 +205,7 @@ final class XsdBigMatch
     private final XsdName [] m_aNames;
     private boolean m_bUnsure;
 
-    Run (@NonNull final XsdSchema aSchema, @NonNull final List <XdmNode> aKids)
+    Run (@NonNull final XsdSchema aSchema, @NonNull final List <IXdmNode> aKids)
     {
       m_aSchema = aSchema;
       m_aNames = XsdContentMatcher.namesOf (aKids);
@@ -414,7 +414,7 @@ final class XsdBigMatch
   @NonNull
   static XsdMatchResult countMatch (@NonNull final XsdSchema aSchema,
                                     @NonNull final XsdParticle aParticle,
-                                    @NonNull final List <XdmNode> aKids)
+                                    @NonNull final List <IXdmNode> aKids)
   {
     if (!_bigDeterministic (aSchema, aParticle))
       return new XsdMatchResult (false, false);

@@ -37,8 +37,8 @@ import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -66,7 +66,7 @@ public final class XsltPatternParserTest
                                     "</doc>";
 
   @NonNull
-  private static XdmNode _parse (@NonNull final String sXml)
+  private static IXdmNode _parse (@NonNull final String sXml)
   {
     try
     {
@@ -88,7 +88,7 @@ public final class XsltPatternParserTest
                    "() as item()",
                    (aCtx, aArgs) -> XdmSequence.of (aCtx.getCurrentItem ()));
     aLib.register (XdmConstants.NS_FN, "key", "(xs:string, xs:anyAtomicType*) as node()*", (aCtx, aArgs) -> {
-      final XdmNode aRoot = ((XdmNode) aCtx.getContextItem ()).getRoot ();
+      final IXdmNode aRoot = ((IXdmNode) aCtx.getContextItem ()).getRoot ();
       final String sValue = String.valueOf (((XdmAtomic) aArgs.get (1).get (0)).getValue ());
       return XPathCompiler.compile ("//*[@k = '" + sValue + "']", new StaticContext ())
                           .evaluate (new DynamicContext (new StaticContext ()).withFocus (aRoot, 1, 1));
@@ -107,23 +107,23 @@ public final class XsltPatternParserTest
   }
 
   @NonNull
-  private static ICommonsList <XdmNode> _select (@NonNull final XdmNode aDoc, @NonNull final String sExpr)
+  private static ICommonsList <IXdmNode> _select (@NonNull final IXdmNode aDoc, @NonNull final String sExpr)
   {
     final StaticContext aSC = _createStaticContext ();
     final XdmSequence aSeq = XPathCompiler.compile (sExpr, aSC)
                                           .evaluate (new DynamicContext (aSC).withFocus (aDoc, 1, 1)
                                                                              .withVariable (VAR_V, XdmSequence.EMPTY));
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     for (final IXdmItem aItem : aSeq)
-      ret.add ((XdmNode) aItem);
+      ret.add ((IXdmNode) aItem);
     return ret;
   }
 
   /** All nodes of the tree, including attributes and namespace nodes. */
   @NonNull
-  private static ICommonsList <XdmNode> _allNodes (@NonNull final XdmNode aDoc)
+  private static ICommonsList <IXdmNode> _allNodes (@NonNull final IXdmNode aDoc)
   {
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     ret.add (aDoc);
     ret.addAll (_select (aDoc, "//node() | //@* | //namespace-node()"));
     return ret;
@@ -152,15 +152,15 @@ public final class XsltPatternParserTest
     _check (_parse (sXml), sPattern, sExpected, aVar);
   }
 
-  private static void _check (@NonNull final XdmNode aDoc,
+  private static void _check (@NonNull final IXdmNode aDoc,
                               @NonNull final String sPattern,
                               @NonNull final String sExpected,
                               @NonNull final XdmSequence aVar)
   {
     final XsltPattern aPattern = _pattern (sPattern);
-    final List <XdmNode> aExpected = _select (aDoc, sExpected);
+    final List <IXdmNode> aExpected = _select (aDoc, sExpected);
     final DynamicContext aCtx = _ctx (aVar);
-    for (final XdmNode aNode : _allNodes (aDoc))
+    for (final IXdmNode aNode : _allNodes (aDoc))
     {
       final boolean bExpected = aExpected.contains (aNode);
       assertEquals ("Pattern '" + sPattern + "' on " + aNode,
@@ -273,7 +273,7 @@ public final class XsltPatternParserTest
   public void testParentlessTrees ()
   {
     final DynamicContext aCtx = _ctx (XdmSequence.EMPTY);
-    final XdmNode aElement = XdmNode.createElement (new XdmQName ("para"));
+    final IXdmNode aElement = IXdmNode.createElement (new XdmQName ("para"));
     assertTrue (_pattern ("para").matches (aElement, aCtx));
     assertTrue (_pattern ("para[1]").matches (aElement, aCtx));
     assertTrue (_pattern ("node()").matches (aElement, aCtx));
@@ -284,23 +284,23 @@ public final class XsltPatternParserTest
     assertTrue (_pattern ("root()/self::para").matches (aElement, aCtx));
     assertTrue (_pattern ("root(.)/self::para").matches (aElement, aCtx));
 
-    final XdmNode aChild = XdmNode.createElement (new XdmQName ("child"));
+    final IXdmNode aChild = IXdmNode.createElement (new XdmQName ("child"));
     aElement.appendChild (aChild);
     assertTrue (_pattern ("child").matches (aChild, aCtx));
     assertTrue (_pattern ("para/child").matches (aChild, aCtx));
     assertFalse (_pattern ("root()/self::child").matches (aChild, aCtx));
 
-    final XdmNode aAttr = XdmNode.createAttribute (new XdmQName ("width"), "1");
+    final IXdmNode aAttr = IXdmNode.createAttribute (new XdmQName ("width"), "1");
     assertTrue (_pattern ("@width").matches (aAttr, aCtx));
     assertTrue (_pattern ("@*").matches (aAttr, aCtx));
     assertFalse (_pattern ("node()").matches (aAttr, aCtx));
     assertFalse (_pattern ("x/@width").matches (aAttr, aCtx));
 
     // In a parentless tree only an a two levels below another node matches
-    final XdmNode aA1 = XdmNode.createElement (new XdmQName ("a"));
-    final XdmNode aA2 = XdmNode.createElement (new XdmQName ("a"));
-    final XdmNode aB = XdmNode.createElement (new XdmQName ("b"));
-    final XdmNode aA3 = XdmNode.createElement (new XdmQName ("a"));
+    final IXdmNode aA1 = IXdmNode.createElement (new XdmQName ("a"));
+    final IXdmNode aA2 = IXdmNode.createElement (new XdmQName ("a"));
+    final IXdmNode aB = IXdmNode.createElement (new XdmQName ("b"));
+    final IXdmNode aA3 = IXdmNode.createElement (new XdmQName ("a"));
     aA1.appendChild (aA2);
     aA1.appendChild (aB);
     aB.appendChild (aA3);
@@ -309,7 +309,7 @@ public final class XsltPatternParserTest
     assertFalse (aExcept.matches (aA2, aCtx));
     assertTrue (aExcept.matches (aA3, aCtx));
 
-    final XdmNode aText = XdmNode.createText ("t");
+    final IXdmNode aText = IXdmNode.createText ("t");
     assertTrue (_pattern ("text()").matches (aText, aCtx));
   }
 
@@ -337,7 +337,7 @@ public final class XsltPatternParserTest
   @Test
   public void testRooted ()
   {
-    final XdmNode aDoc = _parse (DOC);
+    final IXdmNode aDoc = _parse (DOC);
     final XdmSequence aParas = XdmSequence.of (new CommonsArrayList <> (_select (aDoc, "/doc/para")));
     _check (aDoc, "$v", "/doc/para", aParas);
     _check (aDoc, "$v[1]", "/doc/para[1]", aParas);
@@ -574,8 +574,8 @@ public final class XsltPatternParserTest
     aSB.append ("<c/>");
     for (int i = 0; i < nDepth; ++i)
       aSB.append ("</a>");
-    final XdmNode aDoc = _parse (aSB.toString ());
-    final XdmNode aLeaf = _select (aDoc, "//c").getFirstOrNull ();
+    final IXdmNode aDoc = _parse (aSB.toString ());
+    final IXdmNode aLeaf = _select (aDoc, "//c").getFirstOrNull ();
     final DynamicContext aCtx = _ctx (XdmSequence.EMPTY);
     // Without the memo this is cubic in the depth
     assertFalse (_pattern ("b//a//a//c").matches (aLeaf, aCtx));

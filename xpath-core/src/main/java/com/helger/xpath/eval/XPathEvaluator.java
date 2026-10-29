@@ -59,8 +59,8 @@ import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
@@ -235,13 +235,13 @@ public final class XPathEvaluator
    */
   @NonNull
   private static XdmSequence _evalAxisStep (final IExpr.@NonNull StepExpr aStep,
-                                            @NonNull final XdmNode aNode,
+                                            @NonNull final IXdmNode aNode,
                                             @NonNull final DynamicContext aCtx)
   {
     final EAxis eAxis = aStep.axis ();
     final NodeTest aTest = aStep.test ();
     final ENodeKind ePrincipal = AxisNavigator.getPrincipalNodeKind (eAxis);
-    final List <XdmNode> aNodes = new ArrayList <> ();
+    final List <IXdmNode> aNodes = new ArrayList <> ();
     AxisNavigator.collect (eAxis,
                            aNode,
                            aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
@@ -259,9 +259,9 @@ public final class XPathEvaluator
   }
 
   @NonNull
-  private static XdmNode _getStepContextNode (@NonNull final IXdmItem aItem, @NonNull final String sCode)
+  private static IXdmNode _getStepContextNode (@NonNull final IXdmItem aItem, @NonNull final String sCode)
   {
-    if (aItem instanceof final XdmNode aNode)
+    if (aItem instanceof final IXdmNode aNode)
       return aNode;
     throw XPathException.of (sCode, "The context item of a path step is not a node");
   }
@@ -275,7 +275,7 @@ public final class XPathEvaluator
   {
     int nNodes = 0;
     for (final IXdmItem aItem : aSeq)
-      if (aItem instanceof XdmNode)
+      if (aItem instanceof IXdmNode)
         nNodes++;
     if (nNodes > 0 && nNodes < aSeq.size () && bLastStep)
       throw XPathException.of ("XPTY0018",
@@ -334,9 +334,9 @@ public final class XPathEvaluator
       if (aExpr.absolute ())
       {
         final IXdmItem aItem = _getContextItem (aCtx);
-        if (!(aItem instanceof final XdmNode aNode))
+        if (!(aItem instanceof final IXdmNode aNode))
           throw XPathException.of ("XPTY0020", "The context item for '/' is not a node");
-        final XdmNode aRoot = aNode.getRoot ();
+        final IXdmNode aRoot = aNode.getRoot ();
         if (!aRoot.isDocument ())
           throw XPathException.of ("XPDY0050",
                                    "The root of the tree containing the context item is not a document node");
@@ -355,7 +355,7 @@ public final class XPathEvaluator
         else
         {
           final IXdmItem aItem = _getContextItem (aCtx);
-          if (!(aItem instanceof final XdmNode aNode))
+          if (!(aItem instanceof final IXdmNode aNode))
             throw XPathException.of ("XPTY0020", "The context item for an axis step is not a node");
           aCurrent = _evalAxisStep (aFirst, aNode, aCtx);
         }
@@ -845,14 +845,14 @@ public final class XPathEvaluator
       return XdmSequence.EMPTY;
     if (!aLeft.isSingleton () ||
         !aRight.isSingleton () ||
-        !(aLeft.get (0) instanceof final XdmNode aL) ||
-        !(aRight.get (0) instanceof final XdmNode aR))
+        !(aLeft.get (0) instanceof final IXdmNode aL) ||
+        !(aRight.get (0) instanceof final IXdmNode aR))
       throw XPathException.type ("The operands of a node comparison must be single nodes");
     return switch (aExpr.op ())
     {
       case NODE_IS -> _bool (aL == aR);
-      case NODE_PRECEDES -> _bool (XdmNode.compareDocumentOrder (aL, aR) < 0);
-      default -> _bool (XdmNode.compareDocumentOrder (aL, aR) > 0);
+      case NODE_PRECEDES -> _bool (IXdmNode.compareDocumentOrder (aL, aR) < 0);
+      default -> _bool (IXdmNode.compareDocumentOrder (aL, aR) > 0);
     };
   }
 
@@ -945,7 +945,7 @@ public final class XPathEvaluator
   private static XdmSequence _checkNodes (@NonNull final XdmSequence aSeq, @NonNull final String sOp)
   {
     for (final IXdmItem aItem : aSeq)
-      if (!(aItem instanceof XdmNode))
+      if (!(aItem instanceof IXdmNode))
         throw XPathException.type ("The operands of '" + sOp + "' must be nodes");
     return aSeq;
   }

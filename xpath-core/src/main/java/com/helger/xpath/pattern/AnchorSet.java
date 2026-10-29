@@ -21,7 +21,7 @@ import org.jspecify.annotations.NonNull;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsSet;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * A set of anchor nodes of a selection pattern: the context nodes from which
@@ -37,9 +37,9 @@ import com.helger.xpath.xdm.XdmNode;
 final class AnchorSet
 {
   private final boolean m_bComplement;
-  private final ICommonsSet <XdmNode> m_aNodes;
+  private final ICommonsSet <IXdmNode> m_aNodes;
 
-  private AnchorSet (final boolean bComplement, @NonNull final ICommonsSet <XdmNode> aNodes)
+  private AnchorSet (final boolean bComplement, @NonNull final ICommonsSet <IXdmNode> aNodes)
   {
     m_bComplement = bComplement;
     m_aNodes = aNodes;
@@ -58,7 +58,7 @@ final class AnchorSet
   }
 
   @NonNull
-  static AnchorSet createComplementOf (@NonNull final ICommonsSet <XdmNode> aExcluded)
+  static AnchorSet createComplementOf (@NonNull final ICommonsSet <IXdmNode> aExcluded)
   {
     return new AnchorSet (true, new CommonsHashSet <> (aExcluded));
   }
@@ -75,7 +75,7 @@ final class AnchorSet
 
   /** @return The finite part: the members, or the excluded nodes of a complement. Not a copy. */
   @NonNull
-  ICommonsSet <XdmNode> getNodes ()
+  ICommonsSet <IXdmNode> getNodes ()
   {
     return m_aNodes;
   }
@@ -86,7 +86,7 @@ final class AnchorSet
   }
 
   /** Add one node in place. */
-  void add (@NonNull final XdmNode aNode)
+  void add (@NonNull final IXdmNode aNode)
   {
     if (m_bComplement)
       m_aNodes.remove (aNode);
@@ -97,7 +97,7 @@ final class AnchorSet
   @NonNull
   AnchorSet getUnion (@NonNull final AnchorSet aOther)
   {
-    final ICommonsSet <XdmNode> aSet = new CommonsHashSet <> ();
+    final ICommonsSet <IXdmNode> aSet = new CommonsHashSet <> ();
     if (!m_bComplement && !aOther.m_bComplement)
     {
       aSet.addAll (m_aNodes);
@@ -107,7 +107,7 @@ final class AnchorSet
     if (m_bComplement && aOther.m_bComplement)
     {
       // co(A) | co(B) = co(A & B)
-      for (final XdmNode aNode : m_aNodes)
+      for (final IXdmNode aNode : m_aNodes)
         if (aOther.m_aNodes.contains (aNode))
           aSet.add (aNode);
       return new AnchorSet (true, aSet);
@@ -115,7 +115,7 @@ final class AnchorSet
     // F | co(E) = co(E \ F)
     final AnchorSet aFinite = m_bComplement ? aOther : this;
     final AnchorSet aCo = m_bComplement ? this : aOther;
-    for (final XdmNode aNode : aCo.m_aNodes)
+    for (final IXdmNode aNode : aCo.m_aNodes)
       if (!aFinite.m_aNodes.contains (aNode))
         aSet.add (aNode);
     return new AnchorSet (true, aSet);
@@ -124,7 +124,7 @@ final class AnchorSet
   @NonNull
   AnchorSet getIntersection (@NonNull final AnchorSet aOther)
   {
-    final ICommonsSet <XdmNode> aSet = new CommonsHashSet <> ();
+    final ICommonsSet <IXdmNode> aSet = new CommonsHashSet <> ();
     if (m_bComplement && aOther.m_bComplement)
     {
       // co(A) & co(B) = co(A | B)
@@ -134,7 +134,7 @@ final class AnchorSet
     }
     if (!m_bComplement && !aOther.m_bComplement)
     {
-      for (final XdmNode aNode : m_aNodes)
+      for (final IXdmNode aNode : m_aNodes)
         if (aOther.m_aNodes.contains (aNode))
           aSet.add (aNode);
       return new AnchorSet (false, aSet);
@@ -142,7 +142,7 @@ final class AnchorSet
     // F & co(E) = F \ E
     final AnchorSet aFinite = m_bComplement ? aOther : this;
     final AnchorSet aCo = m_bComplement ? this : aOther;
-    for (final XdmNode aNode : aFinite.m_aNodes)
+    for (final IXdmNode aNode : aFinite.m_aNodes)
       if (!aCo.m_aNodes.contains (aNode))
         aSet.add (aNode);
     return new AnchorSet (false, aSet);
@@ -151,10 +151,10 @@ final class AnchorSet
   @NonNull
   AnchorSet getDifference (@NonNull final AnchorSet aOther)
   {
-    final ICommonsSet <XdmNode> aSet = new CommonsHashSet <> ();
+    final ICommonsSet <IXdmNode> aSet = new CommonsHashSet <> ();
     if (!m_bComplement && !aOther.m_bComplement)
     {
-      for (final XdmNode aNode : m_aNodes)
+      for (final IXdmNode aNode : m_aNodes)
         if (!aOther.m_aNodes.contains (aNode))
           aSet.add (aNode);
       return new AnchorSet (false, aSet);
@@ -162,7 +162,7 @@ final class AnchorSet
     if (!m_bComplement)
     {
       // F \ co(E) = F & E
-      for (final XdmNode aNode : m_aNodes)
+      for (final IXdmNode aNode : m_aNodes)
         if (aOther.m_aNodes.contains (aNode))
           aSet.add (aNode);
       return new AnchorSet (false, aSet);
@@ -175,7 +175,7 @@ final class AnchorSet
       return new AnchorSet (true, aSet);
     }
     // co(A) \ co(B) = B \ A
-    for (final XdmNode aNode : aOther.m_aNodes)
+    for (final IXdmNode aNode : aOther.m_aNodes)
       if (!m_aNodes.contains (aNode))
         aSet.add (aNode);
     return new AnchorSet (false, aSet);

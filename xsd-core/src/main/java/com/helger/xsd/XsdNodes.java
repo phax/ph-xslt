@@ -24,10 +24,10 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
- * Helpers over the {@link XdmNode} tree of a schema document (the go-xslt
+ * Helpers over the {@link IXdmNode} tree of a schema document (the go-xslt
  * <code>xmltree</code> accessors the loader uses).
  *
  * @author Philip Helger
@@ -42,27 +42,27 @@ final class XsdNodes
   {}
 
   /** @return <code>true</code> if the node is an element in the XSD namespace. */
-  static boolean isXSElement (@Nullable final XdmNode aNode)
+  static boolean isXSElement (@Nullable final IXdmNode aNode)
   {
     return aNode != null && aNode.isElement () && XsdConstants.NS_XS.equals (aNode.getName ().namespaceUri ());
   }
 
   /** @return <code>true</code> if the node is the XSD element with the given local name. */
-  static boolean isXS (@Nullable final XdmNode aNode, @NonNull final String sLocal)
+  static boolean isXS (@Nullable final IXdmNode aNode, @NonNull final String sLocal)
   {
     return isXSElement (aNode) && sLocal.equals (aNode.getName ().localName ());
   }
 
   /** @return The local name of an element or attribute. */
   @NonNull
-  static String localName (@NonNull final XdmNode aNode)
+  static String localName (@NonNull final IXdmNode aNode)
   {
     return aNode.getName ().localName ();
   }
 
   /** @return The namespace URI of an element or attribute, empty for none. */
   @NonNull
-  static String namespaceUri (@NonNull final XdmNode aNode)
+  static String namespaceUri (@NonNull final IXdmNode aNode)
   {
     return aNode.getName ().namespaceUri ();
   }
@@ -70,7 +70,7 @@ final class XsdNodes
   /** @return The children of a node, in order (a copy). */
   @NonNull
   @ReturnsMutableCopy
-  static ICommonsList <XdmNode> children (@NonNull final XdmNode aNode)
+  static ICommonsList <IXdmNode> children (@NonNull final IXdmNode aNode)
   {
     return aNode.getAllChildren ();
   }
@@ -78,19 +78,19 @@ final class XsdNodes
   /** @return The attributes of an element, in order (a copy). */
   @NonNull
   @ReturnsMutableCopy
-  static ICommonsList <XdmNode> attributes (@NonNull final XdmNode aNode)
+  static ICommonsList <IXdmNode> attributes (@NonNull final IXdmNode aNode)
   {
     return aNode.getAllAttributes ();
   }
 
   /** @return The first XSD child element with the given local name, or <code>null</code>. */
   @Nullable
-  static XdmNode firstXSChild (@NonNull final XdmNode aNode, @NonNull final String sLocal)
+  static IXdmNode firstXSChild (@NonNull final IXdmNode aNode, @NonNull final String sLocal)
   {
     final int nCount = aNode.getChildCount ();
     for (int i = 0; i < nCount; ++i)
     {
-      final XdmNode aChild = aNode.getChildAtIndex (i);
+      final IXdmNode aChild = aNode.getChildAtIndex (i);
       if (isXS (aChild, sLocal))
         return aChild;
     }
@@ -102,31 +102,31 @@ final class XsdNodes
    *         or <code>null</code> if absent (go-xslt <code>AttrLocal</code>).
    */
   @Nullable
-  static String attr (@NonNull final XdmNode aNode, @NonNull final String sLocal)
+  static String attr (@NonNull final IXdmNode aNode, @NonNull final String sLocal)
   {
-    final XdmNode aAttr = aNode.getAttribute (null, sLocal);
+    final IXdmNode aAttr = aNode.getAttribute (null, sLocal);
     return aAttr == null ? null : aAttr.getValue ();
   }
 
   /** @return The value of the no-namespace attribute, or the empty string if absent. */
   @NonNull
-  static String attrOrEmpty (@NonNull final XdmNode aNode, @NonNull final String sLocal)
+  static String attrOrEmpty (@NonNull final IXdmNode aNode, @NonNull final String sLocal)
   {
     final String ret = attr (aNode, sLocal);
     return ret == null ? "" : ret;
   }
 
   /** @return <code>true</code> if the no-namespace attribute is present. */
-  static boolean hasAttr (@NonNull final XdmNode aNode, @NonNull final String sLocal)
+  static boolean hasAttr (@NonNull final IXdmNode aNode, @NonNull final String sLocal)
   {
     return aNode.getAttribute (null, sLocal) != null;
   }
 
   /** @return The value of the attribute with the given expanded name, or <code>null</code>. */
   @Nullable
-  static String attrNS (@NonNull final XdmNode aNode, @NonNull final String sNamespaceUri, @NonNull final String sLocal)
+  static String attrNS (@NonNull final IXdmNode aNode, @NonNull final String sNamespaceUri, @NonNull final String sLocal)
   {
-    final XdmNode aAttr = aNode.getAttribute (sNamespaceUri, sLocal);
+    final IXdmNode aAttr = aNode.getAttribute (sNamespaceUri, sLocal);
     return aAttr == null ? null : aAttr.getValue ();
   }
 
@@ -134,7 +134,7 @@ final class XsdNodes
    * go-xslt <code>attrIs</code>: compare the raw attribute value; for
    * <code>true</code> also <code>1</code> matches.
    */
-  static boolean attrIs (@NonNull final XdmNode aNode, @NonNull final String sName, @NonNull final String sWant)
+  static boolean attrIs (@NonNull final IXdmNode aNode, @NonNull final String sName, @NonNull final String sWant)
   {
     final String v = attrOrEmpty (aNode, sName);
     if ("true".equals (sWant))
@@ -146,7 +146,7 @@ final class XsdNodes
    * go-xslt <code>boolAttrTrue</code>: an xs:boolean attribute read with
    * whitespace collapse.
    */
-  static boolean boolAttrTrue (@NonNull final XdmNode aNode, @NonNull final String sName)
+  static boolean boolAttrTrue (@NonNull final IXdmNode aNode, @NonNull final String sName)
   {
     final String v = attr (aNode, sName);
     if (v == null)
@@ -162,7 +162,7 @@ final class XsdNodes
    *         The default namespace when undeclared yields <code>null</code>.
    */
   @Nullable
-  static String lookupPrefix (@NonNull final XdmNode aNode, @NonNull final String sPrefix)
+  static String lookupPrefix (@NonNull final IXdmNode aNode, @NonNull final String sPrefix)
   {
     return aNode.lookupNamespaceUri (sPrefix);
   }
@@ -172,7 +172,7 @@ final class XsdNodes
    * namespaces in scope at the node; an unbound prefix maps to no namespace.
    */
   @NonNull
-  static XsdName resolveQName (@NonNull final XdmNode aNode, @NonNull final String sQName)
+  static XsdName resolveQName (@NonNull final IXdmNode aNode, @NonNull final String sQName)
   {
     final String q = sQName.strip ();
     final int i = q.indexOf (':');
@@ -190,7 +190,7 @@ final class XsdNodes
    * whiteSpace facet of xs:NCName (collapse) applied.
    */
   @NonNull
-  static String declName (@NonNull final XdmNode aNode)
+  static String declName (@NonNull final IXdmNode aNode)
   {
     return XsdWhiteSpace.collapse (attrOrEmpty (aNode, "name"));
   }
@@ -198,21 +198,21 @@ final class XsdNodes
   /** @return The in-scope namespaces of the node, prefix to URI. */
   @NonNull
   @ReturnsMutableCopy
-  static ICommonsOrderedMap <String, String> inScopeNamespaces (@NonNull final XdmNode aNode)
+  static ICommonsOrderedMap <String, String> inScopeNamespaces (@NonNull final IXdmNode aNode)
   {
     return aNode.getInScopeNamespaces ();
   }
 
   /** @return The document element of a document node (or the element itself). */
   @Nullable
-  static XdmNode rootElement (@NonNull final XdmNode aNode)
+  static IXdmNode rootElement (@NonNull final IXdmNode aNode)
   {
     if (aNode.isElement ())
       return aNode;
     final int nCount = aNode.getChildCount ();
     for (int i = 0; i < nCount; ++i)
     {
-      final XdmNode aChild = aNode.getChildAtIndex (i);
+      final IXdmNode aChild = aNode.getChildAtIndex (i);
       if (aChild.isElement ())
         return aChild;
     }
@@ -223,14 +223,14 @@ final class XsdNodes
    * @return <code>true</code> if the node is xs:schema, xs:redefine or
    *         xs:override (so a component directly under it is global).
    */
-  static boolean isTopLevelParent (@Nullable final XdmNode aParent)
+  static boolean isTopLevelParent (@Nullable final IXdmNode aParent)
   {
     return isXS (aParent, "schema") || isXS (aParent, "redefine") || isXS (aParent, "override");
   }
 
   /** @return A short description of a node for messages. */
   @NonNull
-  static String describe (@NonNull final XdmNode aNode)
+  static String describe (@NonNull final IXdmNode aNode)
   {
     return aNode.getName () == null ? aNode.getKind ().toString () : aNode.getName ().getLexicalName ();
   }

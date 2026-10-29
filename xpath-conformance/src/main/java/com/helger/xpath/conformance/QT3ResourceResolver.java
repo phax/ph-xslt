@@ -41,8 +41,8 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
-import com.helger.xpath.xdm.XdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
@@ -67,7 +67,7 @@ public final class QT3ResourceResolver implements IResourceResolver
   private final ICommonsMap <String, ICommonsList <Path>> m_aCollections = new CommonsHashMap <> ();
   private final ICommonsList <Path> m_aSchemaFiles = new CommonsArrayList <> ();
   // Sources of this environment that were validated or carry a declared URI, by file
-  private final ICommonsMap <Path, XdmNode> m_aValidated = new CommonsHashMap <> ();
+  private final ICommonsMap <Path, IXdmNode> m_aValidated = new CommonsHashMap <> ();
 
   /**
    * @param aEnv
@@ -298,7 +298,7 @@ public final class QT3ResourceResolver implements IResourceResolver
    *         against the environment's schemas, if it has any.
    */
   @Nullable
-  public XdmNode getSourceDocument (final QT3Environment.@NonNull Source aSource)
+  public IXdmNode getSourceDocument (final QT3Environment.@NonNull Source aSource)
   {
     if (aSource.file ().isEmpty ())
       return null;
@@ -311,7 +311,7 @@ public final class QT3ResourceResolver implements IResourceResolver
       final IXdmSchemaSet aSchemaSet = QT3SchemaCache.getValidationSchemaSet (m_aSchemaFiles);
       if (aSchemaSet != null)
       {
-        final XdmNode aDoc = m_aDocs.getValidatedDocument (aPath, aSchemaSet, m_aSchemaFiles.toString ());
+        final IXdmNode aDoc = m_aDocs.getValidatedDocument (aPath, aSchemaSet, m_aSchemaFiles.toString ());
         if (aDoc != null)
         {
           m_aValidated.put (aPath, aDoc);
@@ -325,12 +325,12 @@ public final class QT3ResourceResolver implements IResourceResolver
       // that URI: its document URI is the declared one (fn:transform takes the
       // static base URI of a stylesheet node from it, fn-transform-42), and
       // fn:doc of either URI returns this same node. Like Go.
-      final XdmNode aCached = m_aDocs.getDocument (aPath);
+      final IXdmNode aCached = m_aDocs.getDocument (aPath);
       if (aCached == null)
         return null;
       try
       {
-        final XdmNode aDoc = new XdmParser ().parse (aPath);
+        final IXdmNode aDoc = new XdmParser ().parse (aPath);
         aDoc.setDocumentUri (aSource.uri ());
         m_aValidated.put (aPath, aDoc);
         return aDoc;
@@ -344,7 +344,7 @@ public final class QT3ResourceResolver implements IResourceResolver
   }
 
   @Nullable
-  public XdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
     Path aFile = m_aByUri.get (sAbsoluteUri);
     if (aFile == null)
@@ -352,7 +352,7 @@ public final class QT3ResourceResolver implements IResourceResolver
     if (aFile == null)
       return null;
     // fn:doc on the URI of a validated source returns that same document
-    final XdmNode aValidated = m_aValidated.get (aFile);
+    final IXdmNode aValidated = m_aValidated.get (aFile);
     return aValidated != null ? aValidated : m_aDocs.getDocument (aFile);
   }
 
@@ -386,15 +386,15 @@ public final class QT3ResourceResolver implements IResourceResolver
    */
   @Nullable
   @ReturnsMutableCopy
-  public ICommonsList <XdmNode> resolveCollection (@NonNull final String sUri)
+  public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sUri)
   {
     final ICommonsList <Path> aPaths = m_aCollections.get (sUri);
     if (aPaths == null)
       return null;
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     for (final Path aPath : aPaths)
     {
-      final XdmNode aDoc = m_aDocs.getDocument (aPath);
+      final IXdmNode aDoc = m_aDocs.getDocument (aPath);
       if (aDoc != null)
         ret.add (aDoc);
     }

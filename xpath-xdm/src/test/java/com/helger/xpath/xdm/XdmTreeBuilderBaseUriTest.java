@@ -60,11 +60,11 @@ public final class XdmTreeBuilderBaseUriTest
     aReader.setContentHandler (aBuilder);
     aReader.parse (new InputSource (aMain.toUri ().toString ()));
 
-    final XdmNode aDoc = aBuilder.getDocument ();
-    final XdmNode aRoot = aDoc.getChildAtIndex (0);
+    final IXdmNode aDoc = aBuilder.getDocument ();
+    final IXdmNode aRoot = aDoc.getChildAtIndex (0);
     final String sEntityUri = aDir.resolve ("sub/ent.xml").toUri ().toString ();
     assertNull (aRoot.getBaseUri ());
-    final XdmNode aA = aRoot.getChildAtIndex (0);
+    final IXdmNode aA = aRoot.getChildAtIndex (0);
     assertEquals ("a", aA.getName ().localName ());
     // Only the outermost nodes of the entity carry its URI
     assertEquals (sEntityUri.replace ("file:///", "file:/"), aA.getBaseUri ().replace ("file:///", "file:/"));

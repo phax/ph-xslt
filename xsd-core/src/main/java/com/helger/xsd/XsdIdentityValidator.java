@@ -34,7 +34,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmDateTimeValue;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Evaluation of identity constraints on an instance (the run-time half of
@@ -82,8 +82,8 @@ final class XsdIdentityValidator
    *         if the XPath engine cannot evaluate the expression
    */
   @NonNull
-  private static ICommonsList <XdmNode> _evalNodes (@NonNull final CompiledXPath aXPath,
-                                                    @NonNull final XdmNode aContext)
+  private static ICommonsList <IXdmNode> _evalNodes (@NonNull final CompiledXPath aXPath,
+                                                    @NonNull final IXdmNode aContext)
   {
     final XdmSequence aSeq;
     try
@@ -99,9 +99,9 @@ final class XsdIdentityValidator
                                          ex.getMessage (),
                                          ex);
     }
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     for (final IXdmItem aItem : aSeq)
-      if (aItem instanceof final XdmNode aNode)
+      if (aItem instanceof final IXdmNode aNode)
         ret.add (aNode);
     return ret;
   }
@@ -118,7 +118,7 @@ final class XsdIdentityValidator
   @Nullable
   private static XsdAttributeUse _absentAttrDefault (@NonNull final XsdValidationRun aRun,
                                                      @NonNull final String sRaw,
-                                                     @NonNull final XdmNode aTarget)
+                                                     @NonNull final IXdmNode aTarget)
   {
     if (!sRaw.startsWith ("@"))
       return null;
@@ -147,9 +147,9 @@ final class XsdIdentityValidator
    * untyped (anyType) element, an element-only/mixed complex type, or an
    * attribute known only through a skip wildcard has no key value.
    */
-  private static void _fieldTypeOK (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aNode)
+  private static void _fieldTypeOK (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aNode)
   {
-    final XdmNode aOwner = aNode.isAttribute () ? aNode.getParent () : aNode;
+    final IXdmNode aOwner = aNode.isAttribute () ? aNode.getParent () : aNode;
     if (aOwner == null || !aOwner.isElement ())
       return;
     final IXsdType aType = aRun.elementTypeOf (aOwner);
@@ -185,9 +185,9 @@ final class XsdIdentityValidator
    * its subtree has been walked, so nothing is recorded yet).
    */
   @Nullable
-  private static XsdSimpleType _declaredTypeOf (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aNode)
+  private static XsdSimpleType _declaredTypeOf (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aNode)
   {
-    final XdmNode aOwner = aNode.isAttribute () ? aNode.getParent () : aNode;
+    final IXdmNode aOwner = aNode.isAttribute () ? aNode.getParent () : aNode;
     if (aOwner == null || !aOwner.isElement ())
       return null;
     final IXsdType aType = aRun.elementTypeOf (aOwner);
@@ -234,7 +234,7 @@ final class XsdIdentityValidator
    */
   @Nullable
   private static String _canonAtomic (@NonNull final XsdSimpleType aType,
-                                      @NonNull final XdmNode aNode,
+                                      @NonNull final IXdmNode aNode,
                                       @NonNull final String sRaw)
   {
     final EAtomicType ePrim = XsdComponentChecks.xsdPrimitiveOf (aType.resolvePrim ());
@@ -243,7 +243,7 @@ final class XsdIdentityValidator
     {
       // QName values are equal when their namespace and local part match; the
       // prefix carries no identity of its own
-      final XdmNode aScope = aNode.isAttribute () && aNode.getParent () != null ? aNode.getParent () : aNode;
+      final IXdmNode aScope = aNode.isAttribute () && aNode.getParent () != null ? aNode.getParent () : aNode;
       return sPrefix + XsdNodes.resolveQName (aScope, sRaw);
     }
     String sValue = sRaw;
@@ -275,7 +275,7 @@ final class XsdIdentityValidator
    * go-xslt <code>nodeStringValue</code>.
    */
   @NonNull
-  private static String _nodeStringValue (@NonNull final XdmNode aNode)
+  private static String _nodeStringValue (@NonNull final IXdmNode aNode)
   {
     return aNode.isAttribute () ? aNode.getValue () : aNode.getStringValue ();
   }
@@ -289,7 +289,7 @@ final class XsdIdentityValidator
    * lexical string.
    */
   @NonNull
-  private static String _fieldKeyValue (@NonNull final XsdValidationRun aRun, @NonNull final XdmNode aNode)
+  private static String _fieldKeyValue (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aNode)
   {
     final XsdSimpleType aType = _declaredTypeOf (aRun, aNode);
     if (aType == null)
@@ -346,12 +346,12 @@ final class XsdIdentityValidator
   @Nullable
   private static String _tupleFor (@NonNull final XsdValidationRun aRun,
                                    @NonNull final XsdIdentityConstraint aConstraint,
-                                   @NonNull final XdmNode aTarget)
+                                   @NonNull final IXdmNode aTarget)
   {
     final ICommonsList <String> aVals = new CommonsArrayList <> ();
     for (int nField = 0; nField < aConstraint.m_aFields.size (); nField++)
     {
-      final ICommonsList <XdmNode> aNodes = _evalNodes (aConstraint.m_aFields.get (nField), aTarget);
+      final ICommonsList <IXdmNode> aNodes = _evalNodes (aConstraint.m_aFields.get (nField), aTarget);
       if (aNodes.isEmpty ())
       {
         // An absent attribute with a default/fixed value still contributes to
@@ -408,11 +408,11 @@ final class XsdIdentityValidator
   @NonNull
   static KeyTable buildKeyTable (@NonNull final XsdValidationRun aRun,
                                  @NonNull final XsdIdentityConstraint aConstraint,
-                                 @NonNull final XdmNode aScope)
+                                 @NonNull final IXdmNode aScope)
   {
-    final ICommonsList <XdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector, aScope));
+    final ICommonsList <IXdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector, aScope));
     final KeyTable aTable = new KeyTable ();
-    for (final XdmNode aTarget : aTargets)
+    for (final IXdmNode aTarget : aTargets)
     {
       final String sTuple = _tupleFor (aRun, aConstraint, aTarget);
       if (sTuple == null)
@@ -446,12 +446,12 @@ final class XsdIdentityValidator
    */
   static void checkKeyref (@NonNull final XsdValidationRun aRun,
                            @NonNull final XsdIdentityConstraint aConstraint,
-                           @NonNull final XdmNode aScope,
+                           @NonNull final IXdmNode aScope,
                            @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
     final KeyTable aRef = aScopes.get (aConstraint.m_aRefer);
-    final ICommonsList <XdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector, aScope));
-    for (final XdmNode aTarget : aTargets)
+    final ICommonsList <IXdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector, aScope));
+    for (final IXdmNode aTarget : aTargets)
     {
       final String sTuple = _tupleFor (aRun, aConstraint, aTarget);
       if (sTuple == null)

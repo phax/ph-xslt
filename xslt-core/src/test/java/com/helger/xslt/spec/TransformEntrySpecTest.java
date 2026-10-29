@@ -40,7 +40,7 @@ import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltCompiler;
@@ -90,9 +90,9 @@ public final class TransformEntrySpecTest
   private static final class Entry
   {
     private final XsltTransformRequest m_aRequest = new XsltTransformRequest ();
-    private final XdmNode m_aSource;
+    private final IXdmNode m_aSource;
 
-    Entry (@Nullable final XdmNode aSource)
+    Entry (@Nullable final IXdmNode aSource)
     {
       m_aSource = aSource;
       if (aSource != null)

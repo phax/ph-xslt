@@ -27,7 +27,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.value.EAtomicType;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * The per-call state of one instance validation (go-xslt keeps it in a
@@ -100,7 +100,7 @@ final class XsdValidationRun
   }
 
   /** The element and the node an ID value is bound to (go-xslt <code>idBinding</code>). */
-  private record IdBinding (XdmNode el, XdmNode src)
+  private record IdBinding (IXdmNode el, IXdmNode src)
   {}
 
   /** An attribute a value constraint supplied (go-xslt <code>defaultAttr</code>). */
@@ -108,13 +108,13 @@ final class XsdValidationRun
   {}
 
   private final XsdSchema m_aSchema;
-  private final XdmNode m_aDocument;
+  private final IXdmNode m_aDocument;
 
   private final ICommonsMap <XsdComplexType, ChildModel> m_aChildModels = new CommonsHashMap <> ();
   private final ICommonsMap <String, IdBinding> m_aBound = new CommonsHashMap <> ();
   private final ICommonsList <String> m_aRefs = new CommonsArrayList <> ();
-  private final ICommonsMap <XdmNode, IXsdType> m_aTypeCache = new CommonsHashMap <> ();
-  private final ICommonsSet <XdmNode> m_aUnassessed = new CommonsHashSet <> ();
+  private final ICommonsMap <IXdmNode, IXsdType> m_aTypeCache = new CommonsHashMap <> ();
+  private final ICommonsSet <IXdmNode> m_aUnassessed = new CommonsHashSet <> ();
 
   private XsdErrorCollector m_aCollector;
   private boolean m_bElementScope;
@@ -127,9 +127,9 @@ final class XsdValidationRun
    * tree). null while nothing records them, which is the case on the string
    * Validate path.
    */
-  private ICommonsMap <XdmNode, IXsdType> m_aNodeTypes;
-  private ICommonsSet <XdmNode> m_aNodeNilled;
-  private ICommonsMap <XdmNode, ICommonsList <DefaultAttr>> m_aNodeDefaults;
+  private ICommonsMap <IXdmNode, IXsdType> m_aNodeTypes;
+  private ICommonsSet <IXdmNode> m_aNodeNilled;
+  private ICommonsMap <IXdmNode, ICommonsList <DefaultAttr>> m_aNodeDefaults;
 
   XsdValidationRun (@NonNull final XsdSchema aSchema)
   {
@@ -143,7 +143,7 @@ final class XsdValidationRun
    *        The document node of the instance (for its unparsed entities);
    *        may be <code>null</code>.
    */
-  XsdValidationRun (@NonNull final XsdSchema aSchema, @Nullable final XdmNode aDocument)
+  XsdValidationRun (@NonNull final XsdSchema aSchema, @Nullable final IXdmNode aDocument)
   {
     m_aSchema = aSchema;
     m_aDocument = aDocument;
@@ -255,21 +255,21 @@ final class XsdValidationRun
 
   /** @return The recorded type annotations; <code>null</code> if not enabled. */
   @Nullable
-  ICommonsMap <XdmNode, IXsdType> getNodeTypes ()
+  ICommonsMap <IXdmNode, IXsdType> getNodeTypes ()
   {
     return m_aNodeTypes;
   }
 
   /** @return The recorded nilled elements; <code>null</code> if not enabled. */
   @Nullable
-  ICommonsSet <XdmNode> getNodeNilled ()
+  ICommonsSet <IXdmNode> getNodeNilled ()
   {
     return m_aNodeNilled;
   }
 
   /** @return The recorded supplied attributes; <code>null</code> if not enabled. */
   @Nullable
-  ICommonsMap <XdmNode, ICommonsList <DefaultAttr>> getNodeDefaults ()
+  ICommonsMap <IXdmNode, ICommonsList <DefaultAttr>> getNodeDefaults ()
   {
     return m_aNodeDefaults;
   }
@@ -303,7 +303,7 @@ final class XsdValidationRun
   }
 
   /** go-xslt <code>noteNodeType</code>. */
-  void noteNodeType (@Nullable final XdmNode aNode, @Nullable final IXsdType aType)
+  void noteNodeType (@Nullable final IXdmNode aNode, @Nullable final IXsdType aType)
   {
     if (m_aNodeTypes == null || aNode == null || aType == null)
       return;
@@ -311,7 +311,7 @@ final class XsdValidationRun
   }
 
   /** go-xslt <code>noteNodeNilled</code>. */
-  void noteNodeNilled (@Nullable final XdmNode aNode)
+  void noteNodeNilled (@Nullable final IXdmNode aNode)
   {
     if (m_aNodeNilled == null || aNode == null)
       return;
@@ -319,7 +319,7 @@ final class XsdValidationRun
   }
 
   /** go-xslt <code>noteDefaultAttr</code>. */
-  void noteDefaultAttr (@Nullable final XdmNode aElement,
+  void noteDefaultAttr (@Nullable final IXdmNode aElement,
                         @NonNull final XsdName aName,
                         @NonNull final String sValue,
                         @Nullable final IXsdType aType)
@@ -341,7 +341,7 @@ final class XsdValidationRun
    * @param aType
    *        The type its content validated against.
    */
-  void annotateAssertType (@Nullable final XdmNode aNode, @Nullable final XsdSimpleType aType)
+  void annotateAssertType (@Nullable final IXdmNode aNode, @Nullable final XsdSimpleType aType)
   {
     // V8
   }
@@ -353,7 +353,7 @@ final class XsdValidationRun
    * @param aElement
    *        The root of the subtree.
    */
-  void markUnassessed (@NonNull final XdmNode aElement)
+  void markUnassessed (@NonNull final IXdmNode aElement)
   {
     if (isXsd11 ())
       m_aUnassessed.add (aElement);
@@ -366,7 +366,7 @@ final class XsdValidationRun
    * never a conflict. Beyond that, 1.1 tolerates two bindings of one value on
    * the same element; 1.0 keeps strict document-wide uniqueness.
    */
-  private void _bindID (@NonNull final String sValue, @NonNull final XdmNode aElement, @NonNull final XdmNode aSource)
+  private void _bindID (@NonNull final String sValue, @NonNull final IXdmNode aElement, @NonNull final IXdmNode aSource)
   {
     final IdBinding aPrev = m_aBound.get (sValue);
     if (aPrev != null && aPrev.src () != aSource && !m_bElementScope)
@@ -396,8 +396,8 @@ final class XsdValidationRun
 
   private void _noteIDValues (@Nullable final XsdSimpleType aType,
                               @NonNull final String sValue,
-                              @Nullable final XdmNode aBind,
-                              @NonNull final XdmNode aSource,
+                              @Nullable final IXdmNode aBind,
+                              @NonNull final IXdmNode aSource,
                               final int nDepth)
   {
     if (aType == null || nDepth > MAX_ID_UNION_DEPTH)
@@ -484,8 +484,8 @@ final class XsdValidationRun
    */
   void noteIDValues (@Nullable final XsdSimpleType aType,
                      @NonNull final String sValue,
-                     @Nullable final XdmNode aBind,
-                     @NonNull final XdmNode aSource)
+                     @Nullable final IXdmNode aBind,
+                     @NonNull final IXdmNode aSource)
   {
     _noteIDValues (aType, sValue, aBind, aSource, 0);
   }
@@ -556,13 +556,13 @@ final class XsdValidationRun
    * @return The type, or <code>null</code> if none can be determined.
    */
   @Nullable
-  IXsdType elementTypeOf (@NonNull final XdmNode aElement)
+  IXsdType elementTypeOf (@NonNull final IXdmNode aElement)
   {
     if (m_aTypeCache.containsKey (aElement))
       return m_aTypeCache.get (aElement);
     // The uncached ancestors up to the first cached one, innermost first
-    final ICommonsList <XdmNode> aChain = new CommonsArrayList <> ();
-    XdmNode aCur = aElement;
+    final ICommonsList <IXdmNode> aChain = new CommonsArrayList <> ();
+    IXdmNode aCur = aElement;
     while (aCur != null && aCur.isElement () && !m_aTypeCache.containsKey (aCur))
     {
       aChain.add (aCur);
@@ -570,10 +570,10 @@ final class XsdValidationRun
     }
     for (int i = aChain.size () - 1; i >= 0; i--)
     {
-      final XdmNode aEl = aChain.get (i);
+      final IXdmNode aEl = aChain.get (i);
       final XsdName aName = XsdInstanceValidator.nameOf (aEl);
       XsdElementDecl aDecl = null;
-      final XdmNode aParent = aEl.getParent ();
+      final IXdmNode aParent = aEl.getParent ();
       if (aParent != null && aParent.isElement () && m_aTypeCache.get (aParent) instanceof final XsdComplexType aPT)
         aDecl = childModelOf (aPT).m_aDecls.get (aName);
       if (aDecl == null)
@@ -601,13 +601,13 @@ final class XsdValidationRun
     return m_aTypeCache.get (aElement);
   }
 
-  private boolean _icNodeVisible (@NonNull final XdmNode aNode)
+  private boolean _icNodeVisible (@NonNull final IXdmNode aNode)
   {
-    for (XdmNode aCur = aNode; aCur != null && aCur.isElement (); aCur = aCur.getParent ())
+    for (IXdmNode aCur = aNode; aCur != null && aCur.isElement (); aCur = aCur.getParent ())
     {
       if (m_aUnassessed.contains (aCur))
         return false;
-      final XdmNode aPar = aCur.getParent ();
+      final IXdmNode aPar = aCur.getParent ();
       if (aPar == null || !aPar.isElement ())
         break;
       if (!(elementTypeOf (aPar) instanceof final XsdComplexType aPT))
@@ -635,12 +635,12 @@ final class XsdValidationRun
    * @return The nodes that count.
    */
   @NonNull
-  ICommonsList <XdmNode> icFilter (@NonNull final ICommonsList <XdmNode> aNodes)
+  ICommonsList <IXdmNode> icFilter (@NonNull final ICommonsList <IXdmNode> aNodes)
   {
     if (!isXsd11 ())
       return aNodes;
-    final ICommonsList <XdmNode> ret = new CommonsArrayList <> ();
-    for (final XdmNode aNode : aNodes)
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
+    for (final IXdmNode aNode : aNodes)
       if (_icNodeVisible (aNode))
         ret.add (aNode);
     return ret;

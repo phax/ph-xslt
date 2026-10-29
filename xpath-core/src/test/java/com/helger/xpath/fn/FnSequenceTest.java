@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import com.helger.xpath.eval.ExprTestHelper;
 import com.helger.xpath.value.XdmAtomic;
-import com.helger.xpath.xdm.XdmNode;
+import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * Test class for class {@link FnSequence}.
@@ -128,7 +128,7 @@ public final class FnSequenceTest
   @Test
   public void testIDFunctions ()
   {
-    final XdmNode aDoc = ExprTestHelper.parse (DOC);
+    final IXdmNode aDoc = ExprTestHelper.parse (DOC);
     assertEquals ("e e", lex (eval ("id(('a', 'b'))", aDoc)));
     assertEquals ("e f", lex (eval ("id('c a')", aDoc)));
     assertEquals ("e", lex (eval ("id('d')", aDoc)));
@@ -141,8 +141,8 @@ public final class FnSequenceTest
     assertEquals ("e", lex (eval ("id('a', //g)", aDoc)));
     FnTestHelper.assertXPathError ("XPDY0002", "id('a')");
     FnTestHelper.assertXPathError ("XPTY0004", "id('a')", XdmAtomic.integer (1));
-    final XdmNode aElement = ExprTestHelper.parse ("<a id='x'/>").getChildAtIndex (0);
-    final XdmNode aOrphan = XdmNode.createElement (aElement.getName ());
+    final IXdmNode aElement = ExprTestHelper.parse ("<a id='x'/>").getChildAtIndex (0);
+    final IXdmNode aOrphan = IXdmNode.createElement (aElement.getName ());
     FnTestHelper.assertXPathError ("FODC0001", "id('x')", aOrphan);
     FnTestHelper.assertXPathError ("FODC0001", "idref('x', .)", aOrphan);
   }
@@ -150,7 +150,7 @@ public final class FnSequenceTest
   @Test
   public void testLang ()
   {
-    final XdmNode aDoc = ExprTestHelper.parse (DOC);
+    final IXdmNode aDoc = ExprTestHelper.parse (DOC);
     assertEquals ("true", lex (eval ("lang('en', (//e)[1])", aDoc)));
     assertEquals ("true", lex (eval ("lang('EN-gb', (//e)[1])", aDoc)));
     assertEquals ("false", lex (eval ("lang('en-US', (//e)[1])", aDoc)));
@@ -164,7 +164,7 @@ public final class FnSequenceTest
   @Test
   public void testInnermostOutermost ()
   {
-    final XdmNode aDoc = ExprTestHelper.parse (DOC);
+    final IXdmNode aDoc = ExprTestHelper.parse (DOC);
     assertEquals ("e g e", lex (eval ("innermost(//*)", aDoc)));
     assertEquals ("r", lex (eval ("outermost(//*)", aDoc)));
     assertEquals ("e f e", lex (eval ("outermost(//*[not(self::r)])", aDoc)));
