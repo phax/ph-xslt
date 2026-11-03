@@ -39,6 +39,7 @@ import com.helger.xpath.ast.EBinaryOp;
 import com.helger.xpath.ast.EComparisonOp;
 import com.helger.xpath.ast.ENodeTestKind;
 import com.helger.xpath.ast.EOccurrence;
+import com.helger.xpath.ast.ExprWalker;
 import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.ast.IExpr.StepExpr;
 import com.helger.xpath.ast.ItemType;
@@ -1295,6 +1296,35 @@ final class XPathParserImpl
     return new StepExpr (EAxis.DESCENDANT_OR_SELF, true, NodeTest.ANY_NODE, new CommonsArrayList <> (), null);
   }
 
+  /**
+   * <code>A//B[p]</code> is <code>A/descendant-or-self::node()/child::B[p]</code>,
+   * where the context position and size of <code>p</code> count B among the
+   * children of each intermediate node, but in <code>descendant::B[p]</code>
+   * among all descendants of A. The two are equivalent when every predicate is
+   * focus-free and non-numeric (a number is read as a position), which is what
+   * this checks.
+   *
+   * @return The <code>descendant-or-self::node()</code> step, carrying the
+   *         fused step when the equivalence holds.
+   */
+  @NonNull
+  private static StepExpr _fuseSlashSlash (@NonNull final StepExpr aNext)
+  {
+    final StepExpr aDescendantOrSelf = _descendantOrSelfStep ();
+    if (aNext.postfix () != null || aNext.axis () != EAxis.CHILD)
+      return aDescendantOrSelf;
+    for (final IExpr aPredicate : aNext.predicates ())
+      if (!ExprWalker.isFocusFreeBoolean (aPredicate))
+        return aDescendantOrSelf;
+    final StepExpr aFused = new StepExpr (EAxis.DESCENDANT, true, aNext.test (), aNext.predicates (), null);
+    return new StepExpr (aDescendantOrSelf.axis (),
+                         aDescendantOrSelf.axisExplicit (),
+                         aDescendantOrSelf.test (),
+                         aDescendantOrSelf.predicates (),
+                         null,
+                         aFused);
+  }
+
   /** StepExpr ::= PostfixExpr | AxisStep */
   @NonNull
   private StepExpr _parseStep ()
@@ -1350,8 +1380,9 @@ final class XPathParserImpl
         if (eKind == ETokenKind.SLASHSLASH)
         {
           _next ();
-          aSteps.add (_descendantOrSelfStep ());
-          aSteps.add (_parseStep ());
+          final StepExpr aNext = _parseStep ();
+          aSteps.add (_fuseSlashSlash (aNext));
+          aSteps.add (aNext);
         }
         else
           return;
@@ -1378,8 +1409,9 @@ final class XPathParserImpl
     if (eKind == ETokenKind.SLASHSLASH)
     {
       _next ();
-      aSteps.add (_descendantOrSelfStep ());
-      aSteps.add (_parseStep ());
+      final StepExpr aNext = _parseStep ();
+      aSteps.add (_fuseSlashSlash (aNext));
+      aSteps.add (aNext);
       _parseRelativeSteps (aSteps);
       return new IExpr.PathExpr (null, true, aSteps);
     }

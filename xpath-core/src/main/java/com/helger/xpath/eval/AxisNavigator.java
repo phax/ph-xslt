@@ -32,6 +32,8 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmDocumentNode;
+import com.helger.xpath.xdm.XdmQName;
 
 /**
  * The 13 XPath axes over {@link IXdmNode} (a port of go-xslt's
@@ -176,6 +178,86 @@ public final class AxisNavigator
     else
       for (int i = nIndex - 1; i >= 0; --i)
         _add (aParent.getChildAtIndex (i), aFilter, aOut);
+  }
+
+  /**
+   * @return The first index from nFrom on whose node has an order of at least
+   *         nOrder; the size of the list if there is none.
+   */
+  private static int _lowerBound (@NonNull final List <IXdmNode> aSorted, final int nFrom, final int nOrder)
+  {
+    int nLow = nFrom;
+    int nHigh = aSorted.size ();
+    while (nLow < nHigh)
+    {
+      final int nMid = (nLow + nHigh) >>> 1;
+      if (aSorted.get (nMid).getOrder () < nOrder)
+        nLow = nMid + 1;
+      else
+        nHigh = nMid;
+    }
+    return nLow;
+  }
+
+  /**
+   * Collect the elements with a name on the descendant or descendant-or-self
+   * axis of context nodes from the name index of their document, instead of
+   * walking the subtrees. The descendants of a node are the nodes whose order
+   * lies in <code>(getOrder (), getEndOrder ()]</code>, so each context node
+   * cuts an interval out of the sorted index. A context node inside the
+   * interval of an earlier one adds nothing new and is skipped, so the result
+   * is in document order and free of duplicates.
+   *
+   * @param eAxis
+   *        {@link EAxis#DESCENDANT} or {@link EAxis#DESCENDANT_OR_SELF}.
+   * @param aContextNodes
+   *        The context nodes in document order without duplicates.
+   * @param aName
+   *        The element name to select.
+   * @param aOut
+   *        The list to append to.
+   * @return <code>true</code> if the nodes were collected, <code>false</code>
+   *         (with nothing added) if the index cannot be used: the nodes are
+   *         not all in the same numbered document, not in document order, or
+   *         a namespace node is among them.
+   */
+  public static boolean collectNamedDescendants (@NonNull final EAxis eAxis,
+                                                 @NonNull final List <IXdmNode> aContextNodes,
+                                                 @NonNull final XdmQName aName,
+                                                 @NonNull final List <IXdmNode> aOut)
+  {
+    if (eAxis != EAxis.DESCENDANT && eAxis != EAxis.DESCENDANT_OR_SELF)
+      throw new IllegalArgumentException ("Not a descendant axis: " + eAxis);
+    if (aContextNodes.isEmpty ())
+      return true;
+    if (!(aContextNodes.get (0).getRoot () instanceof final XdmDocumentNode aDoc))
+      return false;
+    // Built on demand; null if the tree is not numbered
+    final List <IXdmNode> aElements = aDoc.getElementsByName (aName);
+    if (aElements == null)
+      return false;
+    int nPrevious = -1;
+    for (final IXdmNode aNode : aContextNodes)
+    {
+      if (aNode.getKind () == ENodeKind.NAMESPACE || aNode.getOrder () <= nPrevious || aNode.getRoot () != aDoc)
+        return false;
+      nPrevious = aNode.getOrder ();
+    }
+    final boolean bSelf = eAxis == EAxis.DESCENDANT_OR_SELF;
+    int nPos = 0;
+    int nCovered = -1;
+    for (final IXdmNode aNode : aContextNodes)
+    {
+      final int nStart = aNode.getOrder ();
+      if (nStart <= nCovered)
+        continue;
+      final int nEnd = aNode.getEndOrder ();
+      nCovered = nEnd;
+      nPos = _lowerBound (aElements, nPos, bSelf ? nStart : nStart + 1);
+      while (nPos < aElements.size () && aElements.get (nPos).getOrder () <= nEnd)
+        aOut.add (aElements.get (nPos++));
+    }
+    return true;
   }
 
   /**

@@ -36,6 +36,8 @@ import com.helger.collection.commons.ICommonsList;
 public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permits XdmDocumentNode, XdmElementNode
 {
   private ICommonsList <AbstractXdmNode> m_aChildren;
+  // Order of the last node of the subtree, see getEndOrder
+  private int m_nEndOrder;
 
   AbstractXdmParentNode ()
   {}
@@ -60,6 +62,7 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
     if (m_aChildren == null)
       m_aChildren = new CommonsArrayList <> ();
     m_aChildren.add (aRealChild);
+    internalInvalidateOrder ();
   }
 
   @Override
@@ -67,11 +70,25 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   {
     ValueEnforcer.notNull (aChild, "Child");
     final AbstractXdmNode aRealChild = (AbstractXdmNode) aChild;
-    if (aRealChild.getParent () != this ||
-        m_aChildren == null ||
-        !m_aChildren.removeObject (aRealChild).isChanged ())
+    if (aRealChild.getParent () != this || m_aChildren == null)
+      throw new IllegalArgumentException ("Not a child of this node");
+    // Before detaching, so that the removed subtree is reset as well
+    internalInvalidateOrder ();
+    if (!m_aChildren.removeObject (aRealChild).isChanged ())
       throw new IllegalArgumentException ("Not a child of this node");
     aRealChild.internalSetParent (null);
+  }
+
+  final void internalSetEndOrder (@Nonnegative final int nEndOrder)
+  {
+    m_nEndOrder = nEndOrder;
+  }
+
+  @Override
+  @Nonnegative
+  public final int getEndOrder ()
+  {
+    return m_nEndOrder;
   }
 
   @Override

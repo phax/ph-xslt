@@ -36,6 +36,7 @@ import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.pattern.CompiledXsltPattern;
 import com.helger.xpath.pattern.XsltPattern;
 import com.helger.xpath.pattern.XsltPatternParser;
+import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
@@ -177,19 +178,54 @@ public final class ForEachGroupInstruction
   }
 
   /**
-   * @return A hash bucket for a single key value, consistent with
-   *         {@link AtomicComparator#isEqualForDistinct}: only string-like
-   *         values under the codepoint collation get their own bucket,
-   *         everything else shares one per kind.
+   * Files the groups of group-by by the bucket key of their grouping key. A
+   * bucket holds its groups in creation order and every group that can match a
+   * value is in the bucket of that value, so the first match is the one a scan
+   * over all groups would find.
    */
-  @NonNull
-  private static Object _bucket (@NonNull final XdmAtomic aKey, @Nullable final ICollation aCollation)
+  private static final class GroupIndex
   {
-    if (aKey.isStringLike ())
-      return aCollation == null ? aKey.getString () : "";
-    if (aKey.getType ().isNumeric ())
-      return Boolean.TRUE;
-    return Boolean.FALSE;
+    private final ICollation m_aCollation;
+    private final ICommonsMap <Object, ICommonsList <Group>> m_aBuckets = new CommonsHashMap <> ();
+    // The groups of a key type without bucket key
+    private final ICommonsList <Group> m_aOther = new CommonsArrayList <> ();
+    private boolean m_bNarrow = false;
+
+    private GroupIndex (@Nullable final ICollation aCollation)
+    {
+      m_aCollation = aCollation;
+    }
+
+    @Nullable
+    private Group _find (@NonNull final XdmAtomic aValue, @NonNull final DynamicContext aDyn)
+    {
+      final Object aBucketKey = AtomicComparator.getDistinctBucketKey (aValue, m_aCollation, m_bNarrow);
+      final ICommonsList <Group> aCandidates = aBucketKey == null ? m_aOther : m_aBuckets.get (aBucketKey);
+      if (aCandidates != null)
+        for (final Group aGroup : aCandidates)
+          if (AtomicComparator.isEqualForDistinct (aValue, aGroup.m_aKey[0], m_aCollation, aDyn))
+            return aGroup;
+      return null;
+    }
+
+    private void _add (@NonNull final Group aGroup)
+    {
+      final Object aBucketKey = AtomicComparator.getDistinctBucketKey (aGroup.m_aKey[0], m_aCollation, m_bNarrow);
+      if (aBucketKey == null)
+        m_aOther.add (aGroup);
+      else
+        m_aBuckets.computeIfAbsent (aBucketKey, k -> new CommonsArrayList <> (1)).add (aGroup);
+    }
+
+    /** The first xs:float: it compares in float space, so the buckets get coarser. */
+    private void _narrow (@NonNull final ICommonsList <Group> aGroups)
+    {
+      m_bNarrow = true;
+      m_aBuckets.clear ();
+      m_aOther.clear ();
+      for (final Group aGroup : aGroups)
+        _add (aGroup);
+    }
   }
 
   @NonNull
@@ -199,7 +235,7 @@ public final class ForEachGroupInstruction
   {
     final DynamicContext aDyn = aCtx.getDynamicContext ();
     final ICommonsList <Group> ret = new CommonsArrayList <> ();
-    final ICommonsMap <Object, ICommonsList <Group>> aBuckets = new CommonsHashMap <> ();
+    final GroupIndex aIndex = new GroupIndex (aCollation);
     final int nSize = aPop.size ();
     for (int i = 0; i < nSize; ++i)
     {
@@ -227,18 +263,13 @@ public final class ForEachGroupInstruction
       final ICommonsList <Group> aJoined = new CommonsArrayList <> ();
       for (final XdmAtomic aValue : aKey)
       {
-        final ICommonsList <Group> aBucket = aBuckets.computeIfAbsent (_bucket (aValue, aCollation), k -> new CommonsArrayList <> ());
-        Group aTarget = null;
-        for (final Group aGroup : aBucket)
-          if (AtomicComparator.isEqualForDistinct (aValue, aGroup.m_aKey[0], aCollation, aDyn))
-          {
-            aTarget = aGroup;
-            break;
-          }
+        if (aValue.getType () == EAtomicType.FLOAT && !aIndex.m_bNarrow)
+          aIndex._narrow (ret);
+        Group aTarget = aIndex._find (aValue, aDyn);
         if (aTarget == null)
         {
           aTarget = new Group (new XdmAtomic [] { aValue });
-          aBucket.add (aTarget);
+          aIndex._add (aTarget);
           ret.add (aTarget);
         }
         final Group aFinalTarget = aTarget;

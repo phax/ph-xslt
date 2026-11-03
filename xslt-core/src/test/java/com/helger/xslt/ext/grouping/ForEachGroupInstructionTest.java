@@ -124,4 +124,33 @@ public final class ForEachGroupInstructionTest
     assertEquals ("XTTE1100",
                   errorCode (SHEET + IT + "<xsl:for-each-group select='1' group-adjacent='(1,2)'/>" + TE + END, null));
   }
+
+  @Test
+  public void testGroupByMixedKeyTypes ()
+  {
+    // Across the numeric types, the string family, an xs:float after the
+    // buckets were filled at double precision, and a type without bucket
+    assertEquals ("1:3;a:4;0.1:4;2.5:2;2024-01-01:1;",
+                  text (IT +
+                        "<xsl:for-each-group xmlns:xs='http://www.w3.org/2001/XMLSchema' group-by='.' select=\"(1, 'a', 1.0e0, 0.1, xs:float(1), 'a', xs:untypedAtomic('a'), 2.5, " +
+                        "xs:double(0.1), xs:float(0.1), xs:float(2.5), xs:date('2024-01-01'), xs:anyURI('a'), 0.1e0)\">" +
+                        "<xsl:value-of select='current-grouping-key()'/>:<xsl:value-of select='count(current-group())'/>;" +
+                        "</xsl:for-each-group>" +
+                        TE,
+                        null));
+  }
+
+  @Test
+  public void testGroupByManyNumericKeys ()
+  {
+    assertEquals ("5000:2",
+                  text (IT +
+                        "<xsl:variable name='g' as='xs:integer*' xmlns:xs='http://www.w3.org/2001/XMLSchema'>" +
+                        "<xsl:for-each-group select='1 to 10000' group-by='. mod 5000'>" +
+                        "<xsl:sequence select='count(current-group())'/>" +
+                        "</xsl:for-each-group></xsl:variable>" +
+                        "<xsl:value-of select='count($g), max($g)' separator=':'/>" +
+                        TE,
+                        null));
+  }
 }

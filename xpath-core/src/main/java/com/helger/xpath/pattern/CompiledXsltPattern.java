@@ -30,12 +30,12 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.ExprWalker;
 import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.eval.XPathEvaluator;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
-import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -71,12 +71,6 @@ public final class CompiledXsltPattern implements XsltPattern
     m_aPositionalPredicates = Collections.unmodifiableSet (aPositional);
   }
 
-  private static boolean _isPositionOrLast (@NonNull final XdmQName aName)
-  {
-    return XdmConstants.NS_FN.equals (aName.namespaceUri ()) &&
-           (aName.localName ().equals ("position") || aName.localName ().equals ("last"));
-  }
-
   /**
    * Collect the axis-step predicates of the pattern that may depend on the
    * position or size of the focus.
@@ -99,7 +93,7 @@ public final class CompiledXsltPattern implements XsltPattern
               aStack.add (aStep.postfix ());
             else
               for (final IExpr aPred : aStep.predicates ())
-                if (ExprWalker.containsFunction (aPred, CompiledXsltPattern::_isPositionOrLast))
+                if (ExprWalker.containsFunction (aPred, ExprWalker::isPositionOrLast))
                   aOut.add (aPred);
     }
   }

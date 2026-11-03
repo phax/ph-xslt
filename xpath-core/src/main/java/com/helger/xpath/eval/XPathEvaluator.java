@@ -38,6 +38,8 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.ast.EBinaryOp;
 import com.helger.xpath.ast.EComparisonOp;
+import com.helger.xpath.ast.ENodeTestKind;
+import com.helger.xpath.ast.ExprWalker;
 import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.ast.SeqType;
@@ -229,6 +231,27 @@ public final class XPathEvaluator
   }
 
   /**
+   * @return The element name of a descendant or descendant-or-self step with an
+   *         exact name test, which the name index of a document can answer;
+   *         <code>null</code> for any other step.
+   */
+  @Nullable
+  private static XdmQName _getIndexableName (final IExpr.@NonNull StepExpr aStep)
+  {
+    final EAxis eAxis = aStep.axis ();
+    if (eAxis != EAxis.DESCENDANT && eAxis != EAxis.DESCENDANT_OR_SELF)
+      return null;
+    final NodeTest aTest = aStep.test ();
+    if (aTest == null ||
+        aTest.kind () != ENodeTestKind.NAME ||
+        aTest.anyName () ||
+        aTest.anyNamespace () ||
+        aTest.anyLocalName ())
+      return null;
+    return aTest.name ();
+  }
+
+  /**
    * One axis step from one context node.
    *
    * @return The selected nodes in document order.
@@ -242,10 +265,12 @@ public final class XPathEvaluator
     final NodeTest aTest = aStep.test ();
     final ENodeKind ePrincipal = AxisNavigator.getPrincipalNodeKind (eAxis);
     final List <IXdmNode> aNodes = new ArrayList <> ();
-    AxisNavigator.collect (eAxis,
-                           aNode,
-                           aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
-                           aNodes);
+    final XdmQName aIndexName = _getIndexableName (aStep);
+    if (aIndexName == null || !AxisNavigator.collectNamedDescendants (eAxis, List.of (aNode), aIndexName, aNodes))
+      AxisNavigator.collect (eAxis,
+                             aNode,
+                             aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
+                             aNodes);
     XdmSequence ret = _applyPredicates (XdmSequence.of (aNodes), aStep.predicates (), aCtx);
     if (eAxis.isReverse () && ret.size () > 1)
     {
@@ -283,6 +308,40 @@ public final class XPathEvaluator
     return nNodes == aSeq.size ();
   }
 
+  /**
+   * A descendant step with an exact name test from many context nodes at once,
+   * through the name index of their document. Only for predicates that select
+   * the same nodes whatever the context position is, since the positions count
+   * among all selected nodes and not per context node.
+   *
+   * @return The selected nodes in document order, or <code>null</code> if the
+   *         index cannot be used.
+   */
+  @Nullable
+  private static XdmSequence _applyIndexedStep (final IExpr.@NonNull StepExpr aStep,
+                                                @NonNull final XdmSequence aCurrent,
+                                                @NonNull final DynamicContext aCtx)
+  {
+    final XdmQName aIndexName = _getIndexableName (aStep);
+    if (aIndexName == null)
+      return null;
+    for (final IExpr aPredicate : aStep.predicates ())
+      if (!ExprWalker.isFocusFreeBoolean (aPredicate))
+        return null;
+    final List <IXdmNode> aContextNodes = new ArrayList <> (aCurrent.size ());
+    for (final IXdmItem aItem : aCurrent)
+    {
+      if (!(aItem instanceof final IXdmNode aNode))
+        return null;
+      aContextNodes.add (aNode);
+    }
+    aCtx.checkInterrupt ();
+    final List <IXdmNode> aNodes = new ArrayList <> ();
+    if (!AxisNavigator.collectNamedDescendants (aStep.axis (), aContextNodes, aIndexName, aNodes))
+      return null;
+    return _applyPredicates (XdmSequence.of (aNodes), aStep.predicates (), aCtx);
+  }
+
   /** Apply a step (not the first of a relative path) to every item of the previous step. */
   @NonNull
   private static XdmSequence _applyStep (final IExpr.@NonNull StepExpr aStep,
@@ -297,6 +356,9 @@ public final class XPathEvaluator
     {
       if (nSize == 1)
         return _evalAxisStep (aStep, _getStepContextNode (aCurrent.get (0), "XPTY0019"), aCtx);
+      final XdmSequence aIndexed = _applyIndexedStep (aStep, aCurrent, aCtx);
+      if (aIndexed != null)
+        return aIndexed;
       final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
       for (final IXdmItem aItem : aCurrent)
       {
@@ -362,7 +424,17 @@ public final class XPathEvaluator
         nFirst = 1;
       }
     for (int i = nFirst; i < nSteps; ++i)
-      aCurrent = _applyStep (aSteps.get (i), aCurrent, aCtx, i == nSteps - 1);
+    {
+      IExpr.StepExpr aStep = aSteps.get (i);
+      if (aStep.fused () != null)
+      {
+        // "//name": one descendant step in place of descendant-or-self::node()
+        // and the child step after it
+        aStep = aStep.fused ();
+        i++;
+      }
+      aCurrent = _applyStep (aStep, aCurrent, aCtx, i == nSteps - 1);
+    }
     return aCurrent;
   }
 

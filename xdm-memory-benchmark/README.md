@@ -17,13 +17,13 @@ headers were not enabled). 1 MB = 2^20 bytes.
 | Document | Character | File size | Elements | Attributes | Text nodes | ph-xdm | MicroDOM | Saxon TinyTree |
 |---|---|--:|--:|--:|--:|--:|--:|--:|
 | UBL invoice (Peppol) | small business document, namespaces | 0.01 MB | 136 | 98 | 271 | 0.07 MB | 0.07 MB | 0.02 MB |
-| XMark auction | mixed data and prose | 3.34 MB | 50,198 | 11,526 | 91,070 | 18.92 MB | 20.20 MB | 5.35 MB |
-| iTunes plist | very many tiny elements | 9.98 MB | 393,688 | 1 | 607,488 | 113.78 MB | 114.03 MB | 16.26 MB |
-| Bank transactions | empty elements with 2 attributes each | 4.74 MB | 100,002 | 200,001 | 100,003 | 44.40 MB | 55.85 MB | 16.13 MB |
-| Unicode characters | empty elements with 5 attributes each | 6.08 MB | 116,767 | 583,830 | 116,767 | 85.55 MB | 109.60 MB | 38.05 MB |
-| Old Testament | prose, long text nodes | 3.33 MB | 25,317 | 0 | 49,638 | 11.18 MB | 11.36 MB | 4.35 MB |
-| XSLT 3.0 spec (XHTML) | document markup, mixed content | 2.92 MB | 47,867 | 52,503 | 66,267 | 21.01 MB | 24.11 MB | 7.70 MB |
-| XSLT test stylesheets | many namespace declarations | 6.53 MB | 71,672 | 84,618 | 127,382 | 37.96 MB | 40.99 MB | 10.45 MB |
+| XMark auction | mixed data and prose | 3.34 MB | 50,198 | 11,526 | 91,070 | 19.30 MB | 20.20 MB | 5.35 MB |
+| iTunes plist | very many tiny elements | 9.98 MB | 393,688 | 1 | 607,488 | 116.78 MB | 114.03 MB | 16.26 MB |
+| Bank transactions | empty elements with 2 attributes each | 4.74 MB | 100,002 | 200,001 | 100,003 | 45.17 MB | 55.85 MB | 16.13 MB |
+| Unicode characters | empty elements with 5 attributes each | 6.08 MB | 116,767 | 583,830 | 116,767 | 86.44 MB | 109.60 MB | 38.05 MB |
+| Old Testament | prose, long text nodes | 3.33 MB | 25,317 | 0 | 49,638 | 11.37 MB | 11.36 MB | 4.35 MB |
+| XSLT 3.0 spec (XHTML) | document markup, mixed content | 2.92 MB | 47,867 | 52,503 | 66,267 | 21.38 MB | 24.11 MB | 7.70 MB |
+| XSLT test stylesheets | many namespace declarations | 6.53 MB | 71,672 | 84,618 | 127,382 | 38.51 MB | 40.99 MB | 10.45 MB |
 
 Node counts are taken from the ph-xdm tree. All three models keep whitespace-only text nodes and hold the same nodes
 (checked against the MicroDOM class counts and the TinyTree node kinds).
@@ -32,22 +32,22 @@ Node counts are taken from the ph-xdm tree. All three models keep whitespace-onl
 
 | Document | ph-xdm | MicroDOM | Saxon TinyTree | ph-xdm vs. MicroDOM | ph-xdm vs. TinyTree |
 |---|--:|--:|--:|--:|--:|
-| UBL invoice (Peppol) | 6.8 | 6.8 | 1.6 | 1.0x | 4.3x |
-| XMark auction | 5.7 | 6.0 | 1.6 | 0.95x | 3.5x |
-| iTunes plist | 11.4 | 11.4 | 1.6 | 1.0x | 7.0x |
-| Bank transactions | 9.4 | 11.8 | 3.4 | 0.8x | 2.8x |
-| Unicode characters | 14.1 | 18.0 | 6.3 | 0.8x | 2.2x |
+| UBL invoice (Peppol) | 6.9 | 6.8 | 1.6 | 1.0x | 4.3x |
+| XMark auction | 5.8 | 6.0 | 1.6 | 0.95x | 3.6x |
+| iTunes plist | 11.7 | 11.4 | 1.6 | 1.0x | 7.2x |
+| Bank transactions | 9.5 | 11.8 | 3.4 | 0.8x | 2.8x |
+| Unicode characters | 14.2 | 18.0 | 6.3 | 0.8x | 2.3x |
 | Old Testament | 3.4 | 3.4 | 1.3 | 1.0x | 2.6x |
-| XSLT 3.0 spec (XHTML) | 7.2 | 8.2 | 2.6 | 0.85x | 2.7x |
-| XSLT test stylesheets | 5.8 | 6.3 | 1.6 | 0.95x | 3.6x |
+| XSLT 3.0 spec (XHTML) | 7.3 | 8.2 | 2.6 | 0.9x | 2.8x |
+| XSLT test stylesheets | 5.9 | 6.3 | 1.6 | 0.95x | 3.7x |
 
 ### Summary
 
-- **Saxon TinyTree** is by far the most compact: 1.3 to 6 times the file size, and 2.2 to 7 times smaller than
+- **Saxon TinyTree** is by far the most compact: 1.3 to 6 times the file size, and 2.3 to 7 times smaller than
   ph-xdm. The gap is largest for documents made of many small nodes (iTunes plist) and smallest for prose and
   attribute-heavy documents.
-- **ph-xdm** needs between 3.4 (prose) and 14 (attribute-heavy) times the file size. It is now as compact as
-  MicroDOM or up to 20 % smaller (attribute-heavy documents), and 27 to 38 % smaller than originally.
+- **ph-xdm** needs between 3.4 (prose) and 14 (attribute-heavy) times the file size. It is within 3 % of MicroDOM
+  or up to 20 % smaller (attribute-heavy documents), and 26 to 38 % smaller than originally.
 - Small nodes are expensive in every object-per-node model: the cost is driven by the node count, not the byte
   count.
 
@@ -58,20 +58,21 @@ Node counts are taken from the ph-xdm tree. All three models keep whitespace-onl
 | Shared names | `XdmTreeBuilder` keeps one `XdmQName` per distinct name of a document instead of one per element and attribute (the map is keyed by namespace URI and lexical name, because `XdmQName.equals` ignores the prefix) | 4 to 12 % |
 | `Details` holder | The rarely set properties (declared namespaces, built-in type annotation, nilled, document URI, base URI, disable-output-escaping) moved into a nested object that is created on the first non-default value. The node shrank from 104 to 72 bytes | 15 to 20 % |
 | Node subtypes | The model became the sealed interface `IXdmNode`, implemented below the sealed `AbstractXdmNode` by one class per node kind that only carries the fields of its kind: element 64 bytes, attribute 56, text and comment 48 | 11 to 13 % |
+| End order | Documents and elements store the order of the last node of their subtree (`getEndOrder ()`), which the name index of a document needs to answer descendant steps by interval. Element 72 bytes; the index itself is built on first use and not included here | -2 to -3 % |
 
 The schema type is a field of element and attribute nodes, so schema-validated trees do not need a `Details` object
 per node: the type annotation of a validated node is derived from its schema type.
 
-| Document | Original | Shared names | `Details` holder | Node subtypes | Total saving |
-|---|--:|--:|--:|--:|--:|
-| UBL invoice (Peppol) | 0.10 MB | 0.10 MB | 0.08 MB | 0.07 MB | 30 % |
-| XMark auction | 27.63 MB | 26.22 MB | 21.56 MB | 18.92 MB | 32 % |
-| iTunes plist | 170.25 MB | 161.24 MB | 130.68 MB | 113.78 MB | 33 % |
-| Bank transactions | 69.58 MB | 62.72 MB | 50.51 MB | 44.40 MB | 36 % |
-| Unicode characters | 139.00 MB | 122.96 MB | 98.02 MB | 85.55 MB | 38 % |
-| Old Testament | 15.38 MB | 14.80 MB | 12.51 MB | 11.18 MB | 27 % |
-| XSLT 3.0 spec (XHTML) | 31.09 MB | 28.78 MB | 23.69 MB | 21.01 MB | 32 % |
-| XSLT test stylesheets | 57.34 MB | 51.60 MB | 43.19 MB | 37.96 MB | 34 % |
+| Document | Original | Shared names | `Details` holder | Node subtypes | End order | Total saving |
+|---|--:|--:|--:|--:|--:|--:|
+| UBL invoice (Peppol) | 0.10 MB | 0.10 MB | 0.08 MB | 0.07 MB | 0.07 MB | 29 % |
+| XMark auction | 27.63 MB | 26.22 MB | 21.56 MB | 18.92 MB | 19.30 MB | 30 % |
+| iTunes plist | 170.25 MB | 161.24 MB | 130.68 MB | 113.78 MB | 116.78 MB | 31 % |
+| Bank transactions | 69.58 MB | 62.72 MB | 50.51 MB | 44.40 MB | 45.17 MB | 35 % |
+| Unicode characters | 139.00 MB | 122.96 MB | 98.02 MB | 85.55 MB | 86.44 MB | 38 % |
+| Old Testament | 15.38 MB | 14.80 MB | 12.51 MB | 11.18 MB | 11.37 MB | 26 % |
+| XSLT 3.0 spec (XHTML) | 31.09 MB | 28.78 MB | 23.69 MB | 21.01 MB | 21.38 MB | 31 % |
+| XSLT test stylesheets | 57.34 MB | 51.60 MB | 43.19 MB | 37.96 MB | 38.51 MB | 33 % |
 
 ## Where the memory goes
 
@@ -79,18 +80,18 @@ Class footprint of the "Bank transactions" document (100,002 elements, 200,001 a
 
 | ph-xdm | Count | Size | | MicroDOM | Count | Size |
 |---|--:|--:|---|---|--:|--:|
-| `XdmElementNode` | 100,002 | 6.10 MB | | `MicroElement` | 100,002 | 3.81 MB |
+| `XdmElementNode` | 100,002 | 6.87 MB | | `MicroElement` | 100,002 | 3.81 MB |
 | `XdmAttributeNode` | 200,001 | 10.68 MB | | `MicroAttribute` + `MicroQName` | 400,002 | 9.16 MB |
 | `XdmTextNode` | 100,003 | 4.58 MB | | `MicroText` + `MicroDataAware` + `StringBuilder` | 300,009 | 6.87 MB |
 | `XdmDocumentNode`, `Details`, shared `XdmQName` | 8 | 0.00 MB | | | | |
 | `String` + `byte[]` | 600,026 | 14.50 MB | | `String` + `byte[]` | 500,021 | 13.73 MB |
 | `CommonsArrayList` + `Object[]` | 200,008 | 8.55 MB | | `CommonsLinkedHashMap` + entries + tables | 400,003 | 21.36 MB |
 | | | | | child lists (`CommonsArrayList` + `Object[]`) | 6 | 0.92 MB |
-| **Total** | | **44.40 MB** | | **Total** | | **55.85 MB** |
+| **Total** | | **45.17 MB** | | **Total** | | **55.85 MB** |
 
 Observations for ph-xdm:
 
-- The node objects are still almost half of the total (21.4 MB); the strings (attribute values and text) follow
+- The node objects are still almost half of the total (22.1 MB); the strings (attribute values and text) follow
   with 14.5 MB.
 - The child and attribute lists start with room for 10 entries. Here they average 90 bytes for 1 to 2 entries;
   trimming them to size would save about 3 MB.

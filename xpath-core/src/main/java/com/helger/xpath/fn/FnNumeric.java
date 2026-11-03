@@ -158,7 +158,15 @@ public final class FnNumeric
       return d;
     if (nPrecision > 1100)
       return d;
-    final double ret = _roundDecimal (new BigDecimal (d), nPrecision, bHalfEven).doubleValue ();
+    final double ret;
+    if (nPrecision == 0 && !bHalfEven)
+    {
+      // d is not integral here, so floor(d) and the fraction are both exact
+      final double dFloor = Math.floor (d);
+      ret = d - dFloor >= 0.5 ? dFloor + 1 : dFloor;
+    }
+    else
+      ret = _roundDecimal (new BigDecimal (d), nPrecision, bHalfEven).doubleValue ();
     // A zero result keeps the sign of the input
     return ret == 0 ? Math.copySign (0.0, d) : ret;
   }

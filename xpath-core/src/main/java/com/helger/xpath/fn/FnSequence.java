@@ -69,14 +69,6 @@ public final class FnSequence
   private FnSequence ()
   {}
 
-  /** Bucket key of a numeric value in fn:distinct-values. */
-  private record NumericBucket (double value)
-  {}
-
-  /** Bucket key of a string-like value in fn:distinct-values. */
-  private record StringBucket (Object key)
-  {}
-
   @Nullable
   private static ICollation _resolveCollation (@NonNull final DynamicContext aCtx, @NonNull final String sUri)
   {
@@ -218,33 +210,6 @@ public final class FnSequence
     return aPayload instanceof final Double aD && aD.isNaN () || aPayload instanceof final Float aF && aF.isNaN ();
   }
 
-  /**
-   * @return A key that two values equal under eq always share, or
-   *         <code>null</code> if there is none for the value's type.
-   */
-  @Nullable
-  private static Object _getBucketKey (@NonNull final XdmAtomic aValue,
-                                       @Nullable final ICollation aCollation,
-                                       final boolean bNarrow)
-  {
-    if (aValue.isNumeric ())
-    {
-      double d = aValue.getAsDouble ();
-      if (Double.isNaN (d))
-        return new NumericBucket (Double.NaN);
-      // A comparison with an xs:float happens in float space
-      if (bNarrow)
-        d = (float) d;
-      if (d == 0)
-        d = 0;
-      return new NumericBucket (d);
-    }
-    if (aValue.isStringLike ())
-      return new StringBucket (aCollation == null ? aValue.getString ()
-                                                  : aCollation.getCollationKey (aValue.getString ()));
-    return null;
-  }
-
   @NonNull
   private static XdmSequence _distinctValues (@NonNull final DynamicContext aCtx,
                                               @NonNull final List <XdmSequence> aArgs)
@@ -270,7 +235,7 @@ public final class FnSequence
         aCtx.checkInterrupt ();
       final XdmAtomic aValue = (XdmAtomic) aItem;
       final XdmAtomic aCmp = _getComparisonForm (aValue);
-      final Object aKey = _getBucketKey (aCmp, aCollation, bNarrow);
+      final Object aKey = AtomicComparator.getDistinctBucketKey (aCmp, aCollation, bNarrow);
       ICommonsList <XdmAtomic> aCandidates = aKey == null ? aOther : aBuckets.get (aKey);
       boolean bDuplicate = false;
       if (aCandidates != null)

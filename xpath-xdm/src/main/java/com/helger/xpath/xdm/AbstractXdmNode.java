@@ -87,6 +87,37 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return m_aDetails == null ? null : m_aDetails.m_aNamespaces;
   }
 
+  /** @return The number of the tree this node was numbered in, 0 if it is not numbered. */
+  final long internalGetTree ()
+  {
+    return m_nTree;
+  }
+
+  /**
+   * Remove the numbering of the whole tree after a structural change, so that
+   * it is assigned again on demand. A no-op for an unnumbered tree, so the
+   * cost of a series of changes is one pass over the tree.
+   */
+  final void internalInvalidateOrder ()
+  {
+    if (m_nTree == 0)
+      return;
+    final AbstractXdmNode aRoot = getRoot ();
+    final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();
+    aStack.push (aRoot);
+    while (!aStack.isEmpty ())
+    {
+      final AbstractXdmNode aCur = aStack.pop ();
+      aCur.m_nTree = 0;
+      for (int i = 0; i < aCur.getAttributeCount (); ++i)
+        aCur.getAttributeAtIndex (i).m_nTree = 0;
+      for (int i = 0; i < aCur.getChildCount (); ++i)
+        aStack.push (aCur.getChildAtIndex (i));
+    }
+    if (aRoot instanceof final XdmDocumentNode aDoc)
+      aDoc.internalDropNameIndex ();
+  }
+
   final void internalSetParent (@Nullable final AbstractXdmNode aParent)
   {
     m_aParent = aParent;
@@ -389,6 +420,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return new CommonsArrayList <> ();
   }
 
+  @Nonnegative
+  public final int getOrder ()
+  {
+    return m_nOrder;
+  }
+
   @NonNull
   public final AbstractXdmNode getRoot ()
   {
@@ -411,10 +448,15 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     final long nTree = TREE_COUNTER.incrementAndGet ();
     int nOrder = 0;
     final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();
+    // The parent nodes whose subtree is not finished yet, innermost first
+    final ArrayDeque <AbstractXdmParentNode> aOpen = new ArrayDeque <> ();
     aStack.push (aRoot);
     while (!aStack.isEmpty ())
     {
       final AbstractXdmNode aCur = aStack.pop ();
+      // Every open node that is no ancestor of this one is finished
+      while (!aOpen.isEmpty () && aOpen.peek () != aCur.m_aParent)
+        aOpen.pop ().internalSetEndOrder (nOrder - 1);
       aCur.m_nTree = nTree;
       aCur.m_nOrder = nOrder++;
       for (int i = 0; i < aCur.getAttributeCount (); ++i)
@@ -423,9 +465,15 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
         aAttr.m_nTree = nTree;
         aAttr.m_nOrder = nOrder++;
       }
-      for (int i = aCur.getChildCount () - 1; i >= 0; --i)
-        aStack.push (aCur.getChildAtIndex (i));
+      if (aCur instanceof final AbstractXdmParentNode aParent)
+      {
+        aOpen.push (aParent);
+        for (int i = aParent.getChildCount () - 1; i >= 0; --i)
+          aStack.push (aParent.getChildAtIndex (i));
+      }
     }
+    while (!aOpen.isEmpty ())
+      aOpen.pop ().internalSetEndOrder (nOrder - 1);
   }
 
   static int compareDocumentOrder (@NonNull final AbstractXdmNode aLeft, @NonNull final AbstractXdmNode aRight)

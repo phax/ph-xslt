@@ -105,6 +105,7 @@ public final class XdmElementNode extends AbstractXdmParentNode
     if (m_aAttributes == null)
       m_aAttributes = new CommonsArrayList <> ();
     m_aAttributes.add (aRealAttribute);
+    internalInvalidateOrder ();
   }
 
   @Override

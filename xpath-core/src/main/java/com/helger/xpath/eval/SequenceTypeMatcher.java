@@ -271,7 +271,7 @@ public final class SequenceTypeMatcher
         return false;
       if (!matches (XdmSequence.EMPTY, aType.returnType ()))
         return false;
-      for (final XdmMap.Entry aEntry : aMap.getAllEntries ())
+      for (final XdmMap.Entry aEntry : aMap.entries ())
         if (!matches (aEntry.value (), aType.returnType ()))
           return false;
       return true;
@@ -322,6 +322,36 @@ public final class SequenceTypeMatcher
     return true;
   }
 
+  private static boolean _matchesMapKeyType (@NonNull final EAtomicType eActual, @Nullable final EAtomicType eKeyType)
+  {
+    return eKeyType == null || eKeyType == EAtomicType.ANY_ATOMIC_TYPE || eActual.isDerivedFrom (eKeyType);
+  }
+
+  /**
+   * Test a map(K, V) type on the map's summary of its entries.
+   *
+   * @return The result, or <code>null</code> if the entries must be looked at.
+   */
+  @Nullable
+  private static Boolean _matchesUniformMap (@NonNull final XdmMap aMap,
+                                             @Nullable final EAtomicType eKeyType,
+                                             @NonNull final SeqType aValueType)
+  {
+    final EAtomicType eUniformKey = aMap.getUniformKeyType ();
+    final EAtomicType eUniformValue = aMap.getUniformValueType ();
+    if (eUniformKey == null || eUniformValue == null || aValueType.empty ())
+      return null;
+    final ItemType aItemType = aValueType.itemType ();
+    if (aItemType.kind () != ItemType.Kind.ATOMIC || aItemType.schemaType () != null)
+      return null;
+    // Every value is one atomic item, which every occurrence indicator but
+    // the empty sequence allows
+    final EAtomicType eType = aItemType.atomicType ();
+    return Boolean.valueOf (_matchesMapKeyType (eUniformKey, eKeyType) &&
+                            eType != EAtomicType.ERROR &&
+                            (eType == EAtomicType.ANY_ATOMIC_TYPE || eUniformValue.isDerivedFrom (eType)));
+  }
+
   /**
    * @param aItem
    *        The item.
@@ -356,12 +386,14 @@ public final class SequenceTypeMatcher
           return false;
         if (aType.wildcard () || aType.valueType () == null)
           return true;
-        for (final XdmMap.Entry aEntry : aMap.getAllEntries ())
+        final EAtomicType eKeyType = aType.mapKeyType ();
+        // A map(K, V) parameter of xsl:iterate is checked on every step
+        final Boolean aFast = _matchesUniformMap (aMap, eKeyType, aType.valueType ());
+        if (aFast != null)
+          return aFast.booleanValue ();
+        for (final XdmMap.Entry aEntry : aMap.entries ())
         {
-          final EAtomicType eKeyType = aType.mapKeyType ();
-          if (eKeyType != null &&
-              eKeyType != EAtomicType.ANY_ATOMIC_TYPE &&
-              !aEntry.key ().getType ().isDerivedFrom (eKeyType))
+          if (!_matchesMapKeyType (aEntry.key ().getType (), eKeyType))
             return false;
           if (!matches (aEntry.value (), aType.valueType ()))
             return false;

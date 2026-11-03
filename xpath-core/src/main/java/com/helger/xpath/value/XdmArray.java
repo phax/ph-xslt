@@ -19,8 +19,10 @@ package com.helger.xpath.value;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.Immutable;
@@ -35,6 +37,11 @@ import com.helger.xpath.xdm.IXdmItem;
  * An immutable XPath 3.1 array: an ordered list of members, each a sequence.
  * Members are 0-based in this API (XPath positions are 1-based). Modifying
  * methods return a new array.
+ * <p>
+ * Arrays made by {@link #append(XdmSequence)} share one backing array: an array
+ * never reads past its own size, so the newest array can append by writing the
+ * next free slot, which makes building an array one <code>array:append</code>
+ * at a time linear. A slot is only ever written once.
  *
  * @author Philip Helger
  */
@@ -43,11 +50,24 @@ public final class XdmArray implements IXdmItem
 {
   public static final XdmArray EMPTY = new XdmArray (new XdmSequence [0]);
 
+  // May be longer than the array, see m_nSize
   private final XdmSequence [] m_aMembers;
+  private final int m_nSize;
+  // How far the shared backing array is handed out; null if it is not shared
+  private final AtomicInteger m_aClaimed;
 
   private XdmArray (@NonNull final XdmSequence [] aMembers)
   {
+    this (aMembers, aMembers.length, null);
+  }
+
+  private XdmArray (@NonNull final XdmSequence [] aMembers,
+                    @Nonnegative final int nSize,
+                    @Nullable final AtomicInteger aClaimed)
+  {
     m_aMembers = aMembers;
+    m_nSize = nSize;
+    m_aClaimed = aClaimed;
   }
 
   /**
@@ -92,17 +112,19 @@ public final class XdmArray implements IXdmItem
   @Nonnegative
   public int size ()
   {
-    return m_aMembers.length;
+    return m_nSize;
   }
 
   public boolean isEmpty ()
   {
-    return m_aMembers.length == 0;
+    return m_nSize == 0;
   }
 
   @NonNull
   public XdmSequence get (@Nonnegative final int nIndex)
   {
+    if (nIndex >= m_nSize)
+      throw new ArrayIndexOutOfBoundsException (nIndex);
     return m_aMembers[nIndex];
   }
 
@@ -110,14 +132,14 @@ public final class XdmArray implements IXdmItem
   @ReturnsMutableCopy
   public ICommonsList <XdmSequence> getAllMembers ()
   {
-    return new CommonsArrayList <> (m_aMembers);
+    return new CommonsArrayList <> (members ());
   }
 
   /** @return A read-only view of the members, without copying. */
   @NonNull
   public List <XdmSequence> members ()
   {
-    return Collections.unmodifiableList (Arrays.asList (m_aMembers));
+    return Collections.unmodifiableList (Arrays.asList (m_aMembers).subList (0, m_nSize));
   }
 
   /**
@@ -130,7 +152,7 @@ public final class XdmArray implements IXdmItem
   @NonNull
   public XdmArray put (@Nonnegative final int nIndex, @NonNull final XdmSequence aValue)
   {
-    final XdmSequence [] aNew = m_aMembers.clone ();
+    final XdmSequence [] aNew = Arrays.copyOf (m_aMembers, m_nSize);
     aNew[nIndex] = aValue;
     return new XdmArray (aNew);
   }
@@ -143,9 +165,16 @@ public final class XdmArray implements IXdmItem
   @NonNull
   public XdmArray append (@NonNull final XdmSequence aValue)
   {
-    final XdmSequence [] aNew = Arrays.copyOf (m_aMembers, m_aMembers.length + 1);
-    aNew[m_aMembers.length] = aValue;
-    return new XdmArray (aNew);
+    final int nSize = m_nSize;
+    if (nSize < m_aMembers.length && m_aClaimed != null && m_aClaimed.compareAndSet (nSize, nSize + 1))
+    {
+      // The slot is ours: no other array has appended here
+      m_aMembers[nSize] = aValue;
+      return new XdmArray (m_aMembers, nSize + 1, m_aClaimed);
+    }
+    final XdmSequence [] aNew = Arrays.copyOf (m_aMembers, nSize + nSize / 2 + 4);
+    aNew[nSize] = aValue;
+    return new XdmArray (aNew, nSize + 1, new AtomicInteger (nSize + 1));
   }
 
   /**
@@ -158,10 +187,10 @@ public final class XdmArray implements IXdmItem
   @NonNull
   public XdmArray insertBefore (@Nonnegative final int nIndex, @NonNull final XdmSequence aValue)
   {
-    final XdmSequence [] aNew = new XdmSequence [m_aMembers.length + 1];
+    final XdmSequence [] aNew = new XdmSequence [m_nSize + 1];
     System.arraycopy (m_aMembers, 0, aNew, 0, nIndex);
     aNew[nIndex] = aValue;
-    System.arraycopy (m_aMembers, nIndex, aNew, nIndex + 1, m_aMembers.length - nIndex);
+    System.arraycopy (m_aMembers, nIndex, aNew, nIndex + 1, m_nSize - nIndex);
     return new XdmArray (aNew);
   }
 
@@ -177,7 +206,7 @@ public final class XdmArray implements IXdmItem
   {
     if (nFrom >= nTo)
       return EMPTY;
-    if (nFrom == 0 && nTo == m_aMembers.length)
+    if (nFrom == 0 && nTo == m_nSize)
       return this;
     return new XdmArray (Arrays.copyOfRange (m_aMembers, nFrom, nTo));
   }
@@ -186,7 +215,7 @@ public final class XdmArray implements IXdmItem
   @NonNull
   public XdmArray reverse ()
   {
-    final int n = m_aMembers.length;
+    final int n = m_nSize;
     if (n < 2)
       return this;
     final XdmSequence [] aNew = new XdmSequence [n];
@@ -198,7 +227,7 @@ public final class XdmArray implements IXdmItem
   @Override
   public String toString ()
   {
-    return "array(" + m_aMembers.length + ")";
+    return "array(" + m_nSize + ")";
   }
 
   /**
@@ -234,8 +263,8 @@ public final class XdmArray implements IXdmItem
     @NonNull
     public Builder addAll (@NonNull final XdmArray aArray)
     {
-      for (final XdmSequence aMember : aArray.m_aMembers)
-        add (aMember);
+      for (int i = 0; i < aArray.m_nSize; ++i)
+        add (aArray.m_aMembers[i]);
       return this;
     }
 

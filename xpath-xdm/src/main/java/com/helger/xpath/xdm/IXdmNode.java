@@ -30,7 +30,9 @@ import com.helger.collection.commons.ICommonsOrderedMap;
  * must be treated as read-only afterwards. Document order is only defined
  * after {@link #assignDocumentOrder()} was called on the root, which
  * {@link XdmTreeBuilder} does; {@link #compareDocumentOrder(IXdmNode, IXdmNode)}
- * numbers an unnumbered tree on demand.<br>
+ * numbers an unnumbered tree on demand. Adding or removing a child or an
+ * attribute in a numbered tree removes the numbering of the whole tree, which is
+ * then assigned again on demand.<br>
  * Every node kind has its own implementation class that only carries the
  * fields of that kind; a property a kind does not have reads as its default
  * value. Namespace nodes are not stored: an element only keeps the namespace
@@ -412,6 +414,27 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   @NonNull
   @ReturnsMutableCopy
   ICommonsList <IXdmNode> getNamespaceNodes ();
+
+  /**
+   * @return The position of this node in document order, counted from 0 at the
+   *         root. Only meaningful while the tree is numbered (see
+   *         {@link #assignDocumentOrder()}); namespace nodes are never numbered.
+   */
+  @Nonnegative
+  int getOrder ();
+
+  /**
+   * @return The {@link #getOrder() order} of the last node of the subtree of
+   *         this node: its last descendant or, if it has none, its last
+   *         attribute or itself. The descendants and attributes of a node are
+   *         exactly the nodes with an order above its own and up to this one.
+   *         Only meaningful while the tree is numbered.
+   */
+  @Nonnegative
+  default int getEndOrder ()
+  {
+    return getOrder ();
+  }
 
   @NonNull
   IXdmNode getRoot ();

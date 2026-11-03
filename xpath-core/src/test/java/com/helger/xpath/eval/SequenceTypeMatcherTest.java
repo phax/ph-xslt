@@ -18,6 +18,7 @@ package com.helger.xpath.eval;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -356,5 +357,24 @@ public final class SequenceTypeMatcherTest
     {
       assertEquals ("XPTY0004", ex.getCode ());
     }
+  }
+
+  @Test
+  public void testMatchesUniformMap ()
+  {
+    final XdmMap aMap = XdmMap.of (XdmAtomic.string ("a"), XdmSequence.of (XdmAtomic.integer (1)))
+                              .put (XdmAtomic.string ("b"), XdmSequence.of (XdmAtomic.integer (2)));
+    assertNotNull (aMap.getUniformKeyType ());
+    assertNotNull (aMap.getUniformValueType ());
+    assertTrue (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.STRING, INTEGER)));
+    assertTrue (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.ANY_ATOMIC_TYPE, DECIMAL)));
+    assertTrue (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.STRING, INTEGER_OPT)));
+    assertTrue (SequenceTypeMatcher.matchesItem (aMap,
+                                                 mapType (EAtomicType.STRING,
+                                                          atomicType (EAtomicType.ANY_ATOMIC_TYPE, EOccurrence.ONE))));
+    assertTrue (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.STRING, ITEM)));
+    assertFalse (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.INTEGER, INTEGER)));
+    assertFalse (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.STRING, STRING)));
+    assertFalse (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.STRING, SeqType.EMPTY_SEQUENCE)));
   }
 }

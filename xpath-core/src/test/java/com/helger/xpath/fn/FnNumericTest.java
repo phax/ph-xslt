@@ -58,6 +58,14 @@ public final class FnNumericTest
     assertTyped ("decimal:-2", "round(-2.5)");
     assertTyped ("double:-0", "round(-0.4e0)");
     assertTyped ("double:-0", "round(-0.5e0)");
+    assertTyped ("double:3", "round(2.5e0)");
+    assertTyped ("double:-2", "round(-2.5e0)");
+    assertTyped ("double:-3", "round(-2.6e0)");
+    assertTyped ("double:1", "round(0.5e0)");
+    // The largest double below 0.5: adding 0.5 to it would give 1
+    assertTyped ("double:0", "round(0.49999999999999994e0)");
+    // The largest double with a fraction
+    assertTyped ("double:4.503599627370496E15", "round(4503599627370495.5e0)");
     assertTyped ("decimal:1.13", "round(1.125, 2)");
     assertTyped ("decimal:-1.12", "round(-1.125, 2)");
     assertTyped ("integer:12300", "round(12345, -2)");

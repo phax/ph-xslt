@@ -10,6 +10,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Traversals over input-controlled structure are iterative or depth-limited, never unbounded recursion.
 - Nodes are `IXdmNode` (own model, built from JDK SAX; one implementation class per node kind below the sealed
   `AbstractXdmNode`). Do not switch to DOM or IMicroDom as the model.
+- Document order: `getOrder ()`/`getEndOrder ()` (end = last node of the subtree, attributes included); a document node
+  has a lazily built name index used by `AxisNavigator.collectNamedDescendants`. Every structural change to a
+  numbered tree must go through `appendChild`/`removeChild`/`addAttribute`, which drop numbering and index.
+- `XdmMap` is a persistent hash trie and `XdmArray.append` shares a backing array; both stay immutable from the outside.
+  Iterate with `entries ()`/`members ()` (views); `getAllEntries ()`/`getAllMembers ()` copy.
 - QT3: `mvn test -pl xpath-conformance -am` (`-Dqt3.only=<set>` for one test set). Every failing case must be named in
   `xpath-conformance/docs/accepted-failures/qt3.md` with a reason, or `QT3Test` fails. Compare fail lists
   (`xpath-conformance/target/qt3-fails.txt`) by name, never by count, and run JDK 21 and 25.

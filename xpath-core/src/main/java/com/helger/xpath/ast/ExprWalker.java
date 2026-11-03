@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.helger.xpath.pattern;
+package com.helger.xpath.ast;
 
 import java.util.ArrayDeque;
 import java.util.function.Predicate;
@@ -23,18 +23,34 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
-import com.helger.xpath.ast.IExpr;
+import com.helger.collection.commons.CommonsHashSet;
+import com.helger.collection.commons.ICommonsSet;
+import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
  * Iterative walker over an expression tree, used for static questions about
- * patterns.
+ * expressions and patterns.
  *
  * @author Philip Helger
  */
 @Immutable
-final class ExprWalker
+public final class ExprWalker
 {
+  // Functions of the fn namespace that always return an xs:boolean
+  private static final ICommonsSet <String> BOOLEAN_FUNCTIONS = new CommonsHashSet <> ("not",
+                                                                                       "exists",
+                                                                                       "empty",
+                                                                                       "boolean",
+                                                                                       "true",
+                                                                                       "false",
+                                                                                       "contains",
+                                                                                       "starts-with",
+                                                                                       "ends-with",
+                                                                                       "matches",
+                                                                                       "deep-equal",
+                                                                                       "lang");
+
   @PresentForCodeCoverage
   private static final ExprWalker INSTANCE = new ExprWalker ();
 
@@ -193,7 +209,7 @@ final class ExprWalker
    * @return <code>true</code> if the tree contains a static function call or
    *         a named function reference whose name passes the filter.
    */
-  static boolean containsFunction (@NonNull final IExpr aExpr, @NonNull final Predicate <XdmQName> aFilter)
+  public static boolean containsFunction (@NonNull final IExpr aExpr, @NonNull final Predicate <XdmQName> aFilter)
   {
     final ArrayDeque <IExpr> aStack = new ArrayDeque <> ();
     aStack.push (aExpr);
@@ -207,5 +223,82 @@ final class ExprWalker
       _pushChildren (aCur, aStack);
     }
     return false;
+  }
+
+  /**
+   * @param aName
+   *        A function name.
+   * @return <code>true</code> for <code>fn:position</code> and
+   *         <code>fn:last</code>.
+   */
+  public static boolean isPositionOrLast (@NonNull final XdmQName aName)
+  {
+    return XdmConstants.NS_FN.equals (aName.namespaceUri ()) &&
+           (aName.localName ().equals ("position") || aName.localName ().equals ("last"));
+  }
+
+  /**
+   * @return <code>true</code> if the expression can only evaluate to a boolean
+   *         or a node sequence, never to a number.
+   */
+  private static boolean _isBooleanOrNodes (@NonNull final IExpr aExpr)
+  {
+    final ArrayDeque <IExpr> aStack = new ArrayDeque <> ();
+    aStack.push (aExpr);
+    while (!aStack.isEmpty ())
+    {
+      final IExpr aCur = aStack.pop ();
+      switch (aCur)
+      {
+        case final IExpr.ComparisonExpr e ->
+        {
+          // always a boolean
+        }
+        case final IExpr.BinaryExpr e ->
+        {
+          if (e.op () != EBinaryOp.AND && e.op () != EBinaryOp.OR)
+            return false;
+        }
+        case final IExpr.SetExpr e ->
+        {
+          aStack.push (e.left ());
+          aStack.push (e.right ());
+        }
+        case final IExpr.PathExpr e ->
+        {
+          if (e.start () != null)
+            return false;
+          for (final IExpr.StepExpr aStep : e.steps ())
+            if (aStep.postfix () != null)
+              return false;
+        }
+        case final IExpr.FunctionCallExpr e ->
+        {
+          if (!XdmConstants.NS_FN.equals (e.name ().namespaceUri ()) ||
+              !BOOLEAN_FUNCTIONS.contains (e.name ().localName ()))
+            return false;
+        }
+        default ->
+        {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * A predicate passing this test selects the same nodes whatever the context
+   * position and size are, and is never read as a position: it can only be a
+   * boolean or a node sequence and does not call <code>fn:position</code> or
+   * <code>fn:last</code> anywhere inside.
+   *
+   * @param aPredicate
+   *        The predicate expression.
+   * @return <code>true</code> if it is provably focus-free and non-numeric.
+   */
+  public static boolean isFocusFreeBoolean (@NonNull final IExpr aPredicate)
+  {
+    return _isBooleanOrNodes (aPredicate) && !containsFunction (aPredicate, ExprWalker::isPositionOrLast);
   }
 }

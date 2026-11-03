@@ -153,6 +153,14 @@ public final class AtomicComparator
     }
   }
 
+  /** Bucket key of a numeric value, see getDistinctBucketKey. */
+  private record NumericBucket (double value)
+  {}
+
+  /** Bucket key of a string-like value, see getDistinctBucketKey. */
+  private record StringBucket (Object key)
+  {}
+
   /** A pair of items or sequences still to compare in fn:deep-equal. */
   private record DeepPair (@NonNull Object left, @NonNull Object right)
   {}
@@ -758,6 +766,43 @@ public final class AtomicComparator
     if (nCmp == UNORDERED)
       return _isNaN (aLeft) && _isNaN (aRight);
     return nCmp == 0;
+  }
+
+  /**
+   * A hash key to confine the search for equal values with
+   * {@link #isEqualForDistinct(XdmAtomic, XdmAtomic, ICollation, DynamicContext)}
+   * to the values that can match.
+   *
+   * @param aValue
+   *        The value.
+   * @param aCollation
+   *        The collation, <code>null</code> for the codepoint collation.
+   * @param bNarrow
+   *        <code>true</code> as soon as any compared value is an xs:float.
+   * @return A key that two values equal under eq always share, or
+   *         <code>null</code> if there is none for the value's type.
+   */
+  @Nullable
+  public static Object getDistinctBucketKey (@NonNull final XdmAtomic aValue,
+                                             @Nullable final ICollation aCollation,
+                                             final boolean bNarrow)
+  {
+    if (aValue.isNumeric ())
+    {
+      double d = aValue.getAsDouble ();
+      if (Double.isNaN (d))
+        return new NumericBucket (Double.NaN);
+      // A comparison with an xs:float happens in float space
+      if (bNarrow)
+        d = (float) d;
+      if (d == 0)
+        d = 0;
+      return new NumericBucket (d);
+    }
+    if (aValue.isStringLike ())
+      return new StringBucket (aCollation == null ? aValue.getString ()
+                                                  : aCollation.getCollationKey (aValue.getString ()));
+    return null;
   }
 
   /**

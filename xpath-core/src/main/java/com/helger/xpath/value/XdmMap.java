@@ -16,8 +16,10 @@
  */
 package com.helger.xpath.value;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -39,9 +41,14 @@ import com.helger.xpath.xdm.IXdmItem;
  * op:same-key rule (see {@link AtomicComparator#getMapKey(XdmAtomic)}); the
  * original key item is kept for <code>map:keys</code>. Iteration order is
  * insertion order, which is the implementation-defined order XPath allows.
- * Modifying methods return a new map (copy on write; a persistent structure
- * can replace this later without changing the API). Use {@link Builder} to
- * construct a map from many entries in linear time.
+ * <p>
+ * A map is a persistent hash trie: {@link #put(XdmAtomic, XdmSequence)} and
+ * {@link #remove(XdmAtomic)} share everything but the path to the changed entry
+ * with the map they were called on, so accumulating n entries one
+ * <code>map:put</code> at a time does not copy the map n times. Every entry
+ * carries a running number that defines the iteration order; the ordered view
+ * is built on first use. Use {@link Builder} to construct a map from many
+ * entries.
  *
  * @author Philip Helger
  */
@@ -52,13 +59,230 @@ public final class XdmMap implements IXdmItem
   public record Entry (@NonNull XdmAtomic key, @NonNull XdmSequence value)
   {}
 
-  public static final XdmMap EMPTY = new XdmMap (new LinkedHashMap <> ());
-
-  private final Map <Object, Entry> m_aEntries;
-
-  private XdmMap (@NonNull final Map <Object, Entry> aEntries)
+  /** An entry as stored in the trie. Never changed after it was made. */
+  private static final class Slot
   {
-    m_aEntries = aEntries;
+    private final Object m_aMapKey;
+    private final int m_nHash;
+    // Position in the iteration order; a replaced entry keeps it
+    private final long m_nOrder;
+    private final Entry m_aEntry;
+
+    private Slot (@NonNull final Object aMapKey, final int nHash, final long nOrder, @NonNull final Entry aEntry)
+    {
+      m_aMapKey = aMapKey;
+      m_nHash = nHash;
+      m_nOrder = nOrder;
+      m_aEntry = aEntry;
+    }
+  }
+
+  /**
+   * A trie node, never changed after it was made. With a non-zero bitmap it is
+   * a 32-way branch over five bits of the hash per level, where each kid is a
+   * {@link Slot} or a sub {@link Node}. A zero bitmap marks a collision list:
+   * {@link Slot}s that share their path, compared by key. Depth is limited: seven
+   * levels exhaust the 32-bit hash and a collision list ends a path, so the
+   * recursions below are bounded.
+   */
+  private static final class Node
+  {
+    private final int m_nBitmap;
+    private final Object [] m_aKids;
+
+    private Node (final int nBitmap, @NonNull final Object [] aKids)
+    {
+      m_nBitmap = nBitmap;
+      m_aKids = aKids;
+    }
+  }
+
+  public static final XdmMap EMPTY = new XdmMap (null, 0, 0, null, null, new Entry [0]);
+
+  private final Node m_aRoot;
+  private final int m_nSize;
+  private final long m_nNextOrder;
+  // The type of all keys / of all values, each a single atomic item. Null means
+  // only that it is unknown: replacing and removing entries leaves a type that
+  // no entry has any more in place, which is sound, but never restores one
+  private final EAtomicType m_eKeyType;
+  private final EAtomicType m_eValueType;
+  // The entries in iteration order, built on first use
+  private volatile Entry [] m_aOrdered;
+
+  private XdmMap (@Nullable final Node aRoot,
+                  @Nonnegative final int nSize,
+                  final long nNextOrder,
+                  @Nullable final EAtomicType eKeyType,
+                  @Nullable final EAtomicType eValueType,
+                  final Entry @Nullable [] aOrdered)
+  {
+    m_aRoot = aRoot;
+    m_nSize = nSize;
+    m_nNextOrder = nNextOrder;
+    m_eKeyType = eKeyType;
+    m_eValueType = eValueType;
+    m_aOrdered = aOrdered;
+  }
+
+  @Nullable
+  private static Slot _find (@Nullable final Node aRoot, final int nHash, @NonNull final Object aMapKey)
+  {
+    Node aNode = aRoot;
+    int nShift = 0;
+    while (aNode != null)
+    {
+      if (aNode.m_nBitmap == 0)
+      {
+        for (final Object aKid : aNode.m_aKids)
+          if (((Slot) aKid).m_aMapKey.equals (aMapKey))
+            return (Slot) aKid;
+        return null;
+      }
+      final int nBit = 1 << ((nHash >>> nShift) & 31);
+      if ((aNode.m_nBitmap & nBit) == 0)
+        return null;
+      final Object aKid = aNode.m_aKids[Integer.bitCount (aNode.m_nBitmap & (nBit - 1))];
+      if (aKid instanceof final Slot aSlot)
+        return aSlot.m_nHash == nHash && aSlot.m_aMapKey.equals (aMapKey) ? aSlot : null;
+      aNode = (Node) aKid;
+      nShift += 5;
+    }
+    return null;
+  }
+
+  @NonNull
+  private static Object [] _insertAt (@NonNull final Object [] aKids, final int nIndex, @NonNull final Object aKid)
+  {
+    final Object [] ret = new Object [aKids.length + 1];
+    System.arraycopy (aKids, 0, ret, 0, nIndex);
+    ret[nIndex] = aKid;
+    System.arraycopy (aKids, nIndex, ret, nIndex + 1, aKids.length - nIndex);
+    return ret;
+  }
+
+  @NonNull
+  private static Object [] _removeAt (@NonNull final Object [] aKids, final int nIndex)
+  {
+    final Object [] ret = new Object [aKids.length - 1];
+    System.arraycopy (aKids, 0, ret, 0, nIndex);
+    System.arraycopy (aKids, nIndex + 1, ret, nIndex, ret.length - nIndex);
+    return ret;
+  }
+
+  @NonNull
+  private static Object [] _replaceAt (@NonNull final Object [] aKids, final int nIndex, @NonNull final Object aKid)
+  {
+    final Object [] ret = aKids.clone ();
+    ret[nIndex] = aKid;
+    return ret;
+  }
+
+  /** @return The subtree holding two slots whose hashes differ. */
+  @NonNull
+  private static Node _split (final int nShift, @NonNull final Slot aFirst, @NonNull final Slot aSecond)
+  {
+    final int nFirst = (aFirst.m_nHash >>> nShift) & 31;
+    final int nSecond = (aSecond.m_nHash >>> nShift) & 31;
+    if (nFirst == nSecond)
+      return new Node (1 << nFirst, new Object [] { _split (nShift + 5, aFirst, aSecond) });
+    return new Node (1 << nFirst | 1 << nSecond,
+                     nFirst < nSecond ? new Object [] { aFirst, aSecond } : new Object [] { aSecond, aFirst });
+  }
+
+  /** @return The node with the slot in place of any slot of the same key. */
+  @NonNull
+  private static Node _assoc (@Nullable final Node aNode, final int nShift, @NonNull final Slot aNew)
+  {
+    if (aNode == null)
+      return new Node (1 << ((aNew.m_nHash >>> nShift) & 31), new Object [] { aNew });
+    final Object [] aKids = aNode.m_aKids;
+    if (aNode.m_nBitmap == 0)
+    {
+      for (int i = 0; i < aKids.length; ++i)
+        if (((Slot) aKids[i]).m_aMapKey.equals (aNew.m_aMapKey))
+          return new Node (0, _replaceAt (aKids, i, aNew));
+      return new Node (0, _insertAt (aKids, aKids.length, aNew));
+    }
+    final int nBit = 1 << ((aNew.m_nHash >>> nShift) & 31);
+    final int nIndex = Integer.bitCount (aNode.m_nBitmap & (nBit - 1));
+    if ((aNode.m_nBitmap & nBit) == 0)
+      return new Node (aNode.m_nBitmap | nBit, _insertAt (aKids, nIndex, aNew));
+    final Object aKid = aKids[nIndex];
+    final Node aSub;
+    if (aKid instanceof final Slot aOld)
+    {
+      if (aOld.m_aMapKey.equals (aNew.m_aMapKey))
+        return new Node (aNode.m_nBitmap, _replaceAt (aKids, nIndex, aNew));
+      aSub = aOld.m_nHash == aNew.m_nHash ? new Node (0, new Object [] { aOld, aNew })
+                                          : _split (nShift + 5, aOld, aNew);
+    }
+    else
+      aSub = _assoc ((Node) aKid, nShift + 5, aNew);
+    return new Node (aNode.m_nBitmap, _replaceAt (aKids, nIndex, aSub));
+  }
+
+  /**
+   * @return The node without the key, which must be present; <code>null</code>
+   *         if nothing is left of it.
+   */
+  @Nullable
+  private static Node _dissoc (@NonNull final Node aNode,
+                               final int nShift,
+                               final int nHash,
+                               @NonNull final Object aMapKey)
+  {
+    final Object [] aKids = aNode.m_aKids;
+    if (aNode.m_nBitmap == 0)
+    {
+      int nIndex = 0;
+      while (!((Slot) aKids[nIndex]).m_aMapKey.equals (aMapKey))
+        nIndex++;
+      return aKids.length == 1 ? null : new Node (0, _removeAt (aKids, nIndex));
+    }
+    final int nBit = 1 << ((nHash >>> nShift) & 31);
+    final int nIndex = Integer.bitCount (aNode.m_nBitmap & (nBit - 1));
+    if (aKids[nIndex] instanceof final Node aSubNode)
+    {
+      final Node aSub = _dissoc (aSubNode, nShift + 5, nHash, aMapKey);
+      if (aSub != null)
+        return new Node (aNode.m_nBitmap, _replaceAt (aKids, nIndex, aSub));
+    }
+    return aKids.length == 1 ? null : new Node (aNode.m_nBitmap & ~nBit, _removeAt (aKids, nIndex));
+  }
+
+  private static int _collect (@NonNull final Node aNode, @NonNull final Slot [] aTarget, final int nStart)
+  {
+    int ret = nStart;
+    for (final Object aKid : aNode.m_aKids)
+      if (aKid instanceof final Slot aSlot)
+        aTarget[ret++] = aSlot;
+      else
+        ret = _collect ((Node) aKid, aTarget, ret);
+    return ret;
+  }
+
+  private Entry @NonNull [] _getOrdered ()
+  {
+    Entry [] ret = m_aOrdered;
+    if (ret == null)
+    {
+      // Racing threads compute the same content
+      final Slot [] aSlots = new Slot [m_nSize];
+      _collect (m_aRoot, aSlots, 0);
+      Arrays.sort (aSlots, Comparator.comparingLong (x -> x.m_nOrder));
+      ret = new Entry [m_nSize];
+      for (int i = 0; i < m_nSize; ++i)
+        ret[i] = aSlots[i].m_aEntry;
+      m_aOrdered = ret;
+    }
+    return ret;
+  }
+
+  @Nullable
+  private static EAtomicType _getSingleAtomicType (@NonNull final XdmSequence aValue)
+  {
+    return aValue.isSingleton () && aValue.get (0) instanceof final XdmAtomic aAtomic ? aAtomic.getType () : null;
   }
 
   /**
@@ -77,17 +301,39 @@ public final class XdmMap implements IXdmItem
   @Nonnegative
   public int size ()
   {
-    return m_aEntries.size ();
+    return m_nSize;
   }
 
   public boolean isEmpty ()
   {
-    return m_aEntries.isEmpty ();
+    return m_nSize == 0;
+  }
+
+  /**
+   * @return The atomic type of all keys, or <code>null</code> if it is unknown.
+   *         A cheap way to test a <code>map(K, V)</code> type without looking
+   *         at every entry.
+   */
+  @Nullable
+  public EAtomicType getUniformKeyType ()
+  {
+    return m_eKeyType;
+  }
+
+  /**
+   * @return The atomic type of all values, if each is a single atomic item, or
+   *         <code>null</code> if it is unknown.
+   * @see #getUniformKeyType()
+   */
+  @Nullable
+  public EAtomicType getUniformValueType ()
+  {
+    return m_eValueType;
   }
 
   public boolean containsKey (@NonNull final XdmAtomic aKey)
   {
-    return m_aEntries.containsKey (AtomicComparator.getMapKey (aKey));
+    return getEntry (aKey) != null;
   }
 
   /**
@@ -98,7 +344,7 @@ public final class XdmMap implements IXdmItem
   @Nullable
   public XdmSequence get (@NonNull final XdmAtomic aKey)
   {
-    final Entry aEntry = m_aEntries.get (AtomicComparator.getMapKey (aKey));
+    final Entry aEntry = getEntry (aKey);
     return aEntry == null ? null : aEntry.value ();
   }
 
@@ -111,7 +357,9 @@ public final class XdmMap implements IXdmItem
   @Nullable
   public Entry getEntry (@NonNull final XdmAtomic aKey)
   {
-    return m_aEntries.get (AtomicComparator.getMapKey (aKey));
+    final Object aMapKey = AtomicComparator.getMapKey (aKey);
+    final Slot aSlot = _find (m_aRoot, aMapKey.hashCode (), aMapKey);
+    return aSlot == null ? null : aSlot.m_aEntry;
   }
 
   /**
@@ -119,16 +367,26 @@ public final class XdmMap implements IXdmItem
    *        The key.
    * @param aValue
    *        The value.
-   * @return A new map with the entry added or replaced.
+   * @return A new map with the entry added or replaced. A replaced entry keeps
+   *         its position but takes the new key (and its type).
    */
   @NonNull
   public XdmMap put (@NonNull final XdmAtomic aKey, @NonNull final XdmSequence aValue)
   {
-    final Map <Object, Entry> aNew = new LinkedHashMap <> (m_aEntries);
     final Object aMapKey = AtomicComparator.getMapKey (aKey);
-    // The entry keeps its position but takes the new key (and its type)
-    aNew.put (aMapKey, new Entry (aKey, aValue));
-    return new XdmMap (aNew);
+    final int nHash = aMapKey.hashCode ();
+    final Slot aOld = _find (m_aRoot, nHash, aMapKey);
+    final long nOrder = aOld == null ? m_nNextOrder : aOld.m_nOrder;
+    final Node aRoot = _assoc (m_aRoot, 0, new Slot (aMapKey, nHash, nOrder, new Entry (aKey, aValue)));
+    final EAtomicType eKeyType = aKey.getType ();
+    final EAtomicType eValueType = _getSingleAtomicType (aValue);
+    final boolean bFirst = m_nSize == 0;
+    return new XdmMap (aRoot,
+                       aOld == null ? m_nSize + 1 : m_nSize,
+                       aOld == null ? m_nNextOrder + 1 : m_nNextOrder,
+                       bFirst || eKeyType == m_eKeyType ? eKeyType : null,
+                       bFirst || eValueType == m_eValueType ? eValueType : null,
+                       null);
   }
 
   /**
@@ -140,11 +398,17 @@ public final class XdmMap implements IXdmItem
   public XdmMap remove (@NonNull final XdmAtomic aKey)
   {
     final Object aMapKey = AtomicComparator.getMapKey (aKey);
-    if (!m_aEntries.containsKey (aMapKey))
+    final int nHash = aMapKey.hashCode ();
+    if (_find (m_aRoot, nHash, aMapKey) == null)
       return this;
-    final Map <Object, Entry> aNew = new LinkedHashMap <> (m_aEntries);
-    aNew.remove (aMapKey);
-    return new XdmMap (aNew);
+    if (m_nSize == 1)
+      return EMPTY;
+    return new XdmMap (_dissoc (m_aRoot, 0, nHash, aMapKey),
+                       m_nSize - 1,
+                       m_nNextOrder,
+                       m_eKeyType,
+                       m_eValueType,
+                       null);
   }
 
   /**
@@ -155,26 +419,17 @@ public final class XdmMap implements IXdmItem
   @NonNull
   public XdmMap removeAll (@NonNull final Iterable <? extends IXdmItem> aKeys)
   {
-    Map <Object, Entry> aNew = null;
+    XdmMap ret = this;
     for (final IXdmItem aKey : aKeys)
-    {
-      final Object aMapKey = AtomicComparator.getMapKey ((XdmAtomic) aKey);
-      if ((aNew == null ? m_aEntries : aNew).containsKey (aMapKey))
-      {
-        if (aNew == null)
-          aNew = new LinkedHashMap <> (m_aEntries);
-        aNew.remove (aMapKey);
-      }
-    }
-    return aNew == null ? this : new XdmMap (aNew);
+      ret = ret.remove ((XdmAtomic) aKey);
+    return ret;
   }
 
   @NonNull
   @ReturnsMutableCopy
   public ICommonsList <Entry> getAllEntries ()
   {
-    final Collection <Entry> aValues = m_aEntries.values ();
-    return new CommonsArrayList <> (aValues);
+    return new CommonsArrayList <> (_getOrdered ());
   }
 
   /**
@@ -184,15 +439,16 @@ public final class XdmMap implements IXdmItem
   @NonNull
   public Collection <Entry> entries ()
   {
-    return Collections.unmodifiableCollection (m_aEntries.values ());
+    return Collections.unmodifiableList (Arrays.asList (_getOrdered ()));
   }
 
   @NonNull
   @ReturnsMutableCopy
   public ICommonsList <XdmAtomic> getAllKeys ()
   {
-    final ICommonsList <XdmAtomic> ret = new CommonsArrayList <> (m_aEntries.size ());
-    for (final Entry aEntry : m_aEntries.values ())
+    final Entry [] aEntries = _getOrdered ();
+    final ICommonsList <XdmAtomic> ret = new CommonsArrayList <> (aEntries.length);
+    for (final Entry aEntry : aEntries)
       ret.add (aEntry.key ());
     return ret;
   }
@@ -200,12 +456,12 @@ public final class XdmMap implements IXdmItem
   @Override
   public String toString ()
   {
-    return "map(" + m_aEntries.size () + ")";
+    return "map(" + m_nSize + ")";
   }
 
   /**
-   * Builds a map from many entries in linear time. A builder must not be used
-   * after {@link #build()}.
+   * Collects the entries of a map without building a new map per entry. A
+   * builder must not be used after {@link #build()}.
    */
   @NotThreadSafe
   public static final class Builder
@@ -229,7 +485,9 @@ public final class XdmMap implements IXdmItem
     public Builder (@NonNull final XdmMap aBase)
     {
       ValueEnforcer.notNull (aBase, "Base");
-      m_aMap = new LinkedHashMap <> (aBase.m_aEntries);
+      m_aMap = LinkedHashMap.newLinkedHashMap (aBase.size ());
+      for (final Entry aEntry : aBase._getOrdered ())
+        m_aMap.put (AtomicComparator.getMapKey (aEntry.key ()), aEntry);
     }
 
     @Nonnegative
@@ -303,7 +561,24 @@ public final class XdmMap implements IXdmItem
     {
       final Map <Object, Entry> aMap = m_aMap;
       m_aMap = null;
-      return aMap.isEmpty () ? EMPTY : new XdmMap (aMap);
+      if (aMap.isEmpty ())
+        return EMPTY;
+      final Entry [] aOrdered = new Entry [aMap.size ()];
+      Node aRoot = null;
+      EAtomicType eKeyType = null;
+      EAtomicType eValueType = null;
+      int nOrder = 0;
+      for (final Map.Entry <Object, Entry> aItem : aMap.entrySet ())
+      {
+        final Entry aEntry = aItem.getValue ();
+        final EAtomicType eEntryKeyType = aEntry.key ().getType ();
+        final EAtomicType eEntryValueType = _getSingleAtomicType (aEntry.value ());
+        eKeyType = nOrder == 0 || eEntryKeyType == eKeyType ? eEntryKeyType : null;
+        eValueType = nOrder == 0 || eEntryValueType == eValueType ? eEntryValueType : null;
+        aRoot = _assoc (aRoot, 0, new Slot (aItem.getKey (), aItem.getKey ().hashCode (), nOrder, aEntry));
+        aOrdered[nOrder++] = aEntry;
+      }
+      return new XdmMap (aRoot, nOrder, nOrder, eKeyType, eValueType, aOrdered);
     }
   }
 }

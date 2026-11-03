@@ -137,13 +137,29 @@ public sealed interface IExpr
    * @param axisExplicit
    *        The axis was written (<code>child::</code>, <code>@</code>), not
    *        defaulted - XSLT pattern matching needs the difference.
+   * @param fused
+   *        Only on the <code>descendant-or-self::node()</code> step of a
+   *        <code>//</code>: the single <code>descendant::</code> step that is
+   *        equivalent to this step followed by the next one, which an
+   *        evaluator may use in place of both. <code>null</code> if there is
+   *        none.
    */
   record StepExpr (@Nullable EAxis axis,
                    boolean axisExplicit,
                    @Nullable NodeTest test,
                    @NonNull List <IExpr> predicates,
-                   @Nullable IExpr postfix)
-  {}
+                   @Nullable IExpr postfix,
+                   @Nullable StepExpr fused)
+  {
+    public StepExpr (@Nullable final EAxis axis,
+                     final boolean axisExplicit,
+                     @Nullable final NodeTest test,
+                     @NonNull final List <IExpr> predicates,
+                     @Nullable final IExpr postfix)
+    {
+      this (axis, axisExplicit, test, predicates, postfix, null);
+    }
+  }
 
   /**
    * A path. <code>start</code> is the expression a relative path hangs off (a
