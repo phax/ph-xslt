@@ -204,7 +204,7 @@ public final class XsdSchemaCompositionTest
   public void testSchemaComposition ()
   {
     final Tally aTally = XsdTestSupport.runCases (CASES, XsdTestSupport.resourceDir ("imports"), false);
-    aTally.log ("schema composition");
+    aTally.finish ("schema composition");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
     assertTrue (aTally.m_nDecided > 15);
   }
@@ -213,7 +213,7 @@ public final class XsdSchemaCompositionTest
   public void testSchemaLocationHints ()
   {
     final Tally aTally = XsdTestSupport.runCases (HINT_CASES, XsdTestSupport.resourceDir ("imports"), false);
-    aTally.log ("schema location hints");
+    aTally.finish ("schema location hints");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
   }
 

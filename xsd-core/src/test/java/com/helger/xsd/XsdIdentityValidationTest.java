@@ -30,8 +30,7 @@ import com.helger.xsd.XsdTestSupport.Tally;
  * (field tuples, value equality, key presence, keyref resolution), and
  * the namespaces of selectors and fields (go-xslt
  * <code>identity_spec_test.go</code>). The selector and field XPath subset is
- * tested in {@link XsdIdentityCompilerTest}. A case that depends on a phase not
- * ported yet is counted as undecided; a decided verdict must be the expected one.
+ * tested in {@link XsdIdentityCompilerTest}.
  *
  * @author Philip Helger
  */
@@ -117,7 +116,7 @@ public final class XsdIdentityValidationTest
         if ((eVerdict == EVerdict.VALID) != aCase.valid ())
           aTally.m_aWrong.add (aCase.name () + "/" + eVersion.getID () + ": valid=" + (eVerdict == EVerdict.VALID));
       }
-    aTally.log ("identity constraints");
+    aTally.finish ("identity constraints");
     assertTrue (aTally.m_aWrong.toString (), aTally.m_aWrong.isEmpty ());
   }
 
@@ -172,7 +171,7 @@ public final class XsdIdentityValidationTest
         if ((eVerdict == EVerdict.VALID) != ((Boolean) aCase[4]).booleanValue ())
           aTally.m_aWrong.add (aCase[0] + "/" + eVersion.getID () + ": valid=" + (eVerdict == EVerdict.VALID));
       }
-    aTally.log ("identity constraint namespaces");
+    aTally.finish ("identity constraint namespaces");
     assertTrue (aTally.m_aWrong.toString (), aTally.m_aWrong.isEmpty ());
   }
 }

@@ -250,7 +250,7 @@ public final class XsdFacetTest
   public void testFacetConstraints ()
   {
     final Tally aTally = XsdTestSupport.runCases (CASES, null, true);
-    aTally.log ("facet constraints");
+    aTally.finish ("facet constraints");
     assertTrue (aTally.m_aWrong.toString (), aTally.m_aWrong.isEmpty ());
   }
 
@@ -302,8 +302,9 @@ public final class XsdFacetTest
           aWrong.add (sLabel + ": value '" + aCase.value () + "' valid=" + bValid + ", want " + aCase.valid ());
       }
     }
-    LOGGER.info ("facet validation: " + nDecided + " decided, " + nUndecided + " not decidable yet");
+    LOGGER.info ("facet validation: " + nDecided + " decided");
     assertTrue (aWrong.toString (), aWrong.isEmpty ());
+    assertEquals ("undecided verdicts", 0, nUndecided);
     assertTrue (nDecided > 100);
   }
 

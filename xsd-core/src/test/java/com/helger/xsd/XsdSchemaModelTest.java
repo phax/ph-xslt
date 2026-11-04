@@ -30,7 +30,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -43,9 +42,7 @@ import com.helger.xsd.XsdTestSupport.EVerdict;
 
 /**
  * The read-only component model. The first tests are ported from go-xslt's
- * public <code>xsd/xsd_test.go</code>; their schemas use facets and complex
- * types, so they are skipped (assumption) as long as the stubs of phases V3
- * and V4 leave the compile undecided. The last tests use schemas the loader
+ * public <code>xsd/xsd_test.go</code>; the last tests use schemas the loader
  * alone decides.
  *
  * @author Philip Helger
@@ -133,7 +130,6 @@ public final class XsdSchemaModelTest
     final Path aDir = m_aTempFolder.newFolder ().toPath ();
     Files.writeString (aDir.resolve ("common.xsd"), COMMON_XSD);
     final Compiled aCompiled = XsdTestSupport.compile (MAIN_XSD, aDir, EXsdVersion.V10);
-    Assume.assumeTrue ("needs the later phases: " + aCompiled.message (), aCompiled.verdict () != EVerdict.UNSUPPORTED);
     assertEquals (aCompiled.message (), EVerdict.VALID, aCompiled.verdict ());
     return aCompiled.schema ().getView ();
   }
@@ -301,18 +297,9 @@ public final class XsdSchemaModelTest
   @Test
   public void testDocumentationAndFacets ()
   {
-    final XsdSchema aSchema;
-    try
-    {
-      aSchema = XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText (DOCS_SCHEMA, null)),
-                                   EXsdVersion.V10,
-                                   new XsdCompileOptions ().setKeepDocumentation (true));
-    }
-    catch (final XsdUnsupportedException ex)
-    {
-      Assume.assumeTrue ("needs the later phases: " + ex.getMessage (), false);
-      return;
-    }
+    final XsdSchema aSchema = XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText (DOCS_SCHEMA, null)),
+                                                 EXsdVersion.V10,
+                                                 new XsdCompileOptions ().setKeepDocumentation (true));
     final XsdSchemaView s = aSchema.getView ();
     final XsdElementView aDoc = s.getElement (_t ("Doc"));
     final String sDocs = _text (aDoc.getDocumentation ());

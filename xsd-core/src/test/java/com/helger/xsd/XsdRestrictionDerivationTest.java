@@ -33,9 +33,7 @@ import com.helger.xsd.XsdTestSupport.Tally;
  * (Particle Valid (Restriction), cos-particle-restrict and its sub-clauses), and
  * XSD 1.1 Structures sections 3.4.6.3 and 3.9.6 where 1.1 replaces the clause
  * tables by language inclusion. Ported from go-xslt
- * <code>restriction_derivation_test.go</code>; an unsupported outcome (a stub of
- * a later phase) is tolerated and counted, a decided verdict must be the
- * expected one.
+ * <code>restriction_derivation_test.go</code>.
  *
  * @author Philip Helger
  */
@@ -537,7 +535,7 @@ public final class XsdRestrictionDerivationTest
   public void testParticleRestriction ()
   {
     final Tally aTally = XsdTestSupport.runCases (PARTICLE_CASES, null, false);
-    aTally.log ("particle restriction");
+    aTally.finish ("particle restriction");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
     assertTrue (aTally.m_nDecided > 100);
   }
@@ -547,7 +545,7 @@ public final class XsdRestrictionDerivationTest
   public void testAttributeRestriction ()
   {
     final Tally aTally = XsdTestSupport.runCases (ATTRIBUTE_CASES, null, false);
-    aTally.log ("attribute restriction");
+    aTally.finish ("attribute restriction");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
   }
 
@@ -559,7 +557,7 @@ public final class XsdRestrictionDerivationTest
   public void testRestrictionContentKinds ()
   {
     final Tally aTally = XsdTestSupport.runCases (CONTENT_KIND_CASES, null, false);
-    aTally.log ("restriction content kinds");
+    aTally.finish ("restriction content kinds");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
   }
 

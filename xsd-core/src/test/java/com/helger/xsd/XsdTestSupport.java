@@ -16,6 +16,8 @@
  */
 package com.helger.xsd;
 
+import static org.junit.Assert.assertEquals;
+
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -111,9 +113,14 @@ final class XsdTestSupport
     int m_nUndecided;
     final ICommonsList <String> m_aWrong = new CommonsArrayList <> ();
 
-    void log (@NonNull final String sWhat)
+    /**
+     * Log the counts and check that every verdict was decided: no construct
+     * is unsupported any more.
+     */
+    void finish (@NonNull final String sWhat)
     {
-      LOGGER.info (sWhat + ": " + m_nDecided + " decided, " + m_nUndecided + " not decidable yet (stubs of later phases)");
+      LOGGER.info (sWhat + ": " + m_nDecided + " decided");
+      assertEquals (sWhat + ": undecided verdicts", 0, m_nUndecided);
     }
   }
 

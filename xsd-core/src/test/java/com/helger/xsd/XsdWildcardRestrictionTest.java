@@ -360,7 +360,7 @@ public final class XsdWildcardRestrictionTest
   public void testWildcardAndAllRestriction ()
   {
     final Tally aTally = XsdTestSupport.runCases (CASES, null, false);
-    aTally.log ("wildcard and all restriction");
+    aTally.finish ("wildcard and all restriction");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
     assertTrue (aTally.m_nDecided > 50);
   }

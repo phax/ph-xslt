@@ -161,14 +161,17 @@ public final class XsdContentGrammarTest
   @Test
   public void testLegalArrangements ()
   {
-    // assert and openContent are XSD 1.1 (phase V8), so they may still be unsupported
+    // assert and openContent are XSD 1.1 only
     final String [] aAccepted11 = { "<xs:complexType name=\"b\"><xs:simpleContent><xs:extension base=\"xs:integer\"/></xs:simpleContent></xs:complexType><xs:complexType name=\"t\"><xs:annotation/><xs:simpleContent><xs:restriction base=\"b\"><xs:minInclusive value=\"1\"/><xs:assert test=\"true()\"/></xs:restriction></xs:simpleContent></xs:complexType>",
                                     "<xs:complexType name=\"t\"><xs:annotation/><xs:openContent mode=\"interleave\"><xs:any/></xs:openContent><xs:sequence><xs:element name=\"e\" minOccurs=\"0\"/></xs:sequence><xs:attribute name=\"a\"/><xs:anyAttribute/><xs:assert test=\"true()\"/><xs:assert test=\"true()\"/></xs:complexType>" };
     final String [] aAcceptedBoth = { "<xs:complexType name=\"t\"><xs:annotation/><xs:complexContent><xs:extension base=\"xs:anyType\"><xs:sequence/><xs:attribute name=\"a\"/></xs:extension></xs:complexContent></xs:complexType>",
                                       "<xs:complexType name=\"t\"/>",
                                       "<xs:group name=\"g\"><xs:sequence/></xs:group><xs:attributeGroup name=\"ag\"/><xs:complexType name=\"t\"><xs:group ref=\"g\"/><xs:attributeGroup ref=\"ag\"/></xs:complexType>" };
     for (final String s : aAccepted11)
-      assertNotEquals (s, EVerdict.INVALID, XsdTestSupport.compile (HEAD + s + TAIL, null, EXsdVersion.V11).verdict ());
+    {
+      final Compiled aCompiled = XsdTestSupport.compile (HEAD + s + TAIL, null, EXsdVersion.V11);
+      assertEquals (s + ": " + aCompiled.message (), EVerdict.VALID, aCompiled.verdict ());
+    }
     for (final String s : aAcceptedBoth)
       for (final EXsdVersion eVersion : new EXsdVersion [] { EXsdVersion.V10, EXsdVersion.V11 })
       {

@@ -254,7 +254,7 @@ public final class XsdInstanceValidationTest
           aTally.m_aWrong.add (aCase.name () + "/" + eVersion.getID () + ": valid=" + (eVerdict == EVerdict.VALID));
       }
     }
-    aTally.log ("instance validation");
+    aTally.finish ("instance validation");
     assertTrue (aTally.m_aWrong.toString (), aTally.m_aWrong.isEmpty ());
   }
 

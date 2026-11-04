@@ -28,8 +28,7 @@ import com.helger.xsd.XsdTestSupport.Tally;
  * Assorted derivation rules: open content in derivations (1.1 sections 3.4.6.2 and 3.4.6.3),
  * attribute wildcard intersection and union, block on elements/types against xsi:type, year zero,
  * and typed values of list attributes inside assertions. Ported from go-xslt
- * <code>derivation_misc_test.go</code>. Most cases need the XSD 1.1 features (phase V8) or the
- * instance validator (phase V5) and are counted as undecided until those land.
+ * <code>derivation_misc_test.go</code>.
  *
  * @author Philip Helger
  */
@@ -254,7 +253,7 @@ public final class XsdDerivationMiscTest
   public void testDerivationMisc ()
   {
     final Tally aTally = XsdTestSupport.runCases (CASES, null, false);
-    aTally.log ("derivation misc");
+    aTally.finish ("derivation misc");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
   }
 }

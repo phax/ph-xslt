@@ -231,7 +231,7 @@ public final class XsdSchemaRepresentationTest
   public void testSchemaRepresentation ()
   {
     final Tally aTally = XsdTestSupport.runCases (CASES, null, true);
-    aTally.log ("schema representation");
+    aTally.finish ("schema representation");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
     // The loader decides the bulk of these without the later phases
     assertTrue (aTally.m_nDecided > 150);
