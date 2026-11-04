@@ -88,6 +88,8 @@ final class XsdBridge implements IXdmSchemaSet
   }
 
   private final XsdSchema m_aSchema;
+  /** go-xslt <code>NodeValidateOptions.LenientEntities</code>, see XsdSchemaProvider. */
+  private final boolean m_bLenientEntities;
   private final SimpleReadWriteLock m_aRWLock = new SimpleReadWriteLock ();
   /** The anonymous-type registry (go-xslt <code>anonReg</code>), both directions. */
   private final ICommonsMap <IXsdType, XdmQName> m_aAnonymousNames = new CommonsHashMap <> ();
@@ -95,7 +97,13 @@ final class XsdBridge implements IXdmSchemaSet
 
   XsdBridge (@NonNull final XsdSchema aSchema)
   {
+    this (aSchema, true);
+  }
+
+  XsdBridge (@NonNull final XsdSchema aSchema, final boolean bLenientEntities)
+  {
     m_aSchema = aSchema;
+    m_bLenientEntities = bLenientEntities;
   }
 
   @NonNull
@@ -521,9 +529,7 @@ final class XsdBridge implements IXdmSchemaSet
     final Cloned aCloned = _cloneForValidation (aElement);
     final XsdValidationRun aRun = new XsdValidationRun (m_aSchema, aElement.getOwnerDocument ());
     aRun.setElementScope (!bDocument);
-    // The XSD 1.1 rule that an xs:ENTITY value names an unparsed entity is
-    // not applied: the schema may be a 1.0 one
-    aRun.setLenientEntities (true);
+    aRun.setLenientEntities (m_bLenientEntities);
     aRun.enableNodeTypes ();
     aRun.enableNodeNilled ();
     aRun.enableNodeDefaults ();

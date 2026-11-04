@@ -35,7 +35,8 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
  * <code>xsd-core</code> whatever <code>xsd.validator</code> says (that selects
  * the validator of {@link XsdTest}) and gates on
  * <code>docs/accepted-failures/xsd-native.md</code>: a failing case that is not
- * named there fails the build. Skipped when the suite is absent
+ * named there fails the build. Both XSD 1.0 and 1.1 run unless
+ * <code>xsd.version</code> selects one. Skipped when the suite is absent
  * (<code>-Dxsd.dir=...</code>); <code>-Dxsd.checkAccepted=false</code>
  * switches the gate off.
  *
@@ -43,6 +44,9 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
  */
 public final class XsdNativeTest
 {
+  /** The versions run unless <code>xsd.version</code> is set. */
+  private static final String VERSIONS = "1.0,1.1";
+
   @Test
   public void testNativeXSD () throws IOException
   {
@@ -50,11 +54,13 @@ public final class XsdNativeTest
     Assume.assumeTrue ("xsdtests suite not present at " + aEnv.suiteDir (), Files.isRegularFile (aEnv.getSuiteFile ()));
 
     final EXsdTestValidatorKind eKind = EXsdTestValidatorKind.NATIVE;
+    final String sVersion = System.getProperty ("xsd.version");
     final String sCheckAccepted = System.getProperty ("xsd.checkAccepted");
     final XsdSettings aSettings = new XsdSettings (eKind,
                                                    aEnv.suiteDir (),
                                                    aEnv.only (),
-                                                   aEnv.versions (),
+                                                   sVersion == null ? XsdSettings.parseVersions (VERSIONS)
+                                                                    : aEnv.versions (),
                                                    aEnv.progress (),
                                                    aEnv.failDump (),
                                                    aEnv.unsupDump (),

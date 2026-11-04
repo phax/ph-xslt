@@ -36,7 +36,7 @@ import com.helger.xpath.xdm.schema.XdmSchemaSource;
 
 /**
  * The native schema processor as {@link IXdmSchemaProvider}: schema documents
- * are compiled by {@link XsdSchema} (XSD 1.0 until phase V8) and handed out as
+ * are compiled by {@link XsdSchema} (XSD 1.0) and handed out as
  * a schema set that validates {@link com.helger.xpath.xdm.IXdmNode} trees in
  * place (go-xslt <code>bridge.go</code>). Schema documents and the files they
  * reference are read from the local file system only.
@@ -60,7 +60,24 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
   @NonNull
   public static IXdmSchemaSet createSchemaSet (@NonNull final XsdSchema aSchema)
   {
-    return new XsdBridge (aSchema);
+    return createSchemaSet (aSchema, true);
+  }
+
+  /**
+   * @param aSchema
+   *        A compiled schema. May not be <code>null</code>.
+   * @param bLenientEntities
+   *        <code>true</code> to drop the XSD 1.1 rule that an xs:ENTITY value
+   *        names an unparsed entity when a tree is validated in place. An XSLT
+   *        host does so: it cannot tell a schema written against 1.0 (where
+   *        the rule does not exist) from a 1.1 one. <code>false</code> applies
+   *        the rule exactly like {@link XsdSchema#validate}.
+   * @return The schema set over it.
+   */
+  @NonNull
+  public static IXdmSchemaSet createSchemaSet (@NonNull final XsdSchema aSchema, final boolean bLenientEntities)
+  {
+    return new XsdBridge (aSchema, bLenientEntities);
   }
 
   @Nullable

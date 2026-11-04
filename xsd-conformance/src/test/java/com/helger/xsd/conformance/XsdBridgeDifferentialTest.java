@@ -49,17 +49,14 @@ import com.helger.xsd.XsdValidationResult;
  * validating a tree in place reuses the whole validation engine but reaches it down a different
  * road, a detached, text-normalised clone instead of a freshly parsed document. That road is where
  * "a node built outside the normal path is missing an invariant other code depends on" bugs live,
- * so the guard is empirical: every instance document of the xsdtests suite (XSD 1.0) goes through
- * both entry points and the verdicts must agree, case by case. Skipped when the suite is absent
+ * so the guard is empirical: every instance document of the xsdtests suite (XSD 1.0 and 1.1) goes
+ * through both entry points and the verdicts must agree, case by case. Skipped when the suite is absent
  * (<code>-Dxsd.dir=...</code>).
  *
  * @author Philip Helger
  */
 public final class XsdBridgeDifferentialTest
 {
-  // Qualified: the harness has its own EXsdVersion of the same name
-  private static final com.helger.xpath.context.EXsdVersion ENGINE_VERSION = com.helger.xpath.context.EXsdVersion.V10;
-
   private static final class Tally
   {
     final AtomicInteger m_aAgree = new AtomicInteger ();
@@ -110,7 +107,7 @@ public final class XsdBridgeDifferentialTest
       return aSchema;
     try
     {
-      return XsdSchema.compileFiles (aMerged, ENGINE_VERSION, null);
+      return XsdSchema.compileFiles (aMerged, aSchema.getVersion (), null);
     }
     catch (final IOException | XsdInvalidException | XsdUnsupportedException ex)
     {
@@ -158,7 +155,7 @@ public final class XsdBridgeDifferentialTest
       return;
     }
 
-    final IXdmSchemaSet aSet = XsdSchemaProvider.createSchemaSet (_withHints (aSchema, aDocs, aInstance, aRoot));
+    final IXdmSchemaSet aSet = XsdSchemaProvider.createSchemaSet (_withHints (aSchema, aDocs, aInstance, aRoot), false);
     boolean bInPlace = true;
     String sDetail = "valid";
     try
@@ -207,9 +204,9 @@ public final class XsdBridgeDifferentialTest
 
   private static void _compareGroup (@NonNull final XsdTestGroup aGroup,
                                      @NonNull final Path aDir,
+                                     @NonNull final EXsdVersion eVersion,
                                      @NonNull final Tally aTally)
   {
-    final EXsdVersion eVersion = EXsdVersion.XSD_10;
     final XsdSchemaTest aSchemaTest = aGroup.schemaTest ();
     if (!XsdSuiteRules.isVersionApplicable (aGroup.version (), eVersion) ||
         aSchemaTest == null ||
@@ -228,7 +225,11 @@ public final class XsdBridgeDifferentialTest
     final XsdSchema aSchema;
     try
     {
-      aSchema = XsdSchema.compileFiles (aDocs, ENGINE_VERSION, null);
+      // Qualified: the harness has its own EXsdVersion of the same name
+      aSchema = XsdSchema.compileFiles (aDocs,
+                                        eVersion == EXsdVersion.XSD_11 ? com.helger.xpath.context.EXsdVersion.V11
+                                                                       : com.helger.xpath.context.EXsdVersion.V10,
+                                        null);
     }
     catch (final IOException | XsdInvalidException | XsdUnsupportedException ex)
     {
@@ -255,6 +256,7 @@ public final class XsdBridgeDifferentialTest
 
   private static void _compareSet (@NonNull final String sHref,
                                    @NonNull final XsdSettings aSettings,
+                                   @NonNull final EXsdVersion eVersion,
                                    @NonNull final Tally aTally)
   {
     final XsdTestSet aSet;
@@ -266,10 +268,10 @@ public final class XsdBridgeDifferentialTest
     {
       return;
     }
-    if (!XsdSuiteRules.isVersionApplicable (aSet.version (), EXsdVersion.XSD_10))
+    if (!XsdSuiteRules.isVersionApplicable (aSet.version (), eVersion))
       return;
     for (final XsdTestGroup aGroup : aSet.groups ())
-      _compareGroup (aGroup, aSet.dir (), aTally);
+      _compareGroup (aGroup, aSet.dir (), eVersion, aTally);
   }
 
   @Test
@@ -283,25 +285,31 @@ public final class XsdBridgeDifferentialTest
       if (aSettings.only ().isEmpty () || sHref.contains (aSettings.only ()))
         aRefs.add (sHref);
 
-    final Tally aTally = new Tally ();
-    aRefs.parallelStream ().forEach (sHref -> _compareSet (sHref, aSettings, aTally));
+    for (final EXsdVersion eVersion : EXsdVersion.values ())
+    {
+      final Tally aTally = new Tally ();
+      aRefs.parallelStream ().forEach (sHref -> _compareSet (sHref, aSettings, eVersion, aTally));
 
-    int nShown = 0;
-    for (final String sMismatch : aTally.m_aMismatches)
-      if (nShown++ < 25)
-        System.err.println ("MISMATCH " + sMismatch);
-    System.out.println ("XSD 1.0: " +
-                        aTally.m_aAgree.get () +
-                        " instances agree, " +
-                        aTally.m_aMismatches.size () +
-                        " mismatch, " +
-                        aTally.m_aNoVerdict.get () +
-                        " no verdict, " +
-                        aTally.m_aParseSkip.get () +
-                        " unparsable");
-    assertTrue ("in place and from text differ: " + aTally.m_aMismatches, aTally.m_aMismatches.isEmpty ());
-    if (aSettings.only ().isEmpty ())
-      assertTrue ("coverage too thin to mean anything: only " + aTally.m_aAgree.get () + " instances compared",
-                  aTally.m_aAgree.get () > 1000);
+      int nShown = 0;
+      for (final String sMismatch : aTally.m_aMismatches)
+        if (nShown++ < 25)
+          System.err.println ("MISMATCH " + sMismatch);
+      System.out.println ("XSD " +
+                          eVersion.getID () +
+                          ": " +
+                          aTally.m_aAgree.get () +
+                          " instances agree, " +
+                          aTally.m_aMismatches.size () +
+                          " mismatch, " +
+                          aTally.m_aNoVerdict.get () +
+                          " no verdict, " +
+                          aTally.m_aParseSkip.get () +
+                          " unparsable");
+      assertTrue ("XSD " + eVersion.getID () + ": in place and from text differ: " + aTally.m_aMismatches,
+                  aTally.m_aMismatches.isEmpty ());
+      if (aSettings.only ().isEmpty ())
+        assertTrue ("coverage too thin to mean anything: only " + aTally.m_aAgree.get () + " instances compared",
+                    aTally.m_aAgree.get () > 1000);
+    }
   }
 }

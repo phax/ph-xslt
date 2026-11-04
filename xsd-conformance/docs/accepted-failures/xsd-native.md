@@ -1,17 +1,19 @@
 # XSD (`xsdtests`): failing cases of the native validator
 
 The native validator of `xsd-core` (a port of go-xslt's `internal/xsd`) is selected with `-Dxsd.validator=native`;
-its fail list is written to `target/xsd-native-fails.txt`. This file is its accepted-failures list, separate from the
-Xerces-J one (`xsd.md`).
+`XsdNativeTest` always runs it, for XSD 1.0 and 1.1 unless `-Dxsd.version` selects one. Its fail lists are written to
+`target/xsd-native-fails.txt` (1.0) and `target/xsd-native11-fails.txt` (1.1). This file is its accepted-failures
+list, separate from the Xerces-J one (`xsd.md`).
 
-XSD 1.0: 39,396 of 39,401 applicable cases pass, 5 fail, nothing is unsupported; the denominator equals go-xslt's and
-so does the fail list. XSD 1.1 is not implemented yet (phase V8): every applicable 1.1 case is reported as
-unsupported, outside the pass/fail denominator, never as a failure.
+* XSD 1.0: 39,396 of 39,401 applicable cases pass, 5 fail, nothing is unsupported.
+* XSD 1.1: 41,549 of 41,553 applicable cases pass, 4 fail, nothing is unsupported.
+
+The denominators equal go-xslt's and so do the fail lists.
 
 Every failing case is named here in backticks under a heading with its status and reason. `XsdTest` fails on any
 failing case that is not named here (switch that off with `-Dxsd.checkAccepted=false`), so a regression is loud and a
-newly accepted failure needs a written reason. Remove an entry when its case passes. The five entries are go-xslt's
-documented XSD 1.0 failures (`docs/accepted-failures/xsd.md` there), with the same reasons.
+newly accepted failure needs a written reason. Remove an entry when its case passes. The entries are go-xslt's
+documented failures (`docs/accepted-failures/xsd.md` there), with the same reasons.
 
 ## XSD 1.0
 
@@ -33,3 +35,23 @@ invalid and those three valid.
 The only defect a processor can detect is a type reference with the wrong letter case (`keyinfo` instead of
 `keyInfo`). The broader rule that would reject it (schema-wide uniqueness of `@id`) is refuted by about 20 valid
 cross-document tests.
+
+## XSD 1.1
+
+### `all308.xsd`
+**Status:** Accepted (questioned in the suite).
+Expected invalid; the suite's own description reads "Currently invalid, but see bug 6202 against the spec".
+
+### `particlesZ026`
+**Status:** Accepted.
+The test-suite task force declared the outcome implementation-determined (W3C bug 4071).
+
+### `particlesZ033_g`
+**Status:** Accepted.
+Expected invalid, but no XSD 1.1 rule it violates can be found: XSD 1.1 allows the competition between an element and a
+wildcard that would make it invalid in 1.0.
+
+### `ste110.i`
+**Status:** Accepted (deliberate price).
+XSD 1.1 forbids every circular union (`cos-no-circular-unions`; the suite's `simple017`, `simple020` and others).
+`ste110.i` expects one such cycle to be accepted, and its valid twin is excluded as queried.
