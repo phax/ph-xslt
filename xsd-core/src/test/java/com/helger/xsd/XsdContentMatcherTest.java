@@ -37,12 +37,11 @@ import com.helger.xsd.XsdTestSupport.Compiled;
 import com.helger.xsd.XsdTestSupport.EVerdict;
 
 /**
- * Tests of the content matcher ({@link XsdContentMatcher}) and the linear
- * counting matcher ({@link XsdBigMatch}), driven directly on the effective
- * content model of the declaration <code>doc</code>, so they do not depend on the
- * instance validator. The large-model cases are ported from go-xslt
- * <code>content_bigmatch_test.go</code>; they exercise the counting matcher above
- * 600 children.
+ * Tests of the content matcher ({@link XsdContentMatcher}) and the linear counting matcher
+ * ({@link XsdBigMatch}), driven directly on the effective content model of the declaration
+ * <code>doc</code>, so they do not depend on the instance validator. The large-model cases are
+ * ported from go-xslt <code>content_bigmatch_test.go</code>; they exercise the counting matcher
+ * above 600 children.
  *
  * @author Philip Helger
  */
@@ -68,7 +67,7 @@ public final class XsdContentMatcherTest
     for (int i = 0; i < nCount; i++)
       for (final String sName : aNames)
         ret.add (sName);
-      return ret;
+    return ret;
   }
 
   private static ICommonsList <String> _of (final String... aNames)
@@ -83,7 +82,7 @@ public final class XsdContentMatcherTest
     {
       final int nClose = sName.indexOf ('}');
       final XdmQName aQName = sName.startsWith ("{") ? new XdmQName (sName.substring (1, nClose),
-                                                                    sName.substring (nClose + 1))
+                                                                     sName.substring (nClose + 1))
                                                      : new XdmQName (sName);
       ret.add (IXdmNode.createElement (aQName));
     }
@@ -123,7 +122,7 @@ public final class XsdContentMatcherTest
   {
     final XsdMatchResult aResult = _match (aSchema, _of (aKids));
     assertTrue (sLabel + " decided", aResult.decided ());
-    assertEquals (sLabel, bExpected, aResult.matched ());
+    assertTrue (sLabel, bExpected == aResult.matched ());
   }
 
   @Test
@@ -212,8 +211,7 @@ public final class XsdContentMatcherTest
     assertFalse (XsdBigMatch.particleDeterministic (aSchema, aModel));
     _check ("a x y", aSchema, true, "a", "x", "y");
     _check ("empty", aSchema, true);
-    assertEquals (new XsdMatchResult (false, false),
-                  XsdBigMatch.countMatch (aSchema, aModel, _kids (_rep (700, "x"))));
+    assertEquals (new XsdMatchResult (false, false), XsdBigMatch.countMatch (aSchema, aModel, _kids (_rep (700, "x"))));
     final XsdMatchResult aBig = XsdContentMatcher.contentMatches (aSchema, aModel, _kids (_rep (700, "x")));
     assertFalse (aBig.decided ());
   }
@@ -254,7 +252,10 @@ public final class XsdContentMatcherTest
     final XsdOpenContent aSuffix = _open (XsdOpenContent.MODE_SUFFIX, XsdWildcard.NS_ANY);
 
     assertEquals (new XsdMatchResult (true, true),
-                  XsdContentMatcher.contentMatchesOpen (aSchema, aModel, _kids (_of ("a", "x", "b", "y")), aInterleave));
+                  XsdContentMatcher.contentMatchesOpen (aSchema,
+                                                        aModel,
+                                                        _kids (_of ("a", "x", "b", "y")),
+                                                        aInterleave));
     assertEquals (new XsdMatchResult (true, true),
                   XsdContentMatcher.contentMatchesOpen (aSchema, aModel, _kids (_of ("x", "a", "b")), aInterleave));
     assertEquals (new XsdMatchResult (false, true),
@@ -307,8 +308,7 @@ public final class XsdContentMatcherTest
     assertTrue (XsdContentMatcher.greedyOpenAttribution (aRepeat,
                                                          aRepeatModel,
                                                          _kids (_of ("a", "a", "a")),
-                                                         aInterleave)
-                                 .isEmpty ());
+                                                         aInterleave).isEmpty ());
   }
 
   private static final ICommonsList <BigCase> BIG_CASES = new CommonsArrayList <> ();
@@ -412,8 +412,8 @@ public final class XsdContentMatcherTest
   }
 
   /**
-   * Above 600 children the linear counting matcher decides every
-   * name-deterministic model (go-xslt <code>TestLargeContentModels</code>).
+   * Above 600 children the linear counting matcher decides every name-deterministic model (go-xslt
+   * <code>TestLargeContentModels</code>).
    */
   @Test
   public void testLargeContentModels ()
@@ -431,9 +431,9 @@ public final class XsdContentMatcherTest
   }
 
   /**
-   * The same models on instances of at most 600 children, where the counting
-   * matcher's positive verdict is taken first and the position-set matcher
-   * decides the rest: both engines agree on the verdict.
+   * The same models on instances of at most 600 children, where the counting matcher's positive
+   * verdict is taken first and the position-set matcher decides the rest: both engines agree on the
+   * verdict.
    */
   @Test
   public void testSmallInstancesAgreeWithCountingMatcher ()
@@ -455,7 +455,10 @@ public final class XsdContentMatcherTest
     }
   }
 
-  /** The bounds on recursion: very deep content models give no verdict, they do not overflow the stack. */
+  /**
+   * The bounds on recursion: very deep content models give no verdict, they do not overflow the
+   * stack.
+   */
   @Test
   public void testDeeplyNestedModelsAreBounded ()
   {

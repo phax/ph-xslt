@@ -21,6 +21,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.xpath.xdm.XmlNames;
 
 /**
  * Lexical helpers of XML Schema 1.1 Part 2 (datatypes): the whitespace facet,
@@ -229,54 +230,6 @@ public final class XsdLexical
     return isIntegerLexical (s.substring (i));
   }
 
-  private static boolean _isNameStartChar (final int c, final boolean bAllowColon)
-  {
-    if (c < 0x80)
-      return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c == '_' || c == ':' && bAllowColon;
-    return c >= 0xC0 && c <= 0xD6 ||
-           c >= 0xD8 && c <= 0xF6 ||
-           c >= 0xF8 && c <= 0x2FF ||
-           c >= 0x370 && c <= 0x37D ||
-           c >= 0x37F && c <= 0x1FFF ||
-           c >= 0x200C && c <= 0x200D ||
-           c >= 0x2070 && c <= 0x218F ||
-           c >= 0x2C00 && c <= 0x2FEF ||
-           c >= 0x3001 && c <= 0xD7FF ||
-           c >= 0xF900 && c <= 0xFDCF ||
-           c >= 0xFDF0 && c <= 0xFFFD ||
-           c >= 0x10000 && c <= 0xEFFFF;
-  }
-
-  private static boolean _isNameChar (final int c, final boolean bAllowColon)
-  {
-    if (_isNameStartChar (c, bAllowColon))
-      return true;
-    return c == '-' ||
-           c == '.' ||
-           c >= '0' && c <= '9' ||
-           c == 0xB7 ||
-           c >= 0x300 && c <= 0x36F ||
-           c >= 0x203F && c <= 0x2040;
-  }
-
-  private static boolean _isName (@NonNull final String s, final boolean bAllowColon)
-  {
-    final int nLen = s.length ();
-    if (nLen == 0)
-      return false;
-    int i = 0;
-    boolean bFirst = true;
-    while (i < nLen)
-    {
-      final int c = s.codePointAt (i);
-      if (bFirst ? !_isNameStartChar (c, bAllowColon) : !_isNameChar (c, bAllowColon))
-        return false;
-      bFirst = false;
-      i += Character.charCount (c);
-    }
-    return true;
-  }
-
   /**
    * @param s
    *        String to check.
@@ -285,7 +238,7 @@ public final class XsdLexical
    */
   public static boolean isName (@Nullable final String s)
   {
-    return s != null && _isName (s, true);
+    return XmlNames.isName (s);
   }
 
   /**
@@ -296,7 +249,7 @@ public final class XsdLexical
    */
   public static boolean isNCName (@Nullable final String s)
   {
-    return s != null && _isName (s, false);
+    return XmlNames.isNCName (s);
   }
 
   /**
@@ -313,7 +266,7 @@ public final class XsdLexical
     while (i < s.length ())
     {
       final int c = s.codePointAt (i);
-      if (!_isNameChar (c, true))
+      if (!XmlNames.isNameChar (c))
         return false;
       i += Character.charCount (c);
     }

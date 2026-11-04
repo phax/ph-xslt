@@ -33,9 +33,9 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.context.EXsdVersion;
 
 /**
- * Error collection, content-model explanations and the `msg:message`
- * convention (go-xslt <code>collect_explain_test.go</code> plus tests of the
- * port's own: first-error identity, error limit, naming and wording).
+ * Error collection, content-model explanations and the `msg:message` convention (go-xslt
+ * <code>collect_explain_test.go</code> plus tests of the port's own: first-error identity, error
+ * limit, naming and wording).
  *
  * @author Philip Helger
  */
@@ -132,11 +132,11 @@ public final class XsdCollectExplainTest
                            "<xs:element name='ch'><xs:complexType><xs:choice>" +
                            "<xs:element name='x'/><xs:element name='y'/>" +
                            "</xs:choice></xs:complexType></xs:element></xs:schema>";
-    final String [][] aCases = { { "<s><a/><c/></s>", "missing", "b" },
-                                 { "<s><a/><b/><c/><c/><c/></s>", "too-many", "c" },
-                                 { "<s><a/><b/><z/></s>", "unexpected", "z" },
-                                 { "<s><b/><a/></s>", "order", "" },
-                                 { "<s><a/></s>", "missing", "b" } };
+    final String [] [] aCases = { { "<s><a/><c/></s>", "missing", "b" },
+                                  { "<s><a/><b/><c/><c/><c/></s>", "too-many", "c" },
+                                  { "<s><a/><b/><z/></s>", "unexpected", "z" },
+                                  { "<s><b/><a/></s>", "order", "" },
+                                  { "<s><a/></s>", "missing", "b" } };
     for (final EXsdVersion eVersion : EXsdVersion.values ())
     {
       final XsdSchema aSchema = _compile (sSchema, eVersion);
@@ -212,13 +212,13 @@ public final class XsdCollectExplainTest
                            "<msg:message on='missing' rule='R3'>k missing</msg:message>" +
                            "</xs:appinfo></xs:annotation></xs:attribute>" +
                            "</xs:complexType></xs:element></xs:schema>";
-    final String [][] aCases = { { "<s k='1'><b/></s>", "de", "R1", "a fehlt" },
-                                 { "<s k='1'><b/></s>", "de-CH", "R1", "a fehlt" },
-                                 { "<s k='1'><b/></s>", "DE", "R1", "a fehlt" },
-                                 { "<s k='1'><b/></s>", "en", "R1", "a is required" },
-                                 { "<s k='1'><a/><a/></s>", "en", "R2", "only one a" },
-                                 { "<s><a/></s>", "fr", "R3", "k manque" },
-                                 { "<s><a/></s>", "it", "R3", "k missing" } };
+    final String [] [] aCases = { { "<s k='1'><b/></s>", "de", "R1", "a fehlt" },
+                                  { "<s k='1'><b/></s>", "de-CH", "R1", "a fehlt" },
+                                  { "<s k='1'><b/></s>", "DE", "R1", "a fehlt" },
+                                  { "<s k='1'><b/></s>", "en", "R1", "a is required" },
+                                  { "<s k='1'><a/><a/></s>", "en", "R2", "only one a" },
+                                  { "<s><a/></s>", "fr", "R3", "k manque" },
+                                  { "<s><a/></s>", "it", "R3", "k missing" } };
     for (final EXsdVersion eVersion : EXsdVersion.values ())
     {
       final XsdSchema aSchema = _compile (sSchema, eVersion);
@@ -299,7 +299,7 @@ public final class XsdCollectExplainTest
     {
       final XsdValidationResult aFirst = aSchema.validateTextFirstError (sInst);
       final XsdValidationResult aAll = aSchema.validateText (sInst);
-      assertEquals (sInst, aFirst.valid (), aAll.valid ());
+      assertTrue (sInst, aFirst.valid () == aAll.valid ());
       if (!aFirst.valid ())
       {
         assertEquals (sInst, 1, aFirst.errors ().size ());
@@ -332,7 +332,8 @@ public final class XsdCollectExplainTest
       assertEquals (1, aResult.errors ().size ());
       assertEquals ("cvc-complex-type.2.4", aResult.errors ().get (0).code ());
       assertEquals ("", aResult.errors ().get (0).kind ());
-      assertTrue (aResult.errors ().get (0).message (), aResult.errors ().get (0).message ().contains ("does not match"));
+      assertTrue (aResult.errors ().get (0).message (),
+                  aResult.errors ().get (0).message ().contains ("does not match"));
     }
   }
 

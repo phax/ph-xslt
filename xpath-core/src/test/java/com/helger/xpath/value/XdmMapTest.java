@@ -266,4 +266,32 @@ public final class XdmMapTest
       aExecutor.shutdown ();
     }
   }
+
+  @Test
+  public void testArrayUniformMemberType ()
+  {
+    final XdmSequence aOne = XdmSequence.of (XdmAtomic.integer (1));
+    assertNull (XdmArray.EMPTY.getUniformMemberType ());
+    XdmArray aArray = XdmArray.EMPTY;
+    for (int i = 0; i < 10; ++i)
+      aArray = aArray.append (aOne);
+    assertEquals (EAtomicType.INTEGER, aArray.getUniformMemberType ());
+    // Another type, more than one item, no atomic value
+    assertNull (aArray.append (_seq ("x")).getUniformMemberType ());
+    assertNull (aArray.append (XdmSequence.EMPTY).getUniformMemberType ());
+    assertNull (aArray.append (XdmSequence.of (XdmAtomic.integer (1), XdmAtomic.integer (2))).getUniformMemberType ());
+    // The older version keeps its type
+    assertEquals (EAtomicType.INTEGER, aArray.getUniformMemberType ());
+    // Every other way to make an array computes it
+    assertEquals (EAtomicType.INTEGER, XdmArray.of (aOne, aOne).getUniformMemberType ());
+    assertNull (XdmArray.of (aOne, _seq ("x")).getUniformMemberType ());
+    assertEquals (EAtomicType.INTEGER, aArray.subArray (2, 5).getUniformMemberType ());
+    assertEquals (EAtomicType.INTEGER, aArray.reverse ().getUniformMemberType ());
+    assertNull (aArray.put (3, _seq ("x")).getUniformMemberType ());
+    assertNull (aArray.insertBefore (3, _seq ("x")).getUniformMemberType ());
+    assertEquals (EAtomicType.STRING, aArray.put (3, _seq ("x")).subArray (3, 4).getUniformMemberType ());
+    assertEquals (EAtomicType.INTEGER, new XdmArray.Builder ().addAll (aArray).build ().getUniformMemberType ());
+    assertEquals (EAtomicType.STRING,
+                  XdmArray.ofItems (XdmSequence.of (XdmAtomic.string ("a"), XdmAtomic.string ("b"))).getUniformMemberType ());
+  }
 }

@@ -43,13 +43,13 @@ public abstract sealed class AbstractXdmValueNode extends AbstractXdmNode permit
 
   @Override
   @NonNull
-  public final String getValue ()
+  public String getValue ()
   {
     return m_sValue;
   }
 
   @Override
-  public final void setValue (@NonNull final String sValue)
+  public void setValue (@NonNull final String sValue)
   {
     ValueEnforcer.notNull (sValue, "Value");
     m_sValue = sValue;
@@ -58,6 +58,6 @@ public abstract sealed class AbstractXdmValueNode extends AbstractXdmNode permit
   @NonNull
   public final String getStringValue ()
   {
-    return m_sValue;
+    return getValue ();
   }
 }

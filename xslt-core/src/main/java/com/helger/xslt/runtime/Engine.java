@@ -1139,6 +1139,22 @@ public final class Engine
 
 
   /**
+   * Make <code>fn:doc</code> and <code>document()</code> return the source
+   * document itself for its document URI, instead of reading it a second time
+   * as another tree.
+   *
+   * @param aNode
+   *        The global context item. Only a document node with a document URI
+   *        is registered.
+   */
+  public void registerSourceDocument (@NonNull final IXdmNode aNode)
+  {
+    final String sDocUri = aNode.getDocumentUri ();
+    if (aNode.isDocument () && sDocUri != null && !sDocUri.isEmpty ())
+      m_aRootDyn.getRunCache ().putIfAbsent ("fn:doc#" + sDocUri, aNode);
+  }
+
+  /**
    * Load a document for document() (cached per run together with fn:doc,
    * whitespace stripped).
    *

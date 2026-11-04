@@ -55,19 +55,36 @@ public final class XdmArray implements IXdmItem
   private final int m_nSize;
   // How far the shared backing array is handed out; null if it is not shared
   private final AtomicInteger m_aClaimed;
+  // The type of all members if each is a single atomic value, otherwise null
+  private final EAtomicType m_eMemberType;
 
   private XdmArray (@NonNull final XdmSequence [] aMembers)
   {
-    this (aMembers, aMembers.length, null);
+    this (aMembers, aMembers.length, null, _getUniformMemberType (aMembers));
   }
 
   private XdmArray (@NonNull final XdmSequence [] aMembers,
                     @Nonnegative final int nSize,
-                    @Nullable final AtomicInteger aClaimed)
+                    @Nullable final AtomicInteger aClaimed,
+                    @Nullable final EAtomicType eMemberType)
   {
     m_aMembers = aMembers;
     m_nSize = nSize;
     m_aClaimed = aClaimed;
+    m_eMemberType = eMemberType;
+  }
+
+  @Nullable
+  private static EAtomicType _getUniformMemberType (@NonNull final XdmSequence [] aMembers)
+  {
+    if (aMembers.length == 0)
+      return null;
+    final EAtomicType ret = aMembers[0].getSingleAtomicType ();
+    if (ret != null)
+      for (int i = 1; i < aMembers.length; ++i)
+        if (aMembers[i].getSingleAtomicType () != ret)
+          return null;
+    return ret;
   }
 
   /**
@@ -128,6 +145,17 @@ public final class XdmArray implements IXdmItem
     return m_aMembers[nIndex];
   }
 
+  /**
+   * @return The atomic type of all members, if each is a single atomic value,
+   *         or <code>null</code> if it is unknown. A cheap way to test an
+   *         <code>array(T)</code> type without looking at every member.
+   */
+  @Nullable
+  public EAtomicType getUniformMemberType ()
+  {
+    return m_eMemberType;
+  }
+
   @NonNull
   @ReturnsMutableCopy
   public ICommonsList <XdmSequence> getAllMembers ()
@@ -166,15 +194,18 @@ public final class XdmArray implements IXdmItem
   public XdmArray append (@NonNull final XdmSequence aValue)
   {
     final int nSize = m_nSize;
+    final EAtomicType eValueType = aValue.getSingleAtomicType ();
+    // Kept up to date in O(1), so that an array(T) test needs no loop
+    final EAtomicType eMemberType = nSize == 0 || eValueType == m_eMemberType ? eValueType : null;
     if (nSize < m_aMembers.length && m_aClaimed != null && m_aClaimed.compareAndSet (nSize, nSize + 1))
     {
       // The slot is ours: no other array has appended here
       m_aMembers[nSize] = aValue;
-      return new XdmArray (m_aMembers, nSize + 1, m_aClaimed);
+      return new XdmArray (m_aMembers, nSize + 1, m_aClaimed, eMemberType);
     }
     final XdmSequence [] aNew = Arrays.copyOf (m_aMembers, nSize + nSize / 2 + 4);
     aNew[nSize] = aValue;
-    return new XdmArray (aNew, nSize + 1, new AtomicInteger (nSize + 1));
+    return new XdmArray (aNew, nSize + 1, new AtomicInteger (nSize + 1), eMemberType);
   }
 
   /**

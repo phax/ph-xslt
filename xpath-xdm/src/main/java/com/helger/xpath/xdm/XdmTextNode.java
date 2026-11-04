@@ -19,18 +19,79 @@ package com.helger.xpath.xdm;
 import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.base.concurrent.SimpleReadWriteLock;
+import com.helger.base.enforce.ValueEnforcer;
 
 /**
- * A text node.
+ * A text node. While a tree is built, text can be appended in pieces with
+ * {@link #appendValue(String)}; the pieces are joined once, when the value is
+ * read, so building a long text from many pieces stays linear.
  *
  * @author Philip Helger
  */
 @NotThreadSafe
 public final class XdmTextNode extends AbstractXdmValueNode
 {
+  // Guards joining the pending text of all text nodes (one lock per node would
+  // cost memory on every node)
+  private static final SimpleReadWriteLock PENDING_TEXT_LOCK = new SimpleReadWriteLock ();
+
+  // Appended text not yet part of the value; null if there is none
+  private volatile StringBuilder m_aPendingText;
+
   XdmTextNode (@NonNull final String sValue)
   {
     super (sValue);
+  }
+
+  private void _joinPendingText ()
+  {
+    if (m_aPendingText != null)
+      PENDING_TEXT_LOCK.writeLocked ( () -> {
+        final StringBuilder aPending = m_aPendingText;
+        if (aPending != null)
+        {
+          super.setValue (super.getValue () + aPending);
+          m_aPendingText = null;
+        }
+      });
+  }
+
+  /**
+   * Append text to the value, for building a tree only: the call must not
+   * overlap with reading the value from another thread.
+   *
+   * @param sText
+   *        The text to append. May not be <code>null</code>.
+   */
+  public void appendValue (@NonNull final String sText)
+  {
+    ValueEnforcer.notNull (sText, "Text");
+    if (sText.isEmpty ())
+      return;
+    final StringBuilder aPending = m_aPendingText;
+    if (aPending == null)
+      m_aPendingText = new StringBuilder (sText);
+    else
+      aPending.append (sText);
+  }
+
+  @Override
+  @NonNull
+  public String getValue ()
+  {
+    _joinPendingText ();
+    return super.getValue ();
+  }
+
+  @Override
+  public void setValue (@NonNull final String sValue)
+  {
+    ValueEnforcer.notNull (sValue, "Value");
+    PENDING_TEXT_LOCK.writeLocked ( () -> {
+      m_aPendingText = null;
+      super.setValue (sValue);
+    });
   }
 
   @NonNull

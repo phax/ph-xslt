@@ -46,6 +46,11 @@ import com.helger.xpath.xdm.IXdmNode;
 final class XsdSchemaForSchemas
 {
   /** The legal values of the fixed-vocabulary attributes. */
+  /**
+   * The code of a misplaced or repeated child element, as Xerces names the
+   * schema-for-schemas content model violation
+   */
+  private static final String ERR_ELEMENT_CONTENT = "s4s-elt-invalid-content.1";
   private static final ICommonsMap <String, ICommonsSet <String>> ENUM_ATTR_VALUES = new CommonsHashMap <> ();
   /** The boolean-valued attributes. */
   private static final ICommonsSet <String> BOOL_ATTRS = new CommonsHashSet <> ("abstract",
@@ -879,6 +884,140 @@ final class XsdSchemaForSchemas
     }
   }
 
+  /** @return An error about the node itself, with its line and column. */
+  @NonNull
+  private static XsdInvalidException _invalidAt (@NonNull final IXdmNode aNode,
+                                                 @NonNull final String sCode,
+                                                 @NonNull final String sMessage)
+  {
+    return new XsdInvalidException (XsdError.of (sCode, sMessage).withLocation (aNode.getLine (), aNode.getColumn ()));
+  }
+
+  /**
+   * @return The error with the line and column of the element it concerns, if
+   *         it has no position yet.
+   */
+  @NonNull
+  private static XsdInvalidException _locate (@NonNull final XsdInvalidException ex, @NonNull final IXdmNode aEl)
+  {
+    final XsdError aError = ex.getError ();
+    if (aError.line () != 0 || aError.column () != 0)
+      return ex;
+    return new XsdInvalidException (aError.withLocation (aEl.getLine (), aEl.getColumn ()), ex.getMessages ());
+  }
+
+  /**
+   * go-xslt <code>checkComplexTypeContent</code>: at most one of simpleContent
+   * and complexContent, at most one openContent and one model group, and only
+   * an annotation beside simpleContent or complexContent.
+   */
+  private static void _checkComplexTypeContent (@NonNull final IXdmNode aEl)
+  {
+    IXdmNode aModel = null;
+    IXdmNode aOpenContent = null;
+    IXdmNode aParticle = null;
+    for (final IXdmNode aChild : XsdNodes.children (aEl))
+    {
+      if (!XsdNodes.isXSElement (aChild))
+        continue;
+      final String sLocal = XsdNodes.localName (aChild);
+      switch (sLocal)
+      {
+        case "simpleContent":
+        case "complexContent":
+          if (aModel != null)
+            throw _invalidAt (aChild,
+                              ERR_ELEMENT_CONTENT,
+                              "xs:complexType may have only one of xs:simpleContent and xs:complexContent (a second, xs:" +
+                                                  sLocal +
+                                                  ", is not allowed)");
+          aModel = aChild;
+          break;
+        case "openContent":
+          if (aOpenContent != null)
+            throw _invalidAt (aChild, ERR_ELEMENT_CONTENT, "xs:complexType may have at most one xs:openContent");
+          aOpenContent = aChild;
+          break;
+        case "group":
+        case "all":
+        case "choice":
+        case "sequence":
+          if (aParticle != null)
+            throw _invalidAt (aChild,
+                              ERR_ELEMENT_CONTENT,
+                              "xs:complexType may have at most one model group (a second, xs:" + sLocal + ", is not allowed)");
+          aParticle = aChild;
+          break;
+        default:
+          break;
+      }
+    }
+    if (aModel == null)
+      return;
+    for (final IXdmNode aChild : XsdNodes.children (aEl))
+    {
+      if (!XsdNodes.isXSElement (aChild) || aChild == aModel || "annotation".equals (XsdNodes.localName (aChild)))
+        continue;
+      throw _invalidAt (aChild,
+                        ERR_ELEMENT_CONTENT,
+                        "xs:" +
+                                         XsdNodes.localName (aChild) +
+                                         " is not allowed in an xs:complexType with xs:" +
+                                         XsdNodes.localName (aModel) +
+                                         " (put it inside the xs:restriction or xs:extension)");
+    }
+  }
+
+  /**
+   * go-xslt <code>checkContentGrammar</code>: the part of the schema-for-schemas
+   * content model of complexType, simpleContent and complexContent that the
+   * allowed-children sets cannot say, so that no child is accepted and then
+   * ignored. The order inside the implicit content model is checked where the
+   * type is built.
+   *
+   * <pre>
+   * complexType:    annotation?, (simpleContent | complexContent |
+   *                 (openContent?, (group|all|choice|sequence)?,
+   *                  (attribute|attributeGroup)*, anyAttribute?, assert*))
+   * simpleContent,
+   * complexContent: annotation?, (restriction | extension)
+   * </pre>
+   */
+  private static void _checkContentGrammar (@NonNull final IXdmNode aEl)
+  {
+    final String sElem = XsdNodes.localName (aEl);
+    switch (sElem)
+    {
+      case "complexType":
+        _checkComplexTypeContent (aEl);
+        break;
+      case "simpleContent":
+      case "complexContent":
+      {
+        IXdmNode aBody = null;
+        for (final IXdmNode aChild : XsdNodes.children (aEl))
+        {
+          if (!XsdNodes.isXS (aChild, "restriction") && !XsdNodes.isXS (aChild, "extension"))
+            continue;
+          if (aBody != null)
+            throw _invalidAt (aChild,
+                              ERR_ELEMENT_CONTENT,
+                              "xs:" +
+                                                  sElem +
+                                                  " must contain exactly one of xs:restriction and xs:extension (a second, xs:" +
+                                                  XsdNodes.localName (aChild) +
+                                                  ", is not allowed)");
+          aBody = aChild;
+        }
+        if (aBody == null)
+          throw _invalidAt (aEl, ERR_ELEMENT_CONTENT, "xs:" + sElem + " must contain xs:restriction or xs:extension");
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   /** The checks of one XSD element (go-xslt <code>validateSchemaAttrs</code> minus the recursion). */
   private static void _checkElement (@NonNull final IXdmNode aEl, @NonNull final EXsdVersion eVersion)
   {
@@ -923,7 +1062,7 @@ final class XsdSchemaForSchemas
         if (eVersion == EXsdVersion.V10 && "all".equals (sElem) && "any".equals (sChild))
           throw XsdCompiler.invalid ("", "an XSD 1.0 xs:all group may contain only element declarations");
         if (eVersion == EXsdVersion.V10 && XSD11_ONLY_ELEMENTS.contains (sChild))
-          throw XsdCompiler.invalid ("", "xs:" + sChild + " is an XSD 1.1 construct (not valid in a 1.0 schema)");
+          throw _invalidAt (aChild, "", "xs:" + sChild + " is an XSD 1.1 construct (not valid in a 1.0 schema)");
         if (!aAllowedChildren.contains (sChild))
           throw XsdCompiler.invalid ("", "element xs:" + sChild + " is not allowed inside xs:" + sElem);
       }
@@ -985,6 +1124,7 @@ final class XsdSchemaForSchemas
         break;
       }
     }
+    _checkContentGrammar (aEl);
     _checkOccurs (aEl);
     _checkDeclConstraints (aEl, eVersion);
     // restriction/extension children depend on the context
@@ -1052,7 +1192,15 @@ final class XsdSchemaForSchemas
       final boolean bXS = XsdNodes.isXSElement (aCur);
       if (bXS)
       {
-        _checkElement (aCur, eVersion);
+        try
+        {
+          _checkElement (aCur, eVersion);
+        }
+        catch (final XsdInvalidException ex)
+        {
+          // The error leaves with the position of the element it concerns
+          throw _locate (ex, aCur);
+        }
         final String sLocal = XsdNodes.localName (aCur);
         if ("appinfo".equals (sLocal) || "documentation".equals (sLocal))
         {

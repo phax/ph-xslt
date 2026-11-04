@@ -610,7 +610,9 @@ final class MarkupWriter
                                     _isHead (aElement.getParent ()) &&
                                     _isContentTypeMeta (aElement);
     final StringBuilder aAttrs = new StringBuilder ();
-    final String sLocalLC = aName.localName ().toLowerCase (Locale.ROOT);
+    // The lower-case names are only needed by the HTML and XHTML methods
+    final boolean bHtmlRules = m_bHtml || m_bXhtml;
+    final String sLocalLC = bHtmlRules ? aName.localName ().toLowerCase (Locale.ROOT) : null;
     for (final IXdmNode aAttr : aElement.getAllAttributes ())
     {
       final XdmQName aAttrName = aAttr.getName ();
@@ -620,7 +622,7 @@ final class MarkupWriter
       if (aAttrName.hasNamespace ())
         sAttrQName = _getPrefix (aAttrName, true, aDecls) + ":" + aAttrName.localName ();
       final String sValue = aAttr.getValue ();
-      final String sAttrLC = aAttrName.localName ().toLowerCase (Locale.ROOT);
+      final String sAttrLC = bHtmlRules ? aAttrName.localName ().toLowerCase (Locale.ROOT) : null;
       if (m_bHtml &&
           bHtmlElement &&
           !aAttrName.hasNamespace () &&
@@ -631,8 +633,8 @@ final class MarkupWriter
         continue;
       }
       aAttrs.append (' ').append (sAttrQName).append ("=\"");
-      final Set <String> aUriAttrs = URI_ATTRS.get (sLocalLC);
-      if ((m_bHtml || m_bXhtml) &&
+      final Set <String> aUriAttrs = bHtmlRules ? URI_ATTRS.get (sLocalLC) : null;
+      if (bHtmlRules &&
           bHtmlElement &&
           m_aParams.isEscapeUriAttributes () &&
           !aAttrName.hasNamespace () &&

@@ -37,6 +37,7 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.value.DateTimeCalendar;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmDateTimeValue;
+import com.helger.xpath.xdm.XmlNames;
 
 /**
  * The picture-string language of <code>fn:format-date</code>,
@@ -198,54 +199,6 @@ public final class FormatDateTime
     return new XPathException ("FOFD1340", sMsg);
   }
 
-  private static boolean _isNCNameStart (final int c)
-  {
-    return c == '_' ||
-           c >= 'A' && c <= 'Z' ||
-           c >= 'a' && c <= 'z' ||
-           c >= 0xC0 && c <= 0xD6 ||
-           c >= 0xD8 && c <= 0xF6 ||
-           c >= 0xF8 && c <= 0x2FF ||
-           c >= 0x370 && c <= 0x37D ||
-           c >= 0x37F && c <= 0x1FFF ||
-           c >= 0x200C && c <= 0x200D ||
-           c >= 0x2070 && c <= 0x218F ||
-           c >= 0x2C00 && c <= 0x2FEF ||
-           c >= 0x3001 && c <= 0xD7FF ||
-           c >= 0xF900 && c <= 0xFDCF ||
-           c >= 0xFDF0 && c <= 0xFFFD ||
-           c >= 0x10000 && c <= 0xEFFFF;
-  }
-
-  private static boolean _isNCNameChar (final int c)
-  {
-    return _isNCNameStart (c) ||
-           c == '-' ||
-           c == '.' ||
-           c >= '0' && c <= '9' ||
-           c == 0xB7 ||
-           c >= 0x300 && c <= 0x36F ||
-           c >= 0x203F && c <= 0x2040;
-  }
-
-  /**
-   * @param s
-   *        Candidate.
-   * @return <code>true</code> if it is a valid XML NCName.
-   */
-  static boolean isNCName (@NonNull final String s)
-  {
-    if (s.isEmpty ())
-      return false;
-    final int [] aCPs = s.codePoints ().toArray ();
-    if (!_isNCNameStart (aCPs[0]))
-      return false;
-    for (int i = 1; i < aCPs.length; ++i)
-      if (!_isNCNameChar (aCPs[i]))
-        return false;
-    return true;
-  }
-
   /**
    * Validate the $calendar argument (a lexical QName or Q{uri}local) and
    * return the "[Calendar: AD]" prefix for a calendar that is not implemented.
@@ -269,13 +222,13 @@ public final class FormatDateTime
       final int i = sCal.indexOf (':');
       if (i >= 0)
       {
-        if (!isNCName (sCal.substring (0, i)))
+        if (!XmlNames.isNCName (sCal.substring (0, i)))
           throw _err ("Invalid calendar name '" + sCalendar + "'");
         bNamespaced = true;
         sLocal = sCal.substring (i + 1);
       }
     }
-    if (!isNCName (sLocal))
+    if (!XmlNames.isNCName (sLocal))
       throw _err ("Invalid calendar name '" + sCalendar + "'");
     if (bNamespaced)
       return "[Calendar: AD]";

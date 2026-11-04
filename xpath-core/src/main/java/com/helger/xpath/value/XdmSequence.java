@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.Immutable;
@@ -125,6 +126,16 @@ public final class XdmSequence implements Iterable <IXdmItem>
   public boolean isEmpty ()
   {
     return m_aItems.length == 0;
+  }
+
+  /**
+   * @return The type of the only item if this sequence is exactly one atomic
+   *         value, otherwise <code>null</code>.
+   */
+  @Nullable
+  public EAtomicType getSingleAtomicType ()
+  {
+    return isSingleton () && get (0) instanceof final XdmAtomic aAtomic ? aAtomic.getType () : null;
   }
 
   public boolean isSingleton ()

@@ -35,10 +35,9 @@ import com.helger.xpath.xdm.XdmValidationException;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
- * Validation of an existing tree in place must reach the same verdict as
- * validating the text, and both must agree with the specification (go-xslt
- * <code>bridge_spec_test.go</code>). The instance table of the composite
- * prelude runs through both paths as whole documents.
+ * Validation of an existing tree in place must reach the same verdict as validating the text, and
+ * both must agree with the specification (go-xslt <code>bridge_spec_test.go</code>). The instance
+ * table of the composite prelude runs through both paths as whole documents.
  *
  * @author Philip Helger
  */
@@ -52,7 +51,8 @@ public final class XsdBridgeSpecTest
   private static final Inst [] CASES = { new Inst ("<eBase><a>x</a></eBase>", true),
                                          new Inst ("<eBase><b>x</b></eBase>", false),
                                          new Inst ("<eBase" + XSI + " xsi:type=\"Ext\"><a>x</a><b>1</b></eBase>", true),
-                                         new Inst ("<eBlocked" + XSI + " xsi:type=\"Ext\"><a>x</a><b>1</b></eBlocked>", false),
+                                         new Inst ("<eBlocked" + XSI + " xsi:type=\"Ext\"><a>x</a><b>1</b></eBlocked>",
+                                                   false),
                                          new Inst ("<eAbsType" + XSI + " xsi:type=\"Conc\"/>", true),
                                          new Inst ("<eAbs><a>x</a></eAbs>", false),
                                          new Inst ("<eNil" + XSI + " xsi:nil=\"true\"/>", true),
@@ -80,7 +80,7 @@ public final class XsdBridgeSpecTest
   private static IXdmSchemaSet _compile ()
   {
     return XsdSchemaProvider.createSchemaSet (XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText (XsdInstanceValidationTest.PRELUDE,
-                                                                                                                 null)),
+                                                                                                                  null)),
                                                                  EXsdVersion.V10,
                                                                  null));
   }
@@ -110,7 +110,7 @@ public final class XsdBridgeSpecTest
     final IXdmSchemaSet aSet = XsdSchemaProvider.createSchemaSet (aSchema);
     for (final Inst aInst : CASES)
     {
-      assertEquals (aInst.instance (), aInst.valid (), aSchema.validateText (aInst.instance ()).valid ());
+      assertTrue (aInst.instance (), aInst.valid () == aSchema.validateText (aInst.instance ()).valid ());
       boolean bValid = true;
       try
       {
@@ -120,11 +120,13 @@ public final class XsdBridgeSpecTest
       {
         bValid = ex.getClass () != XdmValidationException.class;
       }
-      assertEquals (aInst.instance (), aInst.valid (), bValid);
+      assertTrue (aInst.instance (), aInst.valid () == bValid);
     }
   }
 
-  /** After a successful validation the tree carries the PSVI properties. */
+  /*
+   * After a successful validation the tree carries the PSVI properties.
+   */
   @Test
   public void testPSVIProperties () throws XdmValidationException
   {
@@ -148,9 +150,9 @@ public final class XsdBridgeSpecTest
     assertTrue (aItem.getAttribute ("", "refs").getSchemaType ().isList ());
   }
 
-  /**
-   * ID and IDREF are document-level: an element-rooted episode does not
-   * resolve IDREFs to IDs outside it, a document-rooted one does.
+  /*
+   * ID and IDREF are document-level: an element-rooted episode does not resolve IDREFs to IDs
+   * outside it, a document-rooted one does.
    */
   @Test
   public void testIDScope () throws XdmValidationException
@@ -169,7 +171,7 @@ public final class XsdBridgeSpecTest
     }
   }
 
-  /** Whitespace text is dropped from element-only content, and only there. */
+  /* Whitespace text is dropped from element-only content, and only there. */
   @Test
   public void testStripsElementOnlyWhitespace () throws XdmValidationException
   {
@@ -209,19 +211,24 @@ public final class XsdBridgeSpecTest
     }
   }
 
-  /**
-   * An element no declaration governs is laxly assessed, and its attributes
-   * with a global declaration are validated: a duplicate xml:id is an error.
+  /*
+   * An element no declaration governs is laxly assessed, and its attributes with a global
+   * declaration are validated: a duplicate xml:id is an error.
    */
   @Test
   public void testLaxAssessedAttributes () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = XsdSchemaProvider.createSchemaSet (XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText ("""
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.w3.org/XML/1998/namespace">
-  <xs:attribute name="id" type="xs:ID"/>
-</xs:schema>""", null)), EXsdVersion.V10, null));
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.w3.org/XML/1998/namespace">
+          <xs:attribute name="id" type="xs:ID"/>
+        </xs:schema>""",
+                                                                                                                                      null)),
+                                                                                     EXsdVersion.V10,
+                                                                                     null));
     final String sHead = "<doc xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" xsi:type=\"xs:anyType\">";
-    aSet.validateElement (_parseElement (sHead + "<e xml:id=\"a\"/><f xml:id=\"b\"><g xml:id=\"c\"/></f></doc>"), null, true);
+    aSet.validateElement (_parseElement (sHead + "<e xml:id=\"a\"/><f xml:id=\"b\"><g xml:id=\"c\"/></f></doc>"),
+                          null,
+                          true);
     try
     {
       aSet.validateElement (_parseElement (sHead + "<e xml:id=\"a\"/><f><g xml:id=\"a\"/></f></doc>"), null, true);
@@ -233,17 +240,21 @@ public final class XsdBridgeSpecTest
     }
     final IXdmNode aValid = _parseElement (sHead + "<e xml:id=\"a\"/></doc>");
     aSet.validateElement (aValid, null, true);
-    assertEquals (EIDKind.ID, aValid.getChildAtIndex (0).getAttribute ("http://www.w3.org/XML/1998/namespace", "id").getIDKind ());
+    assertEquals (EIDKind.ID,
+                  aValid.getChildAtIndex (0).getAttribute ("http://www.w3.org/XML/1998/namespace", "id").getIDKind ());
   }
 
-  /** The xsi:type of an element no declaration governs supplies its type. */
+  /* The xsi:type of an element no declaration governs supplies its type. */
   @Test
   public void testLaxAssessedXsiType () throws XdmValidationException
   {
     final IXdmSchemaSet aSet = XsdSchemaProvider.createSchemaSet (XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofText ("""
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:element name="root"><xs:complexType><xs:sequence><xs:any processContents="lax" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
-</xs:schema>""", null)), EXsdVersion.V10, null));
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="root"><xs:complexType><xs:sequence><xs:any processContents="lax" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+        </xs:schema>""",
+                                                                                                                                      null)),
+                                                                                     EXsdVersion.V10,
+                                                                                     null));
     final String sHead = "<root xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">";
     final IXdmNode aValid = _parseElement (sHead + "<e xsi:type=\"xs:int\">5</e></root>");
     aSet.validateElement (aValid, null, true);

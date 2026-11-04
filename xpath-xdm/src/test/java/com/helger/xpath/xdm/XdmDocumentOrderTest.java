@@ -121,4 +121,31 @@ public final class XdmDocumentOrderTest
     aDoc.assignDocumentOrder ();
     assertEquals (2, aR.getAttributeAtIndex (0).getOrder ());
   }
+
+  @Test
+  public void testTextAppendValue ()
+  {
+    final IXdmNode aElement = IXdmNode.createElement (X);
+    final XdmTextNode aText = (XdmTextNode) IXdmNode.createText ("a");
+    aElement.appendChild (aText);
+    aText.appendValue ("b");
+    aText.appendValue ("");
+    aText.appendValue ("c");
+    assertEquals ("abc", aText.getValue ());
+    assertEquals ("abc", aElement.getStringValue ());
+    // Appending after a read, and reading again
+    aText.appendValue ("d");
+    assertEquals ("abcd", aText.getStringValue ());
+    // Setting the value drops what is pending
+    aText.appendValue ("e");
+    aText.setValue ("x");
+    assertEquals ("x", aText.getValue ());
+    final StringBuilder aExpected = new StringBuilder ("x");
+    for (int i = 0; i < 100_000; ++i)
+    {
+      aText.appendValue ("y");
+      aExpected.append ('y');
+    }
+    assertEquals (aExpected.toString (), aText.getValue ());
+  }
 }

@@ -52,6 +52,7 @@ import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XmlNames;
 import com.helger.xpath.xdm.schema.EXdmSimpleVariety;
 import com.helger.xpath.xdm.schema.IXdmAttributeDeclaration;
 import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
@@ -608,7 +609,7 @@ final class XPathParserImpl
           {
             _next ();
             final String sTarget = aTok.text ().trim ().replaceAll ("[ \\t\\r\\n]+", " ");
-            if (!XPathLexer.isNCName (sTarget))
+            if (!XmlNames.isNCName (sTarget))
               throw _error ("XPTY0004", "'" + sTarget + "' is not a valid processing-instruction target", aTok);
             aTarget = new XdmQName (sTarget);
           }

@@ -59,6 +59,7 @@ public final class XPathRegex
   };
 
   private final Pattern m_aPattern;
+  private final boolean m_bMatchesEmptyString;
   private final int m_nGroupCount;
   private final int [] m_aGroupParents;
   private final int [] m_aJavaGroups;
@@ -116,6 +117,8 @@ public final class XPathRegex
     m_aGroupParents = aGroupParents;
     m_aJavaGroups = aJavaGroups;
     m_bLiteral = bLiteral;
+    // Asked by tokenize, replace and analyze-string on every call
+    m_bMatchesEmptyString = aPattern.matcher ("").matches ();
   }
 
   @NonNull
@@ -299,7 +302,7 @@ public final class XPathRegex
   /** @return <code>true</code> if the expression matches the empty string. */
   public boolean matchesEmptyString ()
   {
-    return m_aPattern.matcher ("").matches ();
+    return m_bMatchesEmptyString;
   }
 
   @NonNull

@@ -39,6 +39,7 @@ import static com.helger.xpath.eval.ExprTestHelper.parse;
 import static com.helger.xpath.eval.ExprTestHelper.qn;
 import static com.helger.xpath.eval.ExprTestHelper.var;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -376,5 +377,23 @@ public final class SequenceTypeMatcherTest
     assertFalse (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.INTEGER, INTEGER)));
     assertFalse (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.STRING, STRING)));
     assertFalse (SequenceTypeMatcher.matchesItem (aMap, mapType (EAtomicType.STRING, SeqType.EMPTY_SEQUENCE)));
+  }
+
+  @Test
+  public void testMatchesUniformArray ()
+  {
+    XdmArray aArray = XdmArray.EMPTY;
+    for (int i = 0; i < 5; ++i)
+      aArray = aArray.append (XdmSequence.of (XdmAtomic.integer (i)));
+    assertNotNull (aArray.getUniformMemberType ());
+    assertTrue (SequenceTypeMatcher.matchesItem (aArray, arrayType (INTEGER)));
+    assertTrue (SequenceTypeMatcher.matchesItem (aArray, arrayType (DECIMAL)));
+    assertTrue (SequenceTypeMatcher.matchesItem (aArray, arrayType (INTEGER_OPT)));
+    assertFalse (SequenceTypeMatcher.matchesItem (aArray, arrayType (STRING)));
+    assertFalse (SequenceTypeMatcher.matchesItem (aArray, arrayType (SeqType.EMPTY_SEQUENCE)));
+    // Mixed members fall back to the loop
+    final XdmArray aMixed = aArray.append (XdmSequence.of (XdmAtomic.decimal (BigDecimal.ONE)));
+    assertTrue (SequenceTypeMatcher.matchesItem (aMixed, arrayType (DECIMAL)));
+    assertFalse (SequenceTypeMatcher.matchesItem (aMixed, arrayType (INTEGER)));
   }
 }

@@ -31,6 +31,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XmlNames;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.StylesheetCompiler;
 import com.helger.xslt.model.Mode;
@@ -567,15 +568,15 @@ public final class PackageChecks
     final int n = sType.length ();
     while (i < n)
     {
-      final char c = sType.charAt (i);
-      if (c == '_' || Character.isLetter (c))
+      final int c = sType.codePointAt (i);
+      if (XmlNames.isNCNameStartChar (c))
       {
         int j = i;
         while (j < n)
         {
-          final char d = sType.charAt (j);
-          if (d == '_' || d == '-' || d == '.' || d == ':' || Character.isLetterOrDigit (d))
-            j++;
+          final int d = sType.codePointAt (j);
+          if (XmlNames.isNameChar (d))
+            j += Character.charCount (d);
           else
             break;
         }
@@ -584,7 +585,7 @@ public final class PackageChecks
         i = j;
         continue;
       }
-      i++;
+      i += Character.charCount (c);
     }
     return ret;
   }

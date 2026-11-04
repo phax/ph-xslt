@@ -21,6 +21,7 @@ import org.jspecify.annotations.NonNull;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.xdm.XmlNames;
 
 /**
  * The XPath 3.1 tokenizer (a port of go-xslt's <code>lexer.go</code>). It
@@ -41,68 +42,6 @@ final class XPathLexer
   {
     m_sSrc = sSrc;
     m_nLen = sSrc.length ();
-  }
-
-  /**
-   * @param c
-   *        Code point.
-   * @return <code>true</code> if it is an XML 1.0 (5th edition) NameStartChar
-   *         without the colon.
-   */
-  static boolean isNCNameStartChar (final int c)
-  {
-    return (c >= 'A' && c <= 'Z') ||
-           c == '_' ||
-           (c >= 'a' && c <= 'z') ||
-           (c >= 0xC0 && c <= 0xD6) ||
-           (c >= 0xD8 && c <= 0xF6) ||
-           (c >= 0xF8 && c <= 0x2FF) ||
-           (c >= 0x370 && c <= 0x37D) ||
-           (c >= 0x37F && c <= 0x1FFF) ||
-           (c >= 0x200C && c <= 0x200D) ||
-           (c >= 0x2070 && c <= 0x218F) ||
-           (c >= 0x2C00 && c <= 0x2FEF) ||
-           (c >= 0x3001 && c <= 0xD7FF) ||
-           (c >= 0xF900 && c <= 0xFDCF) ||
-           (c >= 0xFDF0 && c <= 0xFFFD) ||
-           (c >= 0x10000 && c <= 0xEFFFF);
-  }
-
-  /**
-   * @param c
-   *        Code point.
-   * @return <code>true</code> if it is an XML 1.0 (5th edition) NameChar
-   *         without the colon.
-   */
-  static boolean isNCNameChar (final int c)
-  {
-    return isNCNameStartChar (c) ||
-           c == '-' ||
-           c == '.' ||
-           (c >= '0' && c <= '9') ||
-           c == 0xB7 ||
-           (c >= 0x300 && c <= 0x36F) ||
-           (c >= 0x203F && c <= 0x2040);
-  }
-
-  /**
-   * @param s
-   *        String to check.
-   * @return <code>true</code> if the string is a valid NCName.
-   */
-  static boolean isNCName (@NonNull final String s)
-  {
-    if (s.isEmpty ())
-      return false;
-    int i = 0;
-    while (i < s.length ())
-    {
-      final int c = s.codePointAt (i);
-      if (i == 0 ? !isNCNameStartChar (c) : !isNCNameChar (c))
-        return false;
-      i += Character.charCount (c);
-    }
-    return true;
   }
 
   private static boolean _isWhitespace (final int c)
@@ -177,7 +116,7 @@ final class XPathLexer
     while (m_nPos < m_nLen)
     {
       final int c = m_sSrc.codePointAt (m_nPos);
-      if (!isNCNameChar (c))
+      if (!XmlNames.isNCNameChar (c))
         break;
       m_nPos += Character.charCount (c);
     }
@@ -230,7 +169,7 @@ final class XPathLexer
       m_aTokens.add (new XPathToken (ETokenKind.BRACED_WILDCARD, "*", sUri, nStart));
       return;
     }
-    if (!isNCNameStartChar (_codePointAt (m_nPos)))
+    if (!XmlNames.isNCNameStartChar (_codePointAt (m_nPos)))
       throw _error ("Braced URI literal must be followed by a local name", nStart);
     final String sLocal = _readNCName ();
     m_aTokens.add (new XPathToken (ETokenKind.BRACED_NAME, sLocal, sUri, nStart));
@@ -293,7 +232,7 @@ final class XPathLexer
       // A numeric literal must be delimited: "10div 3" and "1.2.3" are errors.
       // ':' is a delimiter (map constructor key separator).
       final int c = m_sSrc.codePointAt (m_nPos);
-      if (c == '.' || isNCNameStartChar (c))
+      if (c == '.' || XmlNames.isNCNameStartChar (c))
         throw _error ("Numeric literal '" + m_sSrc.substring (nStart, m_nPos) + "' must be followed by a delimiter",
                       nStart);
     }
@@ -305,7 +244,7 @@ final class XPathLexer
   {
     final int nStart = m_nPos;
     // "*:local" (no whitespace allowed)
-    if (_peek (1) == ':' && isNCNameStartChar (_codePointAt (m_nPos + 2)))
+    if (_peek (1) == ':' && XmlNames.isNCNameStartChar (_codePointAt (m_nPos + 2)))
     {
       m_nPos += 2;
       final String sLocal = _readNCName ();
@@ -322,7 +261,7 @@ final class XPathLexer
     if (_peek (0) == ':')
     {
       final int c = _codePointAt (m_nPos + 1);
-      if (isNCNameStartChar (c))
+      if (XmlNames.isNCNameStartChar (c))
       {
         m_nPos++;
         final String sLocal = _readNCName ();
@@ -472,7 +411,7 @@ final class XPathLexer
             else
             {
               final int cp = m_sSrc.codePointAt (m_nPos);
-              if (!isNCNameStartChar (cp))
+              if (!XmlNames.isNCNameStartChar (cp))
                 throw _error ("Unexpected character '" + new String (Character.toChars (cp)) + "'", m_nPos);
               _name ();
             }

@@ -120,6 +120,9 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   {
     if (m_aChildren == null)
       return "";
+    // The common leaf element with one text child
+    if (m_aChildren.size () == 1 && m_aChildren.get (0) instanceof final XdmTextNode aText)
+      return aText.getValue ();
     // Do not recurse - trees may be very deep
     final StringBuilder aSB = new StringBuilder ();
     final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();

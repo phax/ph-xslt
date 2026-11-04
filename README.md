@@ -122,17 +122,6 @@ v0.1.0 - work in progress
 * The native schema validator reads `msg:message` entries in `xs:appinfo` (element, attribute and group declarations) as the wording and `rule` of a cardinality error or a missing required attribute, selected by `xml:lang`; the namespace is `urn:fdc:helger.com:ph-xslt:xsd:messages` (`XsdConstants.NS_MESSAGES`), not the one of go-xslt
 * Checked against go-xslt v0.3.9: the package-version upper bound `to 3.3.*`, the type error for a boolean arithmetic operand, the syntax error for `attribute(N, T?)` and the function conversion rules for the arguments of every built-in were already in place; new tests pin them (`ArgumentConversionTest`, `BuiltinSignatureCatalogueTest`, `BuiltinOddArgumentsTest`, `FunctionsArgsSpecTest`, `XsltFunctionCatalogueTest`)
 * The declared signature of `fn:root#0` is `node()` (was `node()?`), as in F&O 3.1; an argument conversion error names the function and the argument position
-* `XdmTreeBuilder` shares one `XdmQName` instance per distinct element and attribute name of a document, which reduces the heap of a parsed tree by 4 to 12 %
-* The node model is the sealed interface `IXdmNode` (was the class `XdmNode`), implemented below the sealed `AbstractXdmNode` by one class per node kind (`XdmDocumentNode`, `XdmElementNode`, `XdmAttributeNode`, `XdmTextNode`, `XdmCommentNode`, `XdmProcessingInstructionNode`, `XdmNamespaceNode`) that only carries the fields of its kind; rarely set properties live in a separate object created on demand. A node needs 48 to 64 bytes instead of 104, which reduces the heap of a parsed tree by 24 to 30 %
-* Text nodes created by `XdmTreeBuilder` carry the location of their first character event
-* Checked against go-xslt up to bd97131: `XdmMap` is a persistent hash trie, so `map:put` and `map:remove` no longer copy the map, and `XdmArray.append` appends in place to a shared backing array; building a map or array one call at a time in `xsl:iterate` or `fold-left` is no longer quadratic
-* A `map(K, V)` test uses a summary of the key and value types instead of looking at every entry where the map allows it
-* `xsl:for-each-group group-by` files groups by key for numeric keys and for strings under a collation too, using the bucket key of `fn:distinct-values` (`AtomicComparator.getDistinctBucketKey`)
-* `fn:round` on a double without precision no longer goes through `BigDecimal`
-* Document order numbering also records the end of each subtree (`IXdmNode.getOrder ()`/`getEndOrder ()`): the descendants and attributes of a node are the nodes with an order above its own and up to its end order
-* A document node keeps a name index of its elements, built on first use (`XdmDocumentNode.getElementsByName`); descendant and descendant-or-self steps with an exact element name cut their result out of it by binary search instead of walking the subtree, also for many context nodes at once, where nested context nodes add nothing
-* `//name[p]` is evaluated as one `descendant::name[p]` step when every predicate is provably focus-free and non-numeric, as in go-xslt (`fuseSlashSlash`)
-* Adding or removing a child or an attribute in a numbered tree removes its numbering and name index; both are rebuilt on demand
 
 # Contributing
 

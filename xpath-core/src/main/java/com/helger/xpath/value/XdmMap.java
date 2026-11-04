@@ -279,12 +279,6 @@ public final class XdmMap implements IXdmItem
     return ret;
   }
 
-  @Nullable
-  private static EAtomicType _getSingleAtomicType (@NonNull final XdmSequence aValue)
-  {
-    return aValue.isSingleton () && aValue.get (0) instanceof final XdmAtomic aAtomic ? aAtomic.getType () : null;
-  }
-
   /**
    * @param aKey
    *        The key.
@@ -379,7 +373,7 @@ public final class XdmMap implements IXdmItem
     final long nOrder = aOld == null ? m_nNextOrder : aOld.m_nOrder;
     final Node aRoot = _assoc (m_aRoot, 0, new Slot (aMapKey, nHash, nOrder, new Entry (aKey, aValue)));
     final EAtomicType eKeyType = aKey.getType ();
-    final EAtomicType eValueType = _getSingleAtomicType (aValue);
+    final EAtomicType eValueType = aValue.getSingleAtomicType ();
     final boolean bFirst = m_nSize == 0;
     return new XdmMap (aRoot,
                        aOld == null ? m_nSize + 1 : m_nSize,
@@ -572,7 +566,7 @@ public final class XdmMap implements IXdmItem
       {
         final Entry aEntry = aItem.getValue ();
         final EAtomicType eEntryKeyType = aEntry.key ().getType ();
-        final EAtomicType eEntryValueType = _getSingleAtomicType (aEntry.value ());
+        final EAtomicType eEntryValueType = aEntry.value ().getSingleAtomicType ();
         eKeyType = nOrder == 0 || eEntryKeyType == eKeyType ? eEntryKeyType : null;
         eValueType = nOrder == 0 || eEntryValueType == eValueType ? eEntryValueType : null;
         aRoot = _assoc (aRoot, 0, new Slot (aItem.getKey (), aItem.getKey ().hashCode (), nOrder, aEntry));

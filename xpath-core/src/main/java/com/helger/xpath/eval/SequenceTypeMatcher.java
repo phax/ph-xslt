@@ -328,6 +328,27 @@ public final class SequenceTypeMatcher
   }
 
   /**
+   * Test the value type of a map(K, V) or array(T) type on the summary of the
+   * values: every value is one atomic item of the uniform type.
+   *
+   * @return The result, or <code>null</code> if the values must be looked at.
+   */
+  @Nullable
+  private static Boolean _matchesUniformValues (@Nullable final EAtomicType eUniform, @NonNull final SeqType aValueType)
+  {
+    if (eUniform == null || aValueType.empty ())
+      return null;
+    final ItemType aItemType = aValueType.itemType ();
+    if (aItemType.kind () != ItemType.Kind.ATOMIC || aItemType.schemaType () != null)
+      return null;
+    // Every value is one atomic item, which every occurrence indicator but
+    // the empty sequence allows
+    final EAtomicType eType = aItemType.atomicType ();
+    return Boolean.valueOf (eType != EAtomicType.ERROR &&
+                            (eType == EAtomicType.ANY_ATOMIC_TYPE || eUniform.isDerivedFrom (eType)));
+  }
+
+  /**
    * Test a map(K, V) type on the map's summary of its entries.
    *
    * @return The result, or <code>null</code> if the entries must be looked at.
@@ -338,18 +359,12 @@ public final class SequenceTypeMatcher
                                              @NonNull final SeqType aValueType)
   {
     final EAtomicType eUniformKey = aMap.getUniformKeyType ();
-    final EAtomicType eUniformValue = aMap.getUniformValueType ();
-    if (eUniformKey == null || eUniformValue == null || aValueType.empty ())
+    if (eUniformKey == null)
       return null;
-    final ItemType aItemType = aValueType.itemType ();
-    if (aItemType.kind () != ItemType.Kind.ATOMIC || aItemType.schemaType () != null)
+    final Boolean aValues = _matchesUniformValues (aMap.getUniformValueType (), aValueType);
+    if (aValues == null)
       return null;
-    // Every value is one atomic item, which every occurrence indicator but
-    // the empty sequence allows
-    final EAtomicType eType = aItemType.atomicType ();
-    return Boolean.valueOf (_matchesMapKeyType (eUniformKey, eKeyType) &&
-                            eType != EAtomicType.ERROR &&
-                            (eType == EAtomicType.ANY_ATOMIC_TYPE || eUniformValue.isDerivedFrom (eType)));
+    return Boolean.valueOf (_matchesMapKeyType (eUniformKey, eKeyType) && aValues.booleanValue ());
   }
 
   /**
@@ -406,6 +421,10 @@ public final class SequenceTypeMatcher
           return false;
         if (aType.wildcard () || aType.valueType () == null)
           return true;
+        // An array(T) parameter of xsl:iterate is checked on every step
+        final Boolean aFast = _matchesUniformValues (aArray.getUniformMemberType (), aType.valueType ());
+        if (aFast != null)
+          return aFast.booleanValue ();
         for (int i = 0; i < aArray.size (); ++i)
           if (!matches (aArray.get (i), aType.valueType ()))
             return false;

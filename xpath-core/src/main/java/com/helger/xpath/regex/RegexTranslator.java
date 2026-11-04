@@ -26,6 +26,7 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.xdm.XmlNames;
 
 /**
  * Validates an XPath 3.1 regular expression (F&amp;O 3.1 section 5.6.1, based on
@@ -45,41 +46,10 @@ final class RegexTranslator
   /** Maximum nesting of parenthesised groups and character classes */
   static final int MAX_NESTING = 1_000;
 
-  /** XML 1.0 (5th edition) NameStartChar as ranges */
-  private static final int [] NAME_START = { ':',
-                                             ':',
-                                             'A',
-                                             'Z',
-                                             '_',
-                                             '_',
-                                             'a',
-                                             'z',
-                                             0xC0,
-                                             0xD6,
-                                             0xD8,
-                                             0xF6,
-                                             0xF8,
-                                             0x2FF,
-                                             0x370,
-                                             0x37D,
-                                             0x37F,
-                                             0x1FFF,
-                                             0x200C,
-                                             0x200D,
-                                             0x2070,
-                                             0x218F,
-                                             0x2C00,
-                                             0x2FEF,
-                                             0x3001,
-                                             0xD7FF,
-                                             0xF900,
-                                             0xFDCF,
-                                             0xFDF0,
-                                             0xFFFD,
-                                             0x10000,
-                                             0xEFFFF };
+  /** XML 1.0 (5th edition) NameStartChar as ranges, including the colon */
+  private static final int [] NAME_START = _getNameStartRanges ();
   /** The characters a NameChar may have beyond a NameStartChar */
-  private static final int [] NAME_EXTRA = { '-', '-', '.', '.', '0', '9', 0xB7, 0xB7, 0x300, 0x36F, 0x203F, 0x2040 };
+  private static final int [] NAME_EXTRA = XmlNames.getNameCharExtraRanges ();
 
   private static final String ALL_CHARS = "\\x{0}-\\x{10FFFF}";
   private static final String XML_SPACE = "\\x{20}\\x{9}\\x{A}\\x{D}";
@@ -151,6 +121,17 @@ final class RegexTranslator
     m_aParents.add (Integer.valueOf (0));
     m_aJavaGroups.add (Integer.valueOf (0));
     m_aMarkerGroups.add (Integer.valueOf (0));
+  }
+
+  @NonNull
+  private static int [] _getNameStartRanges ()
+  {
+    final int [] aNCNameStart = XmlNames.getNCNameStartRanges ();
+    final int [] ret = new int [aNCNameStart.length + 2];
+    ret[0] = ':';
+    ret[1] = ':';
+    System.arraycopy (aNCNameStart, 0, ret, 2, aNCNameStart.length);
+    return ret;
   }
 
   /**

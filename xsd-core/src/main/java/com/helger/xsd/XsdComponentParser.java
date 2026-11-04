@@ -46,73 +46,6 @@ final class XsdComponentParser
   }
 
   /**
-   * go-xslt <code>checkComplexTypeStructure</code>: at most one leading
-   * annotation, and exactly one content model (simpleContent XOR
-   * complexContent XOR a shorthand model group).
-   */
-  private static void _checkComplexTypeStructure (@NonNull final IXdmNode aNode)
-  {
-    int nAnnot = 0;
-    int nSimple = 0;
-    int nComplex = 0;
-    int nGroup = 0;
-    int nAttr = 0;
-    boolean bSawContent = false;
-    for (final IXdmNode aChild : XsdNodes.children (aNode))
-    {
-      if (!XsdNodes.isXSElement (aChild))
-        continue;
-      final String sLocal = XsdNodes.localName (aChild);
-      switch (sLocal)
-      {
-        case "annotation":
-          nAnnot++;
-          if (bSawContent)
-            throw XsdCompiler.invalid ("", "xs:annotation must be the first child of xs:complexType");
-          break;
-        case "simpleContent":
-          nSimple++;
-          bSawContent = true;
-          break;
-        case "complexContent":
-          nComplex++;
-          bSawContent = true;
-          break;
-        case "sequence":
-        case "choice":
-        case "all":
-        case "group":
-          nGroup++;
-          bSawContent = true;
-          break;
-        case "attribute":
-        case "attributeGroup":
-        case "anyAttribute":
-          nAttr++;
-          bSawContent = true;
-          break;
-        case "element":
-        case "any":
-          throw XsdCompiler.invalid ("", "particle xs:" + sLocal + " cannot appear directly in xs:complexType");
-        default:
-          bSawContent = true;
-          break;
-      }
-    }
-    if (nSimple + nComplex > 0 && nAttr > 0)
-      throw XsdCompiler.invalid ("",
-                                 "attributes must be inside the extension/restriction when simple/complexContent is used");
-    if (nAnnot > 1)
-      throw XsdCompiler.invalid ("", "xs:complexType has more than one annotation");
-    if (nSimple + nComplex > 1)
-      throw XsdCompiler.invalid ("", "xs:complexType has more than one content model");
-    if (nSimple + nComplex > 0 && nGroup > 0)
-      throw XsdCompiler.invalid ("", "xs:complexType mixes simple/complexContent with a model group");
-    if (nGroup > 1)
-      throw XsdCompiler.invalid ("", "xs:complexType has more than one model group");
-  }
-
-  /**
    * go-xslt <code>checkFacetsBeforeAttrs</code>: in a simpleContent
    * restriction every constraining facet (and the inline simple type) must
    * precede the attribute uses.
@@ -1109,7 +1042,6 @@ final class XsdComponentParser
     m_aC.enterNesting ();
     try
     {
-      _checkComplexTypeStructure (aNode);
       // Named and anonymous alike, for the whole-schema checks
       m_aC.m_aAllCTs.add (aCT);
       aCT.m_aDocs = m_aC.docsOf (aNode);

@@ -17,15 +17,19 @@
 package com.helger.xpath.xdm;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.jspecify.annotations.NonNull;
 import org.junit.Test;
 import org.xml.sax.InputSource;
 
@@ -259,6 +263,60 @@ public final class XdmParserTest
     finally
     {
       Files.delete (aDir);
+    }
+  }
+
+  @NonNull
+  private static String _parseError (@NonNull final String sXml)
+  {
+    try
+    {
+      _parse (sXml);
+    }
+    catch (final XdmParseException ex)
+    {
+      return ex.getMessage ();
+    }
+    fail ("Parsed: " + sXml);
+    return null;
+  }
+
+  @Test
+  public void testFifthEditionNamesExplained () throws XdmParseException
+  {
+    // Names XML 1.0 (5th edition) allows, which the JDK parser rejects in an
+    // XML 1.0 document: the error says so
+    String sMsg = _parseError ("<\uD83D\uDE00/>");
+    assertTrue (sMsg, sMsg.contains ("U+1F600") && sMsg.contains ("5th edition"));
+    sMsg = _parseError ("<a><\u09EA/></a>");
+    assertTrue (sMsg, sMsg.contains ("U+09EA"));
+    sMsg = _parseError ("<?xml version='1.0'?>\n<r>\n<a \uD83D\uDE00x='1'/></r>");
+    assertTrue (sMsg, sMsg.contains ("line 3") && sMsg.contains ("U+1F600"));
+    // Other errors, also with such a character in text or an attribute value
+    assertFalse (_parseError ("<a></b>").contains ("5th edition"));
+    assertFalse (_parseError ("<a>\uD83D\uDE00</b>").contains ("5th edition"));
+    assertFalse (_parseError ("<a x='\uD83D\uDE00'></b>").contains ("5th edition"));
+    // Not names in either edition
+    assertFalse (_parseError ("<1a/>").contains ("5th edition"));
+  }
+
+  @Test
+  public void testFifthEditionNamesExplainedForFile () throws IOException
+  {
+    final Path aFile = Files.createTempFile ("xdm-names", ".xml");
+    try
+    {
+      Files.writeString (aFile, "<r><\u09EA/></r>", StandardCharsets.UTF_8);
+      new XdmParser ().parse (aFile);
+      fail ();
+    }
+    catch (final XdmParseException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().contains ("U+09EA"));
+    }
+    finally
+    {
+      Files.delete (aFile);
     }
   }
 }

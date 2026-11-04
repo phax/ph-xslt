@@ -32,6 +32,7 @@ import com.helger.xpath.value.XdmDateTimeValue;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XmlNames;
 
 /**
  * Function family: fn:format-integer, format-number, format-date,
@@ -108,7 +109,7 @@ public final class FnFormat
     if (s.startsWith ("Q{"))
     {
       final int nEnd = s.indexOf ('}');
-      if (nEnd < 0 || !FormatDateTime.isNCName (s.substring (nEnd + 1)))
+      if (nEnd < 0 || !XmlNames.isNCName (s.substring (nEnd + 1)))
         throw new XPathException ("FODF1280", "Invalid decimal format name '" + sName + "'");
       aName = new XdmQName (s.substring (2, nEnd).strip (), s.substring (nEnd + 1));
     }
@@ -119,7 +120,7 @@ public final class FnFormat
       {
         final String sPrefix = s.substring (0, nColon);
         final String sLocal = s.substring (nColon + 1);
-        if (!FormatDateTime.isNCName (sPrefix) || !FormatDateTime.isNCName (sLocal))
+        if (!XmlNames.isNCName (sPrefix) || !XmlNames.isNCName (sLocal))
           throw new XPathException ("FODF1280", "Invalid decimal format name '" + sName + "'");
         final String sUri = aStatic.getNamespaceUri (sPrefix);
         if (sUri == null)
@@ -128,7 +129,7 @@ public final class FnFormat
       }
       else
       {
-        if (!FormatDateTime.isNCName (s))
+        if (!XmlNames.isNCName (s))
           throw new XPathException ("FODF1280", "Invalid decimal format name '" + sName + "'");
         aName = new XdmQName (s);
       }

@@ -33,6 +33,7 @@ import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmTextNode;
 
 /**
  * Builds the children (and for elements the attributes and namespaces) of an
@@ -86,7 +87,10 @@ public final class ContentOutput implements IXsltOutput
     if (s.isEmpty ())
       return;
     if (m_aLastText != null)
-      m_aLastText.setValue (m_aLastText.getValue () + s);
+    {
+      // Joined when the value is read, not on every piece
+      ((XdmTextNode) m_aLastText).appendValue (s);
+    }
     else
     {
       final IXdmNode aText = IXdmNode.createText (s);

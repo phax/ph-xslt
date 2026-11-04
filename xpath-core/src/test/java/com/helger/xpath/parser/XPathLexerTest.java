@@ -25,6 +25,8 @@ import java.util.List;
 import org.jspecify.annotations.NonNull;
 import org.junit.Test;
 
+import com.helger.xpath.xdm.XmlNames;
+
 /**
  * Test class for {@link XPathLexer}.
  *
@@ -91,11 +93,11 @@ public final class XPathLexerTest
     assertEquals ("NAME(a·b)", _kinds ("a·b"));
     // Supplementary characters
     assertEquals ("NAME(𐀀x)", _kinds ("𐀀x"));
-    assertTrue (XPathLexer.isNCName ("a.b-c_d"));
-    assertFalse (XPathLexer.isNCName ("1a"));
-    assertFalse (XPathLexer.isNCName ("a:b"));
-    assertFalse (XPathLexer.isNCName (""));
-    assertFalse (XPathLexer.isNCNameStartChar (0xB5));
+    assertTrue (XmlNames.isNCName ("a.b-c_d"));
+    assertFalse (XmlNames.isNCName ("1a"));
+    assertFalse (XmlNames.isNCName ("a:b"));
+    assertFalse (XmlNames.isNCName (""));
+    assertFalse (XmlNames.isNCNameStartChar (0xB5));
   }
 
   @Test

@@ -108,7 +108,7 @@ These go-xslt functions live in V2 classes; use them, do not duplicate them:
 | `parseIdentityConstraints`, `checkKeyrefs`, `validateIdentityXPath`, `resolveXPathDefaultNS` | `XsdIdentityCompiler` |
 | `assertMessages` | `XsdMessages.messagesOf` |
 | `checkAllUPA` (the loop) | `XsdCompiler.compile` |
-| all of `schemavalid.go` | `XsdSchemaForSchemas` |
+| all of `schemavalid.go` (including `checkContentGrammar`, which replaced `structure.go`'s `checkComplexTypeStructure`) | `XsdSchemaForSchemas` |
 | `xmltree` accessors (`AttrLocal`, `LookupPrefix`, `firstXSChild`, `isXS`, `resolveQName`, `declName`, `RootElement`) | `XsdNodes` |
 
 ## Component model (V2)

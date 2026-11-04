@@ -233,6 +233,8 @@ public final class XsltTransformer
         throw new XsltException ("XTTE0590", "The global context item does not match the declared type", null, 0, 0);
     }
     aEngine.setGlobalContextItem (aGlobalItem);
+    if (aGlobalItem instanceof final IXdmNode aNode)
+      aEngine.registerSourceDocument (aNode);
     aEngine.checkGlobalParams ();
 
     XsltContext aCtx = aEngine.createRootContext ();

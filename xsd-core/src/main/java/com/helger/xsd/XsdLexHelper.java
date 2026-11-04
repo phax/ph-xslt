@@ -24,6 +24,7 @@ import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.ops.XsdLexical;
+import com.helger.xpath.xdm.XmlNames;
 
 /**
  * Lexical helpers the loader needs (from go-xslt <code>simpletype.go</code>,
@@ -53,7 +54,8 @@ final class XsdLexHelper
 
   /**
    * go-xslt <code>permissiveNCName</code>: the first character must be a letter
-   * (including letter numbers) or '_'; later ASCII characters must be
+   * (including letter numbers), '_' or an XML 1.0 (5th edition) NameStartChar;
+   * later ASCII characters must be
    * <code>[A-Za-z0-9._-]</code>, and every non-ASCII character is permitted,
    * so a valid Unicode name is never rejected.
    */
@@ -73,7 +75,12 @@ final class XsdLexHelper
       if (bFirst)
       {
         bFirst = false;
-        if (!(Character.isLetter (c) || Character.getType (c) == Character.LETTER_NUMBER || c == '_'))
+        // The 5th edition's NameStartChar adds what no letter category holds
+        // (an emoji, a Bengali digit)
+        if (!(Character.isLetter (c) ||
+              Character.getType (c) == Character.LETTER_NUMBER ||
+              c == '_' ||
+              XmlNames.isNCNameStartChar (c)))
           return false;
         continue;
       }
