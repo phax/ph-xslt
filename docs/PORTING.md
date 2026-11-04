@@ -30,6 +30,7 @@ Module `xpath-core` (`com.helger.xpath`):
 | `.collation` | `ICollation`, `CollationRegistry` |
 | `.context` | `StaticContext`, `DynamicContext`, `IResourceResolver` |
 | `.fn` | `FunctionLibrary` (registration with F&O signature strings), `IXPathFunction`, one class per function family |
+| `.stream` | `XPathStreamability` (posture/sweep of expressions and patterns, XSLT 3.0 section 19), `StreamContext` (hooks for the XSLT layer), `StreamOperand`, `IStreamFunctionResolver` |
 
 Stubs throw `UnsupportedOperationException ("Not implemented yet")`. A workstream owns a set of files (listed in its
 brief) and replaces the stubs there. Everything else is read-only for it.

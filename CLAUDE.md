@@ -32,6 +32,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   1.1. `XsdNativeIT` gates both versions (`xsd-conformance/target/xsd-native-fails.txt`, `xsd-native11-fails.txt`).
 - Local `xsl:variable`s are lazy (`DynamicContext.withLazyVariable`, evaluated once on first use); `xsl:try` must not
   catch errors of variables declared outside it (`TryScope`, `LazyVariableException`). The XPath `let` stays eager.
+- Streamability (XSLT 3.0 section 19): `com.helger.xpath.stream.XPathStreamability` classifies expressions and
+  patterns; the XSLT layer supplies its knowledge through `StreamContext`. It fails closed: an unknown construct is
+  roaming/free-ranging, never "streamable".
 - When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
   does not catch it); it happened with the XPath 1.0 compatibility conversions.
 
