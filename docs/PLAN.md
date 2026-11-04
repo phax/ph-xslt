@@ -136,3 +136,28 @@ replaces the one set by the engine and falls back to `Engine.getGlobalValue`, so
 Gate: the QT3 and XSLT30 fail lists unchanged by name on JDK 21 and 25, plus unit tests for "an unused variable with
 a dynamic error raises nothing" and "a variable used twice is evaluated once". In `ph-xpath-inventory` the schexec
 differential gate (`SchematronExecCorpusTest`) stays at 0 differences after the resolver is removed.
+
+## Flat `and`/`or` chains
+
+Status: not implemented, by decision (2026-11-04; proposed as WP-X4 of `../ph-sch2java/docs/PLAN.md`).
+
+The proposal assumed that the parser's nesting limit (XPDY0130, 5,000 levels) is reached by long `and`/`or` chains at
+about two levels per operator, i.e. at about 2,500 operators, and that parsing the chain in a loop would lift it.
+Measured (2026-11-04, JDK 21):
+
+* The parser already parses a chain in a loop (`_parseBinary`, operator precedence with an operand stack) and counts
+  one level per operator, because it builds a left-deep `BinaryExpr` tree: the parse limit is 5,000 operators.
+* The binding limit is evaluation: `XPathEvaluator` recurses down the left-deep tree and reports a
+  `StackOverflowError` as XPDY0130 ("The evaluation is nested too deeply"). The limit depends on the thread stack:
+  569 operators with 512 KB, about 1,300 with 1 MB (the JVM default), 2,499 with 2 MB, between 2,500 and 4,000 on the
+  main thread. Inside XSLT or schexec the evaluation starts deeper in the stack, so the headroom is smaller.
+* The longest chain in the Peppol Schematron corpus has 916 operators: it works with the default stack and fails on a
+  thread with a 512 KB stack.
+
+Not counting the chain in the parser would only move the failure into the evaluation. A fix would need a flat n-ary
+`and`/`or` node evaluated in a loop (like `StringConcatExpr` for `||`), with changes in the parser (`_build`), `IExpr`,
+`XPathEvaluator`, `ExprWalker`, `XPathStaticAxes` and the AST walkers of `ph-xpath-inventory` (`ExprAnalyzer`,
+`FeatureExtractor`).
+
+Decision: not implemented. The corpus works with the default thread stack; a host that evaluates such expressions on
+threads with small stacks has to give them a larger stack.
