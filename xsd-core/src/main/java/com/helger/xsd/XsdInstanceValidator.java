@@ -165,7 +165,7 @@ final class XsdInstanceValidator
 
   /** go-xslt <code>elementText</code>: the concatenated text children. */
   @NonNull
-  private static String _elementText (@NonNull final IXdmNode aElement)
+  static String elementText (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
     if (nCount == 1 && aElement.getChildAtIndex (0).isText ())
@@ -475,7 +475,7 @@ final class XsdInstanceValidator
       if (aDecl.m_bHasDefault)
         return aDecl.m_sDefault;
     }
-    return _elementText (aElement);
+    return elementText (aElement);
   }
 
   private static long _satMul (final long a, final long b)
@@ -636,8 +636,7 @@ final class XsdInstanceValidator
 
   /**
    * XSD 1.1 conditional type assignment (go-xslt
-   * <code>selectAlternativeType</code>): phase V8. A declaration with
-   * alternatives cannot be compiled before.
+   * <code>selectAlternativeType</code>).
    *
    * @return The assigned type, or <code>null</code> for the declared type.
    */
@@ -648,19 +647,22 @@ final class XsdInstanceValidator
   {
     if (!aRun.isXsd11 () || aDecl.m_aAlternatives.isEmpty ())
       return null;
-    throw XsdCompiler.unsupported11 ("xs:alternative (conditional type assignment)");
+    return XsdAssertions.selectAlternativeType (aRun, aDecl, aElement);
   }
 
   /**
-   * XSD 1.1 assertions (go-xslt <code>checkAsserts</code>): phase V8. A type
-   * with assertions cannot be compiled before.
+   * XSD 1.1 assertions (go-xslt <code>checkAsserts</code>): evaluate a complex
+   * type's assertions against an element.
    */
   private static void _checkAsserts (@NonNull final XsdValidationRun aRun,
                                      @NonNull final XsdComplexType aType,
                                      @NonNull final IXdmNode aElement)
   {
-    if (aRun.isXsd11 () && aRun.getSchema ().m_bHasAsserts)
-      throw XsdCompiler.unsupported11 ("xs:assert");
+    if (!aRun.isXsd11 () || !aRun.getSchema ().m_bHasAsserts)
+      return;
+    final ICommonsList <XsdAssertion> aAsserts = aRun.childModelOf (aType).m_aAsserts;
+    if (aAsserts.isNotEmpty ())
+      XsdAssertions.checkAsserts (aRun, aType, aElement, aAsserts);
   }
 
   /**
@@ -1099,7 +1101,7 @@ final class XsdInstanceValidator
           throw XsdCompiler.invalid ("cvc-complex-type.2.1", "element must be empty");
         // 1.1 cvc-complex-type 2.1 forbids every character information item in
         // empty content - whitespace included
-        if (b11 && !_elementText (aElement).isEmpty ())
+        if (b11 && !elementText (aElement).isEmpty ())
           throw XsdCompiler.invalid ("cvc-complex-type.2.1", "empty content admits no character data at all");
         break;
       case SIMPLE:
@@ -1120,7 +1122,7 @@ final class XsdInstanceValidator
         // An empty particle is the empty {content type} per the mapping rules
         // - and 1.1's cvc-complex-type 2.1 forbids even whitespace there
         if (b11 &&
-            !_elementText (aElement).isEmpty () &&
+            !elementText (aElement).isEmpty () &&
             aRun.getSchema ().effectiveOpenContent (aType) == null &&
             XsdComponentChecks.isEmptyParticle (aRun.getSchema ().effectiveParticle (aType)))
           throw XsdCompiler.invalid ("cvc-complex-type.2.1", "empty content admits no character data at all");
@@ -1332,7 +1334,7 @@ final class XsdInstanceValidator
                                    "element " + aDecl.m_aName.local () + " has a fixed value and must have no element children");
     if (aDecl.m_bHasFixed && !_hasChildElements (aElement) && _elementHasContent (aElement))
     {
-      final String sContent = _elementText (aElement);
+      final String sContent = elementText (aElement);
       final XsdSimpleType aST = XsdComponentParser.simpleContentType (aType);
       boolean bEqual = _fixedMatches (aST, sContent, aDecl.m_sFixed);
       if (aExtraFixed != null)

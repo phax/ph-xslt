@@ -832,18 +832,6 @@ final class XsdCompiler
     return m_eVersion == EXsdVersion.V11;
   }
 
-  /**
-   * @param sWhat
-   *        The XSD 1.1 feature.
-   * @return The exception to throw where an XSD 1.1 branch is not ported yet
-   *         (phase V8).
-   */
-  @NonNull
-  static XsdUnsupportedException unsupported11 (@NonNull final String sWhat)
-  {
-    return new XsdUnsupportedException ("XSD 1.1 " + sWhat + " is not implemented yet (phase V8)");
-  }
-
   /** @return A new invalid-verdict exception. */
   @NonNull
   static XsdInvalidException invalid (@NonNull final String sCode, @NonNull final String sMessage)

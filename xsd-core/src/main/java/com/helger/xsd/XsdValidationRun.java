@@ -28,6 +28,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmSchemaType;
 
 /**
  * The per-call state of one instance validation (go-xslt keeps it in a
@@ -69,6 +70,8 @@ final class XsdValidationRun
   {
     final XsdParticle m_aParticle;
     final XsdOpenContent m_aOpenContent;
+    /** The type's effective assertions (1.1). */
+    ICommonsList <XsdAssertion> m_aAsserts = new CommonsArrayList <> ();
     final ICommonsMap <XsdName, XsdElementDecl> m_aDecls = new CommonsLinkedHashMap <> ();
     final ICommonsMap <XsdName, ICommonsList <String>> m_aFixedsByName = new CommonsHashMap <> ();
     final ICommonsList <XsdWildcard> m_aSkipWc = new CommonsArrayList <> ();
@@ -130,6 +133,12 @@ final class XsdValidationRun
   private ICommonsMap <IXdmNode, IXsdType> m_aNodeTypes;
   private ICommonsSet <IXdmNode> m_aNodeNilled;
   private ICommonsMap <IXdmNode, ICommonsList <DefaultAttr>> m_aNodeDefaults;
+  /*
+   * The types simple-typed nodes validated against, for the typed view of XSD
+   * 1.1 assertions. null unless the schema has assertions.
+   */
+  private ICommonsMap <IXdmNode, XsdSimpleType> m_aAssertTypes;
+  private XsdBridge m_aAssertBridge;
 
   XsdValidationRun (@NonNull final XsdSchema aSchema)
   {
@@ -147,6 +156,13 @@ final class XsdValidationRun
   {
     m_aSchema = aSchema;
     m_aDocument = aDocument;
+    if (aSchema.isXsd11 () && aSchema.m_bHasAsserts)
+    {
+      // Recorded only where an assertion tree can ever read them. The default
+      // attributes are part of the element an assertion sees, on every path
+      m_aAssertTypes = new CommonsHashMap <> ();
+      m_aNodeDefaults = new CommonsHashMap <> ();
+    }
   }
 
   /**
@@ -333,8 +349,7 @@ final class XsdValidationRun
   /**
    * go-xslt <code>annotateAssertType</code>: records the type a simple-typed
    * node validated against for the typed view of later XSD 1.1 assertion
-   * evaluations. Nothing records it before phase V8 (no assertion can be
-   * compiled yet).
+   * evaluations. Unions are resolved when the assertion tree is built.
    *
    * @param aNode
    *        The element or attribute.
@@ -343,7 +358,51 @@ final class XsdValidationRun
    */
   void annotateAssertType (@Nullable final IXdmNode aNode, @Nullable final XsdSimpleType aType)
   {
-    // V8
+    if (m_aAssertTypes == null || aNode == null || aType == null || aType == XsdSimpleType.ABSENT)
+      return;
+    m_aAssertTypes.put (aNode, aType);
+  }
+
+  /**
+   * @param aNode
+   *        The element or attribute.
+   * @return The type recorded by {@link #annotateAssertType}, or
+   *         <code>null</code>.
+   */
+  @Nullable
+  XsdSimpleType getAssertType (@NonNull final IXdmNode aNode)
+  {
+    return m_aAssertTypes == null ? null : m_aAssertTypes.get (aNode);
+  }
+
+  /**
+   * The schema type a node of an assertion tree is annotated with: the type
+   * its value validated against and, for a union, the member that accepted the
+   * value.
+   *
+   * @param aType
+   *        The type.
+   * @param sValue
+   *        The value.
+   * @param aAt
+   *        The node, for QName resolution.
+   * @return The schema type.
+   */
+  @NonNull
+  XdmSchemaType getAssertSchemaType (@NonNull final XsdSimpleType aType,
+                                     @NonNull final String sValue,
+                                     @NonNull final IXdmNode aAt)
+  {
+    if (m_aAssertBridge == null)
+      m_aAssertBridge = new XsdBridge (m_aSchema);
+    XsdSimpleType aValueType = aType;
+    if (aType.m_eVariety == EXsdVariety.UNION)
+    {
+      final XsdSimpleType aMember = XsdTypeDefinition.acceptingMember (aType, sValue, aAt);
+      if (aMember != null)
+        aValueType = aMember;
+    }
+    return XdmSchemaType.of (m_aAssertBridge.definitionOf (aType), m_aAssertBridge.definitionOf (aValueType));
   }
 
   /**
@@ -542,6 +601,8 @@ final class XsdValidationRun
     // processContents, exactly like model wildcards
     if (ret.m_aOpenContent != null && ret.m_aOpenContent.m_aWildcard != null)
       ret.addWildcard (ret.m_aOpenContent.m_aWildcard);
+    if (isXsd11 () && m_aSchema.m_bHasAsserts)
+      ret.m_aAsserts = XsdAssertions.effectiveAsserts (aType);
     m_aChildModels.put (aType, ret);
     return ret;
   }

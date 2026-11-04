@@ -28,6 +28,7 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.ops.XsdLexical;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
+import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmNode;
 
 /**
@@ -283,6 +284,7 @@ final class XsdSimpleTypeValidator
     // the base's, e.g. the built-in list types' minLength 1); item checks run
     // once against the resolved item type
     XsdSimpleType s = aType;
+    boolean bHasAsserts = false;
     for (int n = 0; s != null; n++)
     {
       if (n > MAX_CHAIN)
@@ -301,12 +303,22 @@ final class XsdSimpleTypeValidator
           throw ex;
       }
       if (s.m_aAssertions.isNotEmpty ())
-        throw XsdCompiler.unsupported11 ("xs:assertion on a list type");
+        bHasAsserts = true;
       s = s.m_aBase;
     }
     if (aType.m_aItem != null)
       for (final String sItem : aItems)
         _checkInRecursive (aType.m_aItem, sItem, aAt, aActive, nDepth + 1);
+    if (bHasAsserts)
+    {
+      // $value is the sequence of typed items
+      final XdmSequence aValue = XsdAssertions.typedListValue (aItems,
+                                                               aType.m_aItem == null ? null
+                                                                                     : aType.m_aItem.resolvePrim ());
+      int n = 0;
+      for (XsdSimpleType aStep = aType; aStep != null && n <= MAX_CHAIN; aStep = aStep.m_aBase, n++)
+        XsdAssertions.evalSimpleAssertions (aStep.m_aAssertions, aValue);
+    }
   }
 
   private static void _checkUnionRecursive (@NonNull final XsdSimpleType aType,
@@ -363,7 +375,12 @@ final class XsdSimpleTypeValidator
       }
     }
     if (aType.m_aAssertions.isNotEmpty ())
-      throw XsdCompiler.unsupported11 ("xs:assertion on a union type");
+    {
+      // $value carries the accepting member's type
+      final String sMemberValue = XsdWhiteSpace.apply (aAccepting.effectiveWhiteSpace (), sValue);
+      XsdAssertions.evalSimpleAssertions (aType.m_aAssertions,
+                                          XsdAssertions.typedAtomicValue (sMemberValue, aAccepting.resolvePrim ()));
+    }
   }
 
   private static void _checkAtomicRecursive (@NonNull final XsdSimpleType aType,
@@ -407,7 +424,7 @@ final class XsdSimpleTypeValidator
       }
       XsdFacetValidator.checkIn (aLevel.m_aFacets, sValue, ePrim, aAt);
       if (aLevel.m_aAssertions.isNotEmpty ())
-        throw XsdCompiler.unsupported11 ("xs:assertion");
+        XsdAssertions.evalSimpleAssertions (aLevel.m_aAssertions, XsdAssertions.typedAtomicValue (sValue, ePrim));
     }
   }
 

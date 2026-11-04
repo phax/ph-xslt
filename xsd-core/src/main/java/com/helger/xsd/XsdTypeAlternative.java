@@ -18,11 +18,11 @@ package com.helger.xsd;
 
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
+import com.helger.xpath.CompiledXPath;
 
 /**
  * An XSD 1.1 <code>xs:alternative</code> (conditional type assignment). An empty
- * {@link #m_sRawTest} is the default alternative. Only the source form is kept
- * so far; compiling and evaluating the test is phase V8.
+ * {@link #m_sRawTest} is the default alternative.
  *
  * @author Philip Helger
  */
@@ -33,4 +33,6 @@ final class XsdTypeAlternative
   IXsdType m_aType;
   ICommonsOrderedMap <String, String> m_aNS = new CommonsLinkedHashMap <> ();
   String m_sDefaultNS = "";
+  /** The compiled test; <code>null</code> only for the default alternative. */
+  CompiledXPath m_aXPath;
 }

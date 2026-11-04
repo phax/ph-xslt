@@ -20,11 +20,10 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
+import com.helger.xpath.CompiledXPath;
 
 /**
  * An XSD 1.1 <code>xs:assert</code> or simple-type <code>xs:assertion</code>.
- * Only the source form is kept so far; compiling and evaluating the test is
- * phase V8.
  *
  * @author Philip Helger
  */
@@ -35,4 +34,6 @@ final class XsdAssertion
   ICommonsOrderedMap <String, String> m_aNS = new CommonsLinkedHashMap <> ();
   String m_sDefaultNS = "";
   ICommonsList <XsdMessage> m_aMsgs = new CommonsArrayList <> ();
+  /** The compiled <code>@test</code>. */
+  CompiledXPath m_aXPath;
 }

@@ -23,7 +23,12 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
+import com.helger.xpath.CompiledXPath;
+import com.helger.xpath.XPathCompiler;
+import com.helger.xpath.XPathException;
+import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.xdm.IXdmNode;
 
@@ -859,18 +864,52 @@ final class XsdComponentParser
   }
 
   /**
-   * The parse entry of an XSD 1.1 xs:assert / xs:assertion (go-xslt
-   * <code>parseAssert</code>). Phase V8.
+   * Compile the XPath of an assertion or a type alternative. A static error is
+   * a schema error.
+   */
+  @NonNull
+  private CompiledXPath _compileTest (@NonNull final String sTest,
+                                      @NonNull final ICommonsOrderedMap <String, String> aNS,
+                                      @NonNull final String sDefaultNS,
+                                      final boolean bValueVar,
+                                      @NonNull final String sWhat)
+  {
+    final StaticContext aSC = new StaticContext ();
+    for (final var aEntry : aNS.entrySet ())
+      if (!aEntry.getKey ().isEmpty ())
+        aSC.declareNamespace (aEntry.getKey (), aEntry.getValue ());
+    aSC.setDefaultElementNamespace (sDefaultNS);
+    aSC.setXsdVersion (m_aC.m_eVersion);
+    if (bValueVar)
+      aSC.declareVariable (XsdAssertions.VAR_VALUE);
+    try
+    {
+      return XPathCompiler.compile (sTest, aSC);
+    }
+    catch (final XPathException ex)
+    {
+      throw XsdCompiler.invalid ("", "invalid XPath in " + sWhat + ": " + ex.getMessage ());
+    }
+  }
+
+  /**
+   * go-xslt <code>parseAssert</code>: an XSD 1.1 xs:assert or xs:assertion.
    */
   @NonNull
   XsdAssertion parseAssert (@NonNull final IXdmNode aNode)
   {
-    throw XsdCompiler.unsupported11 ("xs:assert / xs:assertion");
+    final XsdAssertion ret = new XsdAssertion ();
+    ret.m_sTest = XsdNodes.attrOrEmpty (aNode, "test");
+    ret.m_aNS = XsdNodes.inScopeNamespaces (aNode);
+    ret.m_sDefaultNS = m_aC.m_aIdentity.resolveXPathDefaultNamespace (aNode);
+    ret.m_aMsgs = XsdMessages.messagesOf (aNode);
+    ret.m_aXPath = _compileTest (ret.m_sTest, ret.m_aNS, ret.m_sDefaultNS, true, "@test");
+    return ret;
   }
 
   /**
-   * go-xslt <code>parseAsserts</code>: the xs:assert children of a complex type
-   * body. Any assertion is an XSD 1.1 feature not implemented yet.
+   * go-xslt <code>parseAsserts</code>: the xs:assert children of a complex
+   * type body, extension or restriction.
    */
   @NonNull
   ICommonsList <XsdAssertion> parseAsserts (@NonNull final IXdmNode aNode)
@@ -886,15 +925,58 @@ final class XsdComponentParser
 
   /**
    * go-xslt <code>parseAlternatives</code>: the xs:alternative children of an
-   * element declaration (XSD 1.1 conditional type assignment, phase V8).
+   * element declaration (XSD 1.1 conditional type assignment).
    */
   @NonNull
   ICommonsList <XsdTypeAlternative> parseAlternatives (@NonNull final IXdmNode aNode)
   {
+    final ICommonsList <XsdTypeAlternative> ret = new CommonsArrayList <> ();
+    IXdmNode aLast = null;
     for (final IXdmNode aChild : XsdNodes.children (aNode))
       if (XsdNodes.isXS (aChild, "alternative"))
-        throw XsdCompiler.unsupported11 ("xs:alternative (conditional type assignment)");
-    return new CommonsArrayList <> ();
+        aLast = aChild;
+    for (final IXdmNode aChild : XsdNodes.children (aNode))
+    {
+      if (!XsdNodes.isXS (aChild, "alternative"))
+        continue;
+      final String sTest = XsdNodes.attr (aChild, "test");
+      // Only the last alternative (the default) may omit @test (3.3.3)
+      if (sTest == null && aChild != aLast)
+        throw XsdCompiler.invalid ("", "only the last xs:alternative may omit @test");
+      final XsdTypeAlternative aAlt = new XsdTypeAlternative ();
+      aAlt.m_aNS = XsdNodes.inScopeNamespaces (aChild);
+      aAlt.m_sDefaultNS = m_aC.m_aIdentity.resolveXPathDefaultNamespace (aChild);
+      if (sTest != null)
+      {
+        aAlt.m_aXPath = _compileTest (sTest, aAlt.m_aNS, aAlt.m_sDefaultNS, false, "xs:alternative/@test");
+        aAlt.m_sRawTest = sTest;
+      }
+      final String sTypeRef = XsdNodes.attr (aChild, "type");
+      if (sTypeRef != null)
+        aAlt.m_aType = m_aC.resolveType (aChild, sTypeRef);
+      else
+      {
+        final IXdmNode aInlineCT = XsdNodes.firstXSChild (aChild, "complexType");
+        if (aInlineCT != null)
+        {
+          final XsdComplexType aCT = new XsdComplexType ();
+          parseComplexTypeInto (aCT, aInlineCT);
+          aAlt.m_aType = aCT;
+        }
+        else
+        {
+          final IXdmNode aInlineST = XsdNodes.firstXSChild (aChild, "simpleType");
+          if (aInlineST != null)
+          {
+            final XsdSimpleType aST = new XsdSimpleType ();
+            m_aC.m_aSimpleTypes.parseSimpleTypeInto (aST, aInlineST);
+            aAlt.m_aType = aST;
+          }
+        }
+      }
+      ret.add (aAlt);
+    }
+    return ret;
   }
 
   /** go-xslt <code>parseWildcard</code>: an xs:any or xs:anyAttribute. */
