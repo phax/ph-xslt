@@ -64,6 +64,7 @@ public final class XsltTransformRequest
   private int m_nMaxDepth;
   private ExecutionBudget m_aSharedBudget;
   private boolean m_bRawDelivery;
+  private boolean m_bSourceStreamed;
 
   /** @return The global context item (normally the source document node). */
   @Nullable
@@ -303,6 +304,33 @@ public final class XsltTransformRequest
   public XsltTransformRequest setRawDelivery (final boolean bRawDelivery)
   {
     m_bRawDelivery = bRawDelivery;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if the host declared the principal source a
+   *         streamed document. Default <code>false</code>.
+   */
+  public boolean isSourceStreamed ()
+  {
+    return m_bSourceStreamed;
+  }
+
+  /**
+   * Declare that the host supplies the principal source as a streamed document
+   * (XSLT 3.0 leaves it to the host how an input reaches the
+   * processor; the W3C test catalogue says so with
+   * <code>&lt;source streaming="true"/&gt;</code>). The engine does not stream
+   * yet: the source is still a complete tree, and the flag is only recorded.
+   *
+   * @param bSourceStreamed
+   *        <code>true</code> if the principal source is streamed.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setSourceStreamed (final boolean bSourceStreamed)
+  {
+    m_bSourceStreamed = bSourceStreamed;
     return this;
   }
 }

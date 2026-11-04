@@ -51,6 +51,7 @@ import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltException;
+import com.helger.xslt.fn.XsltFunctions;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.model.AttributeSet;
@@ -1489,6 +1490,17 @@ public final class StylesheetCompiler
       if (m_aStylesheet.getAttributeSet (aRef.name ()) == null ||
           m_aPackages.isHidden (aRef.element (), PackageComponent.getSymbolicName ("attribute-set", aRef.name (), 0)))
         throw XsltException.at (aRef.element (), "XTSE0710", "No attribute set named " + aRef.name ().getEQName ());
+    // A streamable attribute set may only use streamable attribute sets
+    // (XTSE0730)
+    for (final AttributeSetRef aRef : m_aAttributeSetRefs)
+      if (aRef.element ().isXsl ("attribute-set") && XsltNames.isXsltTrue (aRef.element ().getAttr ("streamable")))
+        for (final AttributeSet.Decl aDecl : m_aStylesheet.getAttributeSet (aRef.name ()).decls ())
+          if (!XsltNames.isXsltTrue (aDecl.element ().getAttr ("streamable")))
+            throw XsltException.at (aRef.element (),
+                                    "XTSE0730",
+                                    "The streamable attribute set uses the attribute set " +
+                                                aRef.name ().getEQName () +
+                                                ", which is not declared streamable");
     // Circular attribute sets (XTSE0720)
     for (final AttributeSet aSet : m_aStylesheet.attributeSets ().values ())
     {
@@ -1536,6 +1548,8 @@ public final class StylesheetCompiler
 
     final FunctionLibrary aLib = FunctionLibrary.createDefault ();
     m_aRegistry.contributeFunctions (aLib);
+    if (m_aOptions.isStreamingClaim ())
+      XsltFunctions.registerStreamingClaim (aLib);
     m_aStylesheet = new CompiledStylesheet (aLib, aPrincipal);
     m_aStylesheet.setPackages (m_aPackages);
     m_aStylesheet.modules ().addAll (aLoader.getAllModules ());

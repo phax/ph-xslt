@@ -181,15 +181,27 @@ public final class SortKeyDef
       if (!XsltNames.isXsltBooleanLexical (s))
         throw new XPathException ("XTDE0030", "stable='" + s + "' is not a boolean");
     }
+    String sLang = null;
     if (m_aLang != null)
     {
-      final String s = m_aLang.evaluate (aCtx).trim ();
-      if (!_isValidLang (s))
-        throw new XPathException ("XTDE0030", "lang='" + s + "' is not a valid language code");
+      sLang = m_aLang.evaluate (aCtx).trim ();
+      if (!_isValidLang (sLang))
+        throw new XPathException ("XTDE0030", "lang='" + sLang + "' is not a valid language code");
     }
     String sCollation = m_sDefaultCollation;
     if (m_aCollation != null)
       sCollation = CollationRegistry.resolveUri (m_aCollation.evaluate (aCtx).trim (), m_aElement.getStaticBaseUri ());
+    else
+      if (sLang != null && !sLang.isEmpty ())
+      {
+        // lang without collation: a collation for that language (XSLT 3.0
+        // leaves the choice to the processor), with case-order as its
+        // case-first parameter. Swedish sorts å, ä and ö after z.
+        sCollation = CollationRegistry.UCA_URI + "?fallback=yes;lang=" + sLang;
+        if (nCaseOrder != 0)
+          sCollation += ";caseFirst=" + (nCaseOrder > 0 ? "upper" : "lower");
+        nCaseOrder = 0;
+      }
     final ICollation aCollation;
     if (CollationRegistry.CODEPOINT_URI.equals (sCollation))
       aCollation = null;
