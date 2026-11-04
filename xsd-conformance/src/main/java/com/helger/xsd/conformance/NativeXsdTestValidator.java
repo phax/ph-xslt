@@ -34,9 +34,8 @@ import com.helger.xsd.XsdValidationResult;
  * The native validator of <code>xsd-core</code> as {@link IXsdTestValidator}.
  * Schema documents and the files they reference are read from the local file
  * system only ({@link XsdFileAccess#LOCAL_FILES}); the network is never used.
- * Every construct the native validator does not implement yet is reported as
- * unsupported, never as a verdict. XSD 1.1 is not implemented yet (phase V8):
- * every XSD 1.1 case is unsupported.
+ * A construct the native validator does not implement is reported as
+ * unsupported, never as a verdict. Both XSD 1.0 and 1.1 are supported.
  *
  * @author Philip Helger
  */

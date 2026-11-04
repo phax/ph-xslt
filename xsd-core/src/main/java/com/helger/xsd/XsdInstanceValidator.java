@@ -48,10 +48,10 @@ import com.helger.xsd.XsdValidationRun.ChildModel;
  * per-call state go-xslt keeps on its per-call <code>Schema</code> copy lives
  * in {@link XsdValidationRun}, never in {@link XsdSchema}.
  * <p>
- * Only the first error is reported (go-xslt's non-collecting mode); collecting
- * all errors (<code>collect.go</code>, <code>explain.go</code>) is phase V7.
- * The XSD 1.1 seams that need phase V8 are <code>_selectAlternativeType</code>
- * and <code>_checkAsserts</code>. Nesting of instance elements is bounded (see
+ * Only the first error is reported unless the run collects all errors (go-xslt
+ * <code>collect.go</code>). XSD 1.1 conditional type assignment and
+ * assertions are evaluated by {@link XsdAssertions}. Nesting of instance
+ * elements is bounded (see
  * {@link #validateRoot}); every other walk over the instance is iterative.
  *
  * @author Philip Helger

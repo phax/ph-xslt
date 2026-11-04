@@ -80,7 +80,7 @@ input-controlled structure (go-xslt relies on its growable stack, Java does not 
 | V5 | `XsdInstanceValidator`, `XsdAttributeValidator`, `XsdIdentityValidator`, `XsdValidationRun`, new classes of its own | `instance.go`, `attributes.go`, `identity.go` (run-time half) |
 | V6 | `XsdBridge`, new classes of its own | `bridge.go` |
 | V7 (done) | `XsdErrorCollector`, `XsdExplain`, `XsdValidationOptions`, `XsdMessages` (selection); the collector hooks in `XsdInstanceValidator`, `XsdAttributeValidator`, `XsdValidationRun`, `XsdInvalidException`, `XsdSchema` | `collect.go`, `explain.go`, `messages.go` (selection) |
-| V8 | the XSD 1.1 stubs (`XsdCompiler.unsupported11` call sites), `XsdAssertion`, `XsdTypeAlternative`, `XsdOpenContent` | `xsd11.go`, `override.go`, 1.1 branches |
+| V8 (done) | `XsdAssertions`, `XsdOverride`, `XsdAssertion`, `XsdTypeAlternative`, `XsdOpenContent`, the former 1.1 stubs | `xsd11.go`, `override.go`, 1.1 branches |
 
 A change to a file a phase does not own must be strictly additive (a new method, a new field) and be listed in the
 phase's report (PORTING.md rule 2). The stubs' signatures may be changed by their owner as long as every V2 call site
@@ -232,8 +232,8 @@ the first error can differ).
   `order`, `particle` = Clark name of the element declaration concerned, code `cvc-complex-type.2.4`). `xs:all`, open
   content, occurrence bounds above 120 to unroll and more than 5,000 children are not explained: the generic message
   stays (`kind` empty). It never decides validity. Walks are iterative; group nesting is followed to 100 levels.
-* `msg:message` (go-xslt `messages.go`) in an `xs:appinfo` of an `xs:element`, `xs:attribute`, model group (and, from
-  V8 on, `xs:assert` / `xs:assertion`) gives the diagnostic its own wording and `rule`:
+* `msg:message` (go-xslt `messages.go`) in an `xs:appinfo` of an `xs:element`, `xs:attribute`, model group, `xs:assert` or
+  `xs:assertion` gives the diagnostic its own wording and `rule`:
 
       <xs:element name="a" xmlns:msg="urn:fdc:helger.com:ph-xslt:xsd:messages">
         <xs:annotation><xs:appinfo>
@@ -251,15 +251,25 @@ the first error can differ).
   is lowered from 250 to 50: a level costs six frames, 2.3 KB interpreted and over 5 KB while the JIT only has profiled
   code, so even 100 levels overflowed a 512 KB stack in a full test run (the collector hooks add one frame per level).
   Deeper documents cost a thread start, nothing else.
-* Not part of V7: the assertion half of `messages.go` (`assertionFailed`, `failAssert`) belongs to V8 with `xs:assert`;
-  `afterModelError` already calls the assertion check, which is the V8 stub.
 
 ## XSD 1.1 (V8)
 
-1.1 branches inside ported functions are kept; the trivial ones are ported, the features throw
-`XsdCompiler.unsupported11 (what)`: `xs:assert` / `xs:assertion` (`XsdComponentParser.parseAssert`),
-`xs:alternative` (`parseAlternatives`), `xs:openContent` / `xs:defaultOpenContent` (`_applyOpenContent`),
-`xs:override` (`XsdDocumentCollector`). The harness reports every 1.1 case as unsupported until then.
+* `XsdComponentParser.parseAssert` / `parseAlternatives` compile `@test` with the XPath engine at schema compile time
+  (namespaces in scope, the resolved `xpathDefaultNamespace`, the schema's XSD version; `$value` is declared for
+  assertions only). A static error is a schema error.
+* `XsdAssertions` evaluates at validation time: `checkAsserts` against a detached copy of the element without comments
+  and processing instructions, whose descendants and attributes carry the schema type they validated against (recorded
+  by `XsdValidationRun.annotateAssertType` only when the schema has assertions), plus the default attributes the
+  validation supplied; `$value` is the typed simple content or the empty sequence. `evalSimpleAssertions` runs
+  `xs:assertion` facets with an absent focus. `selectAlternativeType` evaluates the alternatives against a parentless
+  copy of the element with its attributes and inherited attributes but no children. Any dynamic error makes an
+  assertion fail and an alternative not selected.
+* `XsdComponentParser._applyOpenContent` sets `xs:openContent` / `xs:defaultOpenContent`; the content matcher already
+  handled open content.
+* `XsdOverride` is the 4.2.5 override transformation (a rewritten copy of the overridden document, collected by
+  `XsdDocumentCollector._collectOverride`).
+* `XsdSchemaProvider` compiles as XSD 1.1, like go-xslt's XSLT host; the bridge drops the 1.1-only ENTITY rule there
+  (`createSchemaSet (schema, lenientEntities)`), the differential test does not.
 
 ## Differences to go-xslt (deliberate)
 
@@ -270,6 +280,8 @@ the first error can differ).
 * Identity-constraint XPaths are compiled at schema compile time; a compile failure is unsupported.
 * Facet-value ordering of date/time values without timezone uses the implicit timezone UTC.
 * The `msg:message` namespace is `urn:fdc:helger.com:ph-xslt:xsd:messages` (go-xslt: its GitHub URL).
+* The copy a type alternative's `@test` is evaluated against has no parent (XSD 1.1 Part 1, 3.12.4, rule 1.2: "In the
+  copy of E, the [parent] property is modified to have no value"); go-xslt keeps the parent.
 * Collecting is the default of `validate` / `validateText` (go-xslt's `Validate` does the same); there is no
   context-cancellation variant (`ValidateOptsCtx`).
 

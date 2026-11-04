@@ -23,6 +23,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   (`xpath-conformance/target/qt3-fails.txt`) by name, never by count, and run JDK 21 and 25.
 - Keep `README.md` in sync like a wiki page: status figures, the module table and the setup sections are updated in the
   same change that makes them wrong.
+- XSD: the native validator (`xsd-core`) does XSD 1.0 and 1.1; `XsdSchemaProvider` (schema-aware XPath/XSLT) compiles as
+  1.1. `XsdNativeTest` gates both versions (`xsd-conformance/target/xsd-native-fails.txt`, `xsd-native11-fails.txt`).
 - When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
   does not catch it); it happened with the XPath 1.0 compatibility conversions.
 

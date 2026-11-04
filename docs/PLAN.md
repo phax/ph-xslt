@@ -6,9 +6,9 @@ Suites are cloned next to this repo (`../../git-thirdparty/{qt3tests,xslt30-test
 Decisions:
 
 * Apache 2.0, Java 21 (CI also on 25), `com.helger.xpath`, no `ph-` artifact prefix.
-* XML parsing: JDK SAX. XSD: the native validator (`xsd-core`, XSD 1.0) is the default schema provider; Apache
-  Xerces-J 2.12.2 (optional dependency of `xpath-xdm`, without xml-apis, XSD 1.0) is the fallback; without either the
-  JDK validator (`JdkSchemaProvider`, validation only). XSD 1.1 is phase V8.
+* XML parsing: JDK SAX. XSD: the native validator (`xsd-core`, XSD 1.0 and 1.1; schema-aware XPath and XSLT compile
+  as 1.1) is the default schema provider; Apache Xerces-J 2.12.2 (optional dependency of `xpath-xdm`, without
+  xml-apis, XSD 1.0) is the fallback; without either the JDK validator (`JdkSchemaProvider`, validation only).
 * Own XDM tree (`IXdmNode`). `IMicroDocument` from ph-xml becomes an optional adapter module, not the model.
 * Hungarian notation and camel case everywhere except records.
 
@@ -51,8 +51,9 @@ Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests`
 2026-10-26. Why Xerces-J is needed today and why it is only the fallback: [SCHEMA.md](SCHEMA.md).
 
 * New module `xsd-core` (package `com.helger.xsd`, depends on `xpath-core`) plus `xsd-conformance` for the harness.
-* XSD 1.0 first; the version switch stays in the code so that XSD 1.1 (assertions and conditional type assignment on
-  our XPath engine, `xs:override`, open content) can follow without a rework.
+* XSD 1.0 first, then XSD 1.1 (assertions and conditional type assignment on our XPath engine, `xs:override`, open
+  content) on the version switch that stayed in the code. Since V8 `XsdSchemaProvider` compiles as 1.1, like go-xslt's
+  XSLT host (decided 2026-11-04).
 * The native validator is the default schema provider (V6). Xerces-J stays as an optional second provider and as the
   differential reference (`-Dxdm.schemaProvider=xerces`).
 * XSLT and XPath only need the first error; the public validation API (`XsdSchema.validate`) collects all errors (V7).
@@ -67,7 +68,7 @@ Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests`
 | V5 | Instance validation: attributes, identity constraints, `xsi:type`/`nil`/`schemaLocation` hints | `instance.go`, `attributes.go`, `identity.go` | done, first-error mode only (collect-all is V7). Merged V3-V5, native XSD 1.0: 39,396 of 39,401 pass, 0 unsupported; the 5 fails are go-xslt's documented five (`groupH021v`, `idB005`, `particlesZ001.i`, `particlesZ023/024`). Fail lists identical on JDK 21 and 25 |
 | V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | done: `XsdBridge` (`IXdmSchemaSet`) and `XsdSchemaProvider` in `xsd-core`; in place vs. from text agree on all 25,018 compared XSD 1.0 instances (`XsdBridgeDifferentialTest`); `XdmSchemaSupport` loads the native provider by default (`-Dxdm.schemaProvider=xerces` for Xerces-J); QT3 identical to Xerces-J by name (59), XSLT30 schema-aware 17 fails against 18 for Xerces-J (see `xslt30-schema-aware.md`); the native xsdtests gate is on (go-xslt's five fails) |
 | V7 | Public validation API: all errors in document order, content-model explanations, `msg:message` | `collect.go`, `explain.go`, `messages.go` | done: `XsdSchema.validate`/`validateText` collect all errors (`XsdValidationOptions`: language, max errors), `XsdExplain` names missing/too-many/unexpected/order, `msg:message` in namespace `urn:fdc:helger.com:ph-xslt:xsd:messages` (go-xslt's URI is not used); the in-place path stays first-error; native XSD 1.0 unchanged (39,396 of 39,401) |
-| V8 | XSD 1.1 | `xsd11.go`, `override.go`, version branches | later |
+| V8 | XSD 1.1 | `xsd11.go`, `override.go`, version branches | done: `XsdAssertions` (assertions, type alternatives), `XsdOverride`, open content; native XSD 1.1 41,549 of 41,553, 0 unsupported, the 4 fails are go-xslt's documented four (`all308.xsd`, `particlesZ026`, `particlesZ033_g`, `ste110.i`); `XsdNativeTest` gates both versions; in place vs. from text agree on all 51,245 instances of both versions; `XsdSchemaProvider` compiles as 1.1: XSLT30 schema-aware 15 fails (was 17) |
 
 V3 to V5 run as parallel worktree agents once V2 is merged. Gate for each: the XSD 1.0 fail list by name, with
 go-xslt's 5 documented fails as the target, plus the XSLT30 (default and schema-aware) and QT3 lists.

@@ -36,7 +36,8 @@ import com.helger.xpath.xdm.schema.XdmSchemaSource;
 
 /**
  * The native schema processor as {@link IXdmSchemaProvider}: schema documents
- * are compiled by {@link XsdSchema} (XSD 1.0) and handed out as
+ * are compiled by {@link XsdSchema} as XSD 1.1 (like go-xslt's XSLT host; XSLT
+ * 3.0 leaves the version to the processor) and handed out as
  * a schema set that validates {@link com.helger.xpath.xdm.IXdmNode} trees in
  * place (go-xslt <code>bridge.go</code>). Schema documents and the files they
  * reference are read from the local file system only.
@@ -103,7 +104,12 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
   {
     final Path aPath = aSource.systemId () == null ? null : _toPath (aSource.systemId ());
     if (aSource.text () != null)
-      return XsdSchemaSource.ofText (aSource.text (), aPath == null ? null : aPath.getParent ());
+    {
+      // The base of an inline schema may be a directory (xml:base="dir/"): its
+      // references resolve inside it, not beside it
+      final Path aBaseDir = aPath == null ? null : aSource.systemId ().endsWith ("/") ? aPath : aPath.getParent ();
+      return XsdSchemaSource.ofText (aSource.text (), aBaseDir);
+    }
     if (aPath == null)
       throw new XdmSchemaException ("Cannot read the schema document " + aSource.systemId (),
                                     new IOException ("Only local files are read"));
@@ -129,7 +135,7 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
     try
     {
       return createSchemaSet (XsdSchema.compile (aDocuments,
-                                                 EXsdVersion.V10,
+                                                 EXsdVersion.V11,
                                                  new XsdCompileOptions ().setFileAccess (XsdFileAccess.LOCAL_FILES)));
     }
     catch (final XsdInvalidException ex)

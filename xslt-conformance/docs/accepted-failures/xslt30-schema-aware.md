@@ -1,9 +1,9 @@
 # XSLT 3.0 (`xslt30-test`): failing cases of the schema-aware run
 
 Schema-aware processor (`-Dxslt30.schemaAware=true`; no streaming or backwards compatibility claimed), with the
-native validator of `xsd-core` as schema processor (the default of the harness): 9,293 of 9,310 applicable cases
-pass, 17 fail. With Apache Xerces-J 2.12.2 (`-Dxdm.schemaProvider=xerces`) 9,292 pass and 18 fail: the 17 cases of
-this file plus `merge-051`, which the native validator passes (see below). Measured offline, on JDK 21 and 25. The default run (basic processor) and its failures are in `xslt30.md`; this run claims schema-awareness in both
+native validator of `xsd-core` as schema processor (the default of the harness; it compiles imported schemas as XSD
+1.1): 9,295 of 9,310 applicable cases pass, 15 fail. Apache Xerces-J 2.12.2 (`-Dxdm.schemaProvider=xerces`, XSD 1.0
+only) additionally fails the XSD 1.1 cases listed below. Measured offline, on JDK 21 and 25. The default run (basic processor) and its failures are in `xslt30.md`; this run claims schema-awareness in both
 directions: the 686 cases that need it run, and the 31 cases written for a processor without it
 (`XSLT30SchemaUnawareCasesTest`; 22 of them apply to the default run) are skipped, 663 applicable cases more than
 in the default run.
@@ -12,18 +12,25 @@ Every failing case is named here in backticks under a heading with its status an
 `-Dxslt30.schemaAware=true` fails on any failing case that is not named here. Remove an entry when its case passes.
 Status **Open** means winnable later; **Accepted** means a decision not to.
 
-### `accumulator-073`, `catalog-009`, `strip-space-009`, `validation-1301`
-**Status:** Accepted (schema processor).
-The schemas use XSD 1.1 (`xs:assert`, `xs:alternative`), which neither Apache Xerces-J 2.12.2 nor the native
-validator (XSD 1.0 only until phase V8) supports: the imported schema is rejected (XTSE0220), or for `strip-space-009`
-the source schema, so the source is not valid. go-xslt has its own XSD 1.1 validator and passes them.
+### `accumulator-073`
+**Status:** Open.
+The schema `books.xsd` carries a `vc:minVersion="1.1"` assertion and compiles; the case then fails in the XSLT engine
+with XTDE3362: the stylesheet's unnamed mode has no `use-accumulators`, so `f:total-price` is not applicable to the
+principal source document, while the expected result reads accumulator values on nodes copied with
+`copy-accumulators="yes"`. Not analysed further.
 
-### `merge-051` (Xerces-J only)
+### `strip-space-009`
+**Status:** Accepted (not required by XSLT 3.0).
+The case expects whitespace text nodes to be kept below an element whose type has an XSD 1.1 assertion. XSLT 3.0
+section 4.4 exempts only elements whose type annotation is a simple type or a complex type with simple content from
+`xsl:strip-space`; no rule about assertions was found in the Recommendation.
+
+### Xerces-J only: `catalog-009`, `validation-1301`, `accumulator-073`, `strip-space-009`, `merge-051`
 **Status:** Accepted (schema processor).
-Xerces-J rejects the XSD 1.1 schema `books.xsd` (XTSE0220). The native validator reads it (a `vc:minVersion`
-assertion is left out under XSD 1.0), and since `xsl:merge-source` honours `validation` and `type`, the case passes.
-`merge-049`, `merge-050` and `merge-052` pass with the native validator for the same reason; Xerces-J passes them only
-because the harness accepts any error where the catalog expects XTSE1650.
+The schemas use XSD 1.1, which Xerces-J 2.12.2 does not read: the imported schema is rejected (XTSE0220), or for
+`strip-space-009` the source schema, so the source is not valid. The native validator passes `catalog-009`,
+`validation-1301` and `merge-051`. `merge-049`, `merge-050` and `merge-052` (schema `books.xsd` as well) pass with
+Xerces-J only because the harness accepts any error where the catalog expects XTSE1650.
 
 ### `catalog-005`, `catalog-005b`
 **Status:** Accepted (same as go-xslt).

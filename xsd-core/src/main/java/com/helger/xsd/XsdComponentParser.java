@@ -35,8 +35,7 @@ import com.helger.xpath.xdm.IXdmNode;
 /**
  * Compiles complex types, particles, local declarations, wildcards and
  * attribute uses (the parsing half of go-xslt <code>structure.go</code>, plus
- * the parse entry points of <code>xsd11.go</code>, whose XSD 1.1 features are
- * stubs until phase V8).
+ * the parse entry points of <code>xsd11.go</code>).
  *
  * @author Philip Helger
  */

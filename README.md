@@ -9,7 +9,7 @@ XML parsing is left to the JDK; everything on top of it, including an XML Schema
 Status: work in progress. The XPath 3.1 engine runs and passes 99.7% of the applicable W3C QT3 test cases
 (22,419 of 22,478). The XSLT 3.0 engine passes 99.9% of the applicable W3C xslt30-test cases as a basic
 processor (8,637 of 8,647). The native XML Schema validator passes 99.99% of the applicable W3C xsdtests cases for
-XSD 1.0 (39,396 of 39,401); XSD 1.1 is not done yet. Schema-awareness is available as an opt-in; streaming and
+XSD 1.0 (39,396 of 39,401) and XSD 1.1 (41,549 of 41,553). Schema-awareness is available as an opt-in; streaming and
 backwards compatibility are not done yet.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
@@ -22,7 +22,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `xpath-conformance` | W3C QT3 test harness (not deployed) | usable |
 | `xslt-core` | XSLT 3.0: stylesheet compiler, modules, templates and modes, the basic instructions, XSLT functions | in progress |
 | `xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
-| `xsd-core` | Native XML Schema 1.0 validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine, schema-for-schemas checks, simple types and facets, content models, instance validation with identity constraints, read-only component view, validation API that reports all errors; the default schema provider for XPath and XSLT. XSD 1.1 not yet | usable |
+| `xsd-core` | Native XML Schema 1.0 and 1.1 validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine/override, schema-for-schemas checks, simple types and facets, content models with open content, instance validation with identity constraints, assertions and conditional type assignment, read-only component view, validation API that reports all errors; the default schema provider for XPath and XSLT (schemas compiled as XSD 1.1) | usable |
 | `xsd-conformance` | W3C xsdtests (XML Schema) harness with a pluggable validator (not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
@@ -33,16 +33,17 @@ Schema-awareness (`XsltCompileOptions.setSchemaAware (true)`: `xsl:import-schema
 typed sources, `schema-element()` and user-defined types in XPath) needs a schema processor on the class path. Without
 one the engine is a basic XSLT 3.0 processor. Two providers are supported:
 
-* **The native validator** (module `xsd-core`, recommended): XSD 1.0, no further dependencies. It is used whenever it
-  is on the class path.
+* **The native validator** (module `xsd-core`, recommended): no further dependencies; imported schemas are compiled as
+  XSD 1.1, so assertions, conditional type assignment, open content and `xs:override` work. It is used whenever it is
+  on the class path.
 * **Apache Xerces-J** (`xerces:xercesImpl` 2.12.2, an optional dependency of `xpath-xdm`): the fallback when
-  `xsd-core` is absent, or when the system property `xdm.schemaProvider=xerces` is set. Add it yourself, excluding
+  `xsd-core` is absent, or when the system property `xdm.schemaProvider=xerces` is set. XSD 1.0 only. Add it yourself, excluding
   `xml-apis` (the JDK provides those APIs). Note that the presence of the jar alone changes what
   `SAXParserFactory.newInstance ()` and `SchemaFactory.newInstance (...)` return for other code in the same
   application (its `META-INF/services` entries).
 
 In both cases XML parsing stays on the JDK parser. `xsd-core` can also be used on its own to validate documents
-(`XsdSchema.validate`, which reports all errors).
+(`XsdSchema.validate`, which reports all errors), against XSD 1.0 or 1.1.
 
 ```xml
 <dependency>
