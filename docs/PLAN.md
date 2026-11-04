@@ -78,3 +78,40 @@ Known JDK differences found so far:
 * JDK 25 secure processing limits the element depth to 100, JDK 21 does not. `XdmParser` sets the limit explicitly (default 10,000).
 * JDK 25 secure processing allows only 2,500 entity expansions (JDK 21: 64,000). `XdmParser` pins all JAXP entity
   limits to the JDK 21 defaults; `XdmParserEntityExpansionTest` runs go-xslt's expansion attacks against them.
+
+## Lazy variable evaluation
+
+Status: open (raised 2026-11-04 by the Schematron executor `com.helger.tools.schexec` in `ph-xpath-inventory`).
+
+Today only global variables and parameters are evaluated on first use (`Engine.getGlobalValue`, reached through the
+run-wide resolver of `DynamicContext`, with XTDE0640 for cycles). Everything else is eager:
+
+* A local `xsl:variable` is evaluated when it is bound (`LocalVariable.bind`). The only exception is the narrow
+  `CoreInstructions._isUnusedLocalVariable` case (a bare variable reference without `as` that nothing after it
+  mentions), added for param-0301.
+* The XPath `let` clause evaluates each binding before the body (`XPathEvaluator._evalLet`).
+* `DynamicContext.withVariable` only accepts a computed `XdmSequence`; `VarBinding` holds a value.
+
+XPath 3.1 section 2.3.4 leaves the evaluation order open, so eager evaluation is conformant. Saxon evaluates
+variables lazily, and stylesheets in the wild depend on it: a variable whose value raises a dynamic error is harmless
+as long as no path uses it. The Peppol Schematrons are an example. Schematron rule lets become local `xsl:variable`s
+in the ISO skeleton; evaluated eagerly they raised XPTY0004 on mutated instances where Saxon raised nothing.
+schexec now works around this with its own resolver that evaluates and caches lets on first use. That resolver
+replaces the one set by the engine and falls back to `Engine.getGlobalValue`, so it bypasses `_resolveGlobal`
+(static values, `xsl:original`) and keeps mutable per-node state outside the context.
+
+Task:
+
+* `DynamicContext`: a lazy binding, for example `withLazyVariable (XdmQName, Supplier <XdmSequence>)`, whose
+  `VarBinding` holds a memoising thunk. The thunk evaluates in the context where the variable is declared (focus,
+  `current()`, local variables), not in the context where it is referenced.
+* `LocalVariable.bind` binds such a thunk. The `as` conversion and the error location (`XsltException.locate` with the
+  `xsl:variable` element) happen when the value is first used. `_isUnusedLocalVariable` then becomes unnecessary.
+* Decide whether the XPath `let` clause becomes lazy as well. The thunk costs an allocation per binding in hot loops,
+  so measure it before deciding.
+* Public use by hosts: with `withLazyVariable`, schexec binds document lets once on its root context and rule lets
+  per context node, and drops its resolver.
+
+Gate: the QT3 and XSLT30 fail lists unchanged by name on JDK 21 and 25, plus unit tests for "an unused variable with
+a dynamic error raises nothing" and "a variable used twice is evaluated once". In `ph-xpath-inventory` the schexec
+differential gate (`SchematronExecCorpusTest`) stays at 0 differences after the resolver is removed.
