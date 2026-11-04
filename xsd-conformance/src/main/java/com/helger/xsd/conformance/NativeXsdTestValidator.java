@@ -84,7 +84,7 @@ public final class NativeXsdTestValidator implements IXsdTestValidator
 
   public boolean isVersionSupported (@NonNull final EXsdVersion eVersion)
   {
-    return eVersion == EXsdVersion.XSD_10;
+    return true;
   }
 
   @NonNull
@@ -100,7 +100,8 @@ public final class NativeXsdTestValidator implements IXsdTestValidator
     {
       // Qualified: the harness has its own EXsdVersion of the same name
       final XsdSchema aSchema = XsdSchema.compileFiles (aSchemaDocuments,
-                                                        com.helger.xpath.context.EXsdVersion.V10,
+                                                        eVersion == EXsdVersion.XSD_11 ? com.helger.xpath.context.EXsdVersion.V11
+                                                                                       : com.helger.xpath.context.EXsdVersion.V10,
                                                         aOptions);
       return XsdCompileResult.valid (new NativeSchema (aSchema));
     }

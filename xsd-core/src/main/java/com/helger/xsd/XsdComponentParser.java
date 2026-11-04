@@ -235,19 +235,57 @@ final class XsdComponentParser
   }
 
   /**
+   * go-xslt <code>parseOpenContent</code>: an xs:openContent or
+   * xs:defaultOpenContent. The wildcard's processContents defaults to lax.
+   */
+  @NonNull
+  private XsdOpenContent _parseOpenContent (@NonNull final IXdmNode aNode)
+  {
+    final String sModeAttr = XsdNodes.attr (aNode, "mode");
+    final String sMode = sModeAttr == null ? XsdOpenContent.MODE_INTERLEAVE : XsdWhiteSpace.collapse (sModeAttr);
+    if (XsdOpenContent.MODE_NONE.equals (sMode))
+      return new XsdOpenContent (XsdOpenContent.MODE_NONE, null);
+    final IXdmNode aAny = XsdNodes.firstXSChild (aNode, "any");
+    if (aAny == null)
+      throw XsdCompiler.invalid ("", "xs:openContent with mode " + XsdLexHelper.quote (sMode) + " requires an xs:any child");
+    final XsdWildcard aWC = parseWildcard (aAny);
+    if (aWC.m_sProcess.isEmpty ())
+      aWC.m_sProcess = XsdWildcard.PROCESS_LAX;
+    return new XsdOpenContent (sMode, aWC);
+  }
+
+  /**
    * go-xslt <code>applyOpenContent</code>: set a complex type's {open content}
-   * (XSD 1.1, phase V8). Under 1.0 nothing happens.
+   * (XSD 1.1): an explicit xs:openContent in one of the bodies wins; otherwise
+   * the document's xs:defaultOpenContent applies - never to simple content,
+   * and to an empty effective content type only with appliesToEmpty="true"
+   * (3.4.2.5, 4.2.2). Under 1.0 nothing happens.
    */
   private void _applyOpenContent (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode... aBodies)
   {
     if (!m_aC.isXsd11 ())
       return;
     for (final IXdmNode aBody : aBodies)
-      if (aBody != null && XsdNodes.firstXSChild (aBody, "openContent") != null)
-        throw XsdCompiler.unsupported11 ("xs:openContent");
+      if (aBody != null)
+      {
+        final IXdmNode aOC = XsdNodes.firstXSChild (aBody, "openContent");
+        if (aOC != null)
+        {
+          aCT.m_aOpenContent = _parseOpenContent (aOC);
+          return;
+        }
+      }
     final XsdSchemaDocument aSD = m_aC.m_aCurDoc;
-    if (aSD != null && aSD.m_aDefaultOpenNode != null && aCT.m_eKind != EXsdContentKind.SIMPLE)
-      throw XsdCompiler.unsupported11 ("xs:defaultOpenContent");
+    if (aSD == null || aSD.m_aDefaultOpenNode == null || aCT.m_eKind == EXsdContentKind.SIMPLE)
+      return;
+    // An empty content type (no particle content, not mixed - an empty
+    // xs:sequence counts) takes the default only with appliesToEmpty="true";
+    // mixed with an empty particle is not empty
+    if (aCT.m_eKind != EXsdContentKind.MIXED &&
+        XsdComponentChecks.isEmptyParticle (m_aC.m_aSchema.effectiveParticle (aCT)) &&
+        !XsdNodes.boolAttrTrue (aSD.m_aDefaultOpenNode, "appliesToEmpty"))
+      return;
+    aCT.m_aOpenContent = _parseOpenContent (aSD.m_aDefaultOpenNode);
   }
 
   /**

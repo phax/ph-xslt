@@ -76,6 +76,11 @@ final class XsdValueCompare
   @Nullable
   static XdmAtomic castOrNull (@NonNull final String sLexical, @NonNull final EAtomicType eTarget)
   {
+    // XSD 1.1 xs:anyURI accepts every string (even ":a" and "%"); the stricter
+    // check of the XPath cast does not apply, and 1.0's RFC 2396 rule is checked
+    // where it applies (XsdLexHelper.validAnyURI10)
+    if (eTarget == EAtomicType.ANY_URI)
+      return XdmAtomic.anyUri (XsdWhiteSpace.collapse (sLexical));
     try
     {
       return AtomicCaster.castFromString (sLexical, eTarget, null);

@@ -303,6 +303,62 @@ final class XsdDocumentCollector
     }
   }
 
+  /**
+   * go-xslt <code>collectOverride</code>: load the target of an xs:override
+   * carrying component children, apply the override transformation, and
+   * collect the rewritten document. The dedup keys carry the override's
+   * signature: the same path under a different override is a fresh
+   * collection, while the merge fixpoint in override cycles terminates because
+   * a repeated (path, signature) pair is skipped.
+   */
+  private void _collectOverride (@NonNull final IXdmNode aOverride,
+                                 @NonNull final XsdSchemaDocument aSD,
+                                 @NonNull final Path aPath,
+                                 @NonNull final String sLoc,
+                                 @NonNull final ICommonsList <XsdSchemaDocument> aOut,
+                                 @NonNull final ICommonsSet <String> aVisited)
+  {
+    final String sSignature = XsdOverride.signature (aOverride);
+    final String sPath = aPath.toString ();
+    if (!aVisited.add ("ov:" + sPath + "\u0000" + sSignature))
+      return;
+    final byte [] aData = m_aC.m_aFileAccess.readFile (aPath);
+    if (aData == null)
+    {
+      // Unresolvable location: components simply unavailable
+      return;
+    }
+    final XsdSchemaSource aSource = XsdSchemaSource.ofBytes (aData, aPath, aPath.getParent ());
+    final IXdmNode aSub = XsdNodes.rootElement (XsdCompiler.parseDocument (aSource, "overridden schema " + sLoc));
+    if (!XsdCompiler.isSchemaElement (aSub))
+      throw XsdCompiler.invalid ("", "overridden " + sLoc + " is not a schema");
+    final String sSubTns = XsdNodes.attrOrEmpty (aSub, "targetNamespace");
+    m_aC.m_aTnsByPath.putIfAbsent (sPath, sSubTns);
+    _directiveTnsOK (aOverride, aSD.m_sTNS, sSubTns);
+    final String sContent = new String (aData, StandardCharsets.ISO_8859_1);
+    if (!aVisited.add ("ovc:" + sSignature + "\u0000" + sContent))
+      return;
+    // Mark the original content as consumed by the override: a supplementary
+    // document handed to the compiler that is also an override target
+    // contributes only its transformed self, never its plain components
+    aVisited.add ("overridden:" + sContent);
+    final IXdmNode aTransformed = XsdOverride.apply (aSub, aOverride);
+    final int nMark = aOut.size ();
+    m_aC.enterNesting ();
+    try
+    {
+      _collect (aTransformed, aPath.getParent (), sPath, aOut, aVisited, aSD.m_sTNS);
+    }
+    finally
+    {
+      m_aC.leaveNesting ();
+    }
+    // QName references inside the transplanted override children must also
+    // reach the namespaces the overriding document imports (W3C bug 17574)
+    if (aOut.size () > nMark)
+      aOut.get (nMark).m_aImports.addAll (aSD.m_aImports);
+  }
+
   private void _collect (@NonNull final IXdmNode aElement,
                          @Nullable final Path aBaseDir,
                          @NonNull final String sSelfPath,
@@ -381,7 +437,18 @@ final class XsdDocumentCollector
       }
       final String sPath = aPath.toString ();
       if ("override".equals (sKind) && m_aC.isXsd11 ())
-        throw XsdCompiler.unsupported11 ("xs:override");
+      {
+        // src-override: distinct {kind, name} among one override's children
+        XsdOverride.checkUniqueness (aChild);
+        // An override with component children goes through the 4.2.5
+        // transformation; a childless one keeps the include-like path below.
+        // 1.0 never sees xs:override semantics
+        if (XsdOverride.components (aChild).isNotEmpty ())
+        {
+          _collectOverride (aChild, aSD, aPath, sLoc, aOut, aVisited);
+          continue;
+        }
+      }
       if ("redefine".equals (sKind))
       {
         if (sPath.equals (sSelfPath))
