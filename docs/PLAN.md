@@ -81,8 +81,7 @@ Known JDK differences found so far:
 
 ## Lazy variable evaluation
 
-Status: done in ph-xslt (2026-11-04); the schexec side in `ph-xpath-inventory` is open (raised 2026-11-04 by the
-Schematron executor `com.helger.tools.schexec` in `ph-xpath-inventory`).
+Status: done (2026-11-04; raised by the Schematron executor `com.helger.tools.schexec` in `ph-xpath-inventory`).
 
 Result:
 
@@ -100,6 +99,10 @@ Result:
   and `templates`/`functions` are unchanged within noise with lazy `xsl:variable`s.
 * QT3 and XSLT30 fail lists unchanged by name on JDK 21 and 25; `LazyVariableTest` (xslt-core) and
   `DynamicContextLazyVariableTest` (xpath-core).
+* schexec binds document lets on its root context and rule lets per rule context node with `withLazyVariable`; its
+  own resolver and caches are gone, so the engine's resolver (`_resolveGlobal`) stays in place.
+  `SchematronExecCorpusTest`: 4518 comparisons, 0 differences, the 217 dynamic errors of the reference agree;
+  `MainSchexecBenchmark` factors unchanged within noise.
 
 The original task:
 
