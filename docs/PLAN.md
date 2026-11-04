@@ -25,9 +25,9 @@ Decisions:
 | X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | done |
 | X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform` and schema-awareness (Xerces-J, opt-in) done; rest open |
 
-XSLT30 status (2026-10-25, after packages and `fn:transform`): 8,637 of 8,647 applicable cases pass (99.9%) as a basic
-processor, identical on JDK 21 and 25; all 10 fails are documented in `xslt-conformance/docs/accepted-failures/xslt30.md`
-(`XSLT30IT` fails on any undocumented failure). Extension API for the families: `xslt-core/INSTRAPI.md`.
+XSLT30 status (2026-11-04, after the open cases `function-lookup-005`/`006` and `glob-cxt-item-010`): 8,640 of 8,647
+applicable cases pass (99.9%) as a basic processor, identical on JDK 21 and 25; all 7 fails are documented in
+`xslt-conformance/docs/accepted-failures/xslt30.md` (`XSLT30IT` fails on any undocumented failure). Extension API for the families: `xslt-core/INSTRAPI.md`.
 
 QT3 status (2026-10-26): 22,419 of 22,478 applicable cases pass (99.7%), 59 fail, all documented in
 `xpath-conformance/docs/accepted-failures/qt3.md` (`QT3IT` fails on any undocumented failure):
@@ -41,7 +41,7 @@ QT3 status (2026-10-26): 22,419 of 22,478 applicable cases pass (99.7%), 59 fail
 
 Schema-awareness (2026-10-26): Apache Xerces-J, optional and loaded only when present (`XdmSchemaSupport`), is the
 schema processor. `-Dxslt30.schemaAware=true` runs XSLT30 schema-aware: 9,292 of 9,310 pass
-(`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`); the default run is unchanged (8,637/8,647).
+(`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`); the default run is unchanged (8,640/8,647).
 With `-Dqt3.schemaProcessor=jdk` the QT3 harness uses the JDK validator instead, and the 7 schema-validated source
 cases fail again.
 
@@ -191,3 +191,26 @@ Result:
   (`XsltPatternParser.parse`) were already public.
 * Tests: `XsltEvaluationTest` (xslt-core), `CompiledXPathTest` (xpath-core). QT3, XSLT30 and xsdtests fail lists
   unchanged by name on JDK 21 and 25.
+
+## Streaming
+
+Status: in progress (started 2026-11-04). After streaming, performance and memory optimisation start (focused on the
+hot spots a profile shows, with an own benchmark first).
+
+Reference: go-xslt, "XSLT 3.0 guaranteed streaming" in its `CLAUDE.md`: a real incremental reader builds ordinary nodes
+one record at a time and keeps only the ancestor spine; the streaming dispatcher hands each completed record to the
+unchanged buffered evaluator; a compile-time posture/sweep classifier (XSLT 3.0 section 19, appendix J) decides whether
+a `streamable="yes"` construct is guaranteed streamable and fails closed (XTSE3430) rather than ever mis-executing.
+About 8,200 lines of Go: `internal/xpath/streamability.go`, `internal/xslt/streamability.go`,
+`internal/xmltree/stream.go`, `internal/xslt/stream_{exec,acc,group,fork,property}.go`, `transform_to.go`.
+
+| Stage | Content | Go reference |
+|-------|---------|--------------|
+| S1 | Claim: `-Dxslt30.streaming=true` in the harness (streaming supported in both directions, `<source streaming>`, own out dir and accepted-failures file), the compile option that makes `streamable="yes"` binding, `system-property('xsl:supports-streaming')`; baseline with buffered execution | `xslt30_test.go`, `stream_property.go`, `features.go` |
+| S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` |
+| S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` |
+| S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` |
+| S5 | Bounded-memory output: serialize while transforming | `transform_to.go` |
+
+Gate per stage: the default lists (QT3, XSLT30, schema-aware XSLT30, xsdtests) unchanged by name on JDK 21 and 25; the
+streaming run only improves, and every failure in it is documented.

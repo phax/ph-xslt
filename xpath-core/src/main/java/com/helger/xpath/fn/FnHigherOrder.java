@@ -104,7 +104,7 @@ public final class FnHigherOrder
     final BigInteger aArity = ((XdmAtomic) aArgs.get (1).get (0)).getBigInteger ();
     if (aArity.signum () < 0 || aArity.bitLength () >= 31)
       return XdmSequence.EMPTY;
-    final FunctionDef aDef = aCtx.getStaticContext ().getFunctionLibrary ().getFunction (aName, aArity.intValue ());
+    final FunctionDef aDef = aCtx.getStaticContext ().getFunctionLibrary ().getFunctionForLookup (aName, aArity.intValue ());
     if (aDef == null)
       return XdmSequence.EMPTY;
     // The dynamic context of the function-lookup call is part of the closure

@@ -184,6 +184,9 @@ public final class FunctionLibrary
   // in the parent, unless hidden here
   private final FunctionLibrary m_aParent;
   private final ICommonsSet <String> m_aHidden = new CommonsHashSet <> ();
+  // What fn:function-lookup finds instead of the static binding; a null value
+  // means it finds nothing
+  private final ICommonsMap <String, FunctionDef> m_aLookup = new CommonsHashMap <> ();
 
   public FunctionLibrary ()
   {
@@ -435,6 +438,35 @@ public final class FunctionLibrary
   }
 
   /**
+   * The function that <code>fn:function-lookup</code> finds. It is the one of
+   * {@link #getFunction(XdmQName, int)}, unless this library or a parent
+   * changed it with {@link #registerForLookup(XdmQName, List, SeqType, IXPathFunction, boolean)}
+   * or {@link #hideFromLookup(XdmQName, int)}.
+   *
+   * @param aName
+   *        Expanded function name.
+   * @param nArity
+   *        Number of arguments.
+   * @return <code>null</code> if there is no such function.
+   */
+  @Nullable
+  public FunctionDef getFunctionForLookup (@NonNull final XdmQName aName, final int nArity)
+  {
+    final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
+    final Object [] aOwn = m_aRWLock.readLockedGet ( () -> {
+      if (m_aLookup.containsKey (sKey))
+        return new Object [] { m_aLookup.get (sKey) };
+      if (m_aMap.containsKey (sKey))
+        return new Object [] { m_aMap.get (sKey) };
+      return m_aHidden.contains (sKey) ? new Object [] { null } : null;
+    });
+    if (aOwn != null)
+      return (FunctionDef) aOwn[0];
+    // The parent is called without holding this library's lock
+    return m_aParent != null ? m_aParent.getFunctionForLookup (aName, nArity) : getFunction (aName, nArity);
+  }
+
+  /**
    * @param aName
    *        Expanded function name.
    * @return <code>true</code> if a function of that name exists with any arity.
@@ -515,6 +547,57 @@ public final class FunctionLibrary
       m_aHidden.add (sKey);
       m_aMap.remove (sKey);
     });
+    return this;
+  }
+
+  /**
+   * Let <code>fn:function-lookup</code> find another function than a static
+   * call does, in this library and its children. In XSLT, a used package looks
+   * up its own function where a static call reaches the override.
+   *
+   * @param aName
+   *        Expanded function name.
+   * @param aParamTypes
+   *        The parameter types; their number is the arity.
+   * @param aReturnType
+   *        The return type.
+   * @param aImpl
+   *        Implementation.
+   * @param bFocusDependent
+   *        <code>true</code> if the implementation reads the focus.
+   * @return this for chaining
+   */
+  @NonNull
+  public FunctionLibrary registerForLookup (@NonNull final XdmQName aName,
+                                            @NonNull final List <SeqType> aParamTypes,
+                                            @NonNull final SeqType aReturnType,
+                                            @NonNull final IXPathFunction aImpl,
+                                            final boolean bFocusDependent)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    ValueEnforcer.notNull (aParamTypes, "ParamTypes");
+    ValueEnforcer.notNull (aReturnType, "ReturnType");
+    ValueEnforcer.notNull (aImpl, "Impl");
+    final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
+    m_aRWLock.writeLocked ( () -> m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef));
+    return this;
+  }
+
+  /**
+   * Make a function invisible to <code>fn:function-lookup</code> in this
+   * library and its children; static calls still reach it.
+   *
+   * @param aName
+   *        Expanded function name.
+   * @param nArity
+   *        Arity.
+   * @return this for chaining
+   */
+  @NonNull
+  public FunctionLibrary hideFromLookup (@NonNull final XdmQName aName, final int nArity)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    m_aRWLock.writeLocked ( () -> m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), nArity), null));
     return this;
   }
 

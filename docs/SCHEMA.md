@@ -58,7 +58,7 @@ those two harnesses use the native validator unless `-Dxdm.schemaProvider=xerces
   `validate=true`). `-Dqt3.schemaProcessor=jdk` runs QT3 on the JDK validator: 66 fails instead of 59, otherwise
   identical by name. See `xpath-conformance/docs/accepted-failures/qt3.md`.
   Native and Xerces-J: the same 59 fails by name.
-* **XSLT30 schema-aware run** (`-Dxslt30.schemaAware=true`): all 9,310 applicable cases run; 15 fail with the native
+* **XSLT30 schema-aware run** (`-Dxslt30.schemaAware=true`): all 9,310 applicable cases run; 12 fail with the native
   validator; Xerces-J additionally fails the cases with XSD 1.1 schemas
   (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`). The default run (8,647 cases) does not need it.
   `XSLT30SchemaUnawareCasesIT` checks the 31 cases that require a processor *without* schema-awareness in both claim

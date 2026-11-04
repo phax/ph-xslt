@@ -377,6 +377,35 @@ public final class StylesheetCompiler
     return ret;
   }
 
+  /**
+   * <code>fn:function-lookup</code> in a used package finds the package's own
+   * functions: a function declared only by the principal package does not
+   * exist there, an override is not seen (the package's own original is), and
+   * an abstract function does not exist.
+   */
+  private void _restrictLookupInUsedPackage (@NonNull final PackageUnit aUnit, @NonNull final FunctionLibrary aLib)
+  {
+    for (final FunctionEntry aEntry : m_aFunctionsByKey.values ())
+    {
+      final UserFunction aFunc = aEntry.function ();
+      UserFunction aOwn = aFunc;
+      if (m_aPackages.isInPrincipal (aFunc.getElement ()))
+      {
+        aOwn = m_aOriginalFunctions.get (aFunc.getElement ());
+        if (aOwn != null && m_aPackages.getUnit (aOwn.getElement ()) != aUnit)
+          aOwn = null;
+      }
+      if (aOwn == null || "abstract".equals (aOwn.getVisibility ()))
+        aLib.hideFromLookup (aFunc.getName (), aFunc.getArity ());
+      else
+        if (aOwn != aFunc)
+        {
+          final FunctionSignature aSig = m_aFunctionSignatures.get (aOwn);
+          aLib.registerForLookup (aOwn.getName (), aSig.paramTypes (), aSig.returnType (), aOwn, true);
+        }
+    }
+  }
+
   private void _buildPackageFunctionScopes ()
   {
     // In a compilation with several packages each package has its own
@@ -399,6 +428,8 @@ public final class StylesheetCompiler
             final FunctionSignature aSig = m_aFunctionSignatures.get (aFunc);
             aLib.registerParsed (aFunc.getName (), aSig.paramTypes (), aSig.returnType (), aFunc, true);
           }
+        if (aUnit != m_aPackages.getPrincipal ())
+          _restrictLookupInUsedPackage (aUnit, aLib);
         m_aUnitLibraries.put (aUnit, aLib);
       }
     for (final Map.Entry <XslElement, UserFunction> aEntry : m_aOriginalFunctions.entrySet ())
@@ -407,6 +438,8 @@ public final class StylesheetCompiler
       final FunctionLibrary aLib = (aBase != null ? aBase : m_aStylesheet.getFunctionLibrary ()).createChild ();
       final FunctionSignature aSig = m_aFunctionSignatures.get (aEntry.getValue ());
       aLib.registerParsed (XSL_ORIGINAL, aSig.paramTypes (), aSig.returnType (), aEntry.getValue (), false);
+      // A static call or function reference only, not fn:function-lookup
+      aLib.hideFromLookup (XSL_ORIGINAL, aSig.paramTypes ().size ());
       m_aPackages.registerScope (aLib, m_aPackages.getUnit (aEntry.getKey ()));
       m_aDeclLibraries.put (aEntry.getKey (), aLib);
     }
@@ -1223,6 +1256,14 @@ public final class StylesheetCompiler
   {
     final String sAs = aEl.getAttr ("as");
     final String sUse = aEl.getAttr ("use") == null ? "optional" : aEl.getAttr ("use").trim ();
+    if (!m_aPackages.isInPrincipal (aEl))
+    {
+      // A declaration in a library package is ignored, unless it requires a
+      // context item, which a library package cannot be given
+      if ("required".equals (sUse))
+        throw XsltException.at (aEl, "XTTE0590", "A library package declares xsl:global-context-item use='required'");
+      return;
+    }
     final CompiledStylesheet.GlobalContextItem aPrev = m_aStylesheet.getGlobalContextItem ();
     final CompiledStylesheet.GlobalContextItem aNew = new CompiledStylesheet.GlobalContextItem (sAs == null ? null
                                                                                                            : createGlobalContext ().compileSequenceType (aEl,

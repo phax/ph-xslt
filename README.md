@@ -8,7 +8,7 @@ XML parsing is left to the JDK; everything on top of it, including an XML Schema
 
 Status: work in progress. The XPath 3.1 engine runs and passes 99.7% of the applicable W3C QT3 test cases
 (22,419 of 22,478). The XSLT 3.0 engine passes 99.9% of the applicable W3C xslt30-test cases as a basic
-processor (8,637 of 8,647). The native XML Schema validator passes 99.99% of the applicable W3C xsdtests cases for
+processor (8,640 of 8,647). The native XML Schema validator passes 99.99% of the applicable W3C xsdtests cases for
 XSD 1.0 (39,396 of 39,401) and XSD 1.1 (41,549 of 41,553). Schema-awareness is available as an opt-in; streaming and
 backwards compatibility are not done yet.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.

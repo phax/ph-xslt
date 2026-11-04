@@ -1,26 +1,12 @@
 # XSLT 3.0 (`xslt30-test`): failing cases
 
-Basic processor (no streaming, schema awareness or backwards compatibility claimed): 8,637 of 8,647 applicable cases
-pass, 10 fail. Measured offline, on JDK 21 and 25.
+Basic processor (no streaming, schema awareness or backwards compatibility claimed): 8,640 of 8,647 applicable cases
+pass, 7 fail. Measured offline, on JDK 21 and 25.
 
 Every failing case is named here in backticks under a heading with its status and reason. `XSLT30IT` fails on any
 failing case that is not named here (switch that off with `-Dxslt30.checkAccepted=false`), so a regression is loud
 and a newly accepted failure needs a written reason. Remove an entry when its case passes. Status **Open** means
 winnable later; **Accepted** means a decision not to.
-
-### `function-lookup-005`, `function-lookup-006`
-**Status:** Open.
-`fn:function-lookup` called inside a used package must see exactly the functions visible in that package. Here it
-also finds functions the package hides (`divide` and `subtract` report `exists="true"`, expected `false`), and
-`f:add` resolves to the overriding function of the using package instead of the package's own one
-(`effect="8"`, expected `7`; 006 does the same through `xsl:original`). go-xslt passes both
-(`ResolveLookupFunction`).
-
-### `glob-cxt-item-010`
-**Status:** Open.
-An `xsl:global-context-item` in a library package must be ignored unless it says `use="required"`. The case passes
-when the `glob-cxt-item` set runs on its own and fails only in the full run, so the cause is probably state shared
-between cases (the stylesheet cache or the package registration), not the rule itself. Not analysed yet.
 
 ### `collection-006`, `document-2401`, `document-2402`
 **Status:** Accepted (same decision as go-xslt).

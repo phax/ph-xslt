@@ -2,7 +2,7 @@
 
 Schema-aware processor (`-Dxslt30.schemaAware=true`; no streaming or backwards compatibility claimed), with the
 native validator of `xsd-core` as schema processor (the default of the harness; it compiles imported schemas as XSD
-1.1): 9,295 of 9,310 applicable cases pass, 15 fail. Apache Xerces-J 2.12.2 (`-Dxdm.schemaProvider=xerces`, XSD 1.0
+1.1): 9,298 of 9,310 applicable cases pass, 12 fail. Apache Xerces-J 2.12.2 (`-Dxdm.schemaProvider=xerces`, XSD 1.0
 only) additionally fails the XSD 1.1 cases listed below. Measured offline, on JDK 21 and 25. The default run (basic processor) and its failures are in `xslt30.md`; this run claims schema-awareness in both
 directions: the 686 cases that need it run, and the 31 cases written for a processor without it
 (`XSLT30SchemaUnawareCasesIT`; 22 of them apply to the default run) are skipped, 663 applicable cases more than
@@ -52,6 +52,6 @@ A large GEDCOM to XHTML transformation of a validated source with `xsl:strip-spa
 the reference except for the whitespace before `</p>` at the end of the last note paragraph (the reference keeps a
 space there). Not analysed further.
 
-### `base-uri-052`, `collection-006`, `copy-1221`, `document-2401`, `document-2402`, `function-lookup-005`, `function-lookup-006`, `glob-cxt-item-010`, `unparsed-text-2002`, `unparsed-text-2003`
+### `base-uri-052`, `collection-006`, `copy-1221`, `document-2401`, `document-2402`, `unparsed-text-2002`, `unparsed-text-2003`
 **Status:** As in `xslt30.md`.
-The ten failures of the default run, for the same reasons; schema-awareness does not change them.
+The seven failures of the default run, for the same reasons; schema-awareness does not change them.
