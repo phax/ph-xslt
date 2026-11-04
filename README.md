@@ -4,13 +4,13 @@
 > and no release has been published yet. Do not use it in production.
 
 A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 licensed alternative to Saxon.
-XML parsing is left to the JDK, XSD schema-awareness to the optional Apache Xerces-J; everything on top of it is
-implemented here.
+XML parsing is left to the JDK; everything on top of it, including an XML Schema 1.0 validator, is implemented here.
 
 Status: work in progress. The XPath 3.1 engine runs and passes 99.7% of the applicable W3C QT3 test cases
 (22,419 of 22,478). The XSLT 3.0 engine passes 99.9% of the applicable W3C xslt30-test cases as a basic
-processor (8,637 of 8,647). Schema-awareness is available as an opt-in; streaming and backwards compatibility are
-not done yet.
+processor (8,637 of 8,647). The native XML Schema validator passes 99.99% of the applicable W3C xsdtests cases for
+XSD 1.0 (39,396 of 39,401); XSD 1.1 is not done yet. Schema-awareness is available as an opt-in; streaming and
+backwards compatibility are not done yet.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Modules
@@ -22,7 +22,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `xpath-conformance` | W3C QT3 test harness (not deployed) | usable |
 | `xslt-core` | XSLT 3.0: stylesheet compiler, modules, templates and modes, the basic instructions, XSLT functions | in progress |
 | `xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
-| `xsd-core` | Native XML Schema validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine, schema-for-schemas checks, component model and read-only view; datatypes, content models and instance validation still to come | in progress |
+| `xsd-core` | Native XML Schema 1.0 validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine, schema-for-schemas checks, simple types and facets, content models, instance validation with identity constraints, read-only component view, validation API that reports all errors; the default schema provider for XPath and XSLT. XSD 1.1 not yet | usable |
 | `xsd-conformance` | W3C xsdtests (XML Schema) harness with a pluggable validator (not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
@@ -30,32 +30,30 @@ Requires Java 21. CI runs on Java 21 and 25.
 ## Schema-awareness (optional dependency)
 
 Schema-awareness (`XsltCompileOptions.setSchemaAware (true)`: `xsl:import-schema`, `[xsl:]validation`/`[xsl:]type`,
-typed sources, `schema-element()` and user-defined types in XPath) needs Apache Xerces-J (`xerces:xercesImpl` 2.12.2) on
-the class path. It is an optional dependency of `xpath-xdm`: add it yourself, excluding `xml-apis` (the JDK provides
-those APIs); no resolver or catalogue library is needed. Without it the engine is a basic XSLT 3.0 processor and no
-Xerces-J class is loaded.
+typed sources, `schema-element()` and user-defined types in XPath) needs a schema processor on the class path. Without
+one the engine is a basic XSLT 3.0 processor. Two providers are supported:
 
-Xerces-J is used only for schema compilation, the schema component model and validation (XSD 1.0). XML parsing stays
-on the JDK parser, and the Xerces-J classes are instantiated directly, never through the JAXP lookup. Note that the
-presence of the jar alone changes what `SAXParserFactory.newInstance ()` and `SchemaFactory.newInstance (...)` return
-for other code in the same application (its `META-INF/services` entries).
+* **The native validator** (module `xsd-core`, recommended): XSD 1.0, no further dependencies. It is used whenever it
+  is on the class path.
+* **Apache Xerces-J** (`xerces:xercesImpl` 2.12.2, an optional dependency of `xpath-xdm`): the fallback when
+  `xsd-core` is absent, or when the system property `xdm.schemaProvider=xerces` is set. Add it yourself, excluding
+  `xml-apis` (the JDK provides those APIs). Note that the presence of the jar alone changes what
+  `SAXParserFactory.newInstance ()` and `SchemaFactory.newInstance (...)` return for other code in the same
+  application (its `META-INF/services` entries).
 
-[docs/SCHEMA.md](docs/SCHEMA.md) explains in detail what the JDK validator cannot provide and which features and tests
-therefore need Xerces-J, and why Xerces-J is only the fallback next to the planned native validator.
+In both cases XML parsing stays on the JDK parser. `xsd-core` can also be used on its own to validate documents
+(`XsdSchema.validate`, which reports all errors).
 
 ```xml
 <dependency>
-  <groupId>xerces</groupId>
-  <artifactId>xercesImpl</artifactId>
-  <version>2.12.2</version>
-  <exclusions>
-    <exclusion>
-      <groupId>xml-apis</groupId>
-      <artifactId>xml-apis</artifactId>
-    </exclusion>
-  </exclusions>
+  <groupId>com.helger.xpath</groupId>
+  <artifactId>xsd-core</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
+
+[docs/SCHEMA.md](docs/SCHEMA.md) explains how the provider is selected, what the JDK validator cannot provide, and why
+Xerces-J is only the fallback next to the native validator.
 
 ## Origin and acknowledgements
 

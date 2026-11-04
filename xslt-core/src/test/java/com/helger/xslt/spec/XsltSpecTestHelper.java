@@ -19,7 +19,6 @@ package com.helger.xslt.spec;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,6 +29,7 @@ import org.jspecify.annotations.Nullable;
 import org.xml.sax.InputSource;
 
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
@@ -159,7 +159,7 @@ public final class XsltSpecTestHelper
   {
     try
     {
-      final InputSource aIS = new InputSource (new StringReader (sSrc));
+      final InputSource aIS = new InputSource (new NonBlockingStringReader (sSrc));
       if (aDir != null)
         aIS.setSystemId (aDir.resolve ("source.xml").toUri ().toString ());
       return new XdmParser ().parse (aIS);

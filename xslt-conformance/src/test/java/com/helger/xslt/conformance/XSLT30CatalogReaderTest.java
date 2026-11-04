@@ -23,12 +23,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.file.Path;
 
 import org.junit.Test;
 import org.xml.sax.InputSource;
 
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.xdm.XdmConstants;
@@ -209,7 +209,7 @@ public final class XSLT30CatalogReaderTest
   @Test
   public void testCatalog () throws IOException
   {
-    final XSLT30Catalog aCatalog = XSLT30CatalogReader.readCatalog (new InputSource (new StringReader ("""
+    final XSLT30Catalog aCatalog = XSLT30CatalogReader.readCatalog (new InputSource (new NonBlockingStringReader ("""
         <catalog xmlns="http://www.w3.org/2012/10/xslt-test-catalog">
           <environment name="shared"><source role="." file="shared.xml"/></environment>
           <test-set name="as" file="tests/attr/as/_as-test-set.xml"/>

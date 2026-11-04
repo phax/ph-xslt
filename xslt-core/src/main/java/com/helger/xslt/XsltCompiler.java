@@ -16,7 +16,6 @@
  */
 package com.helger.xslt;
 
-import java.io.StringReader;
 
 import org.jspecify.annotations.NonNull;
 import org.xml.sax.InputSource;
@@ -24,6 +23,7 @@ import org.xml.sax.InputSource;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
@@ -62,7 +62,7 @@ public final class XsltCompiler
     final IXdmNode aDoc;
     try
     {
-      final InputSource aSource = new InputSource (new StringReader (sStylesheet));
+      final InputSource aSource = new InputSource (new NonBlockingStringReader (sStylesheet));
       if (aOptions.getBaseUri () != null)
         aSource.setSystemId (aOptions.getBaseUri ());
       aDoc = new XdmParser ().setLoadExternalEntities (aOptions.isLoadExternalEntities ()).parse (aSource);

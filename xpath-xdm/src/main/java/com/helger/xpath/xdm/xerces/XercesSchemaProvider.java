@@ -16,7 +16,6 @@
  */
 package com.helger.xpath.xdm.xerces;
 
-import java.io.StringReader;
 import java.util.List;
 
 import javax.xml.transform.Source;
@@ -36,6 +35,7 @@ import org.xml.sax.SAXParseException;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.base.concurrent.SimpleReadWriteLock;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.xdm.schema.IXdmSchemaProvider;
@@ -87,7 +87,7 @@ public final class XercesSchemaProvider implements IXdmSchemaProvider
     final ICommonsList <Source> aJaxpSources = new CommonsArrayList <> ();
     for (final XdmSchemaSource aSource : aSources)
     {
-      final StreamSource aSS = aSource.text () != null ? new StreamSource (new StringReader (aSource.text ()))
+      final StreamSource aSS = aSource.text () != null ? new StreamSource (new NonBlockingStringReader (aSource.text ()))
                                                        : new StreamSource ();
       aSS.setSystemId (aSource.systemId ());
       aJaxpSources.add (aSS);
@@ -95,7 +95,7 @@ public final class XercesSchemaProvider implements IXdmSchemaProvider
     final Schema aSchema;
     try
     {
-      aSchema = aJaxpSources.isEmpty () ? aFactory.newSchema (new Source [] { new StreamSource (new StringReader ("<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'/>")) })
+      aSchema = aJaxpSources.isEmpty () ? aFactory.newSchema (new Source [] { new StreamSource (new NonBlockingStringReader ("<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'/>")) })
                                         : aFactory.newSchema (aJaxpSources.toArray (new Source [0]));
     }
     catch (final SAXException ex)

@@ -16,7 +16,6 @@
  */
 package com.helger.xpath.xdm.jaxp;
 
-import java.io.StringReader;
 import java.util.List;
 
 import javax.xml.transform.Source;
@@ -29,6 +28,7 @@ import org.xml.sax.SAXException;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.xpath.xdm.schema.IXdmSchemaProvider;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xpath.xdm.schema.XdmSchemaException;
@@ -71,14 +71,14 @@ public final class JdkSchemaProvider implements IXdmSchemaProvider
     ValueEnforcer.notNull (aSources, "Sources");
     final Source [] aJaxpSources;
     if (aSources.isEmpty ())
-      aJaxpSources = new Source [] { new StreamSource (new StringReader (EMPTY_SCHEMA)) };
+      aJaxpSources = new Source [] { new StreamSource (new NonBlockingStringReader (EMPTY_SCHEMA)) };
     else
     {
       aJaxpSources = new Source [aSources.size ()];
       for (int i = 0; i < aJaxpSources.length; ++i)
       {
         final XdmSchemaSource aSource = aSources.get (i);
-        final StreamSource aSS = aSource.text () != null ? new StreamSource (new StringReader (aSource.text ()))
+        final StreamSource aSS = aSource.text () != null ? new StreamSource (new NonBlockingStringReader (aSource.text ()))
                                                          : new StreamSource ();
         aSS.setSystemId (aSource.systemId ());
         aJaxpSources[i] = aSS;

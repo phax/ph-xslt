@@ -16,13 +16,13 @@
  */
 package com.helger.xslt.ext.transform;
 
-import java.io.StringReader;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.ThreadSafe;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
@@ -365,7 +365,7 @@ public final class XsltTransformHandler implements ITransformHandler
   {
     try
     {
-      final InputSource aSource = new InputSource (new StringReader (sText));
+      final InputSource aSource = new InputSource (new NonBlockingStringReader (sText));
       if (sBaseUri != null)
         aSource.setSystemId (sBaseUri);
       final IXdmNode ret = new XdmParser ().setLoadExternalEntities (bExternal).parse (aSource);

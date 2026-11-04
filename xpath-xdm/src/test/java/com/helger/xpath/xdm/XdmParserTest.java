@@ -24,7 +24,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,6 +32,7 @@ import org.jspecify.annotations.NonNull;
 import org.junit.Test;
 import org.xml.sax.InputSource;
 
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.ICommonsOrderedMap;
 
 /**
@@ -214,7 +214,7 @@ public final class XdmParserTest
   @Test
   public void testDocumentUri () throws XdmParseException
   {
-    final InputSource aSource = new InputSource (new StringReader ("<a/>"));
+    final InputSource aSource = new InputSource (new NonBlockingStringReader ("<a/>"));
     aSource.setSystemId ("urn:test:doc");
     final IXdmNode aDoc = new XdmParser ().parse (aSource);
     assertEquals ("urn:test:doc", aDoc.getDocumentUri ());

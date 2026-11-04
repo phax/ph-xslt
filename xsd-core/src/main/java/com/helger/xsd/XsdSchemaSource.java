@@ -16,9 +16,7 @@
  */
 package com.helger.xsd;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +27,8 @@ import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.io.nonblocking.NonBlockingByteArrayInputStream;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 
 /**
  * A schema document handed to the compiler: the content plus the directory its
@@ -131,8 +131,8 @@ public final class XsdSchemaSource
   @NonNull
   InputSource createInputSource ()
   {
-    final InputSource ret = m_sText != null ? new InputSource (new StringReader (m_sText))
-                                            : new InputSource (new ByteArrayInputStream (m_aBytes));
+    final InputSource ret = m_sText != null ? new InputSource (new NonBlockingStringReader (m_sText))
+                                            : new InputSource (new NonBlockingByteArrayInputStream (m_aBytes));
     if (m_aPath != null)
       ret.setSystemId (m_aPath.toUri ().toString ());
     return ret;

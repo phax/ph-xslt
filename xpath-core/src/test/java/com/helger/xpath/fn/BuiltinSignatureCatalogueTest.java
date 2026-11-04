@@ -19,7 +19,6 @@ package com.helger.xpath.fn;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -28,6 +27,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.helger.base.io.nonblocking.NonBlockingBufferedReader;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
@@ -68,7 +68,7 @@ public final class BuiltinSignatureCatalogueTest
   {
     final ICommonsList <String> ret = new CommonsArrayList <> ();
     try (final InputStream aIS = BuiltinSignatureCatalogueTest.class.getResourceAsStream (RESOURCE);
-         final BufferedReader aReader = new BufferedReader (new InputStreamReader (aIS, StandardCharsets.UTF_8)))
+         final NonBlockingBufferedReader aReader = new NonBlockingBufferedReader (new InputStreamReader (aIS, StandardCharsets.UTF_8)))
     {
       String sLine;
       while ((sLine = aReader.readLine ()) != null)

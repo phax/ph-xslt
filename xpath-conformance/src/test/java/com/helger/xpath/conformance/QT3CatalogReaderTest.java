@@ -23,11 +23,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.file.Path;
 
 import org.junit.Test;
 import org.xml.sax.InputSource;
+
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 
 /**
  * Test class for class {@link QT3CatalogReader}.
@@ -186,7 +187,7 @@ public final class QT3CatalogReaderTest
         </catalog>
         """;
     final Path aRoot = Path.of ("/suite");
-    final QT3Catalog aCatalog = QT3CatalogReader.readCatalog (new InputSource (new StringReader (sCatalog)), aRoot);
+    final QT3Catalog aCatalog = QT3CatalogReader.readCatalog (new InputSource (new NonBlockingStringReader (sCatalog)), aRoot);
     assertEquals (aRoot, aCatalog.rootDir ());
     assertEquals (2, aCatalog.environments ().size ());
     assertTrue (aCatalog.environments ().get ("empty").getAllSources ().isEmpty ());

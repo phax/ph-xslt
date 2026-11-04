@@ -16,13 +16,13 @@
  */
 package com.helger.xslt.pkg;
 
-import java.io.StringReader;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.context.IResourceResolver;
@@ -114,7 +114,7 @@ public final class PackageRegistry
     {
       if (aSource.text () != null)
       {
-        final InputSource aIS = new InputSource (new StringReader (aSource.text ()));
+        final InputSource aIS = new InputSource (new NonBlockingStringReader (aSource.text ()));
         if (aSource.baseUri () != null)
           aIS.setSystemId (aSource.baseUri ());
         final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (m_aOptions.isLoadExternalEntities ()).parse (aIS);

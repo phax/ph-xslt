@@ -21,6 +21,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - QT3: `mvn test -pl xpath-conformance -am` (`-Dqt3.only=<set>` for one test set). Every failing case must be named in
   `xpath-conformance/docs/accepted-failures/qt3.md` with a reason, or `QT3Test` fails. Compare fail lists
   (`xpath-conformance/target/qt3-fails.txt`) by name, never by count, and run JDK 21 and 25.
+- Keep `README.md` in sync like a wiki page: status figures, the module table and the setup sections are updated in the
+  same change that makes them wrong.
 - When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
   does not catch it); it happened with the XPath 1.0 compatibility conversions.
 

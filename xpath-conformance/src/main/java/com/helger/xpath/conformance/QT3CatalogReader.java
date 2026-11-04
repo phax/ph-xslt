@@ -17,7 +17,6 @@
 package com.helger.xpath.conformance;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.file.Path;
 
 import javax.xml.XMLConstants;
@@ -37,6 +36,7 @@ import org.xml.sax.SAXException;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsLinkedHashMap;
@@ -363,6 +363,6 @@ public final class QT3CatalogReader
   @NonNull
   public static QT3TestSet readTestSet (@NonNull final String sXml, @NonNull final Path aDir) throws IOException
   {
-    return readTestSet (new InputSource (new StringReader (sXml)), aDir);
+    return readTestSet (new InputSource (new NonBlockingStringReader (sXml)), aDir);
   }
 }

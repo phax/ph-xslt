@@ -6,8 +6,9 @@ Suites are cloned next to this repo (`../../git-thirdparty/{qt3tests,xslt30-test
 Decisions:
 
 * Apache 2.0, Java 21 (CI also on 25), `com.helger.xpath`, no `ph-` artifact prefix.
-* XML parsing: JDK SAX. XSD: schema-awareness and the QT3 harness use Apache Xerces-J 2.12.2 (optional dependency of
-  `xpath-xdm`, without xml-apis, XSD 1.0); without it the JDK validator (`JdkSchemaProvider`, validation only). XSD 1.1 is out of scope.
+* XML parsing: JDK SAX. XSD: the native validator (`xsd-core`, XSD 1.0) is the default schema provider; Apache
+  Xerces-J 2.12.2 (optional dependency of `xpath-xdm`, without xml-apis, XSD 1.0) is the fallback; without either the
+  JDK validator (`JdkSchemaProvider`, validation only). XSD 1.1 is phase V8.
 * Own XDM tree (`IXdmNode`). `IMicroDocument` from ph-xml becomes an optional adapter module, not the model.
 * Hungarian notation and camel case everywhere except records.
 

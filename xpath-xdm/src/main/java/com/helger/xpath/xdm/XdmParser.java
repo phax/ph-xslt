@@ -17,7 +17,6 @@
 package com.helger.xpath.xdm;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +42,7 @@ import org.xml.sax.helpers.DefaultHandler;
 import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 
 /**
@@ -168,7 +168,7 @@ public class XdmParser
     {
       final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
       aFactory.setNamespaceAware (true);
-      aFactory.newSAXParser ().parse (new InputSource (new StringReader (sXml)), new DefaultHandler ());
+      aFactory.newSAXParser ().parse (new InputSource (new NonBlockingStringReader (sXml)), new DefaultHandler ());
       return true;
     }
     catch (final ParserConfigurationException | SAXException | IOException ex)
@@ -375,7 +375,7 @@ public class XdmParser
   public IXdmNode parse (@NonNull final String sXml) throws XdmParseException
   {
     ValueEnforcer.notNull (sXml, "Xml");
-    return _parse (new InputSource (new StringReader (sXml)), sXml);
+    return _parse (new InputSource (new NonBlockingStringReader (sXml)), sXml);
   }
 
   @NonNull

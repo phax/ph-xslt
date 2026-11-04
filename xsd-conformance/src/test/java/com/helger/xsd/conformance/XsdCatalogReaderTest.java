@@ -21,12 +21,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.file.Path;
 import java.util.List;
 
 import org.junit.Test;
 import org.xml.sax.InputSource;
+
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 
 /**
  * Test class for class {@link XsdCatalogReader}.
@@ -69,7 +70,7 @@ public final class XsdCatalogReaderTest
   @Test
   public void testReadTestSet () throws IOException
   {
-    final XsdTestSet aSet = XsdCatalogReader.readTestSet (new InputSource (new StringReader (TEST_SET)), DIR);
+    final XsdTestSet aSet = XsdCatalogReader.readTestSet (new InputSource (new NonBlockingStringReader (TEST_SET)), DIR);
     assertEquals ("sample", aSet.name ());
     assertEquals ("1.0 1.1", aSet.version ());
     assertEquals (DIR, aSet.dir ());

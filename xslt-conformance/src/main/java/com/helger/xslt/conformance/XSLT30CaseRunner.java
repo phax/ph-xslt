@@ -17,7 +17,6 @@
 package com.helger.xslt.conformance;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -33,6 +32,7 @@ import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsLinkedHashMap;
@@ -461,7 +461,7 @@ public final class XSLT30CaseRunner
           if (aSrc.content () != null && !aSrc.content ().isBlank ())
           {
             // Inline content has the base URI of the file it is written in
-            final InputSource aIS = new InputSource (new StringReader (aSrc.content ()));
+            final InputSource aIS = new InputSource (new NonBlockingStringReader (aSrc.content ()));
             if (!aEnv.catalogLevel () && aSet.file () != null)
               aIS.setSystemId (XSLT30ResourceResolver.getFileUri (aSet.file ()));
             aSource = new XdmParser ().setLoadExternalEntities (true).parse (aIS);

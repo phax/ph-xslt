@@ -16,7 +16,6 @@
  */
 package com.helger.xpath.regex;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -28,6 +27,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.io.nonblocking.NonBlockingBufferedReader;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
@@ -218,7 +218,7 @@ final class UnicodeCategories
       {
         if (aIS == null)
           throw new IllegalStateException ("Resource '" + RESOURCE + "' is missing");
-        final BufferedReader aReader = new BufferedReader (new InputStreamReader (aIS, StandardCharsets.US_ASCII));
+        final NonBlockingBufferedReader aReader = new NonBlockingBufferedReader (new InputStreamReader (aIS, StandardCharsets.US_ASCII));
         String sLine;
         while ((sLine = aReader.readLine ()) != null)
         {
