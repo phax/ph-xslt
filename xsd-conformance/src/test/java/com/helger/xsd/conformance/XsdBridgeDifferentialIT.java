@@ -55,7 +55,7 @@ import com.helger.xsd.XsdValidationResult;
  *
  * @author Philip Helger
  */
-public final class XsdBridgeDifferentialTest
+public final class XsdBridgeDifferentialIT
 {
   private static final class Tally
   {

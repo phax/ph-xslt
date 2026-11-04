@@ -27,10 +27,10 @@ Decisions:
 
 XSLT30 status (2026-10-25, after packages and `fn:transform`): 8,637 of 8,647 applicable cases pass (99.9%) as a basic
 processor, identical on JDK 21 and 25; all 10 fails are documented in `xslt-conformance/docs/accepted-failures/xslt30.md`
-(`XSLT30Test` fails on any undocumented failure). Extension API for the families: `xslt-core/INSTRAPI.md`.
+(`XSLT30IT` fails on any undocumented failure). Extension API for the families: `xslt-core/INSTRAPI.md`.
 
 QT3 status (2026-10-26): 22,419 of 22,478 applicable cases pass (99.7%), 59 fail, all documented in
-`xpath-conformance/docs/accepted-failures/qt3.md` (`QT3Test` fails on any undocumented failure):
+`xpath-conformance/docs/accepted-failures/qt3.md` (`QT3IT` fails on any undocumented failure):
 
 | Group | Fails | Status |
 |-------|-------|--------|
@@ -66,9 +66,9 @@ Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests`
 | V3 | Simple types and facets (reusing casting and the XSD regex grammar) | `simpletype.go`, `facets.go`, `lexscan.go` | done (cyclic unions bounded; new `XsdRegexGrammar` for the XSD regex grammar) |
 | V4 | Content models: position-set NFA, linear matcher above 600 children, UPA, restriction derivation | `content.go`, `bigmatch.go`, `upa.go`, `restriction.go` | done (recursion bounded at 250 particle levels, `XsdUnsupportedException` beyond) |
 | V5 | Instance validation: attributes, identity constraints, `xsi:type`/`nil`/`schemaLocation` hints | `instance.go`, `attributes.go`, `identity.go` | done, first-error mode only (collect-all is V7). Merged V3-V5, native XSD 1.0: 39,396 of 39,401 pass, 0 unsupported; the 5 fails are go-xslt's documented five (`groupH021v`, `idB005`, `particlesZ001.i`, `particlesZ023/024`). Fail lists identical on JDK 21 and 25 |
-| V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | done: `XsdBridge` (`IXdmSchemaSet`) and `XsdSchemaProvider` in `xsd-core`; in place vs. from text agree on all 25,018 compared XSD 1.0 instances (`XsdBridgeDifferentialTest`); `XdmSchemaSupport` loads the native provider by default (`-Dxdm.schemaProvider=xerces` for Xerces-J); QT3 identical to Xerces-J by name (59), XSLT30 schema-aware 17 fails against 18 for Xerces-J (see `xslt30-schema-aware.md`); the native xsdtests gate is on (go-xslt's five fails) |
+| V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | done: `XsdBridge` (`IXdmSchemaSet`) and `XsdSchemaProvider` in `xsd-core`; in place vs. from text agree on all 25,018 compared XSD 1.0 instances (`XsdBridgeDifferentialIT`); `XdmSchemaSupport` loads the native provider by default (`-Dxdm.schemaProvider=xerces` for Xerces-J); QT3 identical to Xerces-J by name (59), XSLT30 schema-aware 17 fails against 18 for Xerces-J (see `xslt30-schema-aware.md`); the native xsdtests gate is on (go-xslt's five fails) |
 | V7 | Public validation API: all errors in document order, content-model explanations, `msg:message` | `collect.go`, `explain.go`, `messages.go` | done: `XsdSchema.validate`/`validateText` collect all errors (`XsdValidationOptions`: language, max errors), `XsdExplain` names missing/too-many/unexpected/order, `msg:message` in namespace `urn:fdc:helger.com:ph-xslt:xsd:messages` (go-xslt's URI is not used); the in-place path stays first-error; native XSD 1.0 unchanged (39,396 of 39,401) |
-| V8 | XSD 1.1 | `xsd11.go`, `override.go`, version branches | done: `XsdAssertions` (assertions, type alternatives), `XsdOverride`, open content; native XSD 1.1 41,549 of 41,553, 0 unsupported, the 4 fails are go-xslt's documented four (`all308.xsd`, `particlesZ026`, `particlesZ033_g`, `ste110.i`); `XsdNativeTest` gates both versions; in place vs. from text agree on all 51,245 instances of both versions; `XsdSchemaProvider` compiles as 1.1: XSLT30 schema-aware 15 fails (was 17) |
+| V8 | XSD 1.1 | `xsd11.go`, `override.go`, version branches | done: `XsdAssertions` (assertions, type alternatives), `XsdOverride`, open content; native XSD 1.1 41,549 of 41,553, 0 unsupported, the 4 fails are go-xslt's documented four (`all308.xsd`, `particlesZ026`, `particlesZ033_g`, `ste110.i`); `XsdNativeIT` gates both versions; in place vs. from text agree on all 51,245 instances of both versions; `XsdSchemaProvider` compiles as 1.1: XSLT30 schema-aware 15 fails (was 17) |
 
 V3 to V5 run as parallel worktree agents once V2 is merged. Gate for each: the XSD 1.0 fail list by name, with
 go-xslt's 5 documented fails as the target, plus the XSLT30 (default and schema-aware) and QT3 lists.
@@ -161,3 +161,33 @@ Not counting the chain in the parser would only move the failure into the evalua
 
 Decision: not implemented. The corpus works with the default thread stack; a host that evaluates such expressions on
 threads with small stacks has to give them a larger stack.
+
+## Host API for standalone expressions
+
+Status: done (2026-11-04, WP-X2 of `../ph-sch2java/docs/PLAN.md`).
+
+A host such as a Schematron executor compiles its own XPath expressions and XSLT patterns, but needs the declarations
+of a small stylesheet (`xsl:function`, `xsl:key`, global `xsl:variable`/`xsl:param`). The prototype in
+`ph-xpath-inventory` did this by casting the `XsltExecutable` to `CompiledStylesheet`, building a `StaticContext` by
+hand from its function library, and creating an `Engine` itself. That skipped what a transformation does on start
+(whitespace stripping of the global context item, `xsl:global-context-item` checks, registering the source document,
+checking the global parameters) and lost the stylesheet's namespaces and decimal formats.
+
+Result:
+
+* `XsltExecutable.createStaticContext ()`: what an expression written on the principal stylesheet element sees
+  (namespaces, base URI, `xpath-default-namespace`, default collation, function library with stylesheet and XSLT
+  functions, visible global variables and parameters, decimal formats, schema set). The compiler keeps this as a
+  `CompiledStylesheet.HostScope`.
+* `XsltExecutable.createEvaluation (XsltTransformRequest)` returns an `XsltEvaluation` per source document. It shares
+  the start-up with `transform` (`XsltTransformer.initGlobalContextItem`) and hands out dynamic contexts with the
+  global context item as context and current item, carrying the stylesheet's static context (patterns have none of
+  their own).
+* `CompiledXPath.evaluate` switches to the expression's own static context if the dynamic context was created from
+  another one. Before, a standalone expression evaluated in the engine's context did not find its decimal formats
+  (FODF1280) or the namespaces for lexical QNames. All existing callers already passed a context of the same static
+  context, so they are unaffected.
+* The parsed AST (`CompiledXPath.getExpression`, `XPathParser.parse`) and patterns with a given static context
+  (`XsltPatternParser.parse`) were already public.
+* Tests: `XsltEvaluationTest` (xslt-core), `CompiledXPathTest` (xpath-core). QT3, XSLT30 and xsdtests fail lists
+  unchanged by name on JDK 21 and 25.

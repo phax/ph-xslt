@@ -118,4 +118,30 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+  <profiles>
+    <!-- The W3C conformance suites (QT3, xslt30-test, xsdtests) as integration tests (*IT): mvn verify -Pconformance -->
+    <profile>
+      <id>conformance</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <!-- -Dit.test=<name> selects one suite; the other modules have none -->
+              <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

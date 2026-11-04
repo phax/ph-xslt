@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.helger.xpath.conformance;
+package com.helger.xslt.conformance;
 
 import static org.junit.Assert.assertTrue;
 
@@ -25,26 +25,30 @@ import org.junit.Assume;
 import org.junit.Test;
 
 import com.helger.collection.commons.ICommonsSortedSet;
+import com.helger.xpath.conformance.QT3AcceptedFailures;
 
 /**
- * Runs the W3C QT3 (FOTS) suite against the engine and prints the summary.
- * Skipped when the suite is absent (<code>-Dqt3.dir=...</code>). A failing
- * case that is not named in the accepted-failures file
- * (<code>docs/accepted-failures/qt3.md</code>) fails the build; switch that
- * off with <code>-Dqt3.checkAccepted=false</code>.
+ * Runs the W3C xslt30-test suite against the engine and prints the summary.
+ * Skipped when the suite is absent (<code>-Dxslt30.dir=...</code>). A failing
+ * case that is not named in <code>docs/accepted-failures/xslt30.md</code>
+ * fails the build; switch that off with
+ * <code>-Dxslt30.checkAccepted=false</code>.
+ * <p>
+ * Named after the Go test <code>TestXSLT30</code>, not after a class; an integration test that runs with
+ * <code>-Pconformance</code>.
  *
  * @author Philip Helger
  */
-public final class QT3Test
+public final class XSLT30IT
 {
   @Test
-  public void testQT3 () throws IOException
+  public void testXSLT30 () throws IOException
   {
-    final QT3Settings aSettings = QT3Settings.fromSystemProperties ();
-    Assume.assumeTrue ("QT3 suite not present at " + aSettings.suiteDir (),
+    final XSLT30Settings aSettings = XSLT30Settings.fromSystemProperties ();
+    Assume.assumeTrue ("xslt30-test suite not present at " + aSettings.suiteDir (),
                        Files.isRegularFile (aSettings.getCatalogFile ()));
 
-    final QT3RunResult aResult = new QT3Runner (aSettings).runAndReport ();
+    final XSLT30RunResult aResult = new XSLT30Runner (aSettings).runAndReport ();
     if (aSettings.checkAccepted ())
     {
       final ICommonsSortedSet <String> aMissing = QT3AcceptedFailures.getUndocumented (aSettings.acceptedFile (),

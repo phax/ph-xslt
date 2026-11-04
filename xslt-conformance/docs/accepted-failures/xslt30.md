@@ -3,7 +3,7 @@
 Basic processor (no streaming, schema awareness or backwards compatibility claimed): 8,637 of 8,647 applicable cases
 pass, 10 fail. Measured offline, on JDK 21 and 25.
 
-Every failing case is named here in backticks under a heading with its status and reason. `XSLT30Test` fails on any
+Every failing case is named here in backticks under a heading with its status and reason. `XSLT30IT` fails on any
 failing case that is not named here (switch that off with `-Dxslt30.checkAccepted=false`), so a regression is loud
 and a newly accepted failure needs a written reason. Remove an entry when its case passes. Status **Open** means
 winnable later; **Accepted** means a decision not to.

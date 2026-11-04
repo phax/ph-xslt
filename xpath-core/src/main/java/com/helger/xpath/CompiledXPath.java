@@ -70,9 +70,21 @@ public final class CompiledXPath
     return new DynamicContext (m_aStaticCtx);
   }
 
+  /**
+   * Evaluate the expression. It always sees the static context it was compiled
+   * with (decimal formats, default collation, base URI, namespaces for
+   * lexical QNames in function arguments), also if the dynamic context was
+   * created from another static context, e.g. by a host that evaluates
+   * expressions of several origins against one document.
+   *
+   * @param aCtx
+   *        The dynamic context with focus, variables and the run-wide state.
+   * @return The result.
+   */
   @NonNull
   public XdmSequence evaluate (@NonNull final DynamicContext aCtx)
   {
-    return XPathEvaluator.evaluate (m_aExpr, aCtx);
+    final DynamicContext aRealCtx = aCtx.getStaticContext () == m_aStaticCtx ? aCtx : aCtx.withStaticContext (m_aStaticCtx);
+    return XPathEvaluator.evaluate (m_aExpr, aRealCtx);
   }
 }

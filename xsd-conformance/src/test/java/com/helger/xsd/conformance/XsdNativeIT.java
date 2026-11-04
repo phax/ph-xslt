@@ -33,7 +33,7 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
 /**
  * Runs the W3C xsdtests suite against the native validator of
  * <code>xsd-core</code> whatever <code>xsd.validator</code> says (that selects
- * the validator of {@link XsdTest}) and gates on
+ * the validator of {@link XsdIT}) and gates on
  * <code>docs/accepted-failures/xsd-native.md</code>: a failing case that is not
  * named there fails the build. Both XSD 1.0 and 1.1 run unless
  * <code>xsd.version</code> selects one. Skipped when the suite is absent
@@ -42,7 +42,7 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
  *
  * @author Philip Helger
  */
-public final class XsdNativeTest
+public final class XsdNativeIT
 {
   /** The versions run unless <code>xsd.version</code> is set. */
   private static final String VERSIONS = "1.0,1.1";

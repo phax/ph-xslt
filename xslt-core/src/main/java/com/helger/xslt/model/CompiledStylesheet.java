@@ -29,16 +29,21 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.ast.SeqType;
+import com.helger.xpath.context.StaticContext;
+import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
+import com.helger.xslt.XsltEvaluation;
 import com.helger.xslt.XsltExecutable;
 import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
+import com.helger.xslt.compile.StaticContexts;
 import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.runtime.XsltTransformer;
+import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 
 /**
@@ -51,6 +56,19 @@ public final class CompiledStylesheet implements XsltExecutable
 {
   /** The global context item declaration. */
   public record GlobalContextItem (@Nullable SeqType as, @NonNull String use)
+  {}
+
+  /**
+   * What an expression written on the principal stylesheet element sees:
+   * the element (namespaces, base URI, xpath-default-namespace, default
+   * collation), the function library, the visible global variables and the
+   * decimal formats.
+   */
+  public record HostScope (@NonNull XslElement element,
+                           @NonNull FunctionLibrary functions,
+                           @NonNull ICommonsList <XdmQName> variables,
+                           @Nullable FormatDecimalFormat defaultDecimalFormat,
+                           @NonNull ICommonsMap <XdmQName, FormatDecimalFormat> decimalFormats)
   {}
 
   private final FunctionLibrary m_aFunctions;
@@ -80,6 +98,7 @@ public final class CompiledStylesheet implements XsltExecutable
   private PackageModel m_aPackages;
   private final ICommonsMap <VariableDef, VariableDef> m_aOriginalVariables = new CommonsHashMap <> ();
   private final ICommonsMap <PackageUnit, ICommonsMap <XdmQName, VariableDef>> m_aPackageGlobals = new CommonsHashMap <> ();
+  private HostScope m_aHostScope;
 
   public CompiledStylesheet (@NonNull final FunctionLibrary aFunctions, @NonNull final XslModule aPrincipalModule)
   {
@@ -417,9 +436,42 @@ public final class CompiledStylesheet implements XsltExecutable
     return m_aFunctionsList.getAll (x -> x.getName ().equals (aName));
   }
 
+  /**
+   * Set by the compiler for {@link #createStaticContext()}.
+   *
+   * @param aHostScope
+   *        The scope of the principal stylesheet element. May be
+   *        <code>null</code>.
+   */
+  public void setHostScope (@Nullable final HostScope aHostScope)
+  {
+    m_aHostScope = aHostScope;
+  }
+
   @NonNull
   public XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest)
   {
     return new XsltTransformer (this, aRequest).run ();
+  }
+
+  @Override
+  @NonNull
+  public StaticContext createStaticContext ()
+  {
+    if (m_aHostScope == null)
+      return new StaticContext ().setFunctionLibrary (m_aFunctions).setSchemaSet (m_aSchemaSet);
+    return StaticContexts.create (m_aHostScope.element (),
+                                  m_aHostScope.functions (),
+                                  m_aHostScope.variables (),
+                                  m_aHostScope.defaultDecimalFormat (),
+                                  m_aHostScope.decimalFormats ())
+                         .setSchemaSet (m_aSchemaSet);
+  }
+
+  @Override
+  @NonNull
+  public XsltEvaluation createEvaluation (@NonNull final XsltTransformRequest aRequest)
+  {
+    return new XsltEvaluation (this, aRequest);
   }
 }

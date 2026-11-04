@@ -1,7 +1,7 @@
 # XSD (`xsdtests`): failing cases of the native validator
 
 The native validator of `xsd-core` (a port of go-xslt's `internal/xsd`) is selected with `-Dxsd.validator=native`;
-`XsdNativeTest` always runs it, for XSD 1.0 and 1.1 unless `-Dxsd.version` selects one. Its fail lists are written to
+`XsdNativeIT` always runs it, for XSD 1.0 and 1.1 unless `-Dxsd.version` selects one. Its fail lists are written to
 `target/xsd-native-fails.txt` (1.0) and `target/xsd-native11-fails.txt` (1.1). This file is its accepted-failures
 list, separate from the Xerces-J one (`xsd.md`).
 
@@ -10,7 +10,7 @@ list, separate from the Xerces-J one (`xsd.md`).
 
 The denominators equal go-xslt's and so do the fail lists.
 
-Every failing case is named here in backticks under a heading with its status and reason. `XsdTest` fails on any
+Every failing case is named here in backticks under a heading with its status and reason. `XsdIT` fails on any
 failing case that is not named here (switch that off with `-Dxsd.checkAccepted=false`), so a regression is loud and a
 newly accepted failure needs a written reason. Remove an entry when its case passes. The entries are go-xslt's
 documented failures (`docs/accepted-failures/xsd.md` there), with the same reasons.

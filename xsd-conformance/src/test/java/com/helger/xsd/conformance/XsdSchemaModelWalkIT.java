@@ -60,9 +60,9 @@ import com.helger.xsd.XsdWildcardView;
  *
  * @author Philip Helger
  */
-public final class XsdSchemaModelWalkTest
+public final class XsdSchemaModelWalkIT
 {
-  private static final Logger LOGGER = LoggerFactory.getLogger (XsdSchemaModelWalkTest.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger (XsdSchemaModelWalkIT.class);
 
   /** The walk of one schema; the stack is explicit, so deep models are no problem. */
   private static final class Walker

@@ -61,11 +61,11 @@ those two harnesses use the native validator unless `-Dxdm.schemaProvider=xerces
 * **XSLT30 schema-aware run** (`-Dxslt30.schemaAware=true`): all 9,310 applicable cases run; 15 fail with the native
   validator; Xerces-J additionally fails the cases with XSD 1.1 schemas
   (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`). The default run (8,647 cases) does not need it.
-  `XSLT30SchemaUnawareCasesTest` checks the 31 cases that require a processor *without* schema-awareness in both claim
+  `XSLT30SchemaUnawareCasesIT` checks the 31 cases that require a processor *without* schema-awareness in both claim
   states.
-* **xsdtests** (`xsd-conformance`): `-Dxsd.validator=xerces` (the default of `XsdTest`) is the Xerces-J baseline;
-  `XsdNativeTest` always runs the native validator for XSD 1.0 and 1.1 and gates on
-  `docs/accepted-failures/xsd-native.md` (go-xslt's five 1.0 and four 1.1 fails); `XsdBridgeDifferentialTest` checks
+* **xsdtests** (`xsd-conformance`): `-Dxsd.validator=xerces` (the default of `XsdIT`) is the Xerces-J baseline;
+  `XsdNativeIT` always runs the native validator for XSD 1.0 and 1.1 and gates on
+  `docs/accepted-failures/xsd-native.md` (go-xslt's five 1.0 and four 1.1 fails); `XsdBridgeDifferentialIT` checks
   that validating a tree in place gives the verdict of validating its text, for every XSD 1.0 and 1.1 instance.
 * **`NoXercesTest`**: a second surefire execution of `xslt-core` without Xerces-J on the class path checks that the
   basic processor and the JDK validator work without it and that no Xerces-J class is loaded.

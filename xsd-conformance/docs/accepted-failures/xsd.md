@@ -7,7 +7,7 @@ is reported as unsupported in the XSD 1.0 run. Measured offline, on JDK 21 and 2
 Xerces-J 2.12.2 implements XSD 1.0 only. The XSD 1.1 run (`-Dxsd.version=1.1`) exists, but reports every applicable
 case as unsupported, outside the pass/fail denominator, so it has no failing cases.
 
-Every failing case is named here in backticks under a heading with its status and reason. `XsdTest` fails on any
+Every failing case is named here in backticks under a heading with its status and reason. `XsdIT` fails on any
 failing case that is not named here (switch that off with `-Dxsd.checkAccepted=false`), so a regression is loud and a
 newly accepted failure needs a written reason. Remove an entry when its case passes. Status **Accepted (Xerces-J
 baseline)** means a verified deviation of Xerces-J; these entries are expected to change when the native validator

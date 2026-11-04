@@ -93,7 +93,7 @@ The engine now runs end to end: parser, evaluator, atomic operations and the QT3
 do not touch those files.
 
 - Test through XPath: `XPathCompiler.compile (sExpr, new StaticContext ()).evaluate (...)`.
-- Run QT3 test sets: `mvn -o -q test -pl xpath-conformance -am -Dqt3.only=<test-set name substring>`; fails are in
+- Run QT3 test sets: `mvn -o -q verify -Pconformance -pl xpath-conformance -am -Dqt3.only=<test-set name substring>`; fails are in
   `xpath-conformance/target/qt3-fails.txt` (with `qt3.only` the expression, expected and actual result of every fail
   are printed). Test-set names are in `/Users/philip/dev/git-thirdparty/qt3tests/catalog.xml`.
 - Compare fail lists **by name**, never by count.

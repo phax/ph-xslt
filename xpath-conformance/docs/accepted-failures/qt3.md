@@ -4,7 +4,7 @@
 `xsd-core` as the schema processor (the default of the harness, see below). With Apache Xerces-J
 (`-Dxdm.schemaProvider=xerces`) the fail list is identical by name.
 
-Every failing case is named here in backticks under a heading with its status and reason. `QT3Test` fails on any
+Every failing case is named here in backticks under a heading with its status and reason. `QT3IT` fails on any
 failing case that is not named here, so a regression is loud and a newly accepted failure needs a written reason.
 Remove an entry when its case passes. Status **Open** means winnable later; **Accepted** means a decision not to.
 

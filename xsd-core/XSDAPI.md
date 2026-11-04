@@ -212,7 +212,7 @@ the first error can differ).
 
 * `XsdSchema.validate` / `validateText` collect every error they can find (go-xslt `Schema.ValidateOpts`). The collector
   is `XsdErrorCollector` in the `XsdValidationRun`; the in-place path (bridge) has none and stops at the first error. The
-  verdict is identical either way (`XsdBridgeDifferentialTest` compares both over the whole XSD 1.0 suite and also
+  verdict is identical either way (`XsdBridgeDifferentialIT` compares both over the whole XSD 1.0 suite and also
   checks that the first error of the in-place run is among the collected ones, by code).
 * Recording points are `XsdInstanceValidator.soft (run, XsdInvalidException, element)`, which records the error (stamped
   with the location of the innermost element, like `stampLoc`) when the run collects and rethrows it otherwise:
@@ -291,11 +291,11 @@ the first error can differ).
   `XsdSchemaCompositionTest`, `XsdSchemaModelTest`) tolerate "unsupported" and count it; a decided verdict must be
   the expected one. As the stubs disappear, more cases are decided; model tests skip (assumption) while their schema
   does not compile yet.
-* Suite: `mvn -o -q test -pl xsd-conformance -am -Dtest=XsdTest -Dsurefire.failIfNoSpecifiedTests=false
-  -Dxsd.validator=native` (fail list `xsd-conformance/target/xsd-native-fails.txt`; `-Dxsd.unsup=true` prints each
+* Suite: `mvn -o -q verify -Pconformance -pl xsd-conformance -am -Dit.test=XsdIT -Dxsd.validator=native`
+  (fail list `xsd-conformance/target/xsd-native-fails.txt`; `-Dxsd.unsup=true` prints each
   unsupported case with the stub it hit; `-Dxsd.faildump=true` the fails). The summary splits schema and instance
   tests. Accepted failures: `xsd-conformance/docs/accepted-failures/xsd-native.md`, checked by default
-  (`XsdNativeTest` always runs the native validator and gates on it). `XsdBridgeDifferentialTest` compares validation
+  (`XsdNativeIT` always runs the native validator and gates on it). `XsdBridgeDifferentialIT` compares validation
   in place with validation of the text.
 * Differential check used for V2: replace the stubs locally (never committed) by permissive bodies (accept every
   pattern, facet, value, UPA and restriction) and do the same in a scratch copy of go-xslt; then the schema-test fail

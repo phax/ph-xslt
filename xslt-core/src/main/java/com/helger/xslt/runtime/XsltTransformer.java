@@ -199,30 +199,33 @@ public final class XsltTransformer
     return _mapToStripped (aRoot, aStripped, aNode);
   }
 
-  @NonNull
-  private XsltTransformResult _run ()
+  /**
+   * Set up the global context item of a new engine as a transformation does:
+   * whitespace stripping of its tree, the checks of xsl:global-context-item,
+   * the registration as source document and the check of the global
+   * parameters.
+   *
+   * @param aEngine
+   *        The new engine.
+   * @param aStrippedRoots
+   *        Original root to stripped root, filled here and reused for the
+   *        initial match selection.
+   * @return The global context item to use (after stripping), or
+   *         <code>null</code> if there is none.
+   * @throws XsltException
+   *         XTDE3086, XTTE0590, or an error of a global parameter
+   */
+  @Nullable
+  public static IXdmItem initGlobalContextItem (@NonNull final Engine aEngine,
+                                                @NonNull final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots)
   {
-    final Engine aEngine = new Engine (m_aSheet, m_aRequest);
     // Whitespace stripping applies to the trees of the global context item
     // and of the initial match selection; a node that is stripped itself is
     // gone (strip-space-023, mode-1802)
-    final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots = new CommonsHashMap <> ();
-    IXdmItem aGlobalItem = m_aRequest.getGlobalContextItem ();
+    IXdmItem aGlobalItem = aEngine.getRequest ().getGlobalContextItem ();
     if (aGlobalItem instanceof final IXdmNode aNode)
       aGlobalItem = _toStripped (aEngine, aStrippedRoots, aNode);
-    XdmSequence aMatchSelection = m_aRequest.getInitialMatchSelection ();
-    if (aMatchSelection != null)
-    {
-      final XdmSequence.Builder aNew = new XdmSequence.Builder ();
-      for (final IXdmItem aItem : aMatchSelection)
-      {
-        final IXdmItem aMapped = aItem instanceof final IXdmNode aNode ? _toStripped (aEngine, aStrippedRoots, aNode) : aItem;
-        if (aMapped != null)
-          aNew.add (aMapped);
-      }
-      aMatchSelection = aNew.build ();
-    }
-    final CompiledStylesheet.GlobalContextItem aGCI = m_aSheet.getGlobalContextItem ();
+    final CompiledStylesheet.GlobalContextItem aGCI = aEngine.getStylesheet ().getGlobalContextItem ();
     if (aGCI != null)
     {
       if ("required".equals (aGCI.use ()) && aGlobalItem == null)
@@ -236,6 +239,27 @@ public final class XsltTransformer
     if (aGlobalItem instanceof final IXdmNode aNode)
       aEngine.registerSourceDocument (aNode);
     aEngine.checkGlobalParams ();
+    return aGlobalItem;
+  }
+
+  @NonNull
+  private XsltTransformResult _run ()
+  {
+    final Engine aEngine = new Engine (m_aSheet, m_aRequest);
+    final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots = new CommonsHashMap <> ();
+    final IXdmItem aGlobalItem = initGlobalContextItem (aEngine, aStrippedRoots);
+    XdmSequence aMatchSelection = m_aRequest.getInitialMatchSelection ();
+    if (aMatchSelection != null)
+    {
+      final XdmSequence.Builder aNew = new XdmSequence.Builder ();
+      for (final IXdmItem aItem : aMatchSelection)
+      {
+        final IXdmItem aMapped = aItem instanceof final IXdmNode aNode ? _toStripped (aEngine, aStrippedRoots, aNode) : aItem;
+        if (aMapped != null)
+          aNew.add (aMapped);
+      }
+      aMatchSelection = aNew.build ();
+    }
 
     XsltContext aCtx = aEngine.createRootContext ();
     if (aGlobalItem != null)

@@ -1592,6 +1592,20 @@ public final class StylesheetCompiler
     final CompileContext aGlobal = createGlobalContext ();
     for (final ICompileFinisher aFinisher : m_aRegistry.getAllCompileFinishers ())
       aFinisher.finish (aGlobal);
+    // For host expressions (XsltExecutable.createStaticContext): the scope of
+    // the principal stylesheet element
+    final XslElement aRoot = aPrincipal.getRoot ();
+    if (aRoot != null)
+    {
+      final ICommonsOrderedSet <XdmQName> aVariables = aGlobal.getVariablesInScope ();
+      if (m_aPackages.isMultiPackage ())
+        aVariables.removeIf (x -> isGlobalVariableHidden (aRoot, x));
+      m_aStylesheet.setHostScope (new CompiledStylesheet.HostScope (aRoot,
+                                                                    getFunctionLibraryFor (aRoot),
+                                                                    new CommonsArrayList <> (aVariables),
+                                                                    getDefaultDecimalFormat (aRoot),
+                                                                    new CommonsHashMap <> (getDecimalFormats (aRoot))));
+    }
     return m_aStylesheet;
   }
 

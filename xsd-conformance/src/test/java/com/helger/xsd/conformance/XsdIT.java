@@ -35,11 +35,12 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
  * case that is not named in <code>docs/accepted-failures/xsd.md</code> fails
  * the build; switch that off with <code>-Dxsd.checkAccepted=false</code>.
  * <p>
- * Named after the Go test <code>TestXSD</code>, not after a class.
+ * Named after the Go test <code>TestXSD</code>, not after a class; an integration test that runs with
+ * <code>-Pconformance</code>.
  *
  * @author Philip Helger
  */
-public final class XsdTest
+public final class XsdIT
 {
   @Test
   public void testXSD () throws IOException

@@ -245,7 +245,7 @@ assertEquals ("XTDE1450", XsltTestHelper.errorCode (XsltTestHelper.SHEET + "..."
 
 `text (body, source)` wraps the body in a stylesheet with `method="text"`; `transform (sheet, source, params)`
 returns the serialized result, `run (...)` the full `XsltTransformResult`. Then run the XSLT30 harness for your test
-sets: `mvn -o -q test -pl xslt-conformance -am -Dtest=XSLT30Test -Dxslt30.only=<set>` (fails in
+sets: `mvn -o -q verify -Pconformance -pl xslt-conformance -am -Dit.test=XSLT30IT -Dxslt30.only=<set>` (fails in
 `xslt-conformance/target/xslt30-fails.txt`; `-Dxslt30.faildump=true` prints the reasons). Compare fail lists by
 name.
 

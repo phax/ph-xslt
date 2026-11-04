@@ -47,7 +47,7 @@ import com.helger.xpath.conformance.EQT3Status;
  *
  * @author Philip Helger
  */
-public final class XSLT30SchemaUnawareCasesTest
+public final class XSLT30SchemaUnawareCasesIT
 {
   private static final ICommonsSet <String> CASES = new CommonsHashSet <> ("built-in-templates-0301",
                                                                           "error-1535b",
