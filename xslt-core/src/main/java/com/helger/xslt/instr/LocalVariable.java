@@ -20,13 +20,20 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.xpath.XPathException;
 import com.helger.xslt.model.VariableDef;
+import com.helger.xslt.runtime.LazyVariableException;
+import com.helger.xslt.runtime.TryScope;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.tree.XslNode;
 
 /**
- * A local xsl:variable: evaluates its value and binds it for the following
- * siblings.
+ * A local xsl:variable: binds its value for the following siblings. The value
+ * is evaluated on first use, in the context of the declaration, and only then
+ * (as by Saxon; XPath 3.1 section 2.3.4 leaves the order of evaluation open):
+ * a variable no path uses raises no error. The required type ("as") is checked
+ * at that point as well, and an error is located at the xsl:variable element
+ * unless it has a location of its own.
  *
  * @author Philip Helger
  */
@@ -49,7 +56,17 @@ public final class LocalVariable implements IBindingInstruction
   @NonNull
   public XsltContext bind (@NonNull final XsltContext aCtx)
   {
-    return aCtx.withVariable (m_aDef.getName (), m_aDef.evaluate (aCtx));
+    final TryScope aScope = aCtx.get (TryScope.KEY);
+    return aCtx.withLazyVariable (m_aDef.getName (), () -> {
+      try
+      {
+        return m_aDef.evaluate (aCtx);
+      }
+      catch (final XPathException ex)
+      {
+        throw LazyVariableException.of (ex, m_aDef.getElement (), aScope);
+      }
+    });
   }
 
   @Nullable

@@ -25,6 +25,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   same change that makes them wrong.
 - XSD: the native validator (`xsd-core`) does XSD 1.0 and 1.1; `XsdSchemaProvider` (schema-aware XPath/XSLT) compiles as
   1.1. `XsdNativeTest` gates both versions (`xsd-conformance/target/xsd-native-fails.txt`, `xsd-native11-fails.txt`).
+- Local `xsl:variable`s are lazy (`DynamicContext.withLazyVariable`, evaluated once on first use); `xsl:try` must not
+  catch errors of variables declared outside it (`TryScope`, `LazyVariableException`). The XPath `let` stays eager.
 - When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
   does not catch it); it happened with the XPath 1.0 compatibility conversions.
 

@@ -42,13 +42,13 @@ public final class XsltNameRulesTest
                                       "<xsl:for-each select=\"tokenize($list, '&#9;')\">" +
                                       "<xsl:variable name='n' select='.'/>" +
                                       "<xsl:text>castable=</xsl:text><xsl:value-of select='$n castable as xs:NCName'/>" +
-                                      "<xsl:text> element=</xsl:text><xsl:try><xsl:variable name='e'><xsl:element name='{$n}'/></xsl:variable><xsl:text>ok</xsl:text>" +
+                                      "<xsl:text> element=</xsl:text><xsl:try><xsl:variable name='e'><xsl:element name='{$n}'/></xsl:variable><xsl:value-of select=\"$e ! 'ok'\"/>" +
                                       "<xsl:catch><xsl:text>fail</xsl:text></xsl:catch></xsl:try>" +
-                                      "<xsl:text> attribute=</xsl:text><xsl:try><xsl:variable name='e'><e><xsl:attribute name='{$n}'>v</xsl:attribute></e></xsl:variable><xsl:text>ok</xsl:text>" +
+                                      "<xsl:text> attribute=</xsl:text><xsl:try><xsl:variable name='e'><e><xsl:attribute name='{$n}'>v</xsl:attribute></e></xsl:variable><xsl:value-of select=\"$e ! 'ok'\"/>" +
                                       "<xsl:catch><xsl:text>fail</xsl:text></xsl:catch></xsl:try>" +
-                                      "<xsl:text> pi=</xsl:text><xsl:try><xsl:variable name='e'><xsl:processing-instruction name='{$n}'>v</xsl:processing-instruction></xsl:variable><xsl:text>ok</xsl:text>" +
+                                      "<xsl:text> pi=</xsl:text><xsl:try><xsl:variable name='e'><xsl:processing-instruction name='{$n}'>v</xsl:processing-instruction></xsl:variable><xsl:value-of select=\"$e ! 'ok'\"/>" +
                                       "<xsl:catch><xsl:text>fail</xsl:text></xsl:catch></xsl:try>" +
-                                      "<xsl:text> namespace=</xsl:text><xsl:try><xsl:variable name='e'><e><xsl:namespace name='{$n}' select=\"'urn:x'\"/></e></xsl:variable><xsl:text>ok</xsl:text>" +
+                                      "<xsl:text> namespace=</xsl:text><xsl:try><xsl:variable name='e'><e><xsl:namespace name='{$n}' select=\"'urn:x'\"/></e></xsl:variable><xsl:value-of select=\"$e ! 'ok'\"/>" +
                                       "<xsl:catch><xsl:text>fail</xsl:text></xsl:catch></xsl:try>" +
                                       "<xsl:text>&#10;</xsl:text>" +
                                       "</xsl:for-each>" +

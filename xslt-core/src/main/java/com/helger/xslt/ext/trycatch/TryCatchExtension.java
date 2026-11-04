@@ -39,6 +39,7 @@ import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.model.VariableDef;
 import com.helger.xslt.runtime.BufferedOutput;
+import com.helger.xslt.runtime.TryScope;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
@@ -252,16 +253,18 @@ public final class TryCatchExtension implements IXsltExtension
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileSequenceConstructor (aEl, aBodyNodes) : null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final BufferedOutput aBuffer = new BufferedOutput ();
+      final XsltContext aBodyCtx = TryScope.enter (aRtCtx);
       try
       {
         if (aSelect != null)
-          aBuffer.appendAll (aSelect.evaluate (aRtCtx));
+          aBuffer.appendAll (aSelect.evaluate (aBodyCtx));
         else
-          aBody.execute (aRtCtx, aBuffer);
+          aBody.execute (aBodyCtx, aBuffer);
       }
       catch (final XPathException ex)
       {
-        if (_isGlobalVariableError (aRtCtx, ex))
+        // Errors of variables declared outside are not caught (section 8.3)
+        if (_isGlobalVariableError (aRtCtx, ex) || TryScope.isDeclaredOutside (aBodyCtx, ex))
           throw ex;
         if (!bRollback && aBuffer.size () > 0)
           throw new XPathException ("XTDE3530",

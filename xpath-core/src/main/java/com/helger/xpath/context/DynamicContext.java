@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -43,7 +44,8 @@ import com.helger.xpath.xdm.XdmQName;
  * The dynamic context of an evaluation: the focus (context item, position,
  * size), variable bindings and run-wide settings. Focus and variable changes
  * create a derived context that shares the run-wide settings
- * ({@link #withFocus(IXdmItem, int, int)}, {@link #withVariable(XdmQName, XdmSequence)}),
+ * ({@link #withFocus(IXdmItem, int, int)}, {@link #withVariable(XdmQName, XdmSequence)},
+ * {@link #withLazyVariable(XdmQName, Supplier)}),
  * so a context is never modified while another evaluation reads it. The
  * run-wide part (current date/time, resolver, interrupt, document cache) is
  * shared by reference.
@@ -84,8 +86,56 @@ public final class DynamicContext
   // Persistent linked list of bindings, innermost first
   private final VarBinding m_aVars;
 
-  private record VarBinding (XdmQName name, XdmSequence value, VarBinding next)
+  /**
+   * A variable bound to a value or, if <code>lazy</code> is not
+   * <code>null</code>, to a value computed on first use.
+   */
+  private record VarBinding (XdmQName name, XdmSequence value, LazyValue lazy, VarBinding next)
   {}
+
+  /**
+   * The memoising thunk of a lazily bound variable: evaluated on first use,
+   * then the value is kept. A failure is kept as well and raised again on
+   * every later use, so that every reference sees the same outcome.
+   */
+  private static final class LazyValue
+  {
+    private Supplier <XdmSequence> m_aSupplier;
+    private XdmSequence m_aValue;
+    private RuntimeException m_aFailure;
+
+    LazyValue (@NonNull final Supplier <XdmSequence> aSupplier)
+    {
+      m_aSupplier = aSupplier;
+    }
+
+    @NonNull
+    XdmSequence get ()
+    {
+      if (m_aValue != null)
+        return m_aValue;
+      if (m_aFailure != null)
+        throw m_aFailure;
+      final Supplier <XdmSequence> aSupplier = m_aSupplier;
+      if (aSupplier == null)
+        throw new IllegalStateException ("A lazily bound variable depends on its own value");
+      // Released before the evaluation: the supplier (and the context it holds)
+      // is no longer needed afterwards, and a re-entry is detected
+      m_aSupplier = null;
+      try
+      {
+        final XdmSequence aValue = aSupplier.get ();
+        ValueEnforcer.notNull (aValue, "Value");
+        m_aValue = aValue;
+        return aValue;
+      }
+      catch (final RuntimeException ex)
+      {
+        m_aFailure = ex;
+        throw ex;
+      }
+    }
+  }
 
   private DynamicContext (@NonNull final StaticContext aStatic,
                           @NonNull final RunState aRun,
@@ -159,7 +209,37 @@ public final class DynamicContext
                                m_nPosition,
                                m_nSize,
                                m_aHostState,
-                               new VarBinding (aName, aValue, m_aVars));
+                               new VarBinding (aName, aValue, null, m_aVars));
+  }
+
+  /**
+   * Bind a variable whose value is computed when it is first used, and only
+   * then: a variable that is never used is never evaluated, so a dynamic error
+   * in its value is not raised (XPath 3.1 section 2.3.4 leaves the order of
+   * evaluation open). The value is computed once; later uses, also from
+   * derived contexts, get the same value (or the same error).
+   *
+   * @param aName
+   *        Variable name. May not be <code>null</code>.
+   * @param aSupplier
+   *        Computes the value. It must capture the context the variable is
+   *        declared in (focus, variables), not the one it is used in. It is
+   *        called at most once and must not return <code>null</code>.
+   * @return The derived context.
+   */
+  @NonNull
+  public DynamicContext withLazyVariable (@NonNull final XdmQName aName, @NonNull final Supplier <XdmSequence> aSupplier)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    ValueEnforcer.notNull (aSupplier, "Supplier");
+    return new DynamicContext (m_aStatic,
+                               m_aRun,
+                               m_aItem,
+                               m_aCurrentItem,
+                               m_nPosition,
+                               m_nSize,
+                               m_aHostState,
+                               new VarBinding (aName, null, new LazyValue (aSupplier), m_aVars));
   }
 
   /**
@@ -255,7 +335,7 @@ public final class DynamicContext
   {
     for (VarBinding aCur = m_aVars; aCur != null; aCur = aCur.next ())
       if (aCur.name ().equals (aName))
-        return aCur.value ();
+        return aCur.lazy () != null ? aCur.lazy ().get () : aCur.value ();
     final BiFunction <DynamicContext, XdmQName, XdmSequence> aResolver = m_aRun.m_aGlobalVariableResolver;
     return aResolver == null ? null : aResolver.apply (this, aName);
   }

@@ -81,7 +81,27 @@ Known JDK differences found so far:
 
 ## Lazy variable evaluation
 
-Status: open (raised 2026-11-04 by the Schematron executor `com.helger.tools.schexec` in `ph-xpath-inventory`).
+Status: done in ph-xslt (2026-11-04); the schexec side in `ph-xpath-inventory` is open (raised 2026-11-04 by the
+Schematron executor `com.helger.tools.schexec` in `ph-xpath-inventory`).
+
+Result:
+
+* `DynamicContext.withLazyVariable (XdmQName, Supplier <XdmSequence>)` binds a memoising thunk: evaluated on first
+  use, once; a failure is kept and raised again on every use. Local `xsl:variable`s are bound that way
+  (`LocalVariable.bind`, also through `XsltContext.withLazyVariable`); the `as` conversion runs then, and an error
+  without a location of its own is located at the `xsl:variable` element. `_isUnusedLocalVariable` is gone.
+* `xsl:try` (XSLT 3.0 section 8.3) must not catch "errors that occur while evaluating references to variables whose
+  declaration and initialization is outside the xsl:try". Each evaluation of an `xsl:try` body enters a `TryScope`;
+  a lazy variable remembers its scope and fails with a `LazyVariableException` that carries it, and an `xsl:try`
+  rethrows such an error unless the variable was declared inside it.
+* The XPath `let` clause stays eager. Measured on JDK 21 (300,000 bindings, minimum of 25 runs): one binding 45 ms
+  eager, 48-51 ms lazy; a chain of three 60-62 ms eager, 67-77 ms lazy; only an unused binding is faster lazily
+  (37-39 ms against 33-37 ms). The perfab workloads with local variables (`numbers`, `recursion`, `json-roundtrip`)
+  and `templates`/`functions` are unchanged within noise with lazy `xsl:variable`s.
+* QT3 and XSLT30 fail lists unchanged by name on JDK 21 and 25; `LazyVariableTest` (xslt-core) and
+  `DynamicContextLazyVariableTest` (xpath-core).
+
+The original task:
 
 Today only global variables and parameters are evaluated on first use (`Engine.getGlobalValue`, reached through the
 run-wide resolver of `DynamicContext`, with XTDE0640 for cycles). Everything else is eager:
@@ -99,8 +119,6 @@ in the ISO skeleton; evaluated eagerly they raised XPTY0004 on mutated instances
 schexec now works around this with its own resolver that evaluates and caches lets on first use. That resolver
 replaces the one set by the engine and falls back to `Engine.getGlobalValue`, so it bypasses `_resolveGlobal`
 (static values, `xsl:original`) and keeps mutable per-node state outside the context.
-
-Task:
 
 * `DynamicContext`: a lazy binding, for example `withLazyVariable (XdmQName, Supplier <XdmSequence>)`, whose
   `VarBinding` holds a memoising thunk. The thunk evaluates in the context where the variable is declared (focus,

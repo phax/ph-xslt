@@ -16,6 +16,8 @@
  */
 package com.helger.xslt.runtime;
 
+import java.util.function.Supplier;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -120,6 +122,22 @@ public final class XsltContext
   public XsltContext withVariable (@NonNull final XdmQName aName, @NonNull final XdmSequence aValue)
   {
     return new XsltContext (m_aEngine, m_aDyn.withVariable (aName, aValue));
+  }
+
+  /**
+   * Bind a variable that is evaluated on first use (see
+   * {@link DynamicContext#withLazyVariable(XdmQName, Supplier)}).
+   *
+   * @param aName
+   *        Variable name.
+   * @param aSupplier
+   *        Computes the value in the context the variable is declared in.
+   * @return The derived context.
+   */
+  @NonNull
+  public XsltContext withLazyVariable (@NonNull final XdmQName aName, @NonNull final Supplier <XdmSequence> aSupplier)
+  {
+    return new XsltContext (m_aEngine, m_aDyn.withLazyVariable (aName, aSupplier));
   }
 
   @NonNull
