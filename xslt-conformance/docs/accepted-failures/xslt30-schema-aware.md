@@ -13,11 +13,18 @@ Every failing case is named here in backticks under a heading with its status an
 Status **Open** means winnable later; **Accepted** means a decision not to.
 
 ### `accumulator-073`
-**Status:** Open.
-The schema `books.xsd` carries a `vc:minVersion="1.1"` assertion and compiles; the case then fails in the XSLT engine
-with XTDE3362: the stylesheet's unnamed mode has no `use-accumulators`, so `f:total-price` is not applicable to the
-principal source document, while the expected result reads accumulator values on nodes copied with
-`copy-accumulators="yes"`. Not analysed further.
+**Status:** Accepted (the expected result contradicts XSLT 3.0).
+The case transforms the principal source with `match="/"`, and its unnamed mode (`<xsl:mode on-no-match="shallow-copy"/>`)
+has no `use-accumulators`. XSLT 3.0 section 18.2.2: "For a document containing nodes supplied in the initial match
+selection, the accumulators that are applicable are those determined by the xsl:mode declaration of the initial mode",
+whose default "is an empty list"; and "For a tree T created by copying a node in a tree S using [...] xsl:copy-of
+with copy-accumulators="yes", an accumulator is applicable to T if and only if it is applicable to S". So
+`f:total-price` applies neither to the source nor to the copies, and `accumulator-before` raises XTDE3362 ("If an
+accumulator is not applicable to the tree containing the context item, calls to the functions accumulator-before and
+accumulator-after [...] will fail with a dynamic error"). The expected result assumes the accumulator applies. The
+sibling cases (`accumulator-063`, `-070` to `-072`, `-074`) start at `xsl:initial-template` and build their tree in a
+variable, where every accumulator applies. go-xslt treats a mode without `use-accumulators` as unrestricted
+(`acc2checkModeApplies`); that deviation is not ported. Checked against xslt30-test `fddf1cf` (2026-06-10).
 
 ### `strip-space-009`
 **Status:** Accepted (not required by XSLT 3.0).
