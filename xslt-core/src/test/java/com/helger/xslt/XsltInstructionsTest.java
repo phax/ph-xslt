@@ -367,4 +367,40 @@ public final class XsltInstructionsTest
                   errorCode (SHEET + "<xsl:mode typed='yes'/><xsl:template match='/'><xsl:apply-templates select='*'/></xsl:template>" + END,
                              "<doc/>"));
   }
+
+  @Test
+  public void testParamWithSelectAndContent ()
+  {
+    // XTSE0620 for every variable-binding element, XTSE0760 only for a
+    // parameter of xsl:function (XSLT 3.0 sections 9.3 and 10.3.2)
+    assertEquals ("XTSE0620", errorCode (SHEET + "<xsl:template name='xsl:initial-template'><xsl:param name='p' select='1'>x</xsl:param></xsl:template>" + END, null));
+    assertEquals ("XTSE0620", errorCode (SHEET + "<xsl:param name='p' select='1'>x</xsl:param><xsl:template name='xsl:initial-template'/>" + END, null));
+    assertEquals ("XTSE0760",
+                  errorCode (SHEET.replace ("version='3.0'", "version='3.0' xmlns:f='urn:f'") +
+                             "<xsl:function name='f:f'><xsl:param name='p' select='1'>x</xsl:param></xsl:function>" +
+                             "<xsl:template name='xsl:initial-template'/>" +
+                             END,
+                             null));
+  }
+
+  @Test
+  public void testWherePopulatedElementWithEmptyComment ()
+  {
+    // An element with a child is not deemed empty, even if the child is
+    // (XSLT 3.0 section 8.4.1)
+    assertEquals ("<r><e><!----></e><f><?pi?></f></r>",
+                  _xml (IT +
+                        "<r><xsl:where-populated><e><xsl:comment/></e><f><xsl:processing-instruction name='pi'/></f><g><xsl:value-of select=\"''\"/></g></xsl:where-populated></r>" +
+                        TE,
+                        null));
+  }
+
+  @Test
+  public void testSortBooleanAsNumber ()
+  {
+    // data-type="number" converts with fn:number: true is 1, false is 0
+    assertEquals ("false true", text (IT + "<xsl:value-of separator=' '><xsl:perform-sort select='(true(), false())'><xsl:sort select='.' data-type='number'/></xsl:perform-sort></xsl:value-of>" + TE, null));
+    // A value that cannot be cast to xs:double is NaN, which sorts first
+    assertEquals ("2001 1", text (IT + "<xsl:value-of separator=' '><xsl:perform-sort select='(1, xs:gYear(\"2001\"))'><xsl:sort select='.' data-type='number'/></xsl:perform-sort></xsl:value-of>" + TE, null));
+  }
 }
