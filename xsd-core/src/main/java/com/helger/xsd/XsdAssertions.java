@@ -34,6 +34,8 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.CompiledXPath;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.fn.FnAccessor;
 import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
@@ -61,11 +63,62 @@ final class XsdAssertions
   /** The maximum length of a complex type's base chain that is followed. */
   private static final int MAX_BASE_CHAIN = 64;
 
+  /**
+   * The resources of the dynamic context of assertions and type alternatives
+   * (XSD 1.1 Part 1, 3.13.4.2): no available documents, no available
+   * collections, and the default collection is the empty sequence.
+   */
+  private static final IResourceResolver RESOLVER = new IResourceResolver ()
+  {
+    @Nullable
+    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    {
+      return null;
+    }
+
+    @Nullable
+    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    {
+      return null;
+    }
+
+    @Override
+    @Nullable
+    public ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final String sAbsoluteUri)
+    {
+      return sAbsoluteUri.isEmpty () ? new CommonsArrayList <> () : null;
+    }
+
+    @Override
+    @Nullable
+    public ICommonsList <String> resolveUriCollection (@NonNull final String sAbsoluteUri)
+    {
+      return sAbsoluteUri.isEmpty () ? new CommonsArrayList <> () : null;
+    }
+  };
+
   @PresentForCodeCoverage
   private static final XsdAssertions INSTANCE = new XsdAssertions ();
 
   private XsdAssertions ()
   {}
+
+  /**
+   * A dynamic context for an assertion or type alternative test with the
+   * resources XSD 1.1 Part 1, 3.13.4.2 prescribes (see {@link #RESOLVER}); the
+   * caller adds the focus and <code>$value</code>.
+   *
+   * @param aXPath
+   *        The compiled test.
+   * @return A new dynamic context.
+   */
+  @NonNull
+  private static DynamicContext _createContext (@NonNull final CompiledXPath aXPath)
+  {
+    final DynamicContext ret = aXPath.createDynamicContext ();
+    ret.setResourceResolver (RESOLVER);
+    return ret;
+  }
 
   /**
    * One pending step of the iterative copy in {@link #_assertTree}: the source
@@ -175,6 +228,9 @@ final class XsdAssertions
       return IXdmNode.createText (aSrc.getValue ());
     final IXdmNode ret = IXdmNode.createElement (aSrc.getName ());
     ret.setLocation (aSrc.getLine (), aSrc.getColumn ());
+    // The root gets the computed base URI; below it the explicit ones are
+    // enough, as xml:base attributes are copied too
+    ret.setBaseUri (bRoot ? FnAccessor.getBaseUri (aSrc) : aSrc.getBaseUri ());
     for (final Map.Entry <String, String> aEntry : aSrc.getDeclaredNamespaces ().entrySet ())
       ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     // Attributes are value-cloned so that their typed annotation lives only on
@@ -318,7 +374,7 @@ final class XsdAssertions
   {
     for (final XsdAssertion aAssert : aAsserts)
     {
-      final DynamicContext aCtx = aAssert.m_aXPath.createDynamicContext ().withVariable (VAR_VALUE, aValue);
+      final DynamicContext aCtx = _createContext (aAssert.m_aXPath).withVariable (VAR_VALUE, aValue);
       if (!_isTrue (aAssert.m_aXPath, aCtx))
         throw new XsdInvalidException (XsdError.of ("cvc-assertions-valid", "assertion on the value failed"),
                                        aAssert.m_aMsgs);
@@ -410,9 +466,7 @@ final class XsdAssertions
     final IXdmNode aTree = _assertTree (aRun, aElement);
     for (final XsdAssertion aAssert : aAsserts)
     {
-      final DynamicContext aCtx = aAssert.m_aXPath.createDynamicContext ()
-                                                  .withFocus (aTree, 1, 1)
-                                                  .withVariable (VAR_VALUE, aValue);
+      final DynamicContext aCtx = _createContext (aAssert.m_aXPath).withFocus (aTree, 1, 1).withVariable (VAR_VALUE, aValue);
       if (!_isTrue (aAssert.m_aXPath, aCtx))
         XsdInstanceValidator.soft (aRun,
                                    new XsdInvalidException (XsdError.of ("cvc-assertion",
@@ -448,6 +502,9 @@ final class XsdAssertions
     // a test cannot legitimately depend on anything else outside the element
     final IXdmNode aCopy = IXdmNode.createElement (aElement.getName ());
     aCopy.setLocation (aElement.getLine (), aElement.getColumn ());
+    // [base URI] is a base information set property: the copy keeps it
+    // (3.12.4 clause 1.1, appendix D)
+    aCopy.setBaseUri (FnAccessor.getBaseUri (aElement));
     for (final Map.Entry <String, String> aEntry : aElement.getInScopeNamespaces ().entrySet ())
       if (!"xml".equals (aEntry.getKey ()))
         aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());
@@ -462,7 +519,7 @@ final class XsdAssertions
         // The default alternative
         return aAlt.m_aType;
       }
-      final DynamicContext aCtx = aAlt.m_aXPath.createDynamicContext ().withFocus (aCopy, 1, 1);
+      final DynamicContext aCtx = _createContext (aAlt.m_aXPath).withFocus (aCopy, 1, 1);
       if (_isTrue (aAlt.m_aXPath, aCtx))
         return aAlt.m_aType;
     }

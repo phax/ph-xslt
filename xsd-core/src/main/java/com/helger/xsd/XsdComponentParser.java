@@ -29,6 +29,7 @@ import com.helger.xpath.CompiledXPath;
 import com.helger.xpath.XPathCompiler;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.context.StaticContext;
+import com.helger.xpath.fn.FnAccessor;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.xdm.IXdmNode;
 
@@ -995,10 +996,12 @@ final class XsdComponentParser
 
   /**
    * Compile the XPath of an assertion or a type alternative. A static error is
-   * a schema error.
+   * a schema error. The static base URI is the [base URI] of the host element
+   * (XSD 1.1 Part 1, 3.13.2 {base URI}).
    */
   @NonNull
   private CompiledXPath _compileTest (@NonNull final String sTest,
+                                      @Nullable final String sBaseUri,
                                       @NonNull final ICommonsOrderedMap <String, String> aNS,
                                       @NonNull final String sDefaultNS,
                                       final boolean bValueVar,
@@ -1010,6 +1013,7 @@ final class XsdComponentParser
         aSC.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     aSC.setDefaultElementNamespace (sDefaultNS);
     aSC.setXsdVersion (m_aC.m_eVersion);
+    aSC.setBaseUri (sBaseUri);
     if (bValueVar)
       aSC.declareVariable (XsdAssertions.VAR_VALUE);
     try
@@ -1040,7 +1044,7 @@ final class XsdComponentParser
     ret.m_aNS = XsdNodes.inScopeNamespaces (aNode);
     ret.m_sDefaultNS = m_aC.m_aIdentity.resolveXPathDefaultNamespace (aNode);
     ret.m_aMsgs = XsdMessages.messagesOf (aNode);
-    ret.m_aXPath = _compileTest (ret.m_sTest, ret.m_aNS, ret.m_sDefaultNS, true, "@test");
+    ret.m_aXPath = _compileTest (ret.m_sTest, FnAccessor.getBaseUri (aNode), ret.m_aNS, ret.m_sDefaultNS, true, "@test");
     return ret;
   }
 
@@ -1095,7 +1099,7 @@ final class XsdComponentParser
       aAlt.m_sDefaultNS = m_aC.m_aIdentity.resolveXPathDefaultNamespace (aChild);
       if (sTest != null)
       {
-        aAlt.m_aXPath = _compileTest (sTest, aAlt.m_aNS, aAlt.m_sDefaultNS, false, "xs:alternative/@test");
+        aAlt.m_aXPath = _compileTest (sTest, FnAccessor.getBaseUri (aChild), aAlt.m_aNS, aAlt.m_sDefaultNS, false, "xs:alternative/@test");
         aAlt.m_sRawTest = sTest;
       }
       final String sTypeRef = XsdNodes.attr (aChild, "type");

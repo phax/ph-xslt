@@ -29,6 +29,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.xpath.context.EXsdVersion;
 import com.helger.xsd.XsdTestSupport.Compiled;
 import com.helger.xsd.XsdTestSupport.EVerdict;
@@ -255,5 +256,30 @@ public final class XsdSpecClauseTest
     final Compiled aImport = _compile (XS + "<xs:import/></xs:schema>", null, EXsdVersion.V11);
     assertEquals (EVerdict.INVALID, aImport.verdict ());
     assertTrue (aImport.message (), aImport.message ().contains ("src-import.1.2"));
+  }
+
+  @Test
+  public void testAlternativeContext () throws IOException
+  {
+    // XSD 1.1 Part 1: the default collection is empty (3.13.4.2), the copy of
+    // the element keeps its base URI (3.12.4 clause 1.1, appendix D) and the
+    // static base URI is the one of the xs:alternative element (3.13.2)
+    final Path aDir = m_aTmp.newFolder ("cta").toPath ();
+    final String sSchema = XS +
+                           "<xs:element name='when' type='xs:anySimpleType'>" +
+                           "<xs:alternative test=\"empty(collection()) and ends-with(base-uri(.), 'when.xml')" +
+                           " and ends-with(static-base-uri(), 'when.xsd')\" type='xs:date'/>" +
+                           "<xs:alternative type='xs:error'/>" +
+                           "</xs:element></xs:schema>";
+    final Path aSchemaFile = aDir.resolve ("when.xsd");
+    Files.writeString (aSchemaFile, sSchema);
+    final XsdSchema aSchema = XsdSchema.compile (new CommonsArrayList <> (XsdSchemaSource.ofFile (aSchemaFile)), EXsdVersion.V11, null);
+    final Path aInstance = aDir.resolve ("when.xml");
+    Files.writeString (aInstance, "<when>2010-10-16</when>");
+    assertTrue (aSchema.validate (aInstance).valid ());
+    // Another document name selects the error alternative
+    final Path aOther = aDir.resolve ("other.xml");
+    Files.writeString (aOther, "<when>2010-10-16</when>");
+    assertTrue (!aSchema.validate (aOther).valid ());
   }
 }
