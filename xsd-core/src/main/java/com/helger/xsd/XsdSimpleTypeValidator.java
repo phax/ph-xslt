@@ -392,12 +392,12 @@ final class XsdSimpleTypeValidator
   /**
    * Check a value against a union type. The members are tried in order, each
    * with its own whiteSpace processing applied to the value; the first one
-   * that accepts it is the accepting member. The union's own pattern and
-   * enumeration facets must then hold for the value as given or, failing
-   * that, for the value as normalised by the accepting member. The union's
-   * own assertions are evaluated with <code>$value</code> typed by the
-   * accepting member. Only the facets and assertions declared on the union
-   * itself are applied, not those of its base chain.
+   * that accepts it is the accepting member. Then, for the union and every
+   * union in its base chain (a restriction of a union restricts all facets of
+   * its base), the pattern and enumeration facets must hold for the value as
+   * given or, failing that, for the value as normalised by the accepting
+   * member, and the assertions are evaluated with <code>$value</code> typed by
+   * the accepting member.
    *
    * @param aType
    *        The union type. It is in <code>aActive</code> while the members are
@@ -414,7 +414,9 @@ final class XsdSimpleTypeValidator
    *        The current nesting depth.
    * @throws XsdInvalidException
    *         if no member accepts the value, or a facet or assertion of the
-   *         union fails
+   *         union or of a union in its base chain fails
+   * @throws XsdUnsupportedException
+   *         if the nesting or base chain is too deep
    */
   private static void _checkUnionRecursive (@NonNull final XsdSimpleType aType,
                                             @NonNull final String sValue,
@@ -450,31 +452,38 @@ final class XsdSimpleTypeValidator
       throw XsdCompiler.invalid ("cvc-datatype-valid", "value " + XsdLexHelper.quote (sValue) + " is not valid for any union member");
     // Facets on the union restriction (pattern/enumeration) constrain the whole
     // lexical in addition to member validity. They also hold if they match the
-    // value as normalised by the accepting member's whiteSpace.
-    try
+    // value as normalised by the accepting member's whiteSpace. Every union
+    // step of the base chain contributes its facets and assertions.
+    final String sMemberValue = XsdWhiteSpace.apply (aAccepting.effectiveWhiteSpace (), sValue);
+    XsdSimpleType aStep = aType;
+    for (int n = 0; aStep != null && aStep.m_eVariety == EXsdVariety.UNION; n++)
     {
-      XsdFacetValidator.checkPatternEnumIn (aType.m_aFacets, sValue, EAtomicType.STRING, aAt);
-    }
-    catch (final XsdInvalidException ex)
-    {
-      final String sMemberValue = XsdWhiteSpace.apply (aAccepting.effectiveWhiteSpace (), sValue);
-      if (sMemberValue.equals (sValue))
-        throw ex;
+      if (n > MAX_CHAIN)
+        throw _tooDeep ();
       try
       {
-        XsdFacetValidator.checkPatternEnumIn (aType.m_aFacets, sMemberValue, EAtomicType.STRING, aAt);
+        XsdFacetValidator.checkPatternEnumIn (aStep.m_aFacets, sValue, EAtomicType.STRING, aAt);
       }
-      catch (final XsdInvalidException ex2)
+      catch (final XsdInvalidException ex)
       {
-        throw ex;
+        if (sMemberValue.equals (sValue))
+          throw ex;
+        try
+        {
+          XsdFacetValidator.checkPatternEnumIn (aStep.m_aFacets, sMemberValue, EAtomicType.STRING, aAt);
+        }
+        catch (final XsdInvalidException ex2)
+        {
+          throw ex;
+        }
       }
-    }
-    if (aType.m_aAssertions.isNotEmpty ())
-    {
-      // $value carries the accepting member's type
-      final String sMemberValue = XsdWhiteSpace.apply (aAccepting.effectiveWhiteSpace (), sValue);
-      XsdAssertions.evalSimpleAssertions (aType.m_aAssertions,
-                                          XsdAssertions.typedAtomicValue (sMemberValue, aAccepting.resolvePrim ()));
+      if (aStep.m_aAssertions.isNotEmpty ())
+      {
+        // $value carries the accepting member's type
+        XsdAssertions.evalSimpleAssertions (aStep.m_aAssertions,
+                                            XsdAssertions.typedAtomicValue (sMemberValue, aAccepting.resolvePrim ()));
+      }
+      aStep = aStep.m_aBase;
     }
   }
 
