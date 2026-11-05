@@ -1700,9 +1700,8 @@ final class XsdCompiler
     m_aChecks.fillAllWildcardSiblings ();
     _checkTypeCycles ();
     _checkIDAttributeUses ();
-    m_aChecks.checkDuplicateConstraints ();
-    m_aChecks.checkAllRestrictions ();
     m_aIdentity.checkKeyrefs ();
+    m_aChecks.checkAllRestrictions ();
     m_aChecks.checkSubstitutionGroups ();
     m_aChecks.checkFinalDerivation ();
     m_aChecks.checkAttrDerivation ();

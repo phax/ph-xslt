@@ -401,13 +401,15 @@ final class XsdIdentityCompiler
    * XSD 1.1 @ref uses resolve, a keyref's @refer names a key or unique with as
    * many fields.
    * <p>
-   * Runs once after all schema documents are parsed. A second constraint of
-   * the same name is c-props-correct.1. A pending <code>@ref</code> that
-   * names no constraint is src-resolve, one naming a constraint of another
-   * kind is c-props-correct; otherwise the referenced definition is copied
-   * into it. A keyref whose <code>@refer</code> names no constraint or a
-   * keyref, or a key/unique with a different number of fields, is
-   * c-props-correct.2.
+   * Runs once after all schema documents are parsed, over every identity
+   * constraint of the schema (the only check of their name uniqueness). A
+   * second constraint of the same name is sch-props-correct.2. A pending
+   * <code>@ref</code> that names no constraint is src-resolve, one naming a
+   * constraint of another kind is c-props-correct; otherwise the referenced
+   * definition is copied into it. A keyref whose <code>@refer</code> names no
+   * constraint is src-resolve, one naming a keyref c-props-correct.1 (the
+   * {referenced key} is a key or unique), and one naming a key/unique with a
+   * different number of fields c-props-correct.2.
    *
    * @throws XsdInvalidException
    *         as listed above
@@ -419,7 +421,7 @@ final class XsdIdentityCompiler
     {
       final XsdIdentityConstraint aPrev = aByName.get (aIC.m_aName);
       if (aPrev != null && aPrev != aIC)
-        throw XsdCompiler.invalid ("c-props-correct.1", "duplicate identity constraint " + aIC.m_aName);
+        throw XsdCompiler.invalid ("sch-props-correct.2", "duplicate identity constraint " + aIC.m_aName);
       aByName.put (aIC.m_aName, aIC);
     }
     // Resolve 1.1 @ref uses: the referenced definition is copied in
@@ -440,8 +442,10 @@ final class XsdIdentityCompiler
       if (!"keyref".equals (aIC.m_sKind) || aIC.m_aRefer.isZero ())
         continue;
       final XsdIdentityConstraint aRef = aByName.get (aIC.m_aRefer);
-      if (aRef == null || "keyref".equals (aRef.m_sKind))
-        throw XsdCompiler.invalid ("c-props-correct.2",
+      if (aRef == null)
+        throw XsdCompiler.invalid ("src-resolve", "keyref " + aIC.m_aName + " refers to " + aIC.m_aRefer + ", which does not resolve");
+      if ("keyref".equals (aRef.m_sKind))
+        throw XsdCompiler.invalid ("c-props-correct.1",
                                    "keyref " + aIC.m_aName + " refers to " + aIC.m_aRefer + ", which is not a key or unique");
       if (aRef.m_aFields.size () != aIC.m_aFields.size ())
         throw XsdCompiler.invalid ("c-props-correct.2",
