@@ -1,7 +1,7 @@
 # XSLT 3.0 (`xslt30-test`): failing cases of the streaming run
 
 Processor claiming streaming (`-Dxslt30.streaming=true`; no schema-awareness or backwards compatibility claimed):
-11,231 of 11,291 applicable cases pass, 60 fail. Measured offline, on JDK 21 and 25, after stage S4 of the streaming
+11,230 of 11,291 applicable cases pass, 61 fail. Measured offline, on JDK 21 and 25, after stage S4 of the streaming
 plan (`docs/PLAN.md`): the streamability analysis (`com.helger.xslt.stream.XsltStreamability`) makes
 `streamable="yes"` binding, and a construct it proves guaranteed streamable whose sequence constructor has the shape the
 dispatcher runs (`com.helger.xslt.stream.StreamPlanner`) reads its document as a stream

@@ -33,13 +33,17 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Streaming (plan: `docs/PLAN.md`, "Streaming"): `-Dxslt30.streaming=true` claims it in the XSLT30 harness (out dir
   `xslt-conformance/target/streaming`, accepted file `xslt30-streaming.md`); with `-Dxslt30.schemaAware=true` as well
   it writes to `target/schema-aware-streaming` and is no gate (`checkAccepted` off by default). The engine switches are
-  `XsltCompileOptions.setStreamingClaim` (only `system-property('xsl:supports-streaming')`, default off until streamed
-  execution exists), `setEnforceStreamability` (XTSE3430/XTSE3155 binding: `com.helger.xslt.stream.XsltStreamability`
-  checks the stylesheet tree at the end of compilation, reading the operands from the `StreamabilityIndex` the compiler
-  fills only then; off, nothing runs) and `XsltTransformRequest.setSourceStreamed` (recorded only). The default run must
-  keep claiming no streaming.
-- Local `xsl:variable`s are lazy (`DynamicContext.withLazyVariable`, evaluated once on first use); `xsl:try` must not
-  catch errors of variables declared outside it (`TryScope`, `LazyVariableException`). The XPath `let` stays eager.
+  `XsltCompileOptions.setStreamingClaim` (default off; `system-property('xsl:supports-streaming')`, the analysis runs
+  and records `StreamVerdicts`, streamed execution and the run-time streaming rules), `setEnforceStreamability`
+  (XTSE3430/XTSE3155 binding: `com.helger.xslt.stream.XsltStreamability` checks the stylesheet tree at the end of
+  compilation, reading the operands from the `StreamabilityIndex` the compiler fills only then) and
+  `XsltTransformRequest.setSourceStreamed` (declaration only) / `setStreamedSourceUri` (read the principal source as a
+  stream). The default run must keep claiming no streaming. Streamed execution: `com.helger.xpath.xdm.XdmStreamReader`
+  (StAX, nodes numbered as created, `drop`/`skipSubtree`), `IResourceResolver.openDocumentStream`, and in
+  `com.helger.xslt.stream` `StreamPlanner` (shape), `StreamConsumer` (the streamed branch of for-each,
+  apply-templates, copy-of), `StreamedRun` (the driver); accumulators via `AccumulatorExtension.startStreamed`. A
+  streamed document has `XdmDocumentNode.isStreamed ()`: never answer a whole-document question from it. The memory
+  test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`, `-Dstreamed.memory.records=<n>`).
 - Streamability (XSLT 3.0 section 19): `com.helger.xpath.stream.XPathStreamability` classifies expressions and
   patterns; the XSLT layer supplies its knowledge through `StreamContext`. It fails closed: an unknown construct is
   roaming/free-ranging, never "streamable".

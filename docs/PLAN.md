@@ -209,7 +209,7 @@ About 8,200 lines of Go: `internal/xpath/streamability.go`, `internal/xslt/strea
 | S1 | Claim: `-Dxslt30.streaming=true` in the harness (streaming supported in both directions, `<source streaming>`, own out dir and accepted-failures file), the compile option that makes `streamable="yes"` binding, `system-property('xsl:supports-streaming')`; baseline with buffered execution | `xslt30_test.go`, `stream_property.go`, `features.go` | done (2026-11-04): streaming run 11,111 of 11,291 applicable cases pass, 180 fail, all in `xslt-conformance/docs/accepted-failures/xslt30-streaming.md` (119 expect XTSE3430 and 2 XTSE3155 for S3, 6 need streamed execution for S4, 45 need undeclared schema-awareness, 1 contradicts XPath, the 7 of the default run) |
 | S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` | done (2026-11-04): `com.helger.xpath.stream.XPathStreamability` with go-xslt's test cases; not yet called. Deviation from go-xslt: a call to a stylesheet function is not assumed to return childless items (go-xslt classifies `string(f:filter(.))` as streamable although it reads the subtree) |
 | S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` | done (2026-11-05): `com.helger.xslt.stream.XsltStreamability`, run at the end of compilation when `setEnforceStreamability` is on; streaming run 11,224 of 11,291 pass, 67 fail (114 of the 119 expected XTSE3430 and both XTSE3155 fixed; 5 XTSE3430 cases and `streamable-100` to `-102` accepted with reasons, as in go-xslt) |
-| S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` | open |
+| S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` | done (2026-11-05): `XdmStreamReader`, `StreamedRun`, streamed accumulators, memory test; streaming run 11,230 of 11,291 pass, 61 fail (the 6 S4 cases fixed: `accumulator-061`, `si-fork-113` to `-115`, `merge-079`, `merge-097s`); streamed `xsl:iterate`, `xsl:for-each-group` and `xsl:fork` are left for S5 (they run buffered) |
 | S5 | Bounded-memory output: serialize while transforming | `transform_to.go` | open |
 
 S1 notes: the first streaming run had 190 fails; fixed on the way, also for the default processor: `lang` without
@@ -241,6 +241,43 @@ a non-motionless collation AVT of a streamed `xsl:for-each-group` is rejected; `
 Recommendation does not guarantee to run, and now get XTSE3430 (go-xslt accepts them the same way). Found on the way,
 not fixed (default behaviour): `xsl:fork` mixing `xsl:sequence` and `xsl:for-each-group` children is not rejected
 with XTSE0010. Left for S4: the run-time XTSE3430 of go-xslt for `fn:key` over a streamed document.
+
+S4 notes: `com.helger.xpath.xdm.XdmStreamReader` reads with the JDK StAX parser (settings of `XdmParser`: internal
+subset read, external subset and entities not, same entity and depth limits) and builds ordinary nodes numbered as they
+are created (an open element covers what is read later; `drop`/`skipSubtree` do not renumber; a streamed document has
+no name index). It merges character data itself (the coalescing mode of the JDK parser reports element-content
+whitespace inconsistently) and refuses XML 1.1, external parsed entities and, when external entities are to be read, an
+external subset (`XdmStreamUnsupportedException`, before the first event; the caller reads in full). A stream that drops
+nothing builds the tree `XdmParser` builds. Dispatch (`com.helger.xslt.stream`): with the streaming claim the analysis
+also runs without enforcement and records its verdicts (`StreamVerdicts`; a failed declaration disables all of them);
+a streamable `xsl:source-document` proven grounded, or the template rule for the document node of a proven streamable
+initial mode (`XsltTransformRequest.setStreamedSourceUri`), is streamed when its sequence constructor is a chain of
+literal result elements without AVTs around one consumer (`StreamPlanner`: `xsl:for-each`, `xsl:apply-templates`,
+`xsl:copy-of`, no sort keys or parameters) whose select is a path of child steps (`StreamRecordPath`), the resolver
+streams the document (`IResourceResolver.openDocumentStream`) and every applicable accumulator is proven streamable.
+The consumer keeps its buffered code and gets a streamed branch (`StreamConsumer`) that `StreamedRun` drives: each
+record is read in full, handed to the unchanged per-item code with its real position, and dropped; everything off the
+record path is skipped unbuilt (walked and dropped node by node while accumulators run). Memory test
+(`StreamedMemoryTest`): a generated 242 MB document (2.8 million records) streams in a forked JVM with `-Xmx32m`
+(peak heap 24.6 MB, about 2 s); the same transformation without streaming fails with OutOfMemoryError there.
+Run-time rules: XTSE3430 for `fn:key` over a streamed document and XTDE3362 for an accumulator not computed while
+streaming (as go-xslt); current group and grouping key absent in templates invoked from a declared-streamable construct
+(sections 14.2.1/14.2.2, `StreamedGroupScope`); a streamable `xsl:merge-source` delivers `fn:snapshot`s; global
+variables without context item when the source is declared streamed and the initial mode is streamable (go-xslt
+`streamedVarsNoFocus`). All of these only with the streaming claim. Deviations from go-xslt, following the
+Recommendation: the dispatcher relies on the guaranteed-streamability analysis instead of go-xslt's textual scans, so
+climbing (`../@id`) and `position()` in a streamed `xsl:apply-templates` are streamed (the real position is passed);
+every applicable accumulator is computed while reading (go-xslt only the names it finds in the body, falling back for a
+computed name), and an error in an accumulator is raised when a value is asked for (spec bug 29813,
+`accumulator-056s/057s`); XTDE3350 (not XPDY0002) for `accumulator-before/after` without context item, also in the
+default run (section 18.2.4), which with an absent global context item of a streamed source gives `accumulator-061`
+without tracking function items. With a streamed source the global context item is only what the request supplies
+(section 2.3: it is independent of the initial match selection). `DEFAULT_STREAMING_CLAIM` stays false: only the shapes
+above are streamed, and the claim switches on the analysis at every compilation and the run-time rules above. Left for
+S5: streamed `xsl:iterate`, `xsl:for-each-group` (`group-starting-with`/`-ending-with`), `xsl:fork`, predicates and
+attribute value templates that do not read the document in the record path and wrappers, streamed
+`xsl:merge-source`, distinct generate-id values without retaining the nodes (`fn:generate-id` remembers every node it
+saw), and serialising while transforming.
 
 Gate per stage: the default lists (QT3, XSLT30, schema-aware XSLT30, xsdtests) unchanged by name on JDK 21 and 25; the
 streaming run only improves, and every failure in it is documented.
