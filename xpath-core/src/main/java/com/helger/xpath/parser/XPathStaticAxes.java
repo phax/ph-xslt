@@ -117,11 +117,17 @@ final class XPathStaticAxes
     return eKind == EStepKind.DOCUMENT || eKind == EStepKind.ELEMENT;
   }
 
+  /**
+   * @return <code>true</code> unless both kinds are known and differ.
+   */
   private static boolean _isKindCompatible (@NonNull final EStepKind eA, @NonNull final EStepKind eB)
   {
     return eA == EStepKind.ANY || eB == EStepKind.ANY || eA == eB;
   }
 
+  /**
+   * @return <code>true</code> unless both names are known and differ.
+   */
   private static boolean _isNameCompatible (@Nullable final XdmQName aTestName, @Nullable final XdmQName aInName)
   {
     return aTestName == null || aInName == null || aTestName.equals (aInName);
@@ -262,6 +268,10 @@ final class XPathStaticAxes
     }
   }
 
+  /**
+   * Add the binding expressions of a for, let or quantified expression to the
+   * target list, in source order.
+   */
   private static void _addBindings (@NonNull final ICommonsList <IExpr> aTarget,
                                     @NonNull final List <IExpr.Binding> aBindings)
   {

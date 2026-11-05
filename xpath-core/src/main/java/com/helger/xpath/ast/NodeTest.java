@@ -106,6 +106,7 @@ public record NodeTest (@NonNull ENodeTestKind kind,
     this (kind, anyName, anyNamespace, anyLocalName, name, typeName, nillable, inner, null, null, null);
   }
 
+  /** <code>node()</code> */
   public static final NodeTest ANY_NODE = new NodeTest (ENodeTestKind.ANY_NODE,
                                                         false,
                                                         false,

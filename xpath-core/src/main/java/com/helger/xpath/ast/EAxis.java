@@ -63,6 +63,12 @@ public enum EAxis
            this == ANCESTOR_OR_SELF;
   }
 
+  /**
+   * @param sName
+   *        An axis name as written in XPath, e.g.
+   *        <code>descendant-or-self</code>. May be <code>null</code>.
+   * @return The axis of that name, or <code>null</code> if there is none.
+   */
   @Nullable
   public static EAxis getFromName (@Nullable final String sName)
   {

@@ -57,6 +57,16 @@ public final class ExprWalker
   private ExprWalker ()
   {}
 
+  /**
+   * Push the direct operand expressions of a node onto the work stack: the
+   * arguments of calls, the body of an inline function, the binding
+   * expressions and the body of <code>for</code>/<code>let</code>/quantified
+   * expressions, the start, predicates and postfix expressions of the steps of
+   * a path, the primary and predicates of a filter expression, and so on. The
+   * <code>fused</code> step of a {@link IExpr.StepExpr} is not visited, as it
+   * repeats the following step. The order is not significant for the callers,
+   * which only ask whether any node matches.
+   */
   private static void _pushChildren (@NonNull final IExpr aExpr, @NonNull final ArrayDeque <IExpr> aStack)
   {
     switch (aExpr)

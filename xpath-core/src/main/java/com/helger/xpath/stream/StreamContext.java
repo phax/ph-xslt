@@ -80,6 +80,13 @@ public final class StreamContext implements ICloneable <StreamContext>
     m_eAccumulatorPhase = EAccumulatorRulePhase.NONE;
   }
 
+  /**
+   * Copy constructor for {@link #getClone()}. The streaming parameter and
+   * map/array variable sets are shared, which is safe because every change
+   * replaces the set instead of modifying it; the function resolver and the
+   * "definite" flag are shared on purpose, so that a verdict reached on the
+   * copy reaches the caller of the original.
+   */
   private StreamContext (@NonNull final StreamContext aOther)
   {
     m_eContextPosture = aOther.m_eContextPosture;
@@ -626,6 +633,11 @@ public final class StreamContext implements ICloneable <StreamContext>
       m_aDefinite.set (true);
   }
 
+  /**
+   * @return A copy with all properties of this context, to be changed for a
+   *         nested construct without affecting this one. The function
+   *         resolver and the "definite" flag stay shared with this context.
+   */
   @NonNull
   public StreamContext getClone ()
   {

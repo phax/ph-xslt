@@ -104,11 +104,24 @@ public final class DynamicContext
     private XdmSequence m_aValue;
     private RuntimeException m_aFailure;
 
+    /**
+     * @param aSupplier
+     *        Computes the value; called at most once.
+     */
     LazyValue (@NonNull final Supplier <XdmSequence> aSupplier)
     {
       m_aSupplier = aSupplier;
     }
 
+    /**
+     * @return The value, computed by the supplier on the first call and kept.
+     * @throws RuntimeException
+     *         the exception the supplier raised, on the first and on every
+     *         later call
+     * @throws IllegalStateException
+     *         if the supplier asks for this same value while computing it (a
+     *         variable that depends on itself)
+     */
     @NonNull
     XdmSequence get ()
     {
@@ -193,12 +206,31 @@ public final class DynamicContext
     return m_nSize;
   }
 
+  /**
+   * @param aItem
+   *        The new context item, <code>null</code> for an absent focus.
+   * @param nPosition
+   *        The 1-based context position, 0 with an absent focus.
+   * @param nSize
+   *        The context size, 0 with an absent focus.
+   * @return A derived context with that focus. Variables, current item, host
+   *         state and run state are kept.
+   */
   @NonNull
   public DynamicContext withFocus (@Nullable final IXdmItem aItem, final int nPosition, final int nSize)
   {
     return new DynamicContext (m_aStatic, m_aRun, aItem, m_aCurrentItem, nPosition, nSize, m_aHostState, m_aVars);
   }
 
+  /**
+   * @param aName
+   *        Variable name.
+   * @param aValue
+   *        The value.
+   * @return A derived context in which the variable is bound to the value,
+   *         shadowing an earlier binding of the same name. This context is
+   *         not changed.
+   */
   @NonNull
   public DynamicContext withVariable (@NonNull final XdmQName aName, @NonNull final XdmSequence aValue)
   {
@@ -279,6 +311,12 @@ public final class DynamicContext
     return m_aCurrentItem;
   }
 
+  /**
+   * @param aCurrentItem
+   *        The new XSLT current item, may be <code>null</code>.
+   * @return A derived context with that current item and everything else
+   *         kept.
+   */
   @NonNull
   public DynamicContext withCurrentItem (@Nullable final IXdmItem aCurrentItem)
   {
@@ -320,6 +358,13 @@ public final class DynamicContext
     return m_aRun.m_aHost;
   }
 
+  /**
+   * Set the run-wide host object; it is visible in every context of the
+   * run, including those derived before this call.
+   *
+   * @param aHost
+   *        The host object, may be <code>null</code>.
+   */
   public void setHost (@Nullable final Object aHost)
   {
     m_aRun.m_aHost = aHost;
@@ -368,19 +413,31 @@ public final class DynamicContext
     m_aRun.m_aGlobalVariableResolver = aResolver;
   }
 
+  /**
+   * @return The value of <code>fn:current-dateTime</code>, stable for the
+   *         whole run: the time the root context was created unless set
+   *         with {@link #setCurrentDateTime(OffsetDateTime)}.
+   */
   @NonNull
   public OffsetDateTime getCurrentDateTime ()
   {
     return m_aRun.m_aCurrentDateTime;
   }
 
-  /** Fix the value <code>fn:current-dateTime</code> returns. */
+  /**
+   * Fix the value <code>fn:current-dateTime</code> returns. The implicit
+   * timezone is set to the offset of that value as well.
+   */
   public void setCurrentDateTime (@NonNull final OffsetDateTime aValue)
   {
     m_aRun.m_aCurrentDateTime = aValue;
     m_aRun.m_nImplicitTimezoneMinutes = aValue.getOffset ().getTotalSeconds () / 60;
   }
 
+  /**
+   * @return The implicit timezone as an offset in minutes from UTC; by
+   *         default the offset of the current date/time.
+   */
   public int getImplicitTimezoneMinutes ()
   {
     return m_aRun.m_nImplicitTimezoneMinutes;
@@ -410,6 +467,11 @@ public final class DynamicContext
     };
   }
 
+  /**
+   * @param aResolver
+   *        The run-wide resource resolver, <code>null</code> for one that
+   *        resolves nothing.
+   */
   public void setResourceResolver (@Nullable final IResourceResolver aResolver)
   {
     m_aRun.m_aResolver = aResolver;
@@ -444,6 +506,7 @@ public final class DynamicContext
       throw new XPathException ("XPDY0130", "Function call nesting is too deep");
   }
 
+  /** Leave a function call entered with {@link #enterCall()}. */
   public void leaveCall ()
   {
     m_aRun.m_nCallDepth--;

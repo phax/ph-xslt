@@ -117,6 +117,15 @@ public final class NodeTestMatcher
     }
   }
 
+  /**
+   * Whether the type annotation of a node is or derives from a named type of
+   * a kind test. A node with a schema type answers through it; a node with an
+   * explicit built-in annotation uses the built-in hierarchy of
+   * {@link #isSchemaTypeDerivedFrom(Object, Object)} (a non-built-in name
+   * gives <code>false</code>); any other node counts as
+   * <code>xs:untyped</code> (element) or <code>xs:untypedAtomic</code>
+   * (attribute).
+   */
   private static boolean _isAnnotationOf (@NonNull final IXdmNode aNode,
                                           @NonNull final XdmQName aTypeName,
                                           final boolean bElement)
@@ -199,6 +208,11 @@ public final class NodeTestMatcher
     return _isAnnotationDerivedFrom (aNode, aDecl.getTypeDefinition (), true);
   }
 
+  /**
+   * schema-attribute(N) (XPath 3.1 section 2.5.5.6): an attribute named N
+   * whose type annotation derives from the type of the declaration. A test
+   * without a resolved declaration matches nothing.
+   */
   private static boolean _matchesSchemaAttribute (@NonNull final NodeTest aTest, @NonNull final IXdmNode aNode)
   {
     final IXdmAttributeDeclaration aDecl = aTest.attributeDeclaration ();
@@ -207,6 +221,11 @@ public final class NodeTestMatcher
     return _isAnnotationDerivedFrom (aNode, aDecl.getTypeDefinition (), false);
   }
 
+  /**
+   * @return <code>true</code> if the name part of an <code>element()</code> or
+   *         <code>attribute()</code> test accepts the node: no name or
+   *         <code>*</code>, or the expanded name is equal.
+   */
   private static boolean _matchesKindName (@NonNull final NodeTest aTest, @NonNull final IXdmNode aNode)
   {
     if (aTest.anyName () || aTest.name () == null)
@@ -214,6 +233,16 @@ public final class NodeTestMatcher
     return aTest.name ().equals (aNode.getName ());
   }
 
+  /**
+   * Match a name test (XPath 3.1 section 3.3.2.1): <code>*</code> accepts
+   * every name, <code>*:local</code> compares the local name only,
+   * <code>prefix:*</code> (or <code>Q{uri}*</code>) the namespace URI only,
+   * and a QName the expanded name.
+   *
+   * @param aNodeName
+   *        The name of the node; <code>null</code> (an unnamed node) passes
+   *        only <code>*</code>.
+   */
   private static boolean _matchesNameTest (@NonNull final NodeTest aTest, @Nullable final XdmQName aNodeName)
   {
     if (aTest.anyName ())
@@ -230,6 +259,12 @@ public final class NodeTestMatcher
     return aTestName.equals (aNodeName);
   }
 
+  /**
+   * The content check of <code>document-node(E)</code> (XPath 3.1 section
+   * 2.5.5.2): the document has exactly one element child, which matches the
+   * inner test, and no text child that is not empty. Comments and processing
+   * instructions are allowed.
+   */
   private static boolean _matchesDocumentInner (@NonNull final NodeTest aInner, @NonNull final IXdmNode aDoc)
   {
     IXdmNode aElement = null;

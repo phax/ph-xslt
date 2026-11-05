@@ -40,6 +40,12 @@ final class MapArrayFunctionItem extends AbstractFunctionItem
 {
   private final IXdmItem m_aMapOrArray;
 
+  /**
+   * @param aMapOrArray
+   *        The map or array to present.
+   * @throws IllegalArgumentException
+   *         if the item is neither a map nor an array
+   */
   MapArrayFunctionItem (@NonNull final IXdmItem aMapOrArray)
   {
     if (!(aMapOrArray instanceof XdmMap) && !(aMapOrArray instanceof XdmArray))
@@ -58,6 +64,10 @@ final class MapArrayFunctionItem extends AbstractFunctionItem
     return 1;
   }
 
+  /**
+   * @return <code>xs:anyAtomicType</code> for a map, <code>xs:integer</code>
+   *         for an array.
+   */
   @NonNull
   public List <SeqType> getParamTypes ()
   {
@@ -77,6 +87,11 @@ final class MapArrayFunctionItem extends AbstractFunctionItem
     return true;
   }
 
+  /**
+   * Look the argument up in the map (the empty sequence for an absent key) or
+   * the array (FOAY0001 for an index out of bounds), through
+   * {@link XPathEvaluator#callFunction(DynamicContext, IXdmItem, List)}.
+   */
   @NonNull
   public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {

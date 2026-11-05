@@ -83,12 +83,21 @@ public final class PartialFunctionItem extends AbstractFunctionItem
     return m_aBase.getReturnType ();
   }
 
+  /**
+   * @return <code>true</code> if the base function's result is trusted.
+   */
   @Override
   boolean isResultTrusted ()
   {
     return m_aBase instanceof final AbstractFunctionItem aBase && aBase.isResultTrusted ();
   }
 
+  /**
+   * Call the base function with the bound arguments, each placeholder filled
+   * by the next supplied argument in order. The base function's
+   * {@link IXdmFunction#call(DynamicContext, List)} is invoked directly, so no
+   * further argument conversion happens here.
+   */
   @NonNull
   public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {

@@ -17,7 +17,10 @@
 package com.helger.xpath.ast;
 
 /**
- * Binary operators with a simple operand-operand semantic.
+ * Binary operators with a simple operand-operand semantic: the logical
+ * operators <code>and</code> and <code>or</code>, and the arithmetic operators
+ * <code>+</code>, <code>-</code>, <code>*</code>, <code>div</code>,
+ * <code>idiv</code> and <code>mod</code>.
  *
  * @author Philip Helger
  */

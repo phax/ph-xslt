@@ -24,7 +24,7 @@ import org.jspecify.annotations.Nullable;
  * <code>empty-sequence()</code>.
  *
  * @param empty
- *        <code>true</code> for empty-sequence(); then item is null.
+ *        <code>true</code> for empty-sequence(); then itemType is null.
  * @param itemType
  *        The item type, null for empty-sequence().
  * @param occurrence
@@ -38,8 +38,19 @@ public record SeqType (boolean empty, @Nullable ItemType itemType, @NonNull EOcc
 {
   /** <code>item()*</code> */
   public static final SeqType ANY = new SeqType (false, ItemType.ITEM, EOccurrence.ZERO_OR_MORE, false);
+  /**
+   * <code>empty-sequence()</code>, with the occurrence <code>?</code>.
+   */
   public static final SeqType EMPTY_SEQUENCE = new SeqType (true, null, EOccurrence.ZERO_OR_ONE, false);
 
+  /**
+   * @param aItemType
+   *        The item type.
+   * @param eOccurrence
+   *        The occurrence indicator.
+   * @return A sequence type that is neither empty-sequence() nor a list cast
+   *         target.
+   */
   @NonNull
   public static SeqType of (@NonNull final ItemType aItemType, @NonNull final EOccurrence eOccurrence)
   {

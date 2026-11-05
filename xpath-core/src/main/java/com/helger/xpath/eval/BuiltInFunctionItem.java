@@ -91,6 +91,11 @@ public final class BuiltInFunctionItem extends AbstractFunctionItem
     return true;
   }
 
+  /**
+   * Run the dynamic-call implementation of the function definition with the
+   * context captured at creation, or with the caller's context if none was
+   * captured.
+   */
   @NonNull
   public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
