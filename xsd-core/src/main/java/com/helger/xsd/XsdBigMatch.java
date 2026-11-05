@@ -66,11 +66,41 @@ final class XsdBigMatch
     private final Set <XsdModelGroup> m_aSeen = new CommonsHashSet <> ();
     private boolean m_bOK = true;
 
+    /**
+     * @param aSchema
+     *        The schema whose substitution groups the element names expand
+     *        through.
+     */
     Scan (@NonNull final XsdSchema aSchema)
     {
       m_aSchema = aSchema;
     }
 
+    /**
+     * Add to <code>aFirst</code> what one iteration of a particle can start
+     * with: for an element declaration every name it matches (its own unless
+     * abstract, and those of the substitution group members it permits, via
+     * {@link XsdUpa#upaMatchNames}),
+     * for a wildcard the wildcard itself, for a choice the first sets of all
+     * branches, for a sequence the first sets of its members up to and
+     * including the first member that is not nullable. A particle with
+     * <code>maxOccurs=0</code> adds nothing, and a model group already on the
+     * current path (a cyclic group reference) is not entered again. An
+     * <code>xs:all</code> group is treated like a sequence; the pre-scan
+     * declines it anyway.
+     *
+     * @param aParticle
+     *        The particle. May be <code>null</code>.
+     * @param aFirst
+     *        The first set to extend. Modified.
+     * @param aSeen
+     *        The model groups on the current path. Modified temporarily.
+     * @param nDepth
+     *        The nesting depth.
+     * @throws XsdUnsupportedException
+     *         if the model is nested deeper than
+     *         {@link XsdModelLimits#checkDepth} allows
+     */
     private void _collectFirst (@Nullable final XsdParticle aParticle,
                                 @NonNull final First aFirst,
                                 @NonNull final Set <XsdModelGroup> aSeen,
@@ -112,6 +142,21 @@ final class XsdBigMatch
           }
     }
 
+    /**
+     * Whether the greedy interpreter can pick a choice branch from the next
+     * child's name alone: no two branches may share a first name, a
+     * wildcard first in one branch may not match a first name of another,
+     * and two branches that both start with a wildcard are declined without
+     * comparing the wildcards.
+     *
+     * @param aMG
+     *        The choice group.
+     * @param nDepth
+     *        The nesting depth of the branches.
+     * @return <code>true</code> if the branches start disjointly.
+     * @throws XsdUnsupportedException
+     *         if the model is nested too deeply
+     */
     private boolean _choiceBranchesDisjoint (@NonNull final XsdModelGroup aMG, final int nDepth)
     {
       final ICommonsList <First> aFirsts = new CommonsArrayList <> ();
@@ -146,6 +191,21 @@ final class XsdBigMatch
       return true;
     }
 
+    /**
+     * Walk the particle tree once, collecting every element declaration and
+     * wildcard that can occur (particles with <code>maxOccurs=0</code> are
+     * skipped), and clear the OK flag (stopping the walk) on an
+     * <code>xs:all</code> group, on a model group that is reached again on
+     * its own path (cyclic group reference), and on a choice whose branches
+     * are not disjoint ({@link #_choiceBranchesDisjoint}).
+     *
+     * @param aParticle
+     *        The particle. May be <code>null</code>.
+     * @param nDepth
+     *        The nesting depth.
+     * @throws XsdUnsupportedException
+     *         if the model is nested too deeply
+     */
     private void _walk (@Nullable final XsdParticle aParticle, final int nDepth)
     {
       if (aParticle == null || aParticle.m_nMax == 0 || !m_bOK)
@@ -181,6 +241,20 @@ final class XsdBigMatch
           }
     }
 
+    /**
+     * Run the pre-scan over a content model. Besides the checks of
+     * {@link #_walk}, the model is declined if any wildcard anywhere in it
+     * matches a name of any element declaration anywhere in it (including
+     * substitution group members), since the greedy run could then give an
+     * element to the wrong particle. An instance of this class is meant for
+     * one scan only.
+     *
+     * @param aRoot
+     *        The content model.
+     * @return <code>true</code> if the greedy interpreter is exact on it.
+     * @throws XsdUnsupportedException
+     *         if the model is nested too deeply
+     */
     boolean scan (@NonNull final XsdParticle aRoot)
     {
       _walk (aRoot, 0);
@@ -205,6 +279,12 @@ final class XsdBigMatch
     private final XsdName [] m_aNames;
     private boolean m_bUnsure;
 
+    /**
+     * @param aSchema
+     *        The schema, for element name matching.
+     * @param aKids
+     *        The element children to match; only their names are kept.
+     */
     Run (@NonNull final XsdSchema aSchema, @NonNull final List <IXdmNode> aKids)
     {
       m_aSchema = aSchema;
@@ -318,6 +398,17 @@ final class XsdBigMatch
   private XsdBigMatch ()
   {}
 
+  /**
+   * Run the static pre-scan ({@link Scan}) on a content model. A model too
+   * deeply nested for {@link XsdModelLimits} is declined instead of raising
+   * the error.
+   *
+   * @param aSchema
+   *        The schema.
+   * @param aParticle
+   *        The content model.
+   * @return <code>true</code> if the counting matcher is exact on the model.
+   */
   private static boolean _bigDeterministic (@NonNull final XsdSchema aSchema, @NonNull final XsdParticle aParticle)
   {
     try

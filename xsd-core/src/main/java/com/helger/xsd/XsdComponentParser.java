@@ -100,7 +100,13 @@ final class XsdComponentParser
     return new int [] { nMin, nMax };
   }
 
-  /** go-xslt <code>hasFacetChildren</code>. */
+  /**
+   * go-xslt <code>hasFacetChildren</code>: whether the element has an XSD
+   * child element other than xs:annotation, xs:attribute,
+   * xs:attributeGroup, xs:anyAttribute and xs:simpleType. In a simpleContent
+   * restriction such a child is a constraining facet (xs:assert counts as
+   * well).
+   */
   private static boolean _hasFacetChildren (@NonNull final IXdmNode aNode)
   {
     for (final IXdmNode aChild : XsdNodes.children (aNode))
@@ -263,7 +269,7 @@ final class XsdComponentParser
    * (XSD 1.1): an explicit xs:openContent in one of the bodies wins; otherwise
    * the document's xs:defaultOpenContent applies - never to simple content,
    * and to an empty effective content type only with appliesToEmpty="true"
-   * (3.4.2.5, 4.2.2). Under 1.0 nothing happens.
+   * (XSD 1.1 Part 1, 3.4.2.3.3 and 3.17.2). Under 1.0 nothing happens.
    */
   private void _applyOpenContent (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode... aBodies)
   {
@@ -326,7 +332,34 @@ final class XsdComponentParser
       aCT.m_aAttrWildcard = intersectWildcards (aCT.m_aAttrWildcard, aAG.m_aWildcard);
   }
 
-  /** go-xslt <code>parseAttrUse</code>. */
+  /**
+   * go-xslt <code>parseAttrUse</code>: build the attribute use of a local
+   * xs:attribute (XSD 1.1 Part 1, 3.2.2.2, 3.2.2.3 and 3.5).
+   * <p>
+   * With <code>ref</code> the global declaration is looked up (src-resolve if
+   * its namespace is not imported), then under the chameleon-adjusted name,
+   * then among the built-in xml:* and xlink:* attributes; an unresolved
+   * reference, or <code>ref</code> together with <code>name</code> or
+   * <code>type</code>, is a schema error. Without <code>ref</code> a new
+   * local declaration is made: the name must be an NCName (src-attribute);
+   * the namespace is the target namespace if <code>form</code> is
+   * "qualified" or, without <code>form</code>, if attributeFormDefault is
+   * qualified, and is overridden by a 1.1 local
+   * <code>targetNamespace</code>; the XSI namespace is rejected (no-xsi).
+   * <p>
+   * {inheritable} comes from the use's own attribute, else from the
+   * declaration; <code>use</code>, <code>default</code> and
+   * <code>fixed</code> are recorded. Prohibited together with fixed is a
+   * src-attribute error under 1.1, while under 1.0 the prohibition is
+   * dropped. A use without a value constraint of its own takes the
+   * declaration's fixed or default value. If the declaration is fixed, the
+   * use may neither give a default nor a different fixed value
+   * (au-props-correct.2). Finally the value constraint is checked against the
+   * declaration's type.
+   *
+   * @throws XsdInvalidException
+   *         for any of the errors above
+   */
   @NonNull
   private XsdAttributeUse _parseAttrUse (@NonNull final IXdmNode aNode)
   {
@@ -646,7 +679,26 @@ final class XsdComponentParser
     return null;
   }
 
-  /** go-xslt <code>parseSimpleContent</code>. */
+  /**
+   * go-xslt <code>parseSimpleContent</code>: fill a complex type with simple
+   * content from its xs:simpleContent child (XSD 1.1 Part 1, 3.4.2.2). The
+   * kind becomes simple; the derivation is extension if an xs:extension
+   * child exists, else restriction; neither is a schema error.
+   * <p>
+   * For a restriction, facets must precede the attribute declarations, and a
+   * base whose simple content type is xs:anySimpleType cannot be restricted
+   * without an inline xs:simpleType (raised as src-ct.2; under 1.0 only if
+   * the restriction has facets). For an extension of a simple type, that
+   * type's {final} must not contain extension (cos-ct-extends.2.2).
+   * <p>
+   * The simple content type is the inline xs:simpleType if present (a list
+   * or union inline type restricting an atomic, non-anyAtomicType base
+   * content type is rejected with derivation-ok-restriction.5.1.1), else the
+   * base's simple content type, narrowed by the facets of a restriction into
+   * a new anonymous type, else xs:anySimpleType if the base has none. The
+   * attribute uses, attribute wildcard and assertions are taken from the
+   * extension or restriction.
+   */
   private void _parseSimpleContent (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode aSC)
   {
     aCT.m_eKind = EXsdContentKind.SIMPLE;
@@ -723,7 +775,22 @@ final class XsdComponentParser
     aCT.m_aAsserts = parseAsserts (aBody);
   }
 
-  /** go-xslt <code>parseComplexContent</code>. */
+  /**
+   * go-xslt <code>parseComplexContent</code>: fill a complex type with
+   * complex content from its xs:complexContent child (XSD 1.1 Part 1,
+   * 3.4.2.3). Under 1.1 a <code>mixed</code> on both xs:complexType and
+   * xs:complexContent must agree (raised as src-ct.1). The derivation is extension if
+   * an xs:extension child exists, else restriction; neither is a schema
+   * error. The base type, the particle (checked for consistent element
+   * declarations), the attribute uses, the attribute wildcard and the
+   * assertions come from the extension or restriction. The kind is mixed if
+   * either <code>mixed</code> says so, else element-only; an extension that
+   * adds no particle to a mixed complex base stays mixed. Last the open
+   * content is applied.
+   *
+   * @param bMixedIn
+   *        Whether the enclosing xs:complexType has <code>mixed</code> true.
+   */
   private void _parseComplexContent (@NonNull final XsdComplexType aCT,
                                      @NonNull final IXdmNode aCC,
                                      final boolean bMixedIn)
@@ -790,7 +857,23 @@ final class XsdComponentParser
 
   /**
    * go-xslt <code>intersectWildcards</code>: the complete attribute wildcard is
-   * the intersection of the own one and those of the referenced groups.
+   * the intersection of the own one and those of the referenced groups (XSD
+   * 1.1 Part 1, 3.6.2.2 and 3.10.6.4).
+   * <p>
+   * A <code>null</code> operand yields the other one, and if either operand
+   * is a union (has parts) <code>aA</code> is returned unchanged. Otherwise a
+   * new wildcard is built: processContents is the common value, or strict if
+   * the two differ; the notNamespace sets, the notQName names, the
+   * <code>##defined</code> flag and its names are united. The namespace
+   * constraint is the other operand's if one is <code>##any</code>; two
+   * <code>##other</code> of the same target namespace stay
+   * <code>##other</code>, of different ones become the empty list;
+   * <code>##other</code> with a list keeps the list members that are neither
+   * the <code>##other</code> target namespace nor absent; two lists keep the
+   * members of <code>aA</code> also in <code>aB</code>.
+   *
+   * @return The intersection, <code>null</code> only if both operands are
+   *         <code>null</code>.
    */
   @Nullable
   static XsdWildcard intersectWildcards (@Nullable final XsdWildcard aA, @Nullable final XsdWildcard aB)
@@ -892,7 +975,14 @@ final class XsdComponentParser
   }
 
   /**
-   * go-xslt <code>parseAssert</code>: an XSD 1.1 xs:assert or xs:assertion.
+   * go-xslt <code>parseAssert</code>: an XSD 1.1 xs:assert or xs:assertion
+   * (XSD 1.1 Part 1, 3.13.2). Records the <code>test</code> (empty if
+   * absent), the in-scope namespaces, the resolved XPath default namespace
+   * and the messages, and compiles the test with <code>$value</code>
+   * declared.
+   *
+   * @throws XsdInvalidException
+   *         if the test has a static XPath error
    */
   @NonNull
   XsdAssertion parseAssert (@NonNull final IXdmNode aNode)
@@ -908,7 +998,8 @@ final class XsdComponentParser
 
   /**
    * go-xslt <code>parseAsserts</code>: the xs:assert children of a complex
-   * type body, extension or restriction.
+   * type body, extension or restriction, in document order. If there is at
+   * least one, the schema is marked as having assertions.
    */
   @NonNull
   ICommonsList <XsdAssertion> parseAsserts (@NonNull final IXdmNode aNode)
@@ -924,7 +1015,16 @@ final class XsdComponentParser
 
   /**
    * go-xslt <code>parseAlternatives</code>: the xs:alternative children of an
-   * element declaration (XSD 1.1 conditional type assignment).
+   * element declaration (XSD 1.1 conditional type assignment, XSD 1.1 Part 1,
+   * 3.12.2), in document order. Only the last alternative may omit
+   * <code>test</code>; a present test is compiled without
+   * <code>$value</code>. The type is the <code>type</code> attribute, else an
+   * inline xs:complexType, else an inline xs:simpleType; an alternative with
+   * none of them keeps no type.
+   *
+   * @throws XsdInvalidException
+   *         for a missing test on a non-last alternative, a static XPath
+   *         error or an unresolved type
    */
   @NonNull
   ICommonsList <XsdTypeAlternative> parseAlternatives (@NonNull final IXdmNode aNode)
@@ -978,7 +1078,25 @@ final class XsdComponentParser
     return ret;
   }
 
-  /** go-xslt <code>parseWildcard</code>: an xs:any or xs:anyAttribute. */
+  /**
+   * go-xslt <code>parseWildcard</code>: an xs:any or xs:anyAttribute (XSD 1.1
+   * Part 1, 3.10.2.2). processContents defaults to strict and is taken
+   * verbatim otherwise. <code>namespace</code>: absent or
+   * <code>##any</code> admits any namespace, <code>##other</code> any other
+   * than the target namespace and absent, an empty value nothing, and a list
+   * the named namespaces with <code>##targetNamespace</code> and
+   * <code>##local</code> resolved. <code>notNamespace</code> (1.1) adds
+   * excluded namespaces the same way and must not be empty or combined with
+   * <code>namespace</code>. <code>notQName</code> (1.1) adds excluded names:
+   * <code>##defined</code> excludes every global element (or attribute)
+   * declaration known at this point, <code>##definedSibling</code> (not on
+   * xs:anyAttribute) sets the sibling flag, and a QName must use a declared
+   * prefix and lie in a namespace the wildcard admits.
+   *
+   * @throws XsdInvalidException
+   *         for an invalid <code>##</code> token or QName, or a violation of
+   *         the rules above
+   */
   @NonNull
   XsdWildcard parseWildcard (@NonNull final IXdmNode aNode)
   {
@@ -1089,7 +1207,16 @@ final class XsdComponentParser
 
   /**
    * go-xslt <code>parseParticle</code>: one particle (model group, group
-   * reference, element or wildcard) with its occurrence bounds.
+   * reference, element or wildcard) with its occurrence bounds, one nesting
+   * level deeper. A group reference resolves like an attribute group
+   * reference: src-resolve for a namespace that is not imported, the
+   * original group for a self-reference inside xs:redefine, then the
+   * chameleon-adjusted name. An element particle keeps the element's
+   * documentation.
+   *
+   * @throws XsdInvalidException
+   *         for a group without <code>ref</code>, an unresolved reference or
+   *         an element that is no particle
    */
   @NonNull
   XsdParticle parseParticle (@NonNull final IXdmNode aNode)
@@ -1155,7 +1282,18 @@ final class XsdComponentParser
     }
   }
 
-  /** go-xslt <code>parseComplexTypeInto</code>: fill a complex type from an xs:complexType element. */
+  /**
+   * go-xslt <code>parseComplexTypeInto</code>: fill a complex type from an
+   * xs:complexType element (XSD 1.1 Part 1, 3.4.2), one nesting level deeper.
+   * The type is registered for the whole-schema checks; abstract,
+   * <code>final</code> and <code>block</code> are read, the latter two
+   * falling back to finalDefault and blockDefault. xs:simpleContent and
+   * xs:complexContent are delegated; otherwise the shorthand form (an
+   * implicit restriction of xs:anyType) takes the direct model group,
+   * attributes and assertions, and the kind is mixed, element-only or empty
+   * (no particle), followed by the open content. The defaultAttributes group
+   * is merged in all three forms.
+   */
   void parseComplexTypeInto (@NonNull final XsdComplexType aCT, @NonNull final IXdmNode aNode)
   {
     m_aC.enterNesting ();
@@ -1214,7 +1352,13 @@ final class XsdComponentParser
     }
   }
 
-  /** go-xslt <code>parseGroupBody</code>: the model group of a named group definition. */
+  /**
+   * go-xslt <code>parseGroupBody</code>: the model group of a named group
+   * definition, from its first xs:sequence, xs:choice or xs:all child.
+   *
+   * @throws XsdInvalidException
+   *         if there is no such child
+   */
   @NonNull
   XsdModelGroup parseGroupBody (@NonNull final IXdmNode aNode)
   {

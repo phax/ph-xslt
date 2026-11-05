@@ -104,6 +104,7 @@ final class XsdExplain
     }
   }
 
+  /** A labelled edge of the automaton: the target state and its label. */
   private record Edge (int to, @NonNull Label label)
   {}
 
@@ -147,6 +148,12 @@ final class XsdExplain
       return m_aEps.size ();
     }
 
+    /**
+     * The epsilon closure of a state set: the states plus every state reachable
+     * from them over epsilon edges only, found with an explicit stack.
+     *
+     * @return A new set; the argument is not modified.
+     */
     @NonNull
     BitSet closure (@NonNull final BitSet aSet)
     {
@@ -186,6 +193,13 @@ final class XsdExplain
     int m_nDepth;
     boolean m_bFail;
 
+    /**
+     * Add a new state without edges. Once the automaton holds
+     * {@link #NFA_MAX_STATES} states nothing is added: the builder is marked
+     * as failed and state 0 is returned.
+     *
+     * @return The index of the new state.
+     */
     int state ()
     {
       if (m_aNfa.size () >= NFA_MAX_STATES)
@@ -200,6 +214,9 @@ final class XsdExplain
       return m_aNfa.size () - 1;
     }
 
+    /**
+     * Add an epsilon edge and its reverse; ignored once the build has failed.
+     */
     void epsEdge (final int nFrom, final int nTo)
     {
       if (m_bFail)
@@ -208,6 +225,9 @@ final class XsdExplain
       m_aNfa.m_aRevEps.get (nTo).add (nFrom);
     }
 
+    /**
+     * Add a labelled edge and its reverse; ignored once the build has failed.
+     */
     void edge (final int nFrom, final int nTo, @NonNull final Label aLabel)
     {
       if (m_bFail)
@@ -317,6 +337,18 @@ final class XsdExplain
     }
   }
 
+  /**
+   * Build the position automaton of a particle with its occurrence bounds:
+   * the start state is the entry of the particle, the accepting state its
+   * exit.
+   *
+   * @return The automaton, or <code>null</code> if the model cannot be
+   *         expressed: an <code>xs:all</code> group, a term that is neither an
+   *         element, a wildcard nor a model group, group nesting deeper than
+   *         {@link #MAX_GROUP_DEPTH}, a minOccurs or a finite
+   *         maxOccurs-minOccurs above {@link #NFA_MAX_UNROLL}, or more than
+   *         {@link #NFA_MAX_STATES} states.
+   */
   @Nullable
   private static Nfa _buildNfa (@NonNull final XsdParticle aParticle)
   {
@@ -329,6 +361,13 @@ final class XsdExplain
     return aBuilder.m_aNfa;
   }
 
+  /**
+   * @return <code>true</code> if a child with the expanded name is matched by
+   *         the label: by the element declaration (including its substitution
+   *         group members, as decided by
+   *         {@link XsdSchema#matchesElementName}) or by the wildcard
+   *         ({@link XsdWildcard#matches}).
+   */
   private static boolean _labelMatches (@NonNull final XsdSchema aSchema,
                                         @NonNull final Label aLabel,
                                         @NonNull final XsdName aName)
@@ -686,6 +725,11 @@ final class XsdExplain
     return _clark (aName);
   }
 
+  /**
+   * @return The display name of a label's element declaration in the
+   *         instance's prefixes, or <code>"(any element)"</code> for a
+   *         wildcard.
+   */
   @NonNull
   private static String _display (@NonNull final Label aLabel, @NonNull final IXdmNode aElement)
   {
@@ -694,6 +738,12 @@ final class XsdExplain
     return "(any element)";
   }
 
+  /**
+   * Join the display names of alternative labels with <code>" or "</code>,
+   * each distinct name once in the order first seen. If more than nMax (when
+   * positive) names remain, only the first nMax are shown followed by
+   * <code>" or …"</code>.
+   */
   @NonNull
   private static String _joinAlts (@NonNull final IXdmNode aElement,
                                    @NonNull final ICommonsList <Label> aAlts,
@@ -763,6 +813,11 @@ final class XsdExplain
     return new CommonsArrayList <> ();
   }
 
+  /**
+   * @return The messages that apply to an error of the kind: those without an
+   *         <code>on</code> restriction and those whose <code>on</code> equals
+   *         the kind. Never <code>null</code>.
+   */
   @NonNull
   private static ICommonsList <XsdMessage> _filter (@NonNull final ICommonsList <XsdMessage> aMsgs,
                                                     @NonNull final String sKind)
@@ -774,6 +829,10 @@ final class XsdExplain
     return ret;
   }
 
+  /**
+   * @return The name in Clark notation <code>{uri}local</code>, or just the
+   *         local name if it has no namespace.
+   */
   @NonNull
   private static String _clark (@NonNull final XsdName aName)
   {

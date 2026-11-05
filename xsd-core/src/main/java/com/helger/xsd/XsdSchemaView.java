@@ -60,11 +60,24 @@ public final class XsdSchemaView
   private final ICommonsMap <XsdAttributeDecl, XsdAttributeDeclView> m_aAttributes = new CommonsHashMap <> ();
   private XsdComplexTypeView m_aAnyType;
 
+  /**
+   * Create the view of a compiled schema. No view object is built here; they
+   * are made on first request.
+   *
+   * @param aSchema
+   *        The compiled schema to expose.
+   */
   XsdSchemaView (@NonNull final XsdSchema aSchema)
   {
     m_aSchema = aSchema;
   }
 
+  /**
+   * @param aMap
+   *        A component map keyed by expanded name.
+   * @return A new list of the map's names, ordered by namespace URI and then
+   *         by local name.
+   */
   @NonNull
   private static <T> ICommonsList <XsdName> _sortedNames (@NonNull final ICommonsMap <XsdName, T> aMap)
   {
@@ -73,6 +86,28 @@ public final class XsdSchemaView
     return ret;
   }
 
+  /**
+   * Part of {@link #getAllUnresolved()}: add <code>sWhere</code> to the output
+   * if the simple type is the unresolved-reference placeholder
+   * {@link XsdSimpleType#ABSENT}, otherwise descend into its base type, list
+   * item type and union member types. Each real type is visited only once per
+   * walk (shared <code>aSeen</code> set), so a type reached a second time from
+   * another place is not reported again; the placeholder itself is never
+   * marked seen and is reported for every place that refers to it. Walks
+   * deeper than <code>MAX_DEPTH</code> and <code>null</code> stop silently.
+   *
+   * @param aType
+   *        The simple type to inspect. May be <code>null</code>.
+   * @param sWhere
+   *        The description of the referring component, such as
+   *        <code>element {urn:x}e</code>.
+   * @param aSeen
+   *        The components already visited in this walk. Modified.
+   * @param aOut
+   *        The collected descriptions. Modified.
+   * @param nDepth
+   *        The current nesting depth.
+   */
   private static void _walkSimple (@Nullable final XsdSimpleType aType,
                                    @NonNull final String sWhere,
                                    @NonNull final ICommonsSet <Object> aSeen,
@@ -94,6 +129,28 @@ public final class XsdSchemaView
       _walkSimple (aMember, sWhere, aSeen, aOut, nDepth + 1);
   }
 
+  /**
+   * Part of {@link #getAllUnresolved()}: a simple type goes to
+   * {@link #_walkSimple}; a complex type not yet seen has its base type, its
+   * simple content type, its particle and the types of its attribute uses
+   * walked. Inside a complex type the place reported becomes the type itself
+   * (<code>type {ns}name</code>, or <code>an anonymous complex type</code>),
+   * and for an attribute use the attribute. Anything else (including
+   * <code>null</code>) is ignored, as is a walk deeper than
+   * <code>MAX_DEPTH</code>.
+   *
+   * @param aType
+   *        The type to inspect. May be <code>null</code>.
+   * @param sWhere
+   *        The description of the referring component, used for a simple
+   *        type.
+   * @param aSeen
+   *        The components already visited in this walk. Modified.
+   * @param aOut
+   *        The collected descriptions. Modified.
+   * @param nDepth
+   *        The current nesting depth.
+   */
   private static void _walkType (@Nullable final IXsdType aType,
                                  @NonNull final String sWhere,
                                  @NonNull final ICommonsSet <Object> aSeen,
@@ -118,6 +175,24 @@ public final class XsdSchemaView
       }
   }
 
+  /**
+   * Part of {@link #getAllUnresolved()}: for an element declaration not yet
+   * seen its type is walked with <code>element {ns}name</code> as the place;
+   * a model group has each of its particles walked; a wildcard has nothing to
+   * resolve.
+   *
+   * @param aParticle
+   *        The particle to inspect. May be <code>null</code>.
+   * @param sWhere
+   *        The description of the enclosing component, passed on to nested
+   *        model groups.
+   * @param aSeen
+   *        The components already visited in this walk. Modified.
+   * @param aOut
+   *        The collected descriptions. Modified.
+   * @param nDepth
+   *        The current nesting depth.
+   */
   private static void _walkParticle (@Nullable final XsdParticle aParticle,
                                      @NonNull final String sWhere,
                                      @NonNull final ICommonsSet <Object> aSeen,
@@ -143,6 +218,14 @@ public final class XsdSchemaView
     return m_aSchema;
   }
 
+  /**
+   * Get the cached view of an element declaration, creating it on first use
+   * (a read lock for the lookup, the write lock only to create).
+   *
+   * @param aDecl
+   *        The element declaration.
+   * @return The one view object for that declaration.
+   */
   @NonNull
   XsdElementView element (@NonNull final XsdElementDecl aDecl)
   {
@@ -152,6 +235,14 @@ public final class XsdSchemaView
     return m_aRWLock.writeLockedGet ( () -> m_aElements.computeIfAbsent (aDecl, k -> new XsdElementView (this, k)));
   }
 
+  /**
+   * Get the cached view of an attribute declaration, creating it on first
+   * use.
+   *
+   * @param aDecl
+   *        The attribute declaration.
+   * @return The one view object for that declaration.
+   */
   @NonNull
   XsdAttributeDeclView attr (@NonNull final XsdAttributeDecl aDecl)
   {
@@ -162,6 +253,14 @@ public final class XsdSchemaView
                                                                            k -> new XsdAttributeDeclView (this, k)));
   }
 
+  /**
+   * Get the cached view of a simple type, creating it on first use.
+   *
+   * @param aType
+   *        The simple type. May be <code>null</code>.
+   * @return The one view object for that type, <code>null</code> for a
+   *         <code>null</code> type.
+   */
   @Nullable
   XsdSimpleTypeView simple (@Nullable final XsdSimpleType aType)
   {
@@ -174,6 +273,13 @@ public final class XsdSchemaView
                                                                             k -> new XsdSimpleTypeView (this, k)));
   }
 
+  /**
+   * Get the cached view of a complex type, creating it on first use.
+   *
+   * @param aType
+   *        The complex type.
+   * @return The one view object for that type.
+   */
   @NonNull
   XsdComplexTypeView complexType (@NonNull final XsdComplexType aType)
   {
@@ -206,6 +312,12 @@ public final class XsdSchemaView
     });
   }
 
+  /**
+   * @param aType
+   *        A simple or complex type. May be <code>null</code>.
+   * @return The cached view of the type, <code>null</code> for
+   *         <code>null</code> or any other kind of type.
+   */
   @Nullable
   IXsdTypeDefinitionView typeDef (@Nullable final IXsdType aType)
   {
@@ -216,6 +328,14 @@ public final class XsdSchemaView
     return null;
   }
 
+  /**
+   * Build a new (uncached) view of a wildcard. An empty namespace mode is
+   * exposed as {@link XsdWildcard#NS_ANY}; the namespace list is copied.
+   *
+   * @param aWC
+   *        The wildcard.
+   * @return A new view.
+   */
   @NonNull
   static XsdWildcardView wildcard (@NonNull final XsdWildcard aWC)
   {
@@ -223,6 +343,17 @@ public final class XsdSchemaView
     return new XsdWildcardView (sMode, aWC.m_aNamespaces.getClone (), aWC.m_sProcess);
   }
 
+  /**
+   * Build a new view of a particle. The particle view itself is not cached:
+   * its documentation is copied (empty if the particle has none), an element
+   * term becomes the cached element view, a model group a new
+   * {@link XsdModelGroupView} over the views of its particles (built
+   * recursively), and a wildcard a new {@link XsdWildcardView}.
+   *
+   * @param aParticle
+   *        The particle.
+   * @return A new view.
+   */
   @NonNull
   XsdParticleView particle (@NonNull final XsdParticle aParticle)
   {

@@ -88,6 +88,14 @@ final class XsdWhiteSpace
     }
   }
 
+  /**
+   * @param sA
+   *        A whiteSpace value.
+   * @param sB
+   *        Another whiteSpace value.
+   * @return The one of higher {@link #rank} (collapse over replace over
+   *         preserve); <code>sA</code> on a tie.
+   */
   @NonNull
   static String stronger (@NonNull final String sA, @NonNull final String sB)
   {

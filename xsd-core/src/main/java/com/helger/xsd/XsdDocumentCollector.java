@@ -100,6 +100,22 @@ final class XsdDocumentCollector
     }
   }
 
+  /**
+   * Read the value of <code>vc:minVersion</code> or <code>vc:maxVersion</code>
+   * (XSD 1.1 Part 1, 4.2.2) after stripping leading and trailing whitespace,
+   * with {@link #_parseVcNumber}. Under 1.1 a value that is no number records
+   * an "invalid vc:..." schema error in the state (only the first error of a
+   * run is kept); under 1.0 it is silently ignored.
+   *
+   * @param aState
+   *        The run state receiving the error.
+   * @param sValue
+   *        The raw attribute value.
+   * @param sAttr
+   *        The local attribute name, for the message.
+   * @return The number, or <code>null</code> if the value is no number. The
+   *         caller then ignores the attribute.
+   */
   @Nullable
   private static Double _vcDecimal (@NonNull final VcState aState, @NonNull final String sValue, @NonNull final String sAttr)
   {
@@ -110,6 +126,24 @@ final class XsdDocumentCollector
     return ret;
   }
 
+  /**
+   * Lexical check of a <code>vc:typeAvailable</code>,
+   * <code>vc:typeUnavailable</code>, <code>vc:facetAvailable</code> or
+   * <code>vc:facetUnavailable</code> value, which XSD 1.1 Part 1, 4.2.2 types
+   * as a list of xs:QName. Only under 1.1: the first token that is no lexical
+   * QName, or whose prefix is not declared in scope of the element, records a
+   * schema error in the state and ends the check. Under 1.0 nothing is
+   * checked. The availability decision itself is made by the caller.
+   *
+   * @param aState
+   *        The run state receiving the error.
+   * @param aNode
+   *        The element carrying the attribute, for the prefix lookup.
+   * @param sValue
+   *        The raw attribute value (whitespace-separated tokens).
+   * @param sAttr
+   *        The local attribute name, for the message.
+   */
   private static void _vcQNames (@NonNull final VcState aState,
                                  @NonNull final IXdmNode aNode,
                                  @NonNull final String sValue,
@@ -359,6 +393,68 @@ final class XsdDocumentCollector
       aOut.get (nMark).m_aImports.addAll (aSD.m_aImports);
   }
 
+  /**
+   * Collect one schema document and, depth first, every document its
+   * include/import/redefine/override directives reach (XSD 1.1 Part 1, 4.2.3
+   * to 4.2.6).
+   * <p>
+   * First the conditional-inclusion pass ({@link #stripVersioning}) runs on
+   * the element; if the schema element itself is excluded, nothing is
+   * collected and no directive is followed. Otherwise a
+   * {@link XsdSchemaDocument} is appended to <code>aOut</code> (before the
+   * documents it reaches) carrying elementFormDefault, attributeFormDefault,
+   * the target namespace (or, for a chameleon include, the adopted
+   * <code>sAdoptNs</code>), the imported namespaces, finalDefault,
+   * blockDefault and, under 1.1 only, defaultAttributes.
+   * <p>
+   * Then each directive child is handled in order:
+   * <ul>
+   * <li>xs:import: no <code>namespace</code> without a target namespace
+   * (src-import.1.2), an empty <code>namespace</code> and the document's own
+   * target namespace (src-import.1.1) are schema errors.</li>
+   * <li>A missing <code>schemaLocation</code> is an error except for an
+   * import; an import without location, any directive while the base
+   * directory is unknown, and a location that is no local file are
+   * skipped.</li>
+   * <li>Under 1.1 an xs:override is checked for distinct component names
+   * and, if it has component children, handed to
+   * {@link #_collectOverride}; a childless one is followed like an
+   * include. Under 1.0 xs:override is treated like an include.</li>
+   * <li>xs:redefine: a redefine of the own document is an error
+   * (src-redefine.1 in this code); the redefine edge and the redefined
+   * component names are recorded on the compiler and an indirect cycle is
+   * rejected by {@link #_checkRedefineCycle}.</li>
+   * <li>A path already collected through another directive is not read
+   * again: a redefine of it is an error, otherwise only the namespace rules
+   * of {@link #_directiveTnsOK} are applied.</li>
+   * <li>Otherwise the file is read (unreadable: skipped), parsed, must have
+   * xs:schema as root, has its target namespace cached by path and checked by
+   * {@link #_directiveTnsOK}. A document whose bytes equal an already
+   * collected one is skipped; for a redefine this is a src-redefine.2 error
+   * if both redefine arcs name the same component. Else the document is
+   * collected recursively (one nesting level deeper), an include, redefine
+   * or override passing this document's target namespace for chameleon
+   * adoption and an import passing none.</li>
+   * </ul>
+   *
+   * @param aElement
+   *        The xs:schema element. Changed in place by the conditional
+   *        inclusion pass.
+   * @param aBaseDir
+   *        Its directory; <code>null</code> if unknown (no location is then
+   *        followed).
+   * @param sSelfPath
+   *        Its path (empty for a document handed to the compiler).
+   * @param aOut
+   *        Receives every collected document, outermost first.
+   * @param aVisited
+   *        The visited keys (paths, <code>c:</code>-prefixed contents and the
+   *        override keys of {@link #_collectOverride}).
+   * @param sAdoptNs
+   *        The namespace a chameleon include adopts, empty for none.
+   * @throws XsdInvalidException
+   *         for a composition error
+   */
   private void _collect (@NonNull final IXdmNode aElement,
                          @Nullable final Path aBaseDir,
                          @NonNull final String sSelfPath,
@@ -518,7 +614,10 @@ final class XsdDocumentCollector
 
   /**
    * go-xslt <code>vcFacetSupported</code>: whether this processor supports the
-   * named constraining facet at the version.
+   * named constraining facet at the version. Only the local part after the
+   * last colon is compared; the prefix and its namespace are ignored. The
+   * twelve XSD 1.0 facets are supported at both versions, assertion and
+   * explicitTimezone only at 1.1, any other name at neither.
    */
   static boolean vcFacetSupported (@NonNull final String sQName, @NonNull final EXsdVersion eVersion)
   {
@@ -548,7 +647,10 @@ final class XsdDocumentCollector
 
   /**
    * go-xslt <code>vcTypeAvailable</code>: whether the named built-in type exists
-   * at the version.
+   * at the version. Only the local part after the last colon is compared; the
+   * prefix and its namespace are ignored. The XSD 1.1-only built-ins exist
+   * only at 1.1; NMTOKENS, IDREFS, ENTITIES and every name known as an
+   * atomic type exist at both versions.
    */
   static boolean vcTypeAvailable (@NonNull final String sQName, @NonNull final EXsdVersion eVersion)
   {
@@ -608,7 +710,9 @@ final class XsdDocumentCollector
   }
 
   /**
-   * go-xslt <code>collect</code>.
+   * go-xslt <code>collect</code>: collect the schema document of the element
+   * and, recursively, every document its include/import/redefine/override
+   * directives reach, as described at {@link #_collect}.
    *
    * @param aElement
    *        The xs:schema element.

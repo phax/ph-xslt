@@ -126,6 +126,16 @@ final class XsdLexHelper
    * go-xslt <code>validAnyURI10</code>: the XSD 1.0 xs:anyURI lexical space, an
    * RFC 2396 URI reference (RFC 2732 brackets tolerated), where non-ASCII
    * characters and <code>&lt; &gt; "</code> count as pre-escapable.
+   * Every character must be an RFC 2396 URI character or such a
+   * pre-escapable one, and a <code>%</code> must start a two-hex-digit
+   * escape. If a colon occurs before the first <code>/</code>,
+   * <code>?</code> or <code>#</code>, the part before it must be a valid
+   * scheme (a letter, then letters, digits, <code>+ - .</code>) and the part
+   * after it, up to a fragment, must not be empty.
+   *
+   * @param s
+   *        The value; the callers pass it whitespace-collapsed.
+   * @return <code>true</code> if it is a valid 1.0 anyURI lexical form.
    */
   static boolean validAnyURI10 (@NonNull final String s)
   {
@@ -181,7 +191,16 @@ final class XsdLexHelper
     return true;
   }
 
-  /** go-xslt <code>lexEqualCollapsed</code>. */
+  /**
+   * go-xslt <code>lexEqualCollapsed</code>: compare two lexical values after
+   * whiteSpace="collapse" on both, as strings (not in a value space).
+   *
+   * @param sA
+   *        One value.
+   * @param sB
+   *        The other value.
+   * @return <code>true</code> if the collapsed forms are equal.
+   */
   static boolean lexEqualCollapsed (@NonNull final String sA, @NonNull final String sB)
   {
     return XsdWhiteSpace.collapse (sA).equals (XsdWhiteSpace.collapse (sB));

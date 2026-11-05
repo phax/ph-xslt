@@ -66,6 +66,14 @@ final class XsdAttributeValidator
     private final ICommonsMap <XsdName, XsdAttributeUse> m_aByName;
     private final ICommonsSet <XsdName> m_aSeenSet;
 
+    /**
+     * Up to <code>INDEX_LINEAR_MAX</code> uses are searched linearly and presence
+     * is kept as one bit per use position; above that a name map and a name
+     * set are built once.
+     *
+     * @param aUses
+     *        The attribute uses in order; kept, not copied.
+     */
     AttrUseIndex (@NonNull final ICommonsList <XsdAttributeUse> aUses)
     {
       m_aUses = aUses;
@@ -83,6 +91,11 @@ final class XsdAttributeValidator
       }
     }
 
+    /**
+     * @param aName
+     *        The attribute name.
+     * @return The last use declaring that name, <code>null</code> if none.
+     */
     @Nullable
     XsdAttributeUse lookup (@NonNull final XsdName aName)
     {
@@ -94,6 +107,14 @@ final class XsdAttributeValidator
       return null;
     }
 
+    /**
+     * Record that an attribute of the given name occurred on the element. In
+     * the linear mode every use of that name gets its bit set; a name no use
+     * declares leaves no trace.
+     *
+     * @param aName
+     *        The attribute name.
+     */
     void markPresent (@NonNull final XsdName aName)
     {
       if (m_aSeenSet != null)
@@ -106,6 +127,12 @@ final class XsdAttributeValidator
           m_nSeen |= 1L << i;
     }
 
+    /**
+     * @param aName
+     *        The attribute name.
+     * @return <code>true</code> if {@link #markPresent} was called for that
+     *         name (in the linear mode only names of a use are remembered).
+     */
     boolean isPresent (@NonNull final XsdName aName)
     {
       if (m_aSeenSet != null)
@@ -132,6 +159,27 @@ final class XsdAttributeValidator
    * go-xslt <code>validateAttributes</code>: check an element's attributes
    * against a complex type's (effective) attribute uses and attribute
    * wildcard.
+   * <p>
+   * Each attribute is matched to the last use of its name. A prohibited use
+   * counts as no use. Without a use, an <code>xsi:*</code> attribute is
+   * always allowed, and so is an <code>xml:*</code> one under 1.0 (under 1.1
+   * it needs the wildcard); anything else must match the attribute wildcard
+   * (cvc-complex-type.3.2.2). A skip wildcard accepts it unchecked, a lax or
+   * strict one assesses it against the global attribute declaration of that
+   * name; a missing declaration is cvc-assess-attr for a strict wildcard
+   * and ignored for a lax one. An attribute with a use is validated against
+   * the declared type and, with a fixed value, compared to it in the type's
+   * value space (cvc-attribute.4). Validated attributes register their ID
+   * and IDREF values and their type annotation with the run; under 1.0 a
+   * second ID-typed attribute is cvc-complex-type.5.1.
+   * <p>
+   * Afterwards every required use without its attribute is reported as
+   * cvc-complex-type.4 through {@link XsdInstanceValidator#soft} (so all of
+   * them are collected), with the <code>msg:message</code> entries for
+   * <code>on="missing"</code> of the use or else of its declaration. An
+   * absent attribute whose use has a default (else a fixed) value
+   * contributes that value: its ID/IDREF values are noted and the run
+   * records it as a defaulted attribute.
    *
    * @param aRun
    *        The validation run.
