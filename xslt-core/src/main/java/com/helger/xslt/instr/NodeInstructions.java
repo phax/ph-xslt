@@ -209,7 +209,7 @@ public final class NodeInstructions
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XdmQName aQName = _computeName (aRtCtx, aEl, aName, aNamespace, true);
       final IXdmNode aElement = IXdmNode.createElement (aQName);
-      final ContentOutput aContent = new ContentOutput (aElement);
+      final ContentOutput aContent = ContentOutput.createFor (aElement, aRtOut, !bNoInherit && aValidation == null);
       if (aSets.isNotEmpty ())
         aRtCtx.getEngine ().applyAttributeSets (aSets, aRtCtx, aContent);
       aBody.execute (aRtCtx, aContent);
@@ -375,7 +375,7 @@ public final class NodeInstructions
           aCopy.setBaseUri (FnAccessor.getBaseUri (aNode));
           if (bCopyNamespaces)
             NodeCopier.copyNamespaces (aNode, aCopy, true);
-          final ContentOutput aContent = new ContentOutput (aCopy);
+          final ContentOutput aContent = ContentOutput.createFor (aCopy, aRtOut, !bNoInherit && aValidation == null);
           if (aSets.isNotEmpty ())
             aCtx2.getEngine ().applyAttributeSets (aSets, aCtx2, aContent);
           aBody.execute (aCtx2, aContent);

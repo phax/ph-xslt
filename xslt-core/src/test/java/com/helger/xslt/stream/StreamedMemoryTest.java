@@ -38,8 +38,10 @@ import com.helger.collection.commons.ICommonsList;
  * it is transformed by one stylesheet per other streamed construct
  * (xsl:iterate, xsl:for-each-group, xsl:fork, xsl:merge of two such
  * documents, predicates with fn:generate-id, snapshots with accumulator
- * values) in the same heap. The document
- * is generated while it is read and never stored. The size can be set with
+ * values) in the same heap. A further case copies every record into a result
+ * of the same size, written to a stream while it is built; built in full
+ * first, it does not fit either. The document is generated while it is read
+ * and never stored. The size can be set with
  * <code>-Dstreamed.memory.records=&lt;n&gt;</code> (about 90 bytes each).
  *
  * @author Philip Helger
@@ -92,5 +94,31 @@ public final class StreamedMemoryTest
     final Outcome aBuffered = _fork ("buffered", RECORDS, "for-each");
     LOGGER.info ("Buffered run with " + HEAP + ":\n" + aBuffered.output ());
     assertEquals (aBuffered.output (), 3, aBuffered.exitCode ());
+  }
+
+  private static long _expectedCopyBytes (final long nRecords)
+  {
+    long ret = StreamedMemoryMain.COPY_HEAD.length () + StreamedMemoryMain.COPY_TAIL.length ();
+    for (long i = 1; i <= nRecords; ++i)
+      ret += ("<rec id=\"r" + i + "\" g=\"" + i / 4 + "\"><v>" + i % 7 + "</v><pad>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</pad></rec>").length ();
+    return ret;
+  }
+
+  @Test
+  public void testBoundedOutput () throws IOException, InterruptedException
+  {
+    final Outcome aDrained = _fork ("copy", RECORDS, "for-each");
+    LOGGER.info ("Streamed copy written while it is built, with " + HEAP + ":\n" + aDrained.output ());
+    assertEquals (aDrained.output (), 0, aDrained.exitCode ());
+    assertTrue (aDrained.output (), aDrained.output ().contains ("out-bytes=" + _expectedCopyBytes (RECORDS) + "\n"));
+    assertTrue (aDrained.output (),
+                aDrained.output ().contains ("</pad></rec>" + StreamedMemoryMain.COPY_TAIL + "\n"));
+    assertTrue (aDrained.output (), aDrained.output ().contains ("streamed-runs=1\n"));
+    assertTrue (aDrained.output (), aDrained.output ().contains ("drained-runs=1\n"));
+
+    // The same result built in full before it is written does not fit
+    final Outcome aUndrained = _fork ("copy-undrained", RECORDS, "for-each");
+    LOGGER.info ("Streamed copy built in full, with " + HEAP + ":\n" + aUndrained.output ());
+    assertEquals (aUndrained.output (), 3, aUndrained.exitCode ());
   }
 }

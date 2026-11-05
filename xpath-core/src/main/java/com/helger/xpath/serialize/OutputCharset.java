@@ -45,19 +45,31 @@ final class OutputCharset
   private final Normalizer.Form m_eNormForm;
   private final SerializationParams m_aParams;
 
-  OutputCharset (@NonNull final SerializationParams aParams)
+  /**
+   * @param aParams
+   *        The serialization parameters.
+   * @return The Java charset of the encoding parameter.
+   * @throws XPathException
+   *         SESU0007 if the encoding is not supported
+   */
+  @NonNull
+  static Charset getCharset (@NonNull final SerializationParams aParams)
   {
-    m_aParams = aParams;
     final String sEncoding = aParams.getEncoding ().trim ();
-    final Charset aCharset;
     try
     {
-      aCharset = Charset.forName (sEncoding);
+      return Charset.forName (sEncoding);
     }
     catch (final IllegalCharsetNameException | UnsupportedCharsetException ex)
     {
       throw XPathException.of ("SESU0007", "Unsupported encoding '" + sEncoding + "'");
     }
+  }
+
+  OutputCharset (@NonNull final SerializationParams aParams)
+  {
+    m_aParams = aParams;
+    final Charset aCharset = getCharset (aParams);
     final String sCanonical = aCharset.name ().toUpperCase (Locale.ROOT);
     if (aCharset.equals (StandardCharsets.UTF_8) || sCanonical.startsWith ("UTF-") || sCanonical.equals ("GB18030"))
       m_aEncoder = null;

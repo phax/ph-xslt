@@ -17,6 +17,7 @@
 package com.helger.xslt.stream;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryType;
@@ -37,16 +38,19 @@ import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltCompiler;
 import com.helger.xslt.XsltTestHelper;
 import com.helger.xslt.XsltTransformRequest;
+import com.helger.xslt.runtime.ResultDrain;
 
 /**
  * The forked process of {@link StreamedMemoryTest}: transforms a generated
  * document, which never exists as a whole (neither on disk nor in memory),
- * with a streamable stylesheet. Arguments: the number of records,
- * <code>streamed</code> or <code>buffered</code>, and optionally the shape of
- * the stylesheet ({@link #SHAPES}, default <code>for-each</code>). Prints the
- * result, the
- * document size, the peak heap use and whether the streamed path ran; exits
- * with 3 on an OutOfMemoryError.
+ * with a streamable stylesheet. Arguments: the number of records, the mode
+ * (<code>streamed</code> or <code>buffered</code> for a small result, or
+ * <code>copy</code> or <code>copy-undrained</code> for a streamed copy of every
+ * record, written to a stream that only counts the bytes, while it is built or
+ * after it was built in full), and optionally the shape of the stylesheet
+ * ({@link #SHAPES}, default <code>for-each</code>, not for the copy modes).
+ * Prints the result, the document size, the peak heap use and whether the
+ * streamed and drained paths ran; exits with 3 on an OutOfMemoryError.
  *
  * @author Philip Helger
  */
@@ -333,6 +337,70 @@ public final class StreamedMemoryMain
     return aSB.toString ();
   }
 
+  /** The start of the output of {@link #copySheet(boolean)}. */
+  static final String COPY_HEAD = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><out>";
+
+  /** The end of the output of {@link #copySheet(boolean)}. */
+  static final String COPY_TAIL = "</out>";
+
+  /** Counts the bytes written and keeps the last few. */
+  static final class CountingStream extends OutputStream
+  {
+    private final byte [] m_aTail = new byte [64];
+    private long m_nBytes;
+
+    @Override
+    public void write (final int n)
+    {
+      m_aTail[(int) (m_nBytes % m_aTail.length)] = (byte) n;
+      m_nBytes++;
+    }
+
+    @Override
+    public void write (final byte [] aBuf, final int nOfs, final int nLen)
+    {
+      for (int i = 0; i < nLen; ++i)
+        write (aBuf[nOfs + i]);
+    }
+
+    long getBytes ()
+    {
+      return m_nBytes;
+    }
+
+    @NonNull
+    String getTail ()
+    {
+      final int nLen = (int) Math.min (m_nBytes, m_aTail.length);
+      final byte [] aTail = new byte [nLen];
+      for (int i = 0; i < nLen; ++i)
+        aTail[i] = m_aTail[(int) ((m_nBytes - nLen + i) % m_aTail.length)];
+      return new String (aTail, StandardCharsets.UTF_8);
+    }
+  }
+
+  /**
+   * @param bExplicitMethod
+   *        <code>true</code> to state the output method (the result is
+   *        written while it is built), <code>false</code> to leave it to the
+   *        result (it is built in full first).
+   * @return A stylesheet copying every record of the streamed document.
+   */
+  @NonNull
+  static String copySheet (final boolean bExplicitMethod)
+  {
+    return XsltTestHelper.SHEET +
+           (bExplicitMethod ? "<xsl:output method='xml'/>" : "") +
+           "<xsl:template name='xsl:initial-template'>" +
+           "<xsl:source-document href='" +
+           DOC_URI +
+           "' streamable='yes'>" +
+           "<out xsl:exclude-result-prefixes='#all'><xsl:copy-of select='data/rec'/></out>" +
+           "</xsl:source-document>" +
+           "</xsl:template>" +
+           XsltTestHelper.END;
+  }
+
   private StreamedMemoryMain ()
   {}
 
@@ -348,20 +416,31 @@ public final class StreamedMemoryMain
   public static void main (final String [] aArgs)
   {
     final long nRecords = Long.parseLong (aArgs[0]);
-    final boolean bStreamed = "streamed".equals (aArgs[1]);
+    final String sMode = aArgs[1];
+    final boolean bCopy = sMode.startsWith ("copy");
+    final boolean bStreamed = "streamed".equals (sMode) || bCopy;
     final String sShape = aArgs.length > 2 ? aArgs[2] : "for-each";
     final GeneratorResolver aResolver = new GeneratorResolver (nRecords);
     final long nStart = System.nanoTime ();
     try
     {
       final long nRunsBefore = StreamedRun.getStreamedRunCount ();
-      final String sResult = XsltCompiler.compile (getSheet (sShape), new XsltCompileOptions ().setStreamingClaim (bStreamed))
-                                         .transform (new XsltTransformRequest ().setResolver (aResolver)
-                                                                                 // An accumulator rule per node
-                                                                                 .setMaxSteps (Long.MAX_VALUE))
-                                         .principalSerialized ();
-      System.out.println ("result=" + sResult);
+      final long nDrainedBefore = ResultDrain.getDrainedRunCount ();
+      final XsltCompileOptions aOptions = new XsltCompileOptions ().setStreamingClaim (bStreamed);
+      final XsltTransformRequest aRequest = new XsltTransformRequest ().setResolver (aResolver)
+                                                                       // An accumulator rule per node
+                                                                       .setMaxSteps (Long.MAX_VALUE);
+      if (bCopy)
+      {
+        final CountingStream aOS = new CountingStream ();
+        XsltCompiler.compile (copySheet ("copy".equals (sMode)), aOptions).transform (aRequest, aOS);
+        System.out.println ("out-bytes=" + aOS.getBytes ());
+        System.out.println ("out-tail=" + aOS.getTail ());
+      }
+      else
+        System.out.println ("result=" + XsltCompiler.compile (getSheet (sShape), aOptions).transform (aRequest).principalSerialized ());
       System.out.println ("streamed-runs=" + (StreamedRun.getStreamedRunCount () - nRunsBefore));
+      System.out.println ("drained-runs=" + (ResultDrain.getDrainedRunCount () - nDrainedBefore));
     }
     catch (final OutOfMemoryError ex)
     {

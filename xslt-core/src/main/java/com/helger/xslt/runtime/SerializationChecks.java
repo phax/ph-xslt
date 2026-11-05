@@ -72,6 +72,44 @@ public final class SerializationChecks
   }
 
   /**
+   * The checks of the html output method on the content of a result tree
+   * (SERE0014, SERE0015).
+   *
+   * @param aParams
+   *        The serialization parameters of the html method.
+   * @param aRoot
+   *        The node to check.
+   * @param bDeep
+   *        <code>true</code> to check its subtree, <code>false</code> for the
+   *        node and its attributes only.
+   * @throws XPathException
+   *         SERE0014 or SERE0015
+   */
+  static void checkHtmlContent (@NonNull final SerializationParams aParams, @NonNull final IXdmNode aRoot, final boolean bDeep)
+  {
+    final boolean bCheckC1 = !_isHtml5 (aParams);
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
+    aStack.push (aRoot);
+    while (!aStack.isEmpty ())
+    {
+      final IXdmNode aCur = aStack.pop ();
+      if (aCur.getKind () == ENodeKind.PROCESSING_INSTRUCTION && aCur.getValue ().indexOf ('>') >= 0)
+        throw new XPathException ("SERE0015", "The html output method cannot write '>' in a processing instruction");
+      if (bCheckC1)
+      {
+        if (aCur.isText () && _hasC1 (aCur.getValue ()))
+          throw new XPathException ("SERE0014", "The html output method cannot write a character in #x7F-#x9F");
+        for (int i = 0; i < aCur.getAttributeCount (); ++i)
+          if (_hasC1 (aCur.getAttributeAtIndex (i).getValue ()))
+            throw new XPathException ("SERE0014", "The html output method cannot write a character in #x7F-#x9F");
+      }
+      if (bDeep)
+        for (int i = 0; i < aCur.getChildCount (); ++i)
+          aStack.push (aCur.getChildAtIndex (i));
+    }
+  }
+
+  /**
    * @param aParams
    *        The effective parameters.
    * @param aTree
@@ -120,27 +158,7 @@ public final class SerializationChecks
                                   "A result with " + nElements + " top-level elements cannot be serialized with standalone or doctype-system");
     }
     if (bHtml)
-    {
-      final boolean bCheckC1 = !_isHtml5 (aParams);
-      final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
-      aStack.push (aTree);
-      while (!aStack.isEmpty ())
-      {
-        final IXdmNode aCur = aStack.pop ();
-        if (aCur.getKind () == ENodeKind.PROCESSING_INSTRUCTION && aCur.getValue ().indexOf ('>') >= 0)
-          throw new XPathException ("SERE0015", "The html output method cannot write '>' in a processing instruction");
-        if (bCheckC1)
-        {
-          if (aCur.isText () && _hasC1 (aCur.getValue ()))
-            throw new XPathException ("SERE0014", "The html output method cannot write a character in #x7F-#x9F");
-          for (int i = 0; i < aCur.getAttributeCount (); ++i)
-            if (_hasC1 (aCur.getAttributeAtIndex (i).getValue ()))
-              throw new XPathException ("SERE0014", "The html output method cannot write a character in #x7F-#x9F");
-        }
-        for (int i = 0; i < aCur.getChildCount (); ++i)
-          aStack.push (aCur.getChildAtIndex (i));
-      }
-    }
+      checkHtmlContent (aParams, aTree, true);
   }
 
 }

@@ -338,7 +338,7 @@ public final class CoreInstructions
           aElement.declareNamespace (aEntry.getKey (), aEntry.getValue ());
       if (sBase != null)
         aElement.setBaseUri (sBase);
-      final ContentOutput aContent = new ContentOutput (aElement);
+      final ContentOutput aContent = ContentOutput.createFor (aElement, aRtOut, !bNoInherit && aValidation == null);
       if (aSets.isNotEmpty ())
         aRtCtx.getEngine ().applyAttributeSets (aSets, aRtCtx, aContent);
       for (int i = 0; i < aAttrNames.size (); ++i)

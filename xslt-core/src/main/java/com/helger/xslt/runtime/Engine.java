@@ -736,7 +736,7 @@ public final class Engine
           if (sBase != null)
             aCopy.setBaseUri (sBase);
           NodeCopier.copyNamespaces (aNode, aCopy, true);
-          final ContentOutput aContent = new ContentOutput (aCopy);
+          final ContentOutput aContent = ContentOutput.createFor (aCopy, aOut, true);
           _applyToChildren (aNode, true, aMode, aCtx, aParams, aContent);
           aOut.appendNew (aContent.getParent ());
         }

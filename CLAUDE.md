@@ -51,6 +51,15 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   never answer a whole-document question from it. Tests tell streamed from buffered runs with
   `StreamedRun.getStreamedCount (<instruction>)`. The memory test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`,
   `-Dstreamed.memory.records=<n>`, one stylesheet per streamed construct).
+- Output to a stream (streaming plan S5): `XsltExecutable.transform (request, OutputStream|Writer)` writes the principal
+  result instead of returning it (same characters as `principalSerialized ()`). Where the unnamed xsl:output allows it
+  (`XsltTransformer._createDrain`: not schema-aware, explicit method, no xsl:result-document anywhere, a tree,
+  `XdmIncrementalSerializer.isSupported`) the result is written while it is built: `com.helger.xslt.runtime.ResultDrain`
+  tracks the elements under construction (each with its own `ContentOutput`) and writes and detaches what can no longer
+  change. Element constructors must create their content output with `ContentOutput.createFor` (pass `false` when the
+  instruction changes the content after adding it, as inherit-namespaces="no" and validation do); a temporary output
+  (`BufferedOutput`, variables) is never drained. `ResultDrain.getDrainedRunCount ()` tells tests which path ran;
+  `-Dxslt30.writeTo=true` reruns every XSLT30 case through the writer and fails it with "harness" on any difference.
 - Early exit (XPath 3.1 section 2.3.4): where only existence or the effective boolean value matters (`fn:exists`,
   `fn:empty`, `fn:boolean`, `fn:not` resolved to their built-in implementation, `and`/`or`, `if`, `satisfies`,
   predicates, `XPathEvaluator.evaluateEffectiveBooleanValue`), paths ending in an axis step and filter expressions

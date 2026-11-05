@@ -16,6 +16,9 @@
  */
 package com.helger.xslt.model;
 
+import java.io.OutputStream;
+import java.io.Writer;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -470,6 +473,20 @@ public final class CompiledStylesheet implements XsltExecutable
   public XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest)
   {
     return new XsltTransformer (this, aRequest).run ();
+  }
+
+  @Override
+  @NonNull
+  public XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest, @NonNull final OutputStream aOS)
+  {
+    return new XsltTransformer (this, aRequest).runTo (aOS);
+  }
+
+  @Override
+  @NonNull
+  public XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest, @NonNull final Writer aWriter)
+  {
+    return new XsltTransformer (this, aRequest).runTo (aWriter);
   }
 
   @Override
