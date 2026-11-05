@@ -192,6 +192,76 @@ Result:
 * Tests: `XsltEvaluationTest` (xslt-core), `CompiledXPathTest` (xpath-core). QT3, XSLT30 and xsdtests fail lists
   unchanged by name on JDK 21 and 25.
 
+## Early exit for existence tests
+
+Status: done (2026-11-05; S1 of ph-sch2java's `docs/SUGGESTIONS-sch2java.md`).
+
+ph-sch2java's differential harness against Saxon found dynamic errors that only ph-xslt raised, e.g. in Peppol MLS
+`exists(cac:LineResponse[cac:Response[normalize-space(cac:Status/cbc:StatusReasonCode) = 'BV']])`: with a duplicated
+`cac:Status` in a later `cac:LineResponse`, Saxon stops at the first matching line, ph-xslt evaluated all lines and
+raised XPTY0004. XPath 3.1 section 2.3.4 allows an implementation to skip parts that do not change the result, and
+with them their errors.
+
+Result (`XPathEvaluator`):
+
+* Where only the existence or the effective boolean value of a value matters, the evaluator stops at the first
+  decisive item: the argument of a static call of `fn:exists`, `fn:empty`, `fn:boolean` and `fn:not` (recognised by
+  the implementation the name resolves to: `FnSequence.EXISTS`/`EMPTY`, `FnBoolean.BOOLEAN`/`NOT`), the operands of
+  `and`/`or`, the `if` condition, `satisfies`, predicates, and hosts through
+  `XPathEvaluator.evaluateEffectiveBooleanValue`/`CompiledXPath.evaluateEffectiveBooleanValue` (`xsl:if`,
+  `xsl:when` and `xsl:assert` through `XPathExpr.evaluateBoolean`). XSD assertions keep the complete evaluation.
+* Shapes with early exit: a path whose last step is an axis step (also a fused `//name` step), with or without
+  predicates, and a filter expression; also in parentheses. All steps before the last are evaluated completely, as
+  are all predicates of the last step but the last one (positions depend on them); the last predicate is tried item
+  by item with the known context size (`last()` works, a number is compared with the position) and stops at the first
+  item that passes. For a path the context nodes are tried one by one (or the name index serves all at once) and
+  document order and duplicates do not matter; every context item is still checked to be a node first (XPTY0019/20).
+* Effective boolean value: a path value is a node sequence, so existence decides. For a filter expression the first
+  passing item decides if it is a node; after an atomic value or a function item a second passing item is looked for,
+  which gives FORG0006 as before.
+* A predicate goes through the early path only if its shape can never be a number (a path ending in an axis step);
+  a filter expression as predicate is evaluated completely. Every other shape falls back to the complete evaluation.
+  The recursion follows the expression nesting, not the input.
+* `//@name` as the last two steps is left to the complete evaluation, which answers it from the attribute index of
+  the S2 work below instead of visiting every node; the `//@name` shortcut in `_evalPathPrefix` only fires inside
+  the prefix asked for (merged together with S2, `EarlyExitTest.testSubtreeAttributes`).
+* Not done: reordering `and`/`or` operands by cost (Saxon does; left to right stays), and early exit inside a path
+  step before the last, a union, or a sequence of several operands.
+* Measured (JDK 21, generated document of 100,000 `Line` elements, minimum of 30 runs, before -> after):
+  `exists(//Line[ID = '10'])` 7.9-8.3 -> 0.61-0.65 ms, `exists(//Line[normalize-space(Amount) = '5'])` 14.8-16.0 ->
+  0.56-0.61 ms, `exists(/Invoice/Line[Amount > 98])` 10.4-11.7 -> 1.3-1.4 ms, `boolean(Invoice/Line[ID = '10'])`
+  8.7-9.6 -> 0.72-0.90 ms; without a match `exists(//Line[ID = 'none'])` 8.1-8.9 -> 8.6-8.7 ms (unchanged within
+  noise), `count(//Line[ID = '10'])` 8.3-8.6 -> 8.1 ms.
+* Tests: `EarlyExitTest` (xpath-core), including the MLS case. QT3, XSLT30 and xsdtests fail lists unchanged by name.
+
+## Public operator API
+
+Status: done (2026-11-05; S3 of ph-sch2java's `docs/SUGGESTIONS-sch2java.md`).
+
+ph-sch2java generates Java for the structure of Schematron expressions (navigation, loops, `and`/`or`, quantifiers),
+but the helpers with the evaluator's semantics for comparisons, arithmetic, casts and function argument conversion
+were private in `XPathEvaluator`. The generated code therefore built a small AST over operand variables per operator
+(`XRt.delegate`/`XRt.op`) and evaluated it in a new `DynamicContext` each time.
+
+Result: `com.helger.xpath.eval.XPathOperators`, next to `XPathEvaluator` (it needs `SequenceTypeMatcher` and the
+package-private parts of the evaluator; the `ops` package stays at the level of single atomic values). The code was
+moved there from `XPathEvaluator`, which now calls the same methods, so there is one implementation:
+
+* `generalCompare (EComparisonOp, XdmSequence, XdmSequence, DynamicContext)` returns `boolean`: atomisation, default
+  collation, the XPath 1.0 comparison rules in compatibility mode, and for `=` the hash index of a long sequence in the
+  run cache (the evaluator's general-equality index). The range fast path (`$x = (1 to 100000)`) needs the
+  unevaluated range and stays in the evaluator.
+* `valueCompare` and `nodeCompare` return the empty sequence or a boolean, `compare` dispatches by the operator.
+* `arithmetic (EBinaryOp, ...)` and `unaryArithmetic (boolean, ...)`, both with the XPath 1.0 compatibility rules.
+* `cast (XdmSequence, SeqType, DynamicContext)` and `castable` (atomic, list and schema target types).
+* `getFunctionDef (DynamicContext, XdmQName, int)` (XPST0017) and `callFunction (FunctionDef, DynamicContext, List)`:
+  the function conversion rules per argument (errors name the function and the argument), then the static
+  implementation within `enterCall`/`leaveCall`. The evaluator converts each argument right after evaluating it, as
+  before, through the same conversion method.
+* Not covered: the node step with the name index (S2 of the suggestions, `AxisNavigator`), set operators, ranges,
+  `||`, `instance of` and `treat as`; generated code keeps the delegated AST for those.
+* Tests: `XPathOperatorsTest` (xpath-core). QT3, XSLT30 and xsdtests fail lists unchanged by name.
+
 ## Streaming
 
 Status: in progress (started 2026-11-04). After streaming, performance and memory optimisation start (focused on the

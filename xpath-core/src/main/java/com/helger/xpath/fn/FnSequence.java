@@ -63,6 +63,18 @@ import com.helger.xpath.xdm.XdmConstants;
 @Immutable
 public final class FnSequence
 {
+  /**
+   * The implementation of <code>fn:exists</code>. The evaluator recognises it
+   * in a static call and stops evaluating the argument at its first item.
+   */
+  public static final IXPathFunction EXISTS = (aCtx, aArgs) -> _bool (!aArgs.get (0).isEmpty ());
+
+  /**
+   * The implementation of <code>fn:empty</code>. The evaluator recognises it
+   * in a static call and stops evaluating the argument at its first item.
+   */
+  public static final IXPathFunction EMPTY = (aCtx, aArgs) -> _bool (aArgs.get (0).isEmpty ());
+
   @PresentForCodeCoverage
   private static final FnSequence INSTANCE = new FnSequence ();
 
@@ -526,8 +538,8 @@ public final class FnSequence
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;
-    aLib.register (sNS, "empty", "(item()*) as xs:boolean", (aCtx, aArgs) -> _bool (aArgs.get (0).isEmpty ()));
-    aLib.register (sNS, "exists", "(item()*) as xs:boolean", (aCtx, aArgs) -> _bool (!aArgs.get (0).isEmpty ()));
+    aLib.register (sNS, "empty", "(item()*) as xs:boolean", EMPTY);
+    aLib.register (sNS, "exists", "(item()*) as xs:boolean", EXISTS);
     aLib.register (sNS, "head", "(item()*) as item()?", (aCtx, aArgs) -> {
       final XdmSequence aSeq = aArgs.get (0);
       return aSeq.isEmpty () ? XdmSequence.EMPTY : XdmSequence.of (aSeq.get (0));

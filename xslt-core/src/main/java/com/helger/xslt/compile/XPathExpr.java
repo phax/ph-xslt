@@ -104,11 +104,13 @@ public final class XPathExpr
   /**
    * @param aCtx
    *        Run-time context.
-   * @return The effective boolean value.
+   * @return The effective boolean value, evaluated with early exit
+   *         ({@link XPathEvaluator#evaluateEffectiveBooleanValue(IExpr, DynamicContext)}).
    */
   public boolean evaluateBoolean (@NonNull final XsltContext aCtx)
   {
-    return Atomizer.getEffectiveBooleanValue (evaluate (aCtx));
+    return XPathEvaluator.evaluateEffectiveBooleanValue (m_aExpr,
+                                                         aCtx.getDynamicContext ().withStaticContext (m_aStaticContext));
   }
 
   /**

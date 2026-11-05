@@ -47,6 +47,14 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   apply-templates, copy-of), `StreamedRun` (the driver); accumulators via `AccumulatorExtension.startStreamed`. A
   streamed document has `XdmDocumentNode.isStreamed ()`: never answer a whole-document question from it. The memory
   test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`, `-Dstreamed.memory.records=<n>`).
+- Early exit (XPath 3.1 section 2.3.4): where only existence or the effective boolean value matters (`fn:exists`,
+  `fn:empty`, `fn:boolean`, `fn:not` resolved to their built-in implementation, `and`/`or`, `if`, `satisfies`,
+  predicates, `XPathEvaluator.evaluateEffectiveBooleanValue`), paths ending in an axis step and filter expressions
+  stop at the first decisive item; only the last predicate of the last step is short-circuited. Any other shape falls
+  back to the complete evaluation. `and`/`or` operands stay left to right.
+- `XPathOperators` (`xpath-core`, package `eval`) is the one place for the semantics of comparisons, arithmetic,
+  cast/castable and the static function call with argument conversion; `XPathEvaluator` calls it. Change these
+  operators there, never in a copy (it is the public API for generated code such as ph-sch2java's).
 - Streamability (XSLT 3.0 section 19): `com.helger.xpath.stream.XPathStreamability` classifies expressions and
   patterns; the XSLT layer supplies its knowledge through `StreamContext`. It fails closed: an unknown construct is
   roaming/free-ranging, never "streamable".
