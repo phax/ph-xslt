@@ -46,13 +46,17 @@ public final class XsltCompiler
   {}
 
   /**
+   * Parse the stylesheet text (with the base URI of the options as system ID
+   * and document URI, and their external entity setting) and compile it with
+   * {@link #compile(IXdmNode, XsltCompileOptions)}.
+   *
    * @param sStylesheet
    *        The stylesheet text.
    * @param aOptions
    *        Compile options.
    * @return The compiled stylesheet.
    * @throws XsltException
-   *         for static errors.
+   *         for static errors; XTSE0010 if the text is not well-formed XML.
    */
   @NonNull
   public static XsltExecutable compile (@NonNull final String sStylesheet, @NonNull final XsltCompileOptions aOptions)
@@ -78,7 +82,10 @@ public final class XsltCompiler
 
   /**
    * Compile from an already parsed stylesheet document (e.g. an embedded
-   * stylesheet element or a stylesheet built in memory).
+   * stylesheet element or a stylesheet built in memory). The compilation runs
+   * on a worker thread with a large stack (see {@link LargeStackRunner}; in
+   * place when already on one), so deeply nested stylesheets and expressions
+   * do not overflow the caller's stack.
    *
    * @param aStylesheet
    *        Document or element node of the stylesheet.

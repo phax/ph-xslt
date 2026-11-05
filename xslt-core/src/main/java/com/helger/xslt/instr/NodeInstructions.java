@@ -93,6 +93,15 @@ public final class NodeInstructions
     return SimpleContent.join (aValue, sSep);
   }
 
+  /**
+   * xsl:value-of (XSLT 3.0 section 11.4.3): a new text node whose value is
+   * the simple content (section 5.7.2) of the select value or else of the
+   * result of the content. The default separator is a single space with a
+   * select attribute and the zero-length string with content; the separator
+   * attribute value template overrides both. The text node is created even if
+   * its value is empty, and is marked for disabled output escaping if
+   * disable-output-escaping is yes.
+   */
   @NonNull
   private static IInstruction _compileValueOf (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -108,6 +117,12 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:text (XSLT 3.0 section 11.4.2): the concatenated text children of the
+   * element, as one text node. With expand-text in effect the text is a text
+   * value template; a constant one (and any text without expand-text) becomes
+   * a {@link LiteralText}. disable-output-escaping marks the text node.
+   */
   @NonNull
   private static IInstruction _compileText (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -132,6 +147,45 @@ public final class NodeInstructions
     return new LiteralText (aEl, sText, bDoe);
   }
 
+  /**
+   * The name of a node built by xsl:element (<code>bElement</code>) or
+   * xsl:attribute, from the effective values of the name and namespace
+   * attributes (XSLT 3.0 sections 11.2.2 and 11.3):
+   * <ul>
+   * <li>The name, trimmed of XML whitespace, must be an EQName (lexical QName
+   * or <code>Q{uri}local</code>), otherwise XTDE0820 / XTDE0850.</li>
+   * <li>With a namespace attribute its value is the namespace URI (also for a
+   * <code>Q{}</code> name); the prefix of the name is kept unless the URI is
+   * empty or the prefix is xmlns. The XMLNS namespace is XTDE0835 /
+   * XTDE0865.</li>
+   * <li>Without a namespace attribute a <code>Q{}</code> name gives the URI
+   * directly. Otherwise a prefix is resolved against the in-scope namespaces
+   * of the instruction (xml always to the XML namespace; unbound is XTDE0830 /
+   * XTDE0860); an unprefixed element name takes the default namespace of the
+   * instruction, an unprefixed attribute name no namespace, and the
+   * attribute name xmlns is XTDE0855.</li>
+   * <li>An attribute prefix xmlns is XTDE0860. A prefix that does not fit the
+   * URI with respect to the XML namespace is replaced (by xml for the XML
+   * namespace, else dropped), and the XML namespace always gets the prefix
+   * xml. A resulting XMLNS namespace is XTDE0835 / XTDE0865.</li>
+   * </ul>
+   * A dropped or missing prefix of a name in a namespace is chosen later by
+   * the namespace fixup.
+   *
+   * @param aCtx
+   *        Run-time context for the attribute value templates.
+   * @param aEl
+   *        The instruction, for the in-scope namespaces.
+   * @param aName
+   *        The name attribute value template.
+   * @param aNamespace
+   *        The namespace attribute value template, or <code>null</code>.
+   * @param bElement
+   *        <code>true</code> for xsl:element, <code>false</code> for
+   *        xsl:attribute (selects the error codes and the default namespace
+   *        rule).
+   * @return The name of the new node.
+   */
   @NonNull
   private static XdmQName _computeName (@NonNull final XsltContext aCtx,
                                         @NonNull final XslElement aEl,
@@ -197,6 +251,16 @@ public final class NodeInstructions
     return new XdmQName (sUri, sLocal, sPrefix);
   }
 
+  /**
+   * xsl:element (XSLT 3.0 section 11.2): a new element with the computed name
+   * (see {@link #_computeName}); no namespaces of the stylesheet are copied.
+   * The attribute sets are applied first, then the content runs into the
+   * element; with inherit-namespaces="no" the namespaces are undeclared on
+   * the children, and a validation request is applied last. The element is
+   * appended to the output when complete, and written while it is built only
+   * if neither of these two changes it afterwards (see
+   * {@link ContentOutput#createFor}).
+   */
   @NonNull
   private static IInstruction _compileElement (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -221,6 +285,13 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:attribute (XSLT 3.0 section 11.3): a new attribute with the computed
+   * name (see {@link #_computeName}; the name is computed before the value)
+   * and the simple content of the select value or the content as value
+   * (default separator a single space with select, zero-length otherwise). A
+   * validation request other than strip is applied to the new attribute.
+   */
   @NonNull
   private static IInstruction _compileAttribute (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -240,6 +311,12 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:comment (XSLT 3.0 section 11.8): a new comment whose value is the
+   * simple content of the select value or the content, with a single space as
+   * separator. A space is inserted after every hyphen that is followed by
+   * another hyphen or ends the value, so the comment can be serialised.
+   */
   @NonNull
   private static IInstruction _compileComment (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -255,6 +332,14 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:processing-instruction (XSLT 3.0 section 11.6): the name, trimmed of
+   * XML whitespace, must be an NCName other than xml in any case (XTDE0890).
+   * The value is the simple content of the select value or the content, with
+   * a single space as separator; leading whitespace is removed and a space is
+   * inserted between the characters of every <code>?&gt;</code>. The base
+   * URI of the instruction is not set on the new node.
+   */
   @NonNull
   private static IInstruction _compileProcessingInstruction (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -276,6 +361,15 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:namespace (XSLT 3.0 section 11.7): a new namespace node. The prefix
+   * is the name trimmed of XML whitespace: empty for the default namespace,
+   * otherwise an NCName other than xmlns (XTDE0920). The URI is the simple
+   * content of the select value or the content, with a single space as
+   * separator; it must not be empty (XTDE0930) or the XMLNS namespace
+   * (XTDE0905), and the prefix xml and the XML namespace must go together
+   * (XTDE0925).
+   */
   @NonNull
   private static IInstruction _compileNamespace (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -297,6 +391,11 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:document (XSLT 3.0 section 11.5): a new document node with the static
+   * base URI of the instruction, filled by the content; a validation request
+   * is applied to it before it is appended to the output.
+   */
   @NonNull
   private static IInstruction _compileDocument (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -314,6 +413,30 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:copy (XSLT 3.0 section 11.9.1), a shallow copy of the item selected by
+   * the select expression (which becomes the focus for the content) or else
+   * of the context item:
+   * <ul>
+   * <li>An empty select value produces nothing; more than one item is
+   * XTTE3180, an absent context item without select XTTE0945.</li>
+   * <li>An atomic value or function item is appended unchanged; the content
+   * is not evaluated.</li>
+   * <li>A document node: the content runs straight into the output if the
+   * output only needs the content (see
+   * {@link IXsltOutput#getDocumentContentOutput()}); otherwise a new document
+   * node gets the unparsed entities and base URI of the original, the
+   * content, and the validation request, and is appended.</li>
+   * <li>An element: a shallow copy with the base URI of the original and, for
+   * copy-namespaces="yes" (the default), its in-scope namespaces; then as for
+   * xsl:element the attribute sets, the content, inherit-namespaces="no" and
+   * the validation request.</li>
+   * <li>Any other node is copied without evaluating the content or the
+   * attribute sets; a validation request other than strip is applied (with
+   * the XTTE0950 check for preserve and, for an attribute, its type
+   * annotation kept).</li>
+   * </ul>
+   */
   @NonNull
   private static IInstruction _compileCopy (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -404,6 +527,16 @@ public final class NodeInstructions
     });
   }
 
+  /**
+   * xsl:copy-of (XSLT 3.0 section 11.9.2): every node of the select value is
+   * deep-copied (with its namespaces unless copy-namespaces="no"), every
+   * other item is appended unchanged. A copied element without a base URI
+   * gets the static base URI of the instruction. With a validation request
+   * the copies keep their type annotations until the request is applied to
+   * each copy (for preserve after the XTTE0950 check). Without validation the
+   * instruction can be the consumer of a streamed run: then every streamed
+   * record is copied as it arrives (always without type annotations).
+   */
   @NonNull
   private static IInstruction _compileCopyOf (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {

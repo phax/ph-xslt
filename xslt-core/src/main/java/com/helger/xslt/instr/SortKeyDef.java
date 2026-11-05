@@ -93,6 +93,14 @@ public final class SortKeyDef
     return m_aElement;
   }
 
+  /**
+   * @param s
+   *        A lang value, already trimmed.
+   * @return <code>true</code> if it is empty or has the shape of an
+   *         <code>xml:lang</code> language tag: subtags of 1 to 8 ASCII
+   *         letters or digits, the first one letters only, separated by
+   *         hyphens.
+   */
   private static boolean _isValidLang (@NonNull final String s)
   {
     return s.isEmpty () || s.matches ("[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*");
@@ -138,6 +146,32 @@ public final class SortKeyDef
   private record Settings (boolean descending, @Nullable String dataType, int caseOrder, @Nullable ICollation collation)
   {}
 
+  /**
+   * Evaluate the attribute value templates of the sort key once for the
+   * sorting instruction (XSLT 3.0 section 13.1), all values trimmed:
+   * <ul>
+   * <li>order: ascending (default) or descending, otherwise XTDE0030.</li>
+   * <li>data-type: text or number; another value with a colon (a prefixed
+   * QName) is accepted and treated as if data-type were absent, any other
+   * value is XTDE0030.</li>
+   * <li>case-order: upper-first or lower-first, otherwise XTDE0030; it is
+   * neither evaluated nor checked if there is a collation attribute.</li>
+   * <li>stable: only checked to be a boolean (XTDE0030); sorting is always
+   * stable.</li>
+   * <li>lang: must be a valid language code (XTDE0030).</li>
+   * <li>collation: resolved against the static base URI of the element. If
+   * absent but lang is given (and not empty), the UCA collation for that
+   * language with fallback is used, with case-order turned into its
+   * caseFirst parameter (and no longer applied separately). Otherwise the
+   * default collation of the element applies.</li>
+   * </ul>
+   * The Unicode codepoint collation is represented as <code>null</code>; an
+   * unknown collation is XTDE1035.
+   *
+   * @param aCtx
+   *        The context of the sorting instruction.
+   * @return The settings.
+   */
   @NonNull
   private Settings _evaluateSettings (@NonNull final XsltContext aCtx)
   {
@@ -214,6 +248,23 @@ public final class SortKeyDef
     return new Settings (bDescending, sDataType, nCaseOrder, aCollation);
   }
 
+  /**
+   * Compute the sort key value of one item (XSLT 3.0 section 13.1.2): the
+   * select expression, or else the content evaluated in temporary output
+   * state, is atomised. An empty result is the empty key
+   * (<code>null</code>), more than one item is XTTE1020. With data-type text
+   * the value becomes its string value. With data-type number a numeric
+   * value becomes an xs:double, anything else is cast from its trimmed
+   * string value to xs:double, and NaN if that fails. Without data-type an
+   * xs:untypedAtomic value becomes an xs:string and every other value is
+   * kept.
+   *
+   * @param aCtx
+   *        The context with the item to sort as focus.
+   * @param aSettings
+   *        The evaluated settings of this key.
+   * @return The key value or <code>null</code> for an empty key.
+   */
   @Nullable
   private XdmAtomic _computeKey (@NonNull final XsltContext aCtx, @NonNull final Settings aSettings)
   {
@@ -254,6 +305,22 @@ public final class SortKeyDef
     return aAtom;
   }
 
+  /**
+   * Compare two strings for case-order without a collation: first
+   * case-insensitively (lower-cased in the root locale, then by UTF-16 code
+   * units); if they are equal that way, the first position at which they
+   * differ decides: with <code>nCaseOrder</code> 1 (upper-first) the string
+   * with the upper-case character there sorts first, with -1 (lower-first)
+   * the other one. Otherwise the shorter string sorts first.
+   *
+   * @param a
+   *        First string.
+   * @param b
+   *        Second string.
+   * @param nCaseOrder
+   *        1 for upper-first, -1 for lower-first.
+   * @return negative, 0 or positive.
+   */
   private static int _compareCase (@NonNull final String a, @NonNull final String b, final int nCaseOrder)
   {
     final int nLower = a.toLowerCase (Locale.ROOT).compareTo (b.toLowerCase (Locale.ROOT));
@@ -277,6 +344,27 @@ public final class SortKeyDef
     return a.getType ().isNumeric () && Double.isNaN (a.getAsDouble ());
   }
 
+  /**
+   * Compare two sort key values in ascending order (XSLT 3.0 section
+   * 13.1.2): empty keys are equal to each other and less than any other
+   * value, NaN values are equal to each other and less than any other value
+   * except the empty key. With a case-order, the codepoint collation and two
+   * string-like values the strings are compared by
+   * {@link #_compareCase(String, String, int)}; everything else uses the
+   * value comparison for ordering with the collation of the key.
+   *
+   * @param a
+   *        First key value or <code>null</code> for an empty key.
+   * @param b
+   *        Second key value or <code>null</code> for an empty key.
+   * @param aSettings
+   *        The evaluated settings of the key.
+   * @param aCtx
+   *        The context of the sorting instruction.
+   * @return negative, 0 or positive, before applying descending order.
+   * @throws XPathException
+   *         XTDE1030 if the values are not comparable
+   */
   private static int _compare (@Nullable final XdmAtomic a,
                                @Nullable final XdmAtomic b,
                                @NonNull final Settings aSettings,

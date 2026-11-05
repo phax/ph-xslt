@@ -46,6 +46,13 @@ public enum EOnNoMatch
     return m_sID;
   }
 
+  /**
+   * @param sID
+   *        The value of the on-no-match attribute, e.g.
+   *        <code>"shallow-copy"</code>. Compared exactly, so the caller trims.
+   * @return The matching value, or <code>null</code> if the ID is
+   *         <code>null</code> or not one of the six values.
+   */
   @Nullable
   public static EOnNoMatch getFromIDOrNull (@Nullable final String sID)
   {

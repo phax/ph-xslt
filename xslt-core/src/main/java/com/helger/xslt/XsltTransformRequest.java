@@ -113,6 +113,12 @@ public final class XsltTransformRequest
     return this;
   }
 
+  /**
+   * @return The initial named template (XSLT 3.0 section 2.3.4) or
+   *         <code>null</code>. Used unless an initial function is set; the
+   *         template must exist and be callable from outside the stylesheet
+   *         (else XTDE0040).
+   */
   @Nullable
   public XdmQName getInitialTemplate ()
   {
@@ -132,6 +138,14 @@ public final class XsltTransformRequest
     return this;
   }
 
+  /**
+   * @return The initial function (XSLT 3.0 section 2.3.5) or
+   *         <code>null</code>. It takes precedence over an initial template
+   *         and mode: the public or final function of that name with the
+   *         arity of {@link #functionArgs()} is called (else XTDE0041), each
+   *         argument converted to the declared parameter type (XPTY0004 if
+   *         it cannot be).
+   */
   @Nullable
   public XdmQName getInitialFunction ()
   {
@@ -166,6 +180,12 @@ public final class XsltTransformRequest
     return m_aTemplateParams;
   }
 
+  /**
+   * @return The base output URI (XSLT 3.0 sections 25.1 and 25.3): the href
+   *         of xsl:result-document is resolved against it, and it is the
+   *         current output URI of the principal result. <code>null</code> if
+   *         none is set.
+   */
   @Nullable
   public String getBaseOutputUri ()
   {
@@ -193,6 +213,11 @@ public final class XsltTransformRequest
     return this;
   }
 
+  /**
+   * @return The value of fn:current-dateTime() for the transformation, its
+   *         offset also being the implicit timezone; <code>null</code> to use
+   *         the time at which the transformation starts.
+   */
   @Nullable
   public OffsetDateTime getCurrentDateTime ()
   {
@@ -206,6 +231,11 @@ public final class XsltTransformRequest
     return this;
   }
 
+  /**
+   * @return A hook polled during evaluation (in loops and calls); when it
+   *         returns <code>true</code>, the transformation ends with FOER0000.
+   *         <code>null</code> for none.
+   */
   @Nullable
   public BooleanSupplier getInterrupt ()
   {

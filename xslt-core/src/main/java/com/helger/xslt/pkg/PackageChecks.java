@@ -51,11 +51,19 @@ import com.helger.xslt.tree.XsltNames;
 @Immutable
 public final class PackageChecks
 {
-  /** The result of xsl:expose for one package. */
+  /**
+   * The result of xsl:expose for one package: the effective visibility per
+   * declaring element, and per name for the modes that exist only through
+   * the mode attribute of template rules (they have no declaration).
+   */
   public record Exposure (@NonNull ICommonsMap <XslElement, String> byElement,
                           @NonNull ICommonsMap <XdmQName, String> implicitModes)
   {}
 
+  /**
+   * One checked xsl:expose: its component kind ("*" for all), visibility and
+   * the tokens of its names attribute.
+   */
   private record ExposeRule (@NonNull XslElement element,
                              @NonNull String kind,
                              @NonNull String visibility,
@@ -97,10 +105,16 @@ public final class PackageChecks
   }
 
   /**
+   * Build the component a top-level element declares. xsl:param becomes a
+   * "variable" that is always public, the unnamed mode (xsl:mode without
+   * name) is always private, and a function's arity is its number of
+   * xsl:param children. Otherwise the visibility is
+   * {@link #getDeclaredVisibility(XslElement)}.
+   *
    * @param aEl
    *        A top-level element.
    * @return The component it declares or <code>null</code> (a template rule,
-   *         a non-component declaration).
+   *         a non-component declaration, a name that does not resolve).
    */
   @Nullable
   public static PackageComponent getComponent (@NonNull final XslElement aEl)
@@ -149,6 +163,11 @@ public final class PackageChecks
     return sToken.indexOf ('*') >= 0;
   }
 
+  /**
+   * @param s
+   *        The text after the "#" of a function token.
+   * @return The arity, or -1 unless it is one to nine ASCII digits.
+   */
   private static int _parseArity (@NonNull final String s)
   {
     if (s.isEmpty () || s.length () > 9)
@@ -162,7 +181,10 @@ public final class PackageChecks
   /**
    * Match one token of xsl:accept/@names or xsl:expose/@names: "*",
    * "prefix:*", "*:local", "Q{uri}*", an EQName, and for a function an exact
-   * name followed by "#" and the arity.
+   * name followed by "#" and the arity. For a function, a "#" suffix that is
+   * a valid arity must equal the component's arity and is then removed; a
+   * function token without it matches every arity. "*" also matches the
+   * unnamed mode, every other token never does.
    *
    * @param aEl
    *        The element carrying the token (namespaces).
@@ -209,6 +231,15 @@ public final class PackageChecks
     return aTok != null && aTok.equals (aName);
   }
 
+  /**
+   * @param aAccept
+   *        An xsl:accept (or xsl:expose) element.
+   * @param aComp
+   *        A component.
+   * @return <code>true</code> if the whitespace-separated component attribute
+   *         is "*" or contains "*" or the component's kind. A missing attribute
+   *         matches nothing.
+   */
   private static boolean _kindMatches (@NonNull final XslElement aAccept, @NonNull final PackageComponent aComp)
   {
     final String sKinds = _attr (aAccept, "component", "").trim ();
@@ -225,7 +256,10 @@ public final class PackageChecks
    *        An xsl:accept element.
    * @param aComp
    *        A component.
-   * @return <code>true</code> if the xsl:accept selects the component.
+   * @return <code>true</code> if the xsl:accept selects the component: its
+   *         component attribute admits the kind and one of the tokens of its
+   *         names attribute matches (see
+   *         {@link #tokenMatches(XslElement, String, PackageComponent)}).
    */
   public static boolean acceptMatches (@NonNull final XslElement aAccept, @NonNull final PackageComponent aComp)
   {
@@ -296,8 +330,8 @@ public final class PackageChecks
    *        The xsl:use-package element.
    * @param aComp
    *        The exported component.
-   * @return <code>true</code> if some xsl:accept states the component's
-   *         visibility.
+   * @return <code>true</code> if some xsl:accept child selects the component,
+   *         by name or by any wildcard including "*".
    */
   public static boolean isAcceptStated (@NonNull final XslElement aUse, @NonNull final PackageComponent aComp)
   {
@@ -307,6 +341,17 @@ public final class PackageChecks
     return false;
   }
 
+  /**
+   * The consistency table of XSLT 3.0 section 3.5.3.1 between an explicit
+   * exposed visibility and a declared visibility (XTSE3010 when not
+   * permitted).
+   *
+   * @param sExposed
+   *        The visibility of the xsl:expose naming the component explicitly.
+   * @param sDeclared
+   *        The visibility attribute of the declaration.
+   * @return <code>true</code> if the combination is permitted.
+   */
   private static boolean _isExposePermitted (@NonNull final String sExposed, @NonNull final String sDeclared)
   {
     return switch (sExposed)
@@ -319,6 +364,20 @@ public final class PackageChecks
     };
   }
 
+  /**
+   * Whether one token of an xsl:expose selects a component. Beyond
+   * {@link #tokenMatches(XslElement, String, PackageComponent)}, the kind of
+   * the rule must fit, a non-wildcard token for a function must carry
+   * "#arity", and a non-wildcard token for any other kind must not.
+   *
+   * @param aRule
+   *        The xsl:expose rule.
+   * @param sToken
+   *        One of its tokens.
+   * @param aComp
+   *        The component.
+   * @return <code>true</code> if the token selects the component.
+   */
   private static boolean _exposeMatches (@NonNull final ExposeRule aRule,
                                          @NonNull final String sToken,
                                          @NonNull final PackageComponent aComp)
@@ -341,8 +400,21 @@ public final class PackageChecks
    *
    * @param aRoot
    *        The xsl:package element.
+   * The components considered are the package module's top-level named
+   * declarations (not xsl:param, not the unnamed mode) plus a private mode
+   * for every mode name a template rule uses without an xsl:mode
+   * declaration. Only declarations of the package module itself are looked
+   * at, not those of included modules.
+   *
    * @return The exposure or <code>null</code> if the package has no
    *         xsl:expose.
+   * @throws XsltException
+   *         XTSE0020 for an invalid component or visibility attribute, a
+   *         names token starting with "#" or with an unbound prefix; XTSE3022
+   *         for component="*" with a non-wildcard token; XTSE3020 for an
+   *         explicit token selecting no component; XTSE3010 for an explicit
+   *         exposed visibility inconsistent with the declared one; XTSE3025
+   *         if the result is abstract for a component not declared abstract.
    */
   @Nullable
   public static Exposure getExposure (@NonNull final XslElement aRoot)
@@ -516,6 +588,16 @@ public final class PackageChecks
     };
   }
 
+  /**
+   * XTSE3460 (XSLT 3.0 section 6.8): a template rule in xsl:override must not
+   * contain xsl:apply-imports anywhere below it. Walks the element tree with
+   * an explicit stack.
+   *
+   * @param aDecl
+   *        The overriding declaration.
+   * @throws XsltException
+   *         XTSE3460 at the first xsl:apply-imports found.
+   */
   private static void _checkNoApplyImports (@NonNull final XslElement aDecl)
   {
     final ICommonsList <XslElement> aStack = new CommonsArrayList <> (aDecl.getElementChildren ());
@@ -528,6 +610,17 @@ public final class PackageChecks
     }
   }
 
+  /**
+   * XTSE3440 (XSLT 3.0 section 6.6.2): a template rule in xsl:override must
+   * belong to a named mode. Without a mode attribute the default mode in
+   * scope must not be the unnamed mode; "#all" and "#unnamed" are never
+   * allowed, and "#default" only if the default mode is named.
+   *
+   * @param aDecl
+   *        The overriding template rule.
+   * @throws XsltException
+   *         XTSE3440 as described.
+   */
   private static void _checkOverrideRuleMode (@NonNull final XslElement aDecl)
   {
     final String sMode = aDecl.getAttr ("mode");
@@ -552,6 +645,13 @@ public final class PackageChecks
       }
   }
 
+  /**
+   * @param s
+   *        A SequenceType as written, may be <code>null</code>.
+   * @return The whitespace-separated tokens joined with single spaces, ""
+   *         for <code>null</code>. A purely textual normalisation: "xs:int+"
+   *         and "xs:int +" stay different.
+   */
   @NonNull
   private static String _normType (@Nullable final String s)
   {
@@ -560,6 +660,14 @@ public final class PackageChecks
     return String.join (" ", XsltNames.tokenize (s));
   }
 
+  /**
+   * @param sType
+   *        A SequenceType as written.
+   * @return The names in it that are not immediately followed by "(", i.e.
+   *         the type names without the kind tests and function names (a name
+   *         is read from an NCName start character over name characters, so
+   *         a prefix and its local name form one token).
+   */
   @NonNull
   private static ICommonsList <String> _typeNameTokens (@NonNull final String sType)
   {
@@ -590,6 +698,14 @@ public final class PackageChecks
     return ret;
   }
 
+  /**
+   * @param sA
+   *        One SequenceType.
+   * @param sB
+   *        Another SequenceType.
+   * @return <code>true</code> if every type name in both starts with "xs:"
+   *         (also when there are none, e.g. "item()*").
+   */
   private static boolean _bothBuiltinTypes (@NonNull final String sA, @NonNull final String sB)
   {
     for (final String sType : new String [] { sA, sB })
@@ -599,6 +715,19 @@ public final class PackageChecks
     return true;
   }
 
+  /**
+   * Find a named xs:simpleType in the inline schemas of the stylesheet
+   * module: from the module root, xs:simpleType children are searched in
+   * every element named import-schema or schema (in any namespace) reached
+   * from the root. Only the local name is compared; the target namespace is
+   * not looked at.
+   *
+   * @param aStart
+   *        Any element of the module.
+   * @param sLocal
+   *        The local name of the type.
+   * @return The first xs:simpleType found or <code>null</code>.
+   */
   @Nullable
   private static XslElement _findSimpleType (@NonNull final XslElement aStart, @NonNull final String sLocal)
   {
@@ -622,6 +751,21 @@ public final class PackageChecks
     return null;
   }
 
+  /**
+   * Flatten a union type of an inline schema into its built-in member types:
+   * the memberTypes of its xs:union, with non-"xs:" members expanded
+   * recursively (at most 8 levels). Anonymous member types are not seen.
+   *
+   * @param aEl
+   *        An element of the module holding the schema.
+   * @param sName
+   *        The type name; a prefix is dropped.
+   * @param nDepth
+   *        The current nesting level.
+   * @return The "xs:" member names in declaration order, or <code>null</code>
+   *         if the type is not found, is not a union, has no member types,
+   *         or a member cannot be expanded.
+   */
   @Nullable
   private static ICommonsList <String> _inlineUnionMembers (@NonNull final XslElement aEl,
                                                             @NonNull final String sName,
@@ -654,6 +798,19 @@ public final class PackageChecks
     return null;
   }
 
+  /**
+   * Reduce a SequenceType to a comparable key: a single "xs:" type stays as
+   * it is, a single name of an inline union type becomes
+   * "union(m1,m2,...)" with the sorted built-in members; the occurrence
+   * indicator is kept at the end.
+   *
+   * @param aEl
+   *        The element carrying the type (to find the inline schema).
+   * @param sTypeIn
+   *        The normalised SequenceType.
+   * @return The key or <code>null</code> if the type is not a single atomic
+   *         type name or its union cannot be resolved.
+   */
   @Nullable
   private static String _resolveTypeSet (@NonNull final XslElement aEl, @NonNull final String sTypeIn)
   {
@@ -676,6 +833,15 @@ public final class PackageChecks
     return "union(" + String.join (",", aMembers) + ")" + sOcc;
   }
 
+  /**
+   * Used for the as attribute of an overriding component (callers only ask
+   * for textually different types). Two built-in types always differ;
+   * otherwise they differ only if both resolve with
+   * {@link #_resolveTypeSet(XslElement, String)} and the keys are different,
+   * so an unresolvable type is given the benefit of the doubt.
+   *
+   * @return <code>true</code> if the types are known to differ.
+   */
   private static boolean _typesDiffer (@NonNull final XslElement aA,
                                        @NonNull final String sA,
                                        @NonNull final XslElement aB,
@@ -688,6 +854,15 @@ public final class PackageChecks
     return sRA != null && sRB != null && !sRA.equals (sRB);
   }
 
+  /**
+   * Used for the parameter types of an overriding function (callers only ask
+   * for textually different types). Two built-in types are never the same;
+   * otherwise they are the same only if both resolve with
+   * {@link #_resolveTypeSet(XslElement, String)} to the same key, e.g. a
+   * union type and an equivalent union declared under another name.
+   *
+   * @return <code>true</code> if the types are known to be the same.
+   */
   private static boolean _typesSame (@NonNull final XslElement aA,
                                      @NonNull final String sA,
                                      @NonNull final XslElement aB,
@@ -700,6 +875,12 @@ public final class PackageChecks
     return sRA != null && sRB != null && sRA.equals (sRB);
   }
 
+  /**
+   * @param aEl
+   *        An xsl:function.
+   * @return The new-each-time attribute normalised to "yes", "no" or "maybe"
+   *         (the default, also for any unrecognised value).
+   */
   @NonNull
   private static String _newEachTime (@NonNull final XslElement aEl)
   {
@@ -717,6 +898,12 @@ public final class PackageChecks
     return s != null && XsltNames.isXsltTrue (s.trim ());
   }
 
+  /**
+   * @param aTemplate
+   *        An xsl:template.
+   * @return Its xsl:param children by expanded name; params whose name does
+   *         not resolve are left out.
+   */
   @NonNull
   private static ICommonsMap <XdmQName, XslElement> _templateParams (@NonNull final XslElement aTemplate)
   {
@@ -730,6 +917,11 @@ public final class PackageChecks
     return ret;
   }
 
+  /**
+   * @param aParam
+   *        A template parameter.
+   * @return Its normalised as attribute, "item()*" without one.
+   */
   @NonNull
   private static String _templateParamType (@NonNull final XslElement aParam)
   {
@@ -737,6 +929,13 @@ public final class PackageChecks
     return s == null ? "item()*" : _normType (s);
   }
 
+  /**
+   * @param aTemplate
+   *        An xsl:template.
+   * @return The use and as of its xsl:context-item (the last one wins per
+   *         attribute), defaulting to "optional" and "item()"; the as value
+   *         has all spaces removed.
+   */
   @NonNull
   private static String [] _contextItem (@NonNull final XslElement aTemplate)
   {
@@ -752,6 +951,21 @@ public final class PackageChecks
     return new String [] { sUse, sAs.replace (" ", "") };
   }
 
+  /**
+   * The template part of XTSE3070 (XSLT 3.0 section 3.5.3.3). Every parameter
+   * of the overridden template must exist in the overriding one with the same
+   * tunnel, required and textually equal (normalised) type; only a missing
+   * tunnel parameter is tolerated. The overriding template must not add a
+   * required parameter, and its xsl:context-item must agree in use and as.
+   *
+   * @param aDecl
+   *        The overriding xsl:template.
+   * @param aTarget
+   *        The overridden component; its element must not be
+   *        <code>null</code>.
+   * @throws XsltException
+   *         XTSE3070 at the first mismatch.
+   */
   private static void _checkTemplateOverrideSignature (@NonNull final XslElement aDecl, @NonNull final PackageComponent aTarget)
   {
     final XslElement aOld = aTarget.element ();
@@ -784,6 +998,23 @@ public final class PackageChecks
       throw XsltException.at (aDecl, "XTSE3070", "The overriding template " + sName + " declares a different context item");
   }
 
+  /**
+   * XTSE3070 (XSLT 3.0 section 3.5.3.3): the overriding component must be
+   * type-compatible with the overridden one. Checked are: the as attribute
+   * when both have one and {@link #_typesDiffer(XslElement, String,
+   * XslElement, String)} says they differ; for a template the parameters and
+   * context item; for a function new-each-time, the arity and each parameter
+   * type when both are given and not {@link #_typesSame(XslElement, String,
+   * XslElement, String)}. A target without declaration (an implicit mode) is
+   * not checked.
+   *
+   * @param aDecl
+   *        The overriding declaration.
+   * @param aTarget
+   *        The overridden component.
+   * @throws XsltException
+   *         XTSE3070 at the first mismatch.
+   */
   private static void _checkOverrideSignature (@NonNull final XslElement aDecl, @NonNull final PackageComponent aTarget)
   {
     final XslElement aOld = aTarget.element ();
@@ -819,6 +1050,24 @@ public final class PackageChecks
     }
   }
 
+  /**
+   * Check one declaration inside xsl:override (XSLT 3.0 section 3.5.3.3). A
+   * template rule without a name is checked for its mode (XTSE3440), every
+   * named mode it uses must be public or abstract in the used package
+   * (XTSE3060), and it must not use xsl:apply-imports (XTSE3460). A named
+   * component must exist in the manifest (XTSE3058), be public or abstract
+   * there (XTSE3060) and match its signature (XTSE3070); it is then recorded
+   * as overridden. Other elements are ignored.
+   *
+   * @param aDecl
+   *        A child of xsl:override.
+   * @param aByName
+   *        The manifest of the used package by symbolic name.
+   * @param aOverridden
+   *        Collects the symbolic names overridden. Modified.
+   * @throws XsltException
+   *         The errors named above.
+   */
   private static void _checkOverrideDecl (@NonNull final XslElement aDecl,
                                           @NonNull final ICommonsMap <String, PackageComponent> aByName,
                                           @NonNull final ICommonsSet <String> aOverridden)
@@ -939,7 +1188,9 @@ public final class PackageChecks
   }
 
   /**
-   * XTSE3080 for the components a top-level package declares itself.
+   * XTSE3080 for the components a top-level package declares itself: no
+   * top-level named component other than xsl:param may have
+   * visibility="abstract".
    *
    * @param aRoots
    *        The module roots of the principal package.

@@ -43,7 +43,14 @@ import com.helger.xslt.tree.XslElement;
 @Immutable
 public final class VariableDef
 {
-  /** Where the definition appears. */
+  /**
+   * Where the definition appears. Each kind carries the error code for a
+   * value that cannot be converted to the declared type: XTTE0570 for
+   * variables, XTTE0590 for parameters (XSLT 3.0 sections 9.1 and 9.2),
+   * XTTE0790 for function parameters (an XSLT 2.0 code that XSLT 3.0 no
+   * longer lists; stylesheet function arguments are converted by the XPath
+   * function call instead).
+   */
   public enum EKind
   {
     GLOBAL_VARIABLE ("XTTE0570"),
@@ -69,6 +76,11 @@ public final class VariableDef
       return m_sTypeErrorCode;
     }
 
+    /**
+     * @return <code>true</code> for the parameter kinds (global, template,
+     *         function and other parameters); xsl:with-param, which supplies a
+     *         value, is not a parameter.
+     */
     public boolean isParam ()
     {
       return this != GLOBAL_VARIABLE && this != LOCAL_VARIABLE && this != WITH_PARAM;
@@ -156,7 +168,8 @@ public final class VariableDef
   }
 
   /**
-   * Convert a value to the declared type (function conversion rules).
+   * Convert a value to the declared type (function conversion rules). Without
+   * an <code>as</code> attribute the value is returned unchanged.
    *
    * @param aValue
    *        Value.
@@ -176,11 +189,21 @@ public final class VariableDef
 
   /**
    * Evaluate the value from select or content (for a parameter: its default
-   * value) and convert it to the declared type.
+   * value) and convert it to the declared type (XSLT 3.0 section 9.3). The
+   * select expression is evaluated in the given context. A non-empty
+   * sequence constructor runs in temporary output state; with an
+   * <code>as</code> attribute it yields the constructed sequence, without one
+   * a new document node (a temporary tree, section 9.4) whose base URI is the
+   * static base URI of the declaration. With neither select nor content the
+   * value is the empty sequence if <code>as</code> is given, else the
+   * zero-length string.
    *
    * @param aCtx
    *        The context of the definition.
    * @return The value.
+   * @throws com.helger.xpath.XPathException
+   *         if the evaluation fails or, with the type error code of the kind,
+   *         if the value does not match the declared type.
    */
   @NonNull
   public XdmSequence evaluate (@NonNull final XsltContext aCtx)

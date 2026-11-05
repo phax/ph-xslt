@@ -53,6 +53,19 @@ public final class LocalVariable implements IBindingInstruction
     return m_aDef;
   }
 
+  /**
+   * Bind the variable lazily: the returned context maps the name to a
+   * supplier that evaluates the definition in <code>aCtx</code> (the context
+   * at the declaration, not at the first use) when the value is first needed.
+   * The innermost xsl:try scope at the time of binding is captured, so that a
+   * dynamic error raised later by the evaluation is wrapped in a
+   * {@link LazyVariableException} that carries this scope and is located at
+   * the xsl:variable element if it has no location of its own.
+   *
+   * @param aCtx
+   *        The context at the declaration.
+   * @return The context for the following siblings, with the variable bound.
+   */
   @NonNull
   public XsltContext bind (@NonNull final XsltContext aCtx)
   {

@@ -23,7 +23,8 @@ import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.tree.XslElement;
 
 /**
- * One named component of a package manifest (XSLT 3.0 section 3.5.1).
+ * One named component of a package manifest (XSLT 3.0 section 3.5.3). An
+ * xsl:param is a component of kind "variable".
  *
  * @param kind
  *        "template", "function", "variable", "attribute-set" or "mode".
@@ -50,7 +51,10 @@ public record PackageComponent (@NonNull String kind,
    *        Component name, <code>null</code> for the unnamed mode.
    * @param nArity
    *        Arity of a function.
-   * @return The symbolic name: two components are homonymous if these match.
+   * @return The symbolic name (XSLT 3.0 section 3.5.3, "symbolic
+   *         identifier"): kind, "#" and the EQName (empty for the unnamed
+   *         mode), plus "#" and the arity for a function. Two components are
+   *         homonymous if these match.
    */
   @NonNull
   public static String getSymbolicName (@NonNull final String sKind, @Nullable final XdmQName aName, final int nArity)

@@ -32,7 +32,7 @@ import com.helger.xslt.tree.XsltNames;
 
 /**
  * Removes whitespace text nodes from source documents according to
- * xsl:strip-space and xsl:preserve-space (XSLT 3.0 section 4.3). Since the
+ * xsl:strip-space and xsl:preserve-space (XSLT 3.0 section 4.4.2). Since the
  * tree model cannot remove nodes, a stripped copy is built (iteratively) when
  * anything must be stripped.
  *
@@ -47,9 +47,24 @@ public final class WhitespaceStripper
   private WhitespaceStripper ()
   {}
 
+  /**
+   * One element (or the root) still to copy: its source node, the copy its
+   * attributes and children are appended to, and whether xml:space="preserve"
+   * is inherited from its ancestors.
+   */
   private record Job (@NonNull IXdmNode source, @NonNull IXdmNode target, boolean preserve)
   {}
 
+  /**
+   * @param aElement
+   *        The element.
+   * @param bInherited
+   *        Whether the nearest ancestor xml:space says preserve.
+   * @return <code>true</code> if xml:space on the element (whitespace
+   *         trimmed) is <code>preserve</code>, <code>false</code> if it is
+   *         <code>default</code>, otherwise (absent or another value) the
+   *         inherited setting.
+   */
   private static boolean _isPreserve (@NonNull final IXdmNode aElement, final boolean bInherited)
   {
     final IXdmNode aSpace = aElement.getAttribute (XdmConstants.NS_XML, "space");
@@ -66,7 +81,9 @@ public final class WhitespaceStripper
   /**
    * @return <code>true</code> if the element is annotated with a simple type
    *         or a complex type with simple content: its whitespace text is
-   *         never stripped (XSLT 3.0 section 4.3).
+   *         never stripped (XSLT 3.0 section 4.4.2). Without a schema type
+   *         the type annotation decides: any annotation other than
+   *         <code>xs:anyType</code> counts as simple.
    */
   private static boolean _hasSimpleContentType (@NonNull final IXdmNode aElement)
   {
@@ -79,6 +96,13 @@ public final class WhitespaceStripper
     return aSchemaType.isSimple () || aSchemaType.getAtomicBase () != null;
   }
 
+  /**
+   * @return <code>true</code> if the text node is a whitespace text node to
+   *         strip: no xml:space="preserve" is in effect, its parent is an
+   *         element without a simple content type and the space rules strip
+   *         the parent's name. Text children of a document node are never
+   *         stripped.
+   */
   private static boolean _isStripped (@NonNull final IXdmNode aText, final boolean bPreserve, @NonNull final SpaceRules aRules)
   {
     final IXdmNode aParent = aText.getParent ();
@@ -90,6 +114,13 @@ public final class WhitespaceStripper
            aRules.isStripped (aParent.getName ());
   }
 
+  /**
+   * Walk the tree (iteratively, carrying the inherited xml:space setting per
+   * element) until the first text node that {@link #strip(IXdmNode, SpaceRules)}
+   * would remove.
+   *
+   * @return <code>true</code> if at least one text node is stripped.
+   */
   private static boolean _needsStripping (@NonNull final IXdmNode aRoot, @NonNull final SpaceRules aRules)
   {
     final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
@@ -121,6 +152,12 @@ public final class WhitespaceStripper
     return false;
   }
 
+  /**
+   * Copy one node without its children and attributes, keeping what the
+   * stripped tree must still report for it: location, type annotation, schema
+   * type, nilled property, ID kind, base URI and, for an element, its own
+   * namespace declarations.
+   */
   @NonNull
   private static IXdmNode _copyNode (@NonNull final IXdmNode aSrc)
   {
@@ -137,6 +174,14 @@ public final class WhitespaceStripper
   }
 
   /**
+   * Strip the whitespace text nodes of a tree. Only a document or element
+   * root can be stripped, and only if a scan finds a text node to remove;
+   * otherwise the input is returned unchanged. The copy is built
+   * iteratively: an element root also gets all its in-scope namespaces, a
+   * document root keeps its document URI and unparsed entities, attributes
+   * and all other children are copied one by one (keeping type annotations,
+   * base URIs and locations), and the copy is numbered in document order. xml:space attributes are kept.
+   *
    * @param aRoot
    *        The root of a tree (normally a document node).
    * @param aRules

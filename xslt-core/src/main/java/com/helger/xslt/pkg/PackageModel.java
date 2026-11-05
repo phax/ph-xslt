@@ -46,6 +46,12 @@ import com.helger.xslt.tree.XsltNames;
 @NotThreadSafe
 public final class PackageModel
 {
+  /**
+   * What one xsl:use-package makes of the used package's components, as
+   * symbolic names: <code>hidden</code> from the using package,
+   * <code>visible</code> to it, accepted as <code>abstracts</code>, and those
+   * whose visibility an xsl:accept <code>stated</code>.
+   */
   private record UsedVisibility (@NonNull ICommonsSet <String> hidden,
                                  @NonNull ICommonsSet <String> visible,
                                  @NonNull ICommonsSet <String> abstracts,
@@ -75,6 +81,11 @@ public final class PackageModel
   }
 
   /**
+   * Add a module to a package and remember which package it belongs to. A
+   * module of a library package gets the index of its unit as package
+   * qualifier (see {@link #qualify(XslNode, XdmQName)}); modules of the
+   * principal package keep the empty qualifier.
+   *
    * @param aUnit
    *        The package.
    * @param aModule
@@ -114,6 +125,15 @@ public final class PackageModel
     return ret != null ? ret : getPrincipal ();
   }
 
+  /**
+   * @param sQualifier
+   *        The package qualifier of a module, empty in the principal package.
+   * @param aName
+   *        The name.
+   * @return The name itself for an empty qualifier, else a name whose
+   *         namespace URI has the character U+001F and the qualifier
+   *         appended (local name and prefix unchanged).
+   */
   @NonNull
   private static XdmQName _qualify (@NonNull final String sQualifier, @NonNull final XdmQName aName)
   {
@@ -235,8 +255,11 @@ public final class PackageModel
   /**
    * @param aRoot
    *        A package root.
-   * @return The exposure of the package's xsl:expose elements, or
-   *         <code>null</code>.
+   * @return The exposure of the package's xsl:expose elements (computed
+   *         once per root and cached), or <code>null</code> for an
+   *         xsl:stylesheet root or an xsl:package without xsl:expose.
+   * @throws XsltException
+   *         The static errors of {@link PackageChecks#getExposure(XslElement)}.
    */
   public PackageChecks.@Nullable Exposure getExposure (@NonNull final XslElement aRoot)
   {
@@ -248,11 +271,13 @@ public final class PackageModel
   /**
    * The components a package exposes to a using package: its own public,
    * final and abstract components (after xsl:expose), plus those it accepts
-   * from the packages it uses with an exposed visibility.
+   * from the packages it uses with an exposed visibility (under the
+   * visibility of that xsl:accept). xsl:param counts as a public variable.
+   * The result is cached by package key, so two uses of one package share it.
    *
    * @param aUnit
    *        The package.
-   * @return The manifest.
+   * @return The manifest; empty while the package module is not loaded.
    */
   @NonNull
   public ICommonsList <PackageComponent> getExports (@NonNull final PackageUnit aUnit)
@@ -300,6 +325,20 @@ public final class PackageModel
     return ret;
   }
 
+  /**
+   * Work out what one xsl:use-package hides from and shows to the using
+   * package. An exported component is visible unless its accepted visibility
+   * is "hidden" (see {@link PackageChecks#getAcceptedVisibility(XslElement,
+   * PackageComponent)}). Hidden as well are: the used package's own
+   * declarations it does not export (except xsl:param and the unnamed mode);
+   * what it accepts from its own used packages without exporting it, unless
+   * an exposed xsl:override in that use replaces it (xsl:param excepted); and
+   * whatever is already hidden from the used package and not exported by it.
+   *
+   * @param aUse
+   *        The xsl:use-package with the unit it loaded.
+   * @return The sets for this use.
+   */
   @NonNull
   private UsedVisibility _getUsedVisibility (final PackageUnit.@NonNull Use aUse)
   {
@@ -393,6 +432,13 @@ public final class PackageModel
     return false;
   }
 
+  /**
+   * @param aUnit
+   *        A package.
+   * @return The top-level elements of all its non-simplified modules, with
+   *         every xsl:use-package replaced by the declarations of its
+   *         xsl:override children.
+   */
   @NonNull
   private static ICommonsList <XslElement> _getOwnDeclarations (@NonNull final PackageUnit aUnit)
   {
@@ -412,6 +458,26 @@ public final class PackageModel
     return ret;
   }
 
+  /**
+   * Apply the package-level rules for one using package and record what it
+   * cannot see. For the principal package: every component accepted as
+   * abstract must be overridden by an own declaration (XTSE3080), and the
+   * symbolic names some xsl:accept stated are remembered for
+   * {@link #isAcceptedExplicitly(String)}. For every package: a declaration
+   * outside xsl:override (xsl:param excepted) with the symbolic name of a
+   * visible accepted component, or a template rule naming a visible accepted
+   * mode, is XTSE3050. Finally every name hidden by one use is added to
+   * {@link PackageUnit#hidden()}, unless another use makes it visible or the
+   * package declares it itself.
+   *
+   * @param aUnit
+   *        The using package.
+   * @param aInfos
+   *        The result of {@link #_getUsedVisibility(PackageUnit.Use)} for
+   *        each of its uses.
+   * @throws XsltException
+   *         XTSE3080 or XTSE3050 as described.
+   */
   private void _finishHidden (@NonNull final PackageUnit aUnit, @NonNull final ICommonsList <UsedVisibility> aInfos)
   {
     final ICommonsList <XslElement> aOwn = _getOwnDeclarations (aUnit);
@@ -465,7 +531,15 @@ public final class PackageModel
 
   /**
    * Apply the static rules of xsl:use-package, xsl:accept and xsl:override to
-   * every package and compute what each package hides from its users.
+   * every package that uses others, and compute for each the used-package
+   * components its code cannot see ({@link PackageUnit#hidden()}). Units are
+   * processed in reverse creation order, so a used package (loaded after its
+   * user) is finished before the package using it.
+   *
+   * @throws XsltException
+   *         The static errors of
+   *         {@link PackageChecks#checkUsePackage(XslElement, String, ICommonsList, ICommonsMap)},
+   *         XTSE3080 and XTSE3050.
    */
   public void analyse ()
   {

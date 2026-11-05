@@ -62,11 +62,17 @@ public final class Mode
     return m_aName;
   }
 
+  /** @return <code>true</code> if this is the unnamed mode. */
   public boolean isUnnamed ()
   {
     return UNNAMED.equals (m_aName);
   }
 
+  /**
+   * @return The built-in template rules used when no rule matches (XSLT 3.0
+   *         section 6.7); text-only-copy unless the xsl:mode declaration says
+   *         otherwise.
+   */
   @NonNull
   public EOnNoMatch getOnNoMatch ()
   {
@@ -78,6 +84,11 @@ public final class Mode
     m_eOnNoMatch = eOnNoMatch;
   }
 
+  /**
+   * @return <code>true</code> for on-multiple-match="fail": the engine raises
+   *         XTDE0540 when several template rules of the same import
+   *         precedence and priority match an item.
+   */
   public boolean isFailOnMultipleMatch ()
   {
     return m_bFailOnMultipleMatch;
@@ -88,6 +99,10 @@ public final class Mode
     m_bFailOnMultipleMatch = b;
   }
 
+  /**
+   * @return The declared warning-on-no-match value. It is recorded only; the
+   *         engine does not read it.
+   */
   public boolean isWarningOnNoMatch ()
   {
     return m_bWarningOnNoMatch;
@@ -98,6 +113,10 @@ public final class Mode
     m_bWarningOnNoMatch = b;
   }
 
+  /**
+   * @return The declared warning-on-multiple-match value. It is recorded
+   *         only; the engine does not read it.
+   */
   public boolean isWarningOnMultipleMatch ()
   {
     return m_bWarningOnMultipleMatch;
@@ -137,7 +156,7 @@ public final class Mode
 
   /**
    * @return <code>true</code> if the mode is declared
-   *         <code>streamable="yes"</code> (XSLT 3.0 section 6.7.1).
+   *         <code>streamable="yes"</code> (XSLT 3.0 section 6.6.1).
    */
   public boolean isStreamable ()
   {
@@ -161,12 +180,26 @@ public final class Mode
     m_aDeclaration = aDeclaration;
   }
 
+  /**
+   * Append a template rule. The order is irrelevant until
+   * {@link #sortRules()} runs.
+   *
+   * @param aRule
+   *        The rule to add.
+   */
   public void addRule (@NonNull final TemplateRule aRule)
   {
     m_aRules.add (aRule);
   }
 
-  /** Sort the rules best first. Called once at the end of compilation. */
+  /**
+   * Sort the rules best first: descending by import precedence, then by
+   * priority, then by declaration order. The first rule in this order whose
+   * pattern matches is the one conflict resolution (XSLT 3.0 section 6.4)
+   * selects, the later declared rule winning among equals, and the rules
+   * after it are the candidates for xsl:next-match. Called once at the end of
+   * compilation.
+   */
   public void sortRules ()
   {
     m_aRules.sort (Comparator.comparingInt (TemplateRule::getPrecedence)

@@ -36,7 +36,12 @@ import com.helger.xslt.tree.XslElement;
  */
 public final class Template
 {
-  /** The xsl:context-item declaration of a template. */
+  /**
+   * The xsl:context-item declaration of a template (XSLT 3.0 section
+   * 10.1.1): the required type (<code>null</code> if there is no
+   * <code>as</code> attribute) and the trimmed <code>use</code> value
+   * (required, optional or absent).
+   */
   public record ContextItemDecl (@Nullable SeqType as, @NonNull String use)
   {}
 
@@ -53,6 +58,27 @@ public final class Template
   private ContextItemDecl m_aContextItem;
   private SequenceConstructor m_aBody = SequenceConstructor.EMPTY;
 
+  /**
+   * Create a template. The import precedence and the import range for
+   * xsl:apply-imports are taken from the declaration element; the parameters,
+   * the context item declaration and the body are added afterwards.
+   *
+   * @param aElement
+   *        The xsl:template element.
+   * @param aPattern
+   *        The match pattern, <code>null</code> for a named template only.
+   * @param aName
+   *        The name, <code>null</code> for a template rule only.
+   * @param aModes
+   *        The modes of a template rule.
+   * @param bAllModes
+   *        <code>true</code> for mode="#all".
+   * @param aPriority
+   *        The explicit priority, <code>null</code> if the default priority
+   *        of each pattern alternative applies.
+   * @param aAs
+   *        The declared result type, <code>null</code> if none.
+   */
   public Template (@NonNull final XslElement aElement,
                    @Nullable final CompiledPattern aPattern,
                    @Nullable final XdmQName aName,
@@ -111,11 +137,18 @@ public final class Template
     return m_aPriority;
   }
 
+  /** @return The import precedence of the declaration (higher wins). */
   public int getPrecedence ()
   {
     return m_nPrecedence;
   }
 
+  /**
+   * @return The lowest import precedence of the modules imported by the
+   *         module of this template. xsl:apply-imports considers only the rules
+   *         with a precedence from this value up to one below the template's
+   *         own precedence.
+   */
   public int getImportLo ()
   {
     return m_nImportLo;

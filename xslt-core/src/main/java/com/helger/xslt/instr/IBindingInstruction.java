@@ -38,6 +38,12 @@ public interface IBindingInstruction extends IInstruction
   @NonNull
   XsltContext bind (@NonNull XsltContext aCtx);
 
+  /**
+   * Outside of a sequence constructor a binding instruction only binds: the
+   * context with the new binding is discarded and nothing is written to the
+   * output. {@link SequenceConstructor} and {@link ConditionalContent} call
+   * {@link #bind(XsltContext)} instead and keep the returned context.
+   */
   default void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     bind (aCtx);

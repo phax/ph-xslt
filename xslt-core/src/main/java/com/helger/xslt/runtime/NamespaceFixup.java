@@ -46,6 +46,10 @@ public final class NamespaceFixup
   private NamespaceFixup ()
   {}
 
+  /**
+   * @return <code>true</code> if the prefix is in scope on the element with
+   *         this URI; an unbound prefix counts as bound to the empty URI.
+   */
   private static boolean _isBound (@NonNull final IXdmNode aElement,
                                    @NonNull final String sPrefix,
                                    @NonNull final String sUri)
@@ -54,6 +58,16 @@ public final class NamespaceFixup
     return sCur == null ? sUri.isEmpty () : sCur.equals (sUri);
   }
 
+  /**
+   * Declare on the element what its own name and its prefixed namespaced
+   * attribute names need and what is not already in scope with the same URI.
+   * The <code>xml</code> prefix is never declared. A prefix the element
+   * already declares with a non-empty URI is left alone; an empty
+   * declaration (an undeclaration, e.g. from
+   * {@link #applyNoInherit(IXdmNode)}) is replaced. An element in no
+   * namespace whose default namespace is inherited gets
+   * <code>xmlns=""</code>.
+   */
   private static void _fixElement (@NonNull final IXdmNode aElement)
   {
     final XdmQName aName = aElement.getName ();
@@ -81,6 +95,20 @@ public final class NamespaceFixup
     }
   }
 
+  /**
+   * @param aElement
+   *        The element an attribute is added to.
+   * @param aDeclared
+   *        The namespaces the element declares.
+   * @param sPrefix
+   *        The candidate prefix.
+   * @param sUri
+   *        The attribute's namespace URI.
+   * @return <code>true</code> if the prefix is used on the element itself for
+   *         another URI: by its own declarations, by the element name or by
+   *         the name of one of its attributes. Bindings of ancestors are not
+   *         considered.
+   */
   private static boolean _conflicts (@NonNull final IXdmNode aElement,
                                      @NonNull final Map <String, String> aDeclared,
                                      @NonNull final String sPrefix,
@@ -111,6 +139,13 @@ public final class NamespaceFixup
    * @return The name to use: a namespaced attribute needs a prefix that is not
    *         bound to another URI on the element itself. If the prefix is
    *         changed, the new binding is declared on the element.
+   *         <p>
+   *         In detail: a name without a namespace loses any prefix; the XML
+   *         namespace always gets the prefix <code>xml</code>. A non-empty
+   *         prefix without a conflict is kept. Otherwise a prefix the element
+   *         already declares for the URI is reused, or a new one is made up
+   *         as the old prefix (or <code>ns</code>) plus <code>_0</code>,
+   *         <code>_1</code>, ... and declared on the element.
    */
   @NonNull
   public static XdmQName getAttributeNameFor (@NonNull final IXdmNode aElement, @NonNull final XdmQName aName)

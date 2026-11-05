@@ -70,7 +70,11 @@ public final class NodeCopier
   }
 
   /**
-   * Copy one node without its children (and without its attributes).
+   * Copy one node without its children (and without its attributes). The copy
+   * has the same kind, name and string value, no type annotation and no base
+   * URI; an attribute goes through
+   * {@link #createAttribute(XdmQName, String)}, a namespace node without a
+   * name becomes the default namespace binding (empty prefix).
    *
    * @param aNode
    *        Node to copy.
@@ -94,7 +98,10 @@ public final class NodeCopier
   }
 
   /**
-   * Declare the namespaces of a source element on its copy.
+   * Declare the namespaces of a source element on its copy. The
+   * <code>xml</code> prefix is never declared. In the all-in-scope mode a
+   * binding to the empty URI is skipped; with the declarations only, an
+   * undeclaration (<code>xmlns=""</code>) is copied as such.
    *
    * @param aSource
    *        The source element.
@@ -135,20 +142,13 @@ public final class NodeCopier
   }
 
   /**
-   * Deep copy of a node.
-   *
-   * @param aNode
-   *        The node to copy.
-   * @param bCopyNamespaces
-   *        <code>true</code> to copy the namespaces of elements
-   *        (copy-namespaces="yes"); with <code>false</code> only the
-   *        namespaces the names need are declared later by the namespace
-   *        fixup.
-   * @return The new parentless node.
-   */
-  /**
    * Copy the schema-related properties (type annotation, nilled, ID kind) of an
-   * element or attribute.
+   * element or attribute. The schema type object is always copied (possibly as
+   * <code>null</code>); only when there is none is the plain type annotation
+   * name copied instead. An ID kind other than
+   * {@link EIDKind#NONE} is carried over, a source without one leaves the ID
+   * kind of the target unchanged (so the <code>xml:id</code> kind set by
+   * {@link #createAttribute(XdmQName, String)} survives).
    *
    * @param aSource
    *        The original.
@@ -167,6 +167,20 @@ public final class NodeCopier
       aTarget.setIDKind (aSource.getIDKind ());
   }
 
+  /**
+   * Deep copy of a node without type annotations; the same as
+   * {@link #copyDeep(IXdmNode, boolean, boolean)} with
+   * <code>bCopyAnnotations</code> <code>false</code>.
+   *
+   * @param aNode
+   *        The node to copy.
+   * @param bCopyNamespaces
+   *        <code>true</code> to copy the namespaces of elements
+   *        (copy-namespaces="yes"); with <code>false</code> only the
+   *        namespaces the names need are declared later by the namespace
+   *        fixup.
+   * @return The new parentless node.
+   */
   @NonNull
   public static IXdmNode copyDeep (@NonNull final IXdmNode aNode, final boolean bCopyNamespaces)
   {
@@ -174,6 +188,20 @@ public final class NodeCopier
   }
 
   /**
+   * Deep copy of a node (XSLT 3.0 section 11.9.2, the deep copy of
+   * xsl:copy-of). The root copy is made by {@link #copyShallow(IXdmNode)};
+   * a document or element root keeps the base URI of the original unless the
+   * element carries its own <code>xml:base</code>. Attributes, text, comment,
+   * processing instruction and namespace nodes are returned without further
+   * work. For a document or element the subtree is copied with an explicit
+   * stack (no recursion): every source node's attributes are recreated via
+   * {@link #createAttribute(XdmQName, String)} (so <code>xml:id</code> stays an
+   * ID) and its children appended in order; descendant elements are queued
+   * for their own attributes and children. With namespace copying the root
+   * element gets all its in-scope namespaces (except an empty default) and
+   * each descendant element only its own declarations. A document root also
+   * takes over the unparsed entities.
+   *
    * @param aNode
    *        The node to copy.
    * @param bCopyNamespaces

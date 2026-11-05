@@ -88,12 +88,29 @@ public final class XsltTransformer
   // The drain of the current run, if its result is written while it is built
   private ResultDrain m_aDrain;
 
+  /**
+   * Prepare one run; nothing happens before {@link #run()} or a
+   * <code>runTo</code> method is called.
+   *
+   * @param aSheet
+   *        The compiled stylesheet.
+   * @param aRequest
+   *        The request with the source, initial component, parameters and
+   *        options.
+   */
   public XsltTransformer (@NonNull final CompiledStylesheet aSheet, @NonNull final XsltTransformRequest aRequest)
   {
     m_aSheet = aSheet;
     m_aRequest = aRequest;
   }
 
+  /**
+   * @param aRequest
+   *        The request.
+   * @return The template parameters of the request (tunnel and non-tunnel) as
+   *         parameter values for the initial template or the initial
+   *         apply-templates, in request order.
+   */
   @NonNull
   private static ICommonsList <ParamValue> _getTemplateParams (@NonNull final XsltTransformRequest aRequest)
   {
@@ -127,6 +144,19 @@ public final class XsltTransformer
     return m_aSheet.exposedTemplates ().contains (null) || m_aSheet.exposedTemplates ().contains (aTemplate.getName ());
   }
 
+  /**
+   * The output method when no xsl:output states one, decided from the result
+   * tree: the first element child of the document node decides if no text
+   * node with non-whitespace content comes before it. A local name equal to
+   * "html" in any case gives the html method in no namespace and the xhtml
+   * method in the XHTML namespace; everything else (another element, a
+   * non-whitespace text before it, no element at all, no tree) gives xml.
+   *
+   * @param aTree
+   *        The result document node, or <code>null</code> if no tree was
+   *        built.
+   * @return The method name, never <code>null</code>.
+   */
   @NonNull
   private static String _detectMethod (@Nullable final IXdmNode aTree)
   {
@@ -153,6 +183,16 @@ public final class XsltTransformer
   }
 
   /**
+   * Walks the ancestor path of the node from the root down: an attribute is
+   * found by its name, a namespace node by its prefix, a child by counting
+   * the kept children before it.
+   *
+   * @param aRoot
+   *        The root of the original tree.
+   * @param aStrippedRoot
+   *        The root of its stripped copy.
+   * @param aNode
+   *        A node of the original tree.
    * @return The node of the stripped tree that corresponds to a node of the
    *         original tree, or <code>null</code> if the node itself was
    *         stripped. Stripping only removes whitespace-only text nodes, whose
@@ -208,6 +248,23 @@ public final class XsltTransformer
     return aCopy;
   }
 
+  /**
+   * Map a node to its counterpart in the whitespace-stripped copy of its tree
+   * (xsl:strip-space). Only trees rooted at a document node are stripped; the
+   * stripped copy of each root is made once by
+   * {@link Engine#stripWhitespace(IXdmNode)} and cached in the map. If
+   * stripping leaves the tree unchanged (the same root is returned), the node
+   * itself is used.
+   *
+   * @param aEngine
+   *        The engine.
+   * @param aStrippedRoots
+   *        Original root to stripped root, filled here.
+   * @param aNode
+   *        The node.
+   * @return The node in the stripped tree, or <code>null</code> if it was
+   *         itself stripped.
+   */
   @Nullable
   private static IXdmNode _toStripped (@NonNull final Engine aEngine,
                                       @NonNull final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots,
@@ -233,6 +290,9 @@ public final class XsltTransformer
    * @param aStrippedRoots
    *        Original root to stripped root, filled here and reused for the
    *        initial match selection.
+   * @param aSuppliedItem
+   *        The global context item supplied to the run, or <code>null</code>.
+   *        Under use="absent" of xsl:global-context-item it is dropped.
    * @return The global context item to use (after stripping), or
    *         <code>null</code> if there is none.
    * @throws XsltException
@@ -266,6 +326,24 @@ public final class XsltTransformer
     return aGlobalItem;
   }
 
+  /**
+   * Set up the global context item of a new engine from the global context
+   * item of its request, as {@link #_initGlobalContextItem(Engine, ICommonsMap, IXdmItem)}
+   * does for a transformation: stripping, the xsl:global-context-item checks,
+   * registration as source document and the check of the global parameters.
+   * This is the start-up shared with hosts that evaluate their own XPath
+   * against a stylesheet (<code>XsltExecutable.createEvaluation</code>).
+   *
+   * @param aEngine
+   *        The new engine.
+   * @param aStrippedRoots
+   *        Original root to stripped root, filled here and reused for the
+   *        initial match selection.
+   * @return The global context item to use (after stripping), or
+   *         <code>null</code> if there is none.
+   * @throws XsltException
+   *         XTDE3086, XTTE0590, or an error of a global parameter
+   */
   @Nullable
   public static IXdmItem initGlobalContextItem (@NonNull final Engine aEngine,
                                                 @NonNull final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots)
@@ -273,7 +351,11 @@ public final class XsltTransformer
     return _initGlobalContextItem (aEngine, aStrippedRoots, aEngine.getRequest ().getGlobalContextItem ());
   }
 
-  /** @return The name of the initial mode of the request. */
+  /**
+   * @return The name of the initial mode of the request: <code>#unnamed</code>
+   *         gives the unnamed mode, no mode or <code>#default</code> the
+   *         default mode of the stylesheet, any other name itself.
+   */
   @NonNull
   private XdmQName _getInitialModeName ()
   {
@@ -286,6 +368,13 @@ public final class XsltTransformer
   }
 
   /**
+   * Resolve the initial mode of the request (XSLT 3.0 section 2.3.3). A mode
+   * requested explicitly (any name but <code>#default</code>) that is neither
+   * the unnamed mode nor the default mode must be declared, by xsl:mode or by
+   * a template rule naming it (mode="#all" does not count), and must be
+   * public: not made private by xsl:expose, not declared private or abstract,
+   * and in a package a declared mode without visibility must be exposed.
+   *
    * @return The initial mode of the request.
    * @throws XsltException
    *         XTDE0045 if it does not exist or is not eligible
@@ -324,7 +413,15 @@ public final class XsltTransformer
     return aMode;
   }
 
-  /** @return The document read in full; stripped, as for fn:doc. */
+  /**
+   * @param aEngine
+   *        The engine.
+   * @param sUri
+   *        The URI of the principal source.
+   * @return The document read in full; stripped, as for fn:doc.
+   * @throws XPathException
+   *         FODC0002 if the URI identifies no node
+   */
   @NonNull
   private static IXdmNode _readSource (@NonNull final Engine aEngine, @NonNull final String sUri)
   {
@@ -334,6 +431,16 @@ public final class XsltTransformer
     return ret;
   }
 
+  /**
+   * Read the rest of a streamed source into a complete tree and close the
+   * reader in any case.
+   *
+   * @param aReader
+   *        The open reader.
+   * @return The document node.
+   * @throws XPathException
+   *         FODC0002 if the source cannot be parsed
+   */
   @NonNull
   private static IXdmNode _readAll (@NonNull final XdmStreamReader aReader)
   {
@@ -351,6 +458,13 @@ public final class XsltTransformer
     }
   }
 
+  /**
+   * Close a reader; a parse error while closing is ignored, since everything
+   * the run needed was read.
+   *
+   * @param aReader
+   *        The reader.
+   */
   private static void _close (@NonNull final XdmStreamReader aReader)
   {
     try
@@ -364,6 +478,17 @@ public final class XsltTransformer
   }
 
   /**
+   * Plan a streamed run of the principal source: find the template rule of
+   * the mode for the (still empty) document node and, in its body, the one
+   * consuming instruction ({@link StreamPlanner#findConsumer}) that
+   * {@link StreamConsumer} can execute.
+   *
+   * @param aEngine
+   *        The engine.
+   * @param aMode
+   *        The streamable initial mode.
+   * @param aReader
+   *        The open reader of the principal source.
    * @return The run if the template rule for the document node has the shape
    *         the dispatcher runs, else <code>null</code> (the reader is still
    *         open and nothing was read).
@@ -385,6 +510,27 @@ public final class XsltTransformer
     return new StreamedRun (aReader, aConsumer);
   }
 
+  /**
+   * Apply the templates of the initial mode to the streamed document node:
+   * the run is made active on the engine, the streamed accumulators are
+   * started, and the template rule executes, during which the consumer reads
+   * the stream. Afterwards the run is deactivated and the reader closed, also
+   * on error.
+   *
+   * @param aEngine
+   *        The engine.
+   * @param aRun
+   *        The planned run.
+   * @param aCtx
+   *        The root context.
+   * @param aMode
+   *        The initial mode.
+   * @param aOut
+   *        The principal output.
+   * @throws IllegalStateException
+   *         if the planned consumer was never reached (the planner and the
+   *         execution disagree)
+   */
   private void _applyStreamed (@NonNull final Engine aEngine,
                                @NonNull final StreamedRun aRun,
                                @NonNull final XsltContext aCtx,
@@ -410,6 +556,15 @@ public final class XsltTransformer
     }
   }
 
+  /**
+   * @param aOutputDef
+   *        The output definition.
+   * @param sMethod
+   *        The effective method.
+   * @return Serialisation parameters from the output definition, after all
+   *         output customizers of the extension registry (character maps,
+   *         ...) have adjusted them.
+   */
   @NonNull
   private SerializationParams _createSerializationParams (@NonNull final OutputDefinition aOutputDef,
                                                           @NonNull final String sMethod)
@@ -420,6 +575,12 @@ public final class XsltTransformer
     return ret;
   }
 
+  /**
+   * @param aOutputDef
+   *        The output definition.
+   * @return <code>true</code> if it sets an item-separator other than
+   *         <code>#absent</code>.
+   */
   private static boolean _hasItemSeparator (@NonNull final OutputDefinition aOutputDef)
   {
     return aOutputDef.getValue ("item-separator") != null && !"#absent".equals (aOutputDef.getValue ("item-separator"));
@@ -451,6 +612,16 @@ public final class XsltTransformer
   }
 
   /**
+   * Create the drain for a target when the principal result can be written
+   * while it is built: not schema-aware, a method stated by the unnamed
+   * output definition that builds a tree, no item-separator, no
+   * xsl:result-document anywhere, and parameters the incremental serialiser
+   * supports. Invalid serialisation parameters also mean no drain, so that
+   * the error is raised by the serialisation after the run as usual. On
+   * success the target is opened with the parameters.
+   *
+   * @param aTarget
+   *        The target of the principal result.
    * @return The drain writing the principal result while it is built, or
    *         <code>null</code> if the output definition does not allow it.
    */
@@ -481,6 +652,44 @@ public final class XsltTransformer
     return new ResultDrain (aParams, aTarget.open (aParams));
   }
 
+  /**
+   * One complete run on the current thread (XSLT 3.0 section 2.3).
+   * <ol>
+   * <li>For a principal source given as a stream URI and an initial mode
+   * whose streamability and accumulators allow it, the source is read as a
+   * stream; otherwise it is read in full and also serves as global context
+   * item unless one is supplied. A source declared streamed for a streamable
+   * initial mode makes global variables run without focus.</li>
+   * <li>The global context item is set up, the initial match selection is
+   * mapped to the stripped trees (stripped nodes are dropped) and defaults to
+   * the principal source.</li>
+   * <li>The principal output is a {@link ResultDrain} when the target allows
+   * it, otherwise a buffer.</li>
+   * <li>Invocation: an initial function (public or final, the arguments
+   * converted to the declared types, XTDE0041 if there is none), else an
+   * initial named template (it must exist and be public, XTDE0040), else
+   * apply-templates of the initial mode to the initial match selection
+   * (falling back to the global context item); without any selection
+   * xsl:initial-template is called (XTDE0040 if not public, XTDE0044 if
+   * absent).</li>
+   * <li>Post-processing: with a drain only the rest is written. Otherwise
+   * XTDE1490 if content followed an xsl:result-document that wrote the
+   * principal result; the output definition of that xsl:result-document or
+   * the unnamed one applies; unless the request asks for the raw result only
+   * (and there is no target), a result tree is built if build-tree allows
+   * (SENR0001 for attributes, namespaces, maps and functions at the top
+   * level); the method comes from the definition or
+   * {@link #_detectMethod(IXdmNode)}; and the tree (or the raw sequence, with
+   * an item-separator or without a tree) is serialised to the target or a
+   * string.</li>
+   * </ol>
+   *
+   * @param aTarget
+   *        Where the serialised principal result goes, or <code>null</code>
+   *        to return it in the result.
+   * @return The result; with a target the principal result and its
+   *         serialised form are empty.
+   */
   @NonNull
   private XsltTransformResult _run (@Nullable final ResultTarget aTarget)
   {
@@ -721,6 +930,15 @@ public final class XsltTransformer
     return LargeStackRunner.run ( () -> _run (null), "ph-xslt-transform");
   }
 
+  /**
+   * {@link #_run(ResultTarget)} on a large-stack worker thread; on an error
+   * what was written so far is flushed to the target before the error is
+   * rethrown.
+   *
+   * @param aTarget
+   *        The target.
+   * @return The result.
+   */
   @NonNull
   private XsltTransformResult _runTo (@NonNull final ResultTarget aTarget)
   {

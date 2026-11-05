@@ -78,6 +78,10 @@ public final class ControlInstructions
   private ControlInstructions ()
   {}
 
+  /**
+   * xsl:if (XSLT 3.0 section 8.1): the content runs if the effective boolean
+   * value of the test expression is true.
+   */
   @NonNull
   private static IInstruction _compileIf (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -89,6 +93,12 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * xsl:choose (XSLT 3.0 section 8.2): the xsl:when tests are evaluated in
+   * order and only the content of the first one whose test is true runs; if
+   * none is true the xsl:otherwise content runs, if there is one. A dynamic
+   * error in a test is located at the expression's element (the xsl:when).
+   */
   @NonNull
   private static IInstruction _compileChoose (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -129,6 +139,16 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * xsl:for-each (XSLT 3.0 section 7.1): the content runs once for every item
+   * of the select expression, sorted by the xsl:sort children if there are
+   * any, with the item as context item, its position and the size of the
+   * sequence as focus. Inside the body there is no current template rule (so
+   * xsl:apply-imports and xsl:next-match fail), the current mode is kept.
+   * Without sort keys the instruction can be the consumer of a streamed run:
+   * then the body runs for each streamed record, with the record's position
+   * also as context size, and the select expression is not evaluated.
+   */
   @NonNull
   private static IInstruction _compileForEach (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -199,6 +219,21 @@ public final class ControlInstructions
     return aSheet.getOrCreateMode (aSheet.getDefaultModeName ());
   }
 
+  /**
+   * xsl:apply-templates (XSLT 3.0 section 6.3): the items of the select
+   * expression (default <code>child::node()</code>), sorted by the xsl:sort
+   * children if there are any, are processed by the template rules of the
+   * mode, with the xsl:with-param values evaluated once in the context of the
+   * instruction. Without a select attribute the context item must be a node
+   * (XTTE0510; an absent context item is left to the evaluation of the
+   * default select). A mode of #current (resolved to <code>null</code>) means
+   * the current mode at run time. Inside a declared-streamable construct the
+   * current group and grouping key are cleared for the invoked templates (see
+   * {@link StreamedGroupScope}). Without sort keys and parameters the
+   * instruction can be the consumer of a streamed run: then every streamed
+   * record is applied to with its position also as context size and no
+   * parameters.
+   */
   @NonNull
   private static IInstruction _compileApplyTemplates (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -235,6 +270,18 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * xsl:call-template (XSLT 3.0 section 10.1): the named template is called
+   * with the context unchanged and the evaluated xsl:with-param values; the
+   * name xsl:original inside an overriding declaration is mapped to the
+   * overridden template (see {@link StylesheetCompiler#mapOriginalName}). The
+   * call
+   * and its non-tunnel parameter names are registered with the compiler for
+   * the static checks. If no template of the name exists at run time the
+   * instruction raises XTSE0650, as a dynamic error. Inside a
+   * declared-streamable construct the current group and grouping key are
+   * cleared for the called template.
+   */
   @NonNull
   private static IInstruction _compileCallTemplate (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -256,6 +303,14 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * xsl:apply-imports (<code>bImports</code>) or xsl:next-match (XSLT 3.0
+   * section 6.8): the context item is processed by the next matching template
+   * rule after the current one, as found by
+   * {@link Engine#applyNextMatch}, with the evaluated xsl:with-param values.
+   * Inside a declared-streamable construct the current group and grouping
+   * key are cleared for the invoked template.
+   */
   @NonNull
   private static IInstruction _compileNextMatch (@NonNull final CompileContext aCtx,
                                                  @NonNull final XslElement aEl,
@@ -269,6 +324,10 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * xsl:sequence (XSLT 3.0 section 11.10): appends the value of the select
+   * expression, or else the result of the content, to the output unchanged.
+   */
   @NonNull
   private static IInstruction _compileSequence (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -279,6 +338,22 @@ public final class ControlInstructions
     return new CompiledInstruction (aEl, aBody::execute);
   }
 
+  /**
+   * xsl:analyze-string (XSLT 3.0 section 17.1). The select value is atomised;
+   * more than one item, or an item that is not string-like, is XPTY0004, and
+   * an empty sequence counts as the zero-length string. The regex and flags
+   * attribute value templates are evaluated and compiled at every execution;
+   * invalid flags (FORX0001 from the regex compiler) raise XTDE1145, every
+   * other compile error XTDE1140. All matching and non-matching substrings
+   * are collected first, in order, because the position and size of the
+   * focus refer to the whole list. Then xsl:matching-substring runs for each
+   * match and xsl:non-matching-substring for each text between matches, with
+   * the substring as context item; a part whose element is missing produces
+   * nothing but still counts for the positions. While a matching part runs,
+   * fn:regex-group sees its captured groups (an unmatched group as the
+   * zero-length string), in a non-matching part there are none. There is no
+   * current template rule inside the parts.
+   */
   @NonNull
   private static IInstruction _compileAnalyzeString (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -360,6 +435,11 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * xsl:perform-sort (XSLT 3.0 section 13.2): the value of the select
+   * expression, or else the result of the content, is sorted by the xsl:sort
+   * children and appended to the output.
+   */
   @NonNull
   private static IInstruction _compilePerformSort (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -380,6 +460,19 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * The text of an xsl:message as passed to the message listener. Adjacent
+   * atomic values are written as their lexical forms separated by one space.
+   * An attribute node is written as <code>name="value"</code> (without
+   * escaping), a namespace node as its URI, any other node serialised as XML
+   * without an XML declaration, and a function item, map or array with the
+   * adaptive output method (Serialization 3.1 section 10). Nothing separates
+   * a node or function item from its neighbours.
+   *
+   * @param aValue
+   *        The value of the message.
+   * @return The message text.
+   */
   @NonNull
   private static String _messageText (@NonNull final XdmSequence aValue)
   {
@@ -418,6 +511,20 @@ public final class ControlInstructions
     return aSB.toString ();
   }
 
+  /**
+   * xsl:message (XSLT 3.0 section 23.1). The value of the message is the
+   * select value followed by the result of the content. A dynamic error while
+   * the value is evaluated does not end the transformation: the message text
+   * becomes "Error in xsl:message: " and the error message, with an empty
+   * value. The text (see {@link #_messageText(XdmSequence)}) is passed to
+   * the engine. Then terminate is evaluated: a value other than yes/no (true,
+   * false, 1, 0) is XTDE0030; if it is true the transformation ends with a
+   * dynamic error whose code is the evaluated error-code (an EQName or
+   * lexical QName resolved against the instruction's namespaces, without the
+   * default namespace), or
+   * XTMM9000 if there is none or it is not a valid name, carrying the
+   * message text and the message value as the error object.
+   */
   @NonNull
   private static IInstruction _compileMessage (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -426,7 +533,7 @@ public final class ControlInstructions
     final Avt aTerminate = aCtx.compileOptionalAvt (aEl, "terminate");
     final Avt aErrorCode = aCtx.compileOptionalAvt (aEl, "error-code");
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-      // The message is the sequence of the select value and the content; aFnArgs
+      // The message is the sequence of the select value and the content; a
       // dynamic error in it does not end the transformation
       final BufferedOutput aContent = new BufferedOutput ();
       XdmSequence aValue;
@@ -470,6 +577,26 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * The test of xsl:where-populated (XSLT 3.0 section 8.4.1): an item is kept
+   * unless it is deemed empty.
+   * <ul>
+   * <li>A document or element node is kept if it has an element child or a
+   * child with a non-empty string value. A child comment or processing
+   * instruction with an empty value therefore does not count, although the
+   * specification only asks whether the node has children.</li>
+   * <li>A namespace node is always kept, even with a zero-length value, so
+   * that adding it raises its error later.</li>
+   * <li>Any other node is kept if its string value is not empty.</li>
+   * <li>A map is kept if it is not empty, an array if any item of its
+   * members is kept (an empty array is dropped).</li>
+   * <li>An atomic value is kept if its string value is not empty.</li>
+   * </ul>
+   *
+   * @param aItem
+   *        The item.
+   * @return <code>true</code> if the item is kept.
+   */
   private static boolean _isPopulated (@NonNull final IXdmItem aItem)
   {
     if (aItem instanceof final IXdmNode aNode)
@@ -502,6 +629,11 @@ public final class ControlInstructions
     return !ConditionalContent.isDeemedEmpty (aItem);
   }
 
+  /**
+   * xsl:where-populated (XSLT 3.0 section 8.4.1): the content runs into a
+   * buffer and only the items that pass {@link #_isPopulated(IXdmItem)} are
+   * replayed to the output, in order.
+   */
   @NonNull
   private static IInstruction _compileWherePopulated (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -515,6 +647,13 @@ public final class ControlInstructions
     });
   }
 
+  /**
+   * xsl:on-empty or xsl:on-non-empty (XSLT 3.0 sections 8.4.2 and 8.4.3):
+   * compiled to an {@link OnEmptyInstruction} with either its select
+   * expression or its content. Whether it runs is decided by the
+   * {@link ConditionalContent} the enclosing sequence constructor is wrapped
+   * in (see {@link CoreInstructions#compileSequenceConstructor}).
+   */
   @NonNull
   private static IInstruction _compileOnEmpty (@NonNull final CompileContext aCtx,
                                                @NonNull final XslElement aEl,

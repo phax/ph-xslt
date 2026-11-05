@@ -39,8 +39,9 @@ import com.helger.xslt.tree.XslNode;
 /**
  * A sequence constructor containing xsl:on-empty / xsl:on-non-empty (XSLT 3.0
  * section 8.4): the other instructions run first into buffers; if all their
- * items are "deemed empty", only the xsl:on-empty instructions contribute,
- * otherwise everything except the xsl:on-empty instructions.
+ * items are vacuous (XSLT 3.0 section 8.4.2), only the xsl:on-empty
+ * instructions contribute, otherwise everything except the xsl:on-empty
+ * instructions.
  *
  * @author Philip Helger
  */
@@ -50,6 +51,14 @@ public final class ConditionalContent implements IInstruction
   private final XslNode m_aLocation;
   private final IInstruction [] m_aParts;
 
+  /**
+   * @param aLocation
+   *        The element whose sequence constructor this is, for error
+   *        locations. May be <code>null</code>.
+   * @param aParts
+   *        All instructions of the sequence constructor in order, the
+   *        {@link OnEmptyInstruction}s and the binding instructions included.
+   */
   public ConditionalContent (@Nullable final XslNode aLocation, @NonNull final List <IInstruction> aParts)
   {
     m_aLocation = aLocation;
@@ -59,9 +68,13 @@ public final class ConditionalContent implements IInstruction
   /**
    * @param aItem
    *        An item.
-   * @return <code>true</code> if the item is deemed empty (XSLT 3.0 section
-   *         8.4.1): a zero-length text node or string, a document node without
-   *         children, an array whose members are all empty.
+   * @return <code>true</code> if the item is vacuous (XSLT 3.0 section
+   *         8.4.2): a zero-length text node, a document node without
+   *         children, an atomic value whose string value is zero-length, or an
+   *         array whose members contain only vacuous items (an empty array
+   *         included). Every other item, including an empty element and an
+   *         empty map, is not vacuous. This is not the "deemed empty" test of
+   *         xsl:where-populated (section 8.4.1).
    */
   public static boolean isDeemedEmpty (@NonNull final IXdmItem aItem)
   {
@@ -86,6 +99,20 @@ public final class ConditionalContent implements IInstruction
     return false;
   }
 
+  /**
+   * Evaluate the sequence constructor in two passes (XSLT 3.0 sections 8.4.2
+   * and 8.4.3). First every ordinary instruction runs, in order, into a
+   * buffer of its own; binding instructions update the context as usual, and
+   * the context at the position of every instruction is remembered. Every
+   * instruction counts one step against the execution budget. Then the result
+   * is written in document order: if any buffered item is not vacuous (see
+   * {@link #isDeemedEmpty(IXdmItem)}), the buffers are replayed and the
+   * xsl:on-non-empty instructions are evaluated in their place; otherwise the
+   * buffers are discarded and only the xsl:on-empty instructions are
+   * evaluated. A conditional instruction runs with the variables in scope at
+   * its position. Dynamic errors are located at the failing instruction, or
+   * at the sequence constructor if the instruction has no location.
+   */
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     final ICommonsList <BufferedOutput> aBuffers = new CommonsArrayList <> ();

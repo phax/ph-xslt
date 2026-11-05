@@ -148,6 +148,16 @@ public final class ResultDrain
     return m_aLevels.getLastOrNull ();
   }
 
+  /**
+   * Serialise one complete node (with its subtree) of the result. Unless the
+   * output method is text, the namespace fixup runs on it first; for the html
+   * method the content checks of {@link SerializationChecks} run on the whole
+   * subtree. A serialisation error is recorded, not thrown (it is raised by
+   * {@link #finish()}); after the first error nothing more is written.
+   *
+   * @param aNode
+   *        The node to write.
+   */
   private void _write (@NonNull final IXdmNode aNode)
   {
     if (m_aError != null)
@@ -166,6 +176,16 @@ public final class ResultDrain
     }
   }
 
+  /**
+   * Commit a level: mark it committed and write the start tag of its element,
+   * after the namespace fixup of that element alone (not for the text method)
+   * and the html checks of the element itself. Does nothing for a level that
+   * is already committed; after an earlier error the level is only marked.
+   * A serialisation error is recorded as in {@link #_write(IXdmNode)}.
+   *
+   * @param aLevel
+   *        The level to commit.
+   */
   private void _commit (@NonNull final Level aLevel)
   {
     if (aLevel.m_bCommitted)
@@ -188,6 +208,10 @@ public final class ResultDrain
     }
   }
 
+  /**
+   * Write the end tag of the innermost started element, unless an error was
+   * recorded (which it records in the same way).
+   */
   private void _endElement ()
   {
     if (m_aError != null)

@@ -44,6 +44,12 @@ import com.helger.xslt.tree.XsltNames;
 @Immutable
 public final class PackageVersionRanges
 {
+  /**
+   * One PackageVersionRange. Exactly one shape is set: <code>any</code> for
+   * "*", <code>prefix</code> for "V.*", <code>exact</code> for "V", or a
+   * lower bound <code>lo</code> and/or upper bound <code>hi</code> for "V+",
+   * "V to W", "to W" and their ".*" forms (<code>hiIsPrefix</code>).
+   */
   private record Range (boolean any,
                         long @Nullable [] prefix,
                         @Nullable PackageVersion exact,
@@ -51,6 +57,16 @@ public final class PackageVersionRanges
                         @Nullable PackageVersion hi,
                         boolean hiIsPrefix)
   {
+    /**
+     * Test one version against this range. A prefix range compares the decimal
+     * parts only, so "2.*" also admits "2.1-beta". Bounds are inclusive; an
+     * upper bound "W.*" additionally admits every version starting with the
+     * parts of W.
+     *
+     * @param aVersion
+     *        The version to test.
+     * @return <code>true</code> if the version lies in this range.
+     */
     boolean matches (@NonNull final PackageVersion aVersion)
     {
       if (any)
@@ -76,6 +92,19 @@ public final class PackageVersionRanges
     m_aRanges = aRanges;
   }
 
+  /**
+   * Parse one comma-separated PackageVersionRange. The token is split at
+   * whitespace; if one field is "to", the fields before it (joined without
+   * separator) are the lower bound and those after it the upper bound, either
+   * of which may be absent but not both. A "V to" without an upper bound is
+   * therefore accepted and means the same as "V+". Without "to", the token
+   * must be a single field: "V+", "V.*" or an exact "V". A ".*" prefix must
+   * not carry a name-part suffix.
+   *
+   * @param sToken
+   *        The trimmed range.
+   * @return The range or <code>null</code> if it is not valid.
+   */
   @Nullable
   private static Range _parseRange (@NonNull final String sToken)
   {
@@ -127,6 +156,9 @@ public final class PackageVersionRanges
   }
 
   /**
+   * Parse the comma-separated ranges after trimming. An empty value and an
+   * empty range between two commas are invalid.
+   *
    * @param s
    *        The lexical package-version-ranges.
    * @return The parsed ranges or <code>null</code> if the value is invalid

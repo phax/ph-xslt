@@ -45,6 +45,12 @@ public final class PackageVersion implements Comparable <PackageVersion>
     m_sSuffix = sSuffix;
   }
 
+  /**
+   * @param s
+   *        A part of the version.
+   * @return <code>true</code> if the part is not empty and consists of ASCII
+   *         digits only.
+   */
   private static boolean _isDigits (@NonNull final String s)
   {
     if (s.isEmpty ())
@@ -56,6 +62,12 @@ public final class PackageVersion implements Comparable <PackageVersion>
   }
 
   /**
+   * Parse a PackageVersion: everything before the first "-" are the decimal
+   * parts, separated by ".", each a non-empty run of at most 18 ASCII digits
+   * (so it fits a <code>long</code>); everything after it is the name-part
+   * suffix, whose "-"-separated pieces must each be an NCName. No whitespace
+   * is trimmed.
+   *
    * @param s
    *        The lexical version.
    * @return The parsed version or <code>null</code> if it is not a valid
@@ -116,6 +128,15 @@ public final class PackageVersion implements Comparable <PackageVersion>
     return true;
   }
 
+  /**
+   * Compare numerically part by part, a missing part counting as 0. With
+   * equal parts, a version without a suffix is greater than one with a
+   * suffix, and two suffixes compare by their UTF-16 code units.
+   *
+   * @param aOther
+   *        The version to compare with.
+   * @return -1, 0 or 1.
+   */
   public int compareTo (@NonNull final PackageVersion aOther)
   {
     final int n = Math.max (m_aParts.length, aOther.m_aParts.length);
@@ -135,12 +156,20 @@ public final class PackageVersion implements Comparable <PackageVersion>
     return m_sSuffix.compareTo (aOther.m_sSuffix) < 0 ? -1 : 1;
   }
 
+  /**
+   * Two versions are equal if {@link #compareTo(PackageVersion)} gives 0, so
+   * "2.0" equals "2.0.0".
+   */
   @Override
   public boolean equals (final Object o)
   {
     return o instanceof final PackageVersion aOther && compareTo (aOther) == 0;
   }
 
+  /**
+   * Consistent with {@link #equals(Object)}: trailing zero parts are left out
+   * of the hash.
+   */
   @Override
   public int hashCode ()
   {
@@ -154,6 +183,10 @@ public final class PackageVersion implements Comparable <PackageVersion>
     return ret;
   }
 
+  /**
+   * @return The lexical form: the parts joined with "." and the suffix (if
+   *         any) after a "-". Leading zeros of a part are not kept.
+   */
   @Override
   public String toString ()
   {

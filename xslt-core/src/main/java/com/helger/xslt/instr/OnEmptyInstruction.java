@@ -39,6 +39,17 @@ public final class OnEmptyInstruction extends AbstractInstruction
   private final XPathExpr m_aSelect;
   private final SequenceConstructor m_aBody;
 
+  /**
+   * @param aElement
+   *        The xsl:on-empty or xsl:on-non-empty element.
+   * @param bOnNonEmpty
+   *        <code>true</code> for xsl:on-non-empty.
+   * @param aSelect
+   *        The select expression, or <code>null</code> if the content is used.
+   * @param aBody
+   *        The content; only used (and then not <code>null</code>) if there is
+   *        no select expression.
+   */
   public OnEmptyInstruction (@NonNull final XslElement aElement,
                              final boolean bOnNonEmpty,
                              @Nullable final XPathExpr aSelect,
@@ -56,6 +67,12 @@ public final class OnEmptyInstruction extends AbstractInstruction
     return m_bOnNonEmpty;
   }
 
+  /**
+   * Write the value of the select expression, or else the result of the
+   * content, to the output. Whether the instruction runs at all is decided by
+   * the enclosing {@link ConditionalContent}, which calls this only when the
+   * condition holds, with the context at the position of the instruction.
+   */
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     if (m_aSelect != null)

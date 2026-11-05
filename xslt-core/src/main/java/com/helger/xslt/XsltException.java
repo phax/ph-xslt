@@ -35,6 +35,20 @@ public class XsltException extends XPathException
   private final int m_nLine;
   private final int m_nColumn;
 
+  /**
+   * Create an error with an explicit location.
+   *
+   * @param sCode
+   *        Error code, e.g. XTSE0010.
+   * @param sMessage
+   *        Message.
+   * @param sModuleUri
+   *        Module URI or <code>null</code>.
+   * @param nLine
+   *        1-based line, 0 if unknown.
+   * @param nColumn
+   *        1-based column, 0 if unknown.
+   */
   public XsltException (@NonNull final String sCode,
                         @NonNull final String sMessage,
                         @Nullable final String sModuleUri,
@@ -94,7 +108,10 @@ public class XsltException extends XPathException
   }
 
   /**
-   * Attach a stylesheet location to an error unless it already has one.
+   * Attach a stylesheet location to an error unless it already has one. An
+   * error without location (an XPath error, or an XsltException that is not
+   * located) is wrapped in a new XsltException that keeps its code,
+   * description and error object and has it as cause.
    *
    * @param aEx
    *        The error.
