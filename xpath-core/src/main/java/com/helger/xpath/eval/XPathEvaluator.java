@@ -57,6 +57,7 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmDocumentNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -598,7 +599,89 @@ public final class XPathEvaluator
   }
 
   /**
-   * Evaluate a whole path expression (XPath 3.1 section 3.3) with all its steps.
+   * @param nEnd
+   *        The number of steps to look at, from the first one on.
+   * @return <code>true</code> if all these steps are axis steps without predicates. From a node
+   *         such a step raises no error and selects nodes of the same tree only.
+   */
+  private static boolean _areErrorFreeSteps (@NonNull final List <IExpr.StepExpr> aSteps, final int nEnd)
+  {
+    for (int i = 0; i < nEnd; ++i)
+    {
+      final IExpr.StepExpr aStep = aSteps.get (i);
+      if (aStep.postfix () != null || !aStep.predicates ().isEmpty ())
+        return false;
+    }
+    return true;
+  }
+
+  /**
+   * Is the expression of a shape that raises no error if the context item is a node whose tree
+   * has a document node as root, and that then selects only nodes of that tree? These are paths
+   * (relative or absolute) of axis steps without predicates, possibly starting with such an
+   * expression, unions of them, and one of them in parentheses. The recursion follows the
+   * expression nesting, not the input.
+   */
+  private static boolean _isErrorFreeNodeExpr (@NonNull final IExpr aExpr)
+  {
+    return switch (aExpr)
+    {
+      case final IExpr.PathExpr e -> (e.start () == null || _isErrorFreeNodeExpr (e.start ())) &&
+                                     _areErrorFreeSteps (e.steps (), e.steps ().size ());
+      case final IExpr.SetExpr e -> e.op () == IExpr.SetExpr.ESetOp.UNION &&
+                                    _isErrorFreeNodeExpr (e.left ()) &&
+                                    _isErrorFreeNodeExpr (e.right ());
+      case final IExpr.SequenceExpr e -> e.items ().size () == 1 && _isErrorFreeNodeExpr (e.items ().get (0));
+      default -> false;
+    };
+  }
+
+  /**
+   * Can a path be answered as empty from the element index of the document, without evaluating
+   * the steps before its last one? That is the case if the last step is a child, descendant or
+   * descendant-or-self step with an exact element name that does not occur in the document. To
+   * skip no error, only prefixes that cannot raise one qualify: a start expression and the steps
+   * before the last as in {@link #_isErrorFreeNodeExpr(IExpr)}, from a context item that is a node
+   * whose root is a document node (anything else falls back to the evaluation, which raises
+   * XPDY0002, XPTY0020 or XPDY0050 as before). Paths without anything before the last step are
+   * left to the evaluation, which is as cheap. A tree that is not numbered or a streamed document
+   * has no index and is never answered here.
+   *
+   * @param aLast
+   *        The last step (the fused step for <code>//name</code>).
+   * @param nPrefix
+   *        The number of steps before the last one.
+   * @return <code>true</code> if the path is known to be empty.
+   */
+  private static boolean _isEmptyByNameIndex (final IExpr.@NonNull PathExpr aExpr,
+                                               final IExpr.@NonNull StepExpr aLast,
+                                               final int nPrefix,
+                                               @NonNull final DynamicContext aCtx)
+  {
+    if (aLast.postfix () != null || (aExpr.start () == null && nPrefix == 0))
+      return false;
+    final EAxis eAxis = aLast.axis ();
+    if (eAxis != EAxis.CHILD && eAxis != EAxis.DESCENDANT && eAxis != EAxis.DESCENDANT_OR_SELF)
+      return false;
+    final XdmQName aName = _getExactName (aLast.test ());
+    if (aName == null)
+      return false;
+    if ((aExpr.start () != null && !_isErrorFreeNodeExpr (aExpr.start ())) ||
+        !_areErrorFreeSteps (aExpr.steps (), nPrefix))
+      return false;
+    if (!(aCtx.getContextItem () instanceof final IXdmNode aNode) ||
+        !(aNode.getRoot () instanceof final XdmDocumentNode aDoc))
+      return false;
+    // null if the tree is not numbered or the document is streamed
+    final List <IXdmNode> aElements = aDoc.getElementsByName (aName);
+    return aElements != null && aElements.isEmpty ();
+  }
+
+  /**
+   * Evaluate a whole path expression (XPath 3.1 section 3.3) with all its steps. A path that
+   * selects elements by a name the document does not contain, after a prefix that cannot raise an
+   * error, is empty without evaluating the prefix
+   * ({@link #_isEmptyByNameIndex(IExpr.PathExpr, IExpr.StepExpr, int, DynamicContext)}).
    *
    * @return The result of the last step: nodes in document order without duplicates, or, for a
    *         last step that is a postfix expression yielding no nodes, its items in their order.
@@ -606,7 +689,17 @@ public final class XPathEvaluator
   @NonNull
   private static XdmSequence _evalPath (final IExpr.@NonNull PathExpr aExpr, @NonNull final DynamicContext aCtx)
   {
-    return _evalPathPrefix (aExpr, aCtx, aExpr.steps ().size ());
+    final List <IExpr.StepExpr> aSteps = aExpr.steps ();
+    final int nSteps = aSteps.size ();
+    if (nSteps > 0)
+    {
+      // The fused "//name" step replaces the last two steps
+      final boolean bFused = nSteps >= 2 && aSteps.get (nSteps - 2).fused () != null;
+      final IExpr.StepExpr aLast = bFused ? aSteps.get (nSteps - 2).fused () : aSteps.get (nSteps - 1);
+      if (_isEmptyByNameIndex (aExpr, aLast, bFused ? nSteps - 2 : nSteps - 1, aCtx))
+        return XdmSequence.EMPTY;
+    }
+    return _evalPathPrefix (aExpr, aCtx, nSteps);
   }
 
   /**
@@ -646,7 +739,9 @@ public final class XPathEvaluator
   /**
    * Early exit for a path whose last step is an axis step: its value is a node sequence, so its
    * effective boolean value and its existence are the same question. All steps before the last one
-   * are evaluated completely.
+   * are evaluated completely, unless the element index of the document shows that the last step
+   * selects nothing
+   * ({@link #_isEmptyByNameIndex(IExpr.PathExpr, IExpr.StepExpr, int, DynamicContext)}).
    *
    * @return <code>null</code> if the last step is not an axis step (the caller then evaluates the
    *         path completely).
@@ -668,6 +763,8 @@ public final class XPathEvaluator
     }
     if (aLast.postfix () != null)
       return null;
+    if (_isEmptyByNameIndex (aExpr, aLast, nPrefix, aCtx))
+      return Boolean.FALSE;
     // "//@name": the full evaluation answers it from the attribute index,
     // which is cheaper than visiting every node of the subtrees here
     if (nPrefix == nSteps - 1 &&

@@ -28,9 +28,10 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 /**
  * A node of the XPath data model. Nodes are mutable while a tree is built and
  * must be treated as read-only afterwards. Document order is only defined
- * after {@link #assignDocumentOrder()} was called on the root, which
- * {@link XdmTreeBuilder} does; {@link #compareDocumentOrder(IXdmNode, IXdmNode)}
- * numbers an unnumbered tree on demand. Adding or removing a child or an
+ * after {@link #assignDocumentOrder()} was called on the root, or for a tree
+ * that {@link XdmTreeBuilder} numbered while building it;
+ * {@link #compareDocumentOrder(IXdmNode, IXdmNode)} numbers an unnumbered tree
+ * on demand. Adding or removing a child or an
  * attribute in a numbered tree removes the numbering of the whole tree, which is
  * then assigned again on demand.<br>
  * Every node kind has its own implementation class that only carries the

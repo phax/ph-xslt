@@ -19,6 +19,8 @@ package com.helger.xpath.xdm;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -59,6 +61,38 @@ public final class XdmQNameTest
     assertTrue (a.isSameName (null, "a"));
     assertTrue (a.isSameName ("", "a"));
     assertFalse (a.isSameName ("urn:x", "a"));
+  }
+
+  @Test
+  public void testGetInterned ()
+  {
+    final String sNs = "urn:x:interned";
+    final XdmQName a = new XdmQName (new String (sNs), new String ("a"), new String ("p"));
+    assertNotSame (sNs, a.namespaceUri ());
+    final XdmQName b = a.getInterned ();
+    assertEquals (a, b);
+    assertEquals ("p", b.prefix ());
+    assertSame (sNs, b.namespaceUri ());
+    assertSame ("a", b.localName ());
+    assertSame ("p", b.prefix ());
+    // Canonical already: the same instance
+    assertSame (b, b.getInterned ());
+  }
+
+  @Test
+  public void testParsedNamesAreInterned () throws XdmParseException
+  {
+    // The names of parsed nodes share their strings with interned node test
+    // names, so that a match is decided by identity
+    final String sXml = "<p:r xmlns:p='urn:x:parsed' a='1'><p:c p:b='2'/></p:r>";
+    final IXdmNode aRoot = new XdmParser ().parse (sXml).getChildAtIndex (0);
+    assertSame ("urn:x:parsed", aRoot.getName ().namespaceUri ());
+    assertSame ("r", aRoot.getName ().localName ());
+    assertSame ("a", aRoot.getAttributeAtIndex (0).getName ().localName ());
+    final IXdmNode aChild = aRoot.getChildAtIndex (0);
+    assertSame ("c", aChild.getName ().localName ());
+    assertSame ("b", aChild.getAttributeAtIndex (0).getName ().localName ());
+    assertSame ("urn:x:parsed", aChild.getAttributeAtIndex (0).getName ().namespaceUri ());
   }
 
   @Test(expected = IllegalArgumentException.class)

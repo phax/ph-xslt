@@ -17,11 +17,14 @@
 package com.helger.xpath;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 
 import java.math.BigDecimal;
 
 import org.junit.Test;
 
+import com.helger.xpath.ast.IExpr;
+import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.fn.FormatDecimalFormat;
@@ -56,5 +59,19 @@ public final class CompiledXPathTest
     assertEquals (2, aResult.size ());
     assertEquals ("1.234,5", Atomizer.getStringValue (aResult.get (0)));
     assertEquals ("urn:p", Atomizer.getStringValue (aResult.get (1)));
+  }
+
+  @Test
+  public void testNodeTestNamesAreInterned ()
+  {
+    // A namespace URI read from a file is no interned literal
+    final StaticContext aSC = new StaticContext ();
+    aSC.declareNamespace ("p", new String ("urn:p:interned"));
+    final IExpr.PathExpr aPath = (IExpr.PathExpr) XPathCompiler.compile ("p:a/b", aSC).getExpression ();
+    final NodeTest aFirst = aPath.steps ().get (0).test ();
+    assertSame ("urn:p:interned", aFirst.name ().namespaceUri ());
+    assertSame ("a", aFirst.name ().localName ());
+    assertSame ("p", aFirst.name ().prefix ());
+    assertSame ("b", aPath.steps ().get (1).test ().name ().localName ());
   }
 }

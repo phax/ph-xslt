@@ -102,6 +102,30 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
   }
 
   /**
+   * Get this name with the canonical instances of its strings
+   * ({@link String#intern()}). The JDK XML parsers report element and
+   * attribute names as such instances, so that comparing an interned name
+   * with the name of a parsed node is decided by the identity checks of
+   * {@link String#equals(Object)} on a match. The JVM keeps interned strings
+   * in a thread-safe table from which unused ones are garbage collected.
+   * Meant for names that are compared often, such as the names of node tests,
+   * since every call looks up all three strings.
+   *
+   * @return This name if its strings are canonical already, otherwise an
+   *         equal name with the same prefix and canonical strings.
+   */
+  @NonNull
+  public XdmQName getInterned ()
+  {
+    final String sNamespaceUri = namespaceUri.intern ();
+    final String sLocalName = localName.intern ();
+    final String sPrefix = prefix.intern ();
+    if (sNamespaceUri == namespaceUri && sLocalName == localName && sPrefix == prefix)
+      return this;
+    return new XdmQName (sNamespaceUri, sLocalName, sPrefix);
+  }
+
+  /**
    * Compare the expanded name, ignoring the prefix.
    *
    * @param sNamespaceUri
