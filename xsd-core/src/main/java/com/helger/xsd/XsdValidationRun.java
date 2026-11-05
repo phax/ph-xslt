@@ -119,6 +119,14 @@ final class XsdValidationRun
   record DefaultAttr (@NonNull XsdName name, @NonNull String value, @Nullable IXsdType type)
   {}
 
+  /**
+   * The content a value constraint supplied to an element without character
+   * or element children (cvc-elt.5.1), and the simple type it was validated
+   * against.
+   */
+  record DefaultContent (@NonNull String value, @NonNull XsdSimpleType type)
+  {}
+
   private final XsdSchema m_aSchema;
   private final IXdmNode m_aDocument;
 
@@ -142,6 +150,7 @@ final class XsdValidationRun
   private ICommonsMap <IXdmNode, IXsdType> m_aNodeTypes;
   private ICommonsSet <IXdmNode> m_aNodeNilled;
   private ICommonsMap <IXdmNode, ICommonsList <DefaultAttr>> m_aNodeDefaults;
+  private ICommonsMap <IXdmNode, DefaultContent> m_aNodeDefaultContent;
   /*
    * The types simple-typed nodes validated against, for the typed view of XSD
    * 1.1 assertions. null unless the schema has assertions.
@@ -278,11 +287,16 @@ final class XsdValidationRun
       m_aNodeNilled = new CommonsHashSet <> ();
   }
 
-  /** Enable recording of the attributes value constraints supplied. */
+  /**
+   * Enable recording of the attributes and the element content value
+   * constraints supplied.
+   */
   void enableNodeDefaults ()
   {
     if (m_aNodeDefaults == null)
       m_aNodeDefaults = new CommonsHashMap <> ();
+    if (m_aNodeDefaultContent == null)
+      m_aNodeDefaultContent = new CommonsHashMap <> ();
   }
 
   /** @return The recorded type annotations; <code>null</code> if not enabled. */
@@ -304,6 +318,16 @@ final class XsdValidationRun
   ICommonsMap <IXdmNode, ICommonsList <DefaultAttr>> getNodeDefaults ()
   {
     return m_aNodeDefaults;
+  }
+
+  /**
+   * @return The recorded supplied element content; <code>null</code> if not
+   *         enabled.
+   */
+  @Nullable
+  ICommonsMap <IXdmNode, DefaultContent> getNodeDefaultContent ()
+  {
+    return m_aNodeDefaultContent;
   }
 
   /**
@@ -393,6 +417,26 @@ final class XsdValidationRun
       return;
     m_aNodeDefaults.computeIfAbsent (aElement, k -> new CommonsArrayList <> ())
                    .add (new DefaultAttr (aName, sValue, aType));
+  }
+
+  /**
+   * Record the content that a default or fixed value constraint supplies to an
+   * element without character or element children, for the write-back of an
+   * in-place validation. Does nothing unless recorded (see
+   * {@link #enableNodeDefaults()}).
+   *
+   * @param aElement
+   *        The element.
+   * @param sValue
+   *        The value constraint's lexical form.
+   * @param aType
+   *        The simple type the value was validated against.
+   */
+  void noteDefaultContent (@NonNull final IXdmNode aElement, @NonNull final String sValue, @NonNull final XsdSimpleType aType)
+  {
+    if (m_aNodeDefaultContent == null)
+      return;
+    m_aNodeDefaultContent.put (aElement, new DefaultContent (sValue, aType));
   }
 
   /**

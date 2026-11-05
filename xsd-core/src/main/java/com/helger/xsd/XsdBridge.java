@@ -42,6 +42,7 @@ import com.helger.xpath.xdm.schema.IXdmElementDeclaration;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 import com.helger.xsd.XsdValidationRun.DefaultAttr;
+import com.helger.xsd.XsdValidationRun.DefaultContent;
 
 /**
  * The XSLT/XPath schema-awareness bridge (go-xslt <code>bridge.go</code>):
@@ -556,6 +557,44 @@ final class XsdBridge implements IXdmSchemaSet
   }
 
   /**
+   * Materialise the content a default or fixed value constraint supplied to
+   * an element without character or element children (cvc-elt.5.1): XDM 3.1
+   * section 6.2.4 gives an element of a simple type or with simple content a
+   * text node holding its [schema normalized value], none if that is empty.
+   * The value is whitespace-normalised by the type (for a union, by the
+   * accepting member) and appended to the element and to its validation
+   * copy, so that the annotation sees it.
+   *
+   * @return <code>true</code> if a text node was added.
+   */
+  private static boolean _supplyDefaultContent (@NonNull final Cloned aCloned, @NonNull final XsdValidationRun aRun)
+  {
+    final ICommonsMap <IXdmNode, DefaultContent> aContent = aRun.getNodeDefaultContent ();
+    if (aContent == null || aContent.isEmpty ())
+      return false;
+    boolean bChanged = false;
+    for (int i = 0; i < aCloned.clones ().size (); i++)
+    {
+      final IXdmNode aCopy = aCloned.clones ().get (i);
+      final DefaultContent aDefault = aContent.get (aCopy);
+      if (aDefault == null)
+        continue;
+      final IXdmNode aOrig = aCloned.originals ().get (i);
+      final IXsdType aValueType = _valueTypeOf (aDefault.type (), aDefault.value (), aCopy);
+      final XsdSimpleType aWSType = aValueType instanceof final XsdSimpleType aST ? aST : aDefault.type ();
+      final String sNormalised = XsdWhiteSpace.apply (aWSType.effectiveWhiteSpace (), aDefault.value ());
+      if (sNormalised.isEmpty ())
+        continue;
+      final IXdmNode aText = IXdmNode.createText (sNormalised);
+      aText.setLocation (aOrig.getLine (), aOrig.getColumn ());
+      aOrig.appendChild (aText);
+      aCopy.appendChild (IXdmNode.createText (sNormalised));
+      bChanged = true;
+    }
+    return bChanged;
+  }
+
+  /**
    * go-xslt <code>stripElementOnlyWhitespace</code>: a whitespace-only text
    * node cannot survive in an element whose type has element-only content
    * (XDM 3.1 section 6.7.3).
@@ -640,10 +679,11 @@ final class XsdBridge implements IXdmSchemaSet
       // knows only valid or not
       throw new XdmValidationException ("cannot be validated: " + ex.getMessage (), ex);
     }
+    final boolean bContent = _supplyDefaultContent (aCloned, aRun);
     _annotate (aCloned, aRun);
     final boolean bAdded = _supplyDefaults (aCloned, aRun);
     final boolean bStripped = _stripElementOnlyWhitespace (aCloned, aRun);
-    return bAdded || bStripped;
+    return bContent || bAdded || bStripped;
   }
 
   /**
@@ -651,8 +691,8 @@ final class XsdBridge implements IXdmSchemaSet
    * <p>
    * The validation runs on a detached clone (see
    * {@link #_validateInPlace(IXdmNode, IXsdType, boolean)}). When it added
-   * default attributes or removed whitespace text nodes, the document order
-   * is assigned again from the element. The message of an error is prefixed
+   * default attributes or default element content, or removed whitespace text
+   * nodes, the document order is assigned again from the element. The message of an error is prefixed
    * with the element's EQName.
    *
    * @throws IllegalArgumentException
@@ -690,9 +730,10 @@ final class XsdBridge implements IXdmSchemaSet
    * {@link #_validateInPlace(IXdmNode, IXsdType, boolean)} against its global
    * declaration, with the document-level constraints. When the structure
    * changed, the document order of the whole document is assigned again.
-   * Only default and fixed attributes are materialised: an empty element whose
-   * declaration has a default or fixed value is validated against that value
-   * (cvc-elt.5.1), but no text node is added to the tree.
+   * Default and fixed attributes are materialised, and so is the default or
+   * fixed content of an element without character or element children that
+   * has a simple type or simple content (a text node with the schema
+   * normalized value, XDM 3.1 section 6.2.4).
    *
    * @throws IllegalArgumentException
    *         if the node is not a document node, or has no document element

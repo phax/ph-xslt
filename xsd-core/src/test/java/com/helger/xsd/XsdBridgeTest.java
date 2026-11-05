@@ -621,4 +621,39 @@ public final class XsdBridgeTest
       assertTrue (ex.getCause () instanceof XsdUnsupportedException);
     }
   }
+
+  @Test
+  public void testDefaultElementContent () throws XdmParseException, XdmValidationException
+  {
+    // XDM 3.1 6.2.4: an element of a simple type or with simple content that
+    // takes its default or fixed value gets a text node with the schema
+    // normalized value (none if that is empty)
+    final IXdmSchemaSet aSet = _compile ("""
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="doc"><xs:complexType><xs:sequence>
+            <xs:element name="a" type="xs:int" default="5" maxOccurs="2"/>
+            <xs:element name="b" type="xs:token" fixed=" x  y "/>
+            <xs:element name="c" type="xs:string" default=""/>
+            <xs:element name="d" default="7"><xs:complexType><xs:simpleContent>
+              <xs:extension base="xs:int"><xs:attribute name="at"/></xs:extension>
+            </xs:simpleContent></xs:complexType></xs:element>
+          </xs:sequence></xs:complexType></xs:element>
+        </xs:schema>""");
+    final IXdmNode aDoc = new XdmParser ().parse ("<doc><a/><a><!--c--></a><b/><c/><d at='1'/></doc>");
+    aSet.validateDocument (aDoc);
+    final ICommonsList <IXdmNode> aKids = new CommonsArrayList <> ();
+    for (final IXdmNode aChild : XsdNodes.rootElement (aDoc).getAllChildren ())
+      if (aChild.isElement ())
+        aKids.add (aChild);
+    assertEquals ("5", aKids.get (0).getStringValue ());
+    assertEquals (1, aKids.get (0).getChildCount ());
+    assertEquals ("5", aKids.get (1).getStringValue ());
+    assertEquals (2, aKids.get (1).getChildCount ());
+    assertEquals ("x y", aKids.get (2).getStringValue ());
+    assertEquals (0, aKids.get (3).getChildCount ());
+    assertEquals ("7", aKids.get (4).getStringValue ());
+    // The new text nodes are in document order
+    assertTrue (aKids.get (0).getChildAtIndex (0).getOrder () > aKids.get (0).getOrder ());
+    assertTrue (aKids.get (1).getOrder () > aKids.get (0).getChildAtIndex (0).getOrder ());
+  }
 }

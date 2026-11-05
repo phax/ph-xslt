@@ -515,17 +515,28 @@ final class XsdInstanceValidator
    * element's simple content. cvc-elt.5.1: an element with neither character
    * (whitespace included) nor element children but a default or fixed value
    * constraint on its declaration takes the constraint value as its
-   * schema-normalised value.
+   * schema-normalised value. The supplied value is recorded in the run for
+   * the in-place write-back.
    */
   @NonNull
-  private static String _effectiveSimpleText (@Nullable final XsdElementDecl aDecl, @NonNull final IXdmNode aElement)
+  private static String _effectiveSimpleText (@NonNull final XsdValidationRun aRun,
+                                              @Nullable final XsdElementDecl aDecl,
+                                              @NonNull final IXdmNode aElement,
+                                              @NonNull final XsdSimpleType aType)
   {
     if (aDecl != null && !_hasValueConstraintContent (aElement))
     {
+      String sSupplied = null;
       if (aDecl.m_bHasFixed)
-        return aDecl.m_sFixed;
-      if (aDecl.m_bHasDefault)
-        return aDecl.m_sDefault;
+        sSupplied = aDecl.m_sFixed;
+      else
+        if (aDecl.m_bHasDefault)
+          sSupplied = aDecl.m_sDefault;
+      if (sSupplied != null)
+      {
+        aRun.noteDefaultContent (aElement, sSupplied, aType);
+        return sSupplied;
+      }
     }
     return elementText (aElement);
   }
@@ -1166,7 +1177,7 @@ final class XsdInstanceValidator
           throw XsdCompiler.invalid ("cvc-complex-type.2.2", "simple content must not contain child elements");
         if (aType.m_aSimpleType != null)
         {
-          final String sText = _effectiveSimpleText (aDecl, aElement);
+          final String sText = _effectiveSimpleText (aRun, aDecl, aElement, aType.m_aSimpleType);
           yearZeroOK (aRun, aType.m_aSimpleType, sText);
           XsdSimpleTypeValidator.validateIn (aType.m_aSimpleType, sText, aElement);
           aRun.annotateAssertType (aElement, aType.m_aSimpleType);
@@ -1235,7 +1246,7 @@ final class XsdInstanceValidator
       }
       if (_hasChildElements (aElement))
         throw XsdCompiler.invalid ("cvc-type.3.1.2", "simple-typed element must not have child elements");
-      final String sText = _effectiveSimpleText (aDecl, aElement);
+      final String sText = _effectiveSimpleText (aRun, aDecl, aElement, aST);
       yearZeroOK (aRun, aST, sText);
       XsdSimpleTypeValidator.validateIn (aST, sText, aElement);
       aRun.annotateAssertType (aElement, aST);
