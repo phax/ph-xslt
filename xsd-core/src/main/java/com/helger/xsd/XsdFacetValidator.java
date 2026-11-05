@@ -247,14 +247,17 @@ final class XsdFacetValidator
    * exactly one side timezoned, the other is compared with both extreme
    * offsets imputed; if that changes the result, the pair is incomparable. A
    * numeric NaN and two durations without an order (Datatypes 3.3.6.1) are
-   * incomparable as well.
+   * incomparable as well. The bound's lexical is whitespace-collapsed first.
    */
   @NonNull
   private static BoundOrder _order (@NonNull final String sValue,
                                     @NonNull final XdmAtomic aValue,
-                                    @NonNull final String sBound,
+                                    @NonNull final String sRawBound,
                                     @NonNull final EAtomicType ePrim)
   {
+    // The facet's value is in the base type's value space: its lexical is
+    // whitespace-collapsed like every ordered primitive's
+    final String sBound = XsdWhiteSpace.collapse (sRawBound);
     final XdmAtomic aBound = XsdValueCompare.castOrNull (sBound, ePrim);
     if (aBound == null)
       return new BoundOrder (0, false, false);
@@ -395,8 +398,9 @@ final class XsdFacetValidator
    * cast to the primitive and ordered against each bound that is set with
    * {@link #_order}. A pair that is incomparable (a date/time with and one
    * without a timezone whose order depends on the imputed offset, a numeric
-   * NaN, or two durations such as P1M and P30D) fails the bound; a bound that cannot be cast or ordered otherwise
-   * passes. A no-op if no bound is set.
+   * NaN, or two durations such as P1M and P30D) fails the bound; a bound
+   * that cannot be cast or ordered otherwise passes. A no-op if no bound is
+   * set.
    *
    * @throws XsdInvalidException
    *         <code>cvc-datatype-valid</code> if the value cannot be cast to the

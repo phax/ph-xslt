@@ -213,10 +213,9 @@ final class XsdInstanceValidator
   /**
    * Whether the element has content in the sense of the value constraint and
    * nil rules: an element child, or a text child that is not whitespace only.
-   * Whitespace-only text alone counts as no content. Used for the default or
-   * fixed value of an empty element (cvc-elt.5.1), the emptiness of a nilled
-   * element (cvc-elt.3.2.1, together with {@link #_elementHasAnyText} under
-   * 1.1) and whether a fixed value is compared at all.
+   * Whitespace-only text alone counts as no content. Used for the emptiness
+   * of a nilled element (cvc-elt.3.2.1, together with
+   * {@link #_elementHasAnyText} under 1.1).
    *
    * @return <code>true</code> if there is such content.
    */
@@ -243,7 +242,11 @@ final class XsdInstanceValidator
   private static boolean _isNilled (@NonNull final IXdmNode aElement)
   {
     final String s = XsdNodes.attrNS (aElement, XsdConstants.NS_XSI, "nil");
-    return s != null && ("true".equals (s) || "1".equals (s));
+    if (s == null)
+      return false;
+    // xsi:nil is an xs:boolean: its value is whitespace-collapsed
+    final String sValue = XsdWhiteSpace.collapse (s);
+    return "true".equals (sValue) || "1".equals (sValue);
   }
 
   /**
@@ -494,15 +497,30 @@ final class XsdInstanceValidator
   }
 
   /**
+   * Whether the value constraint of an element declaration is replaced by the
+   * element's own content (cvc-elt.5.2): the element has element children or
+   * character children, whitespace-only text included. Otherwise the value
+   * constraint supplies the value (cvc-elt.5.1).
+   *
+   * @return <code>true</code> if the element has element or character
+   *         children.
+   */
+  private static boolean _hasValueConstraintContent (@NonNull final IXdmNode aElement)
+  {
+    return _hasChildElements (aElement) || _elementHasAnyText (aElement);
+  }
+
+  /**
    * go-xslt <code>effectiveSimpleText</code>: the value to validate as an
-   * element's simple content. cvc-elt.5.1: an element with no character or
-   * element content but a default or fixed value constraint on its declaration
-   * takes the constraint value as its schema-normalised value.
+   * element's simple content. cvc-elt.5.1: an element with neither character
+   * (whitespace included) nor element children but a default or fixed value
+   * constraint on its declaration takes the constraint value as its
+   * schema-normalised value.
    */
   @NonNull
   private static String _effectiveSimpleText (@Nullable final XsdElementDecl aDecl, @NonNull final IXdmNode aElement)
   {
-    if (aDecl != null && !_elementHasContent (aElement))
+    if (aDecl != null && !_hasValueConstraintContent (aElement))
     {
       if (aDecl.m_bHasFixed)
         return aDecl.m_sFixed;
@@ -1286,10 +1304,10 @@ final class XsdInstanceValidator
    * deeper in the run's depth count.</li>
    * <li>Fixed value: a mixed-content element with a fixed value must have no
    * element children (cvc-elt.5.2.2.1); an element without element children
-   * but with non-whitespace text must equal the fixed value in the value
-   * space of its simple content type, or that of one of
-   * <code>aExtraFixed</code> (cvc-elt.5.2.2.2). Content that is absent or
-   * whitespace only is not compared here.</li>
+   * but with character children (whitespace only included) must equal the
+   * fixed value in the value space of its simple content type, or that of one
+   * of <code>aExtraFixed</code> (cvc-elt.5.2.2.2). Absent content is not
+   * compared here.</li>
    * <li>The declaration's keyrefs are checked against the tables whose scope
    * is this element.</li>
    * </ol>
@@ -1415,7 +1433,7 @@ final class XsdInstanceValidator
       if (aType instanceof final XsdComplexType aCT && aCT.m_eKind == EXsdContentKind.MIXED)
         throw XsdCompiler.invalid ("cvc-elt.5.2.2.1",
                                    "element " + aDecl.m_aName.local () + " has a fixed value and must have no element children");
-    if (aDecl.m_bHasFixed && !_hasChildElements (aElement) && _elementHasContent (aElement))
+    if (aDecl.m_bHasFixed && !_hasChildElements (aElement) && _elementHasAnyText (aElement))
     {
       final String sContent = elementText (aElement);
       final XsdSimpleType aST = XsdComponentParser.simpleContentType (aType);
