@@ -209,9 +209,9 @@ public final class XdmStreamReader implements AutoCloseable
 
   /**
    * Get the shared name instance for a namespace URI and lexical name,
-   * creating it on first use, like {@link XdmTreeBuilder} does. The cache key
-   * includes the prefix, so that each node keeps the prefix used in the
-   * source.
+   * creating it on first use with canonical strings, like
+   * {@link XdmTreeBuilder} does. The cache key includes the prefix, so that
+   * each node keeps the prefix used in the source.
    *
    * @param sUri
    *        Namespace URI; <code>null</code> or empty for none.
@@ -228,7 +228,7 @@ public final class XdmStreamReader implements AutoCloseable
     final String sRealPrefix = sPrefix == null ? "" : sPrefix;
     final String sQName = sRealPrefix.isEmpty () ? sLocalName : sRealPrefix + ':' + sLocalName;
     return m_aNames.computeIfAbsent (sRealUri, k -> new CommonsHashMap <> ())
-                   .computeIfAbsent (sQName, k -> new XdmQName (sRealUri, sLocalName, _getPrefix (sQName)));
+                   .computeIfAbsent (sQName, k -> new XdmQName (sRealUri, sLocalName, _getPrefix (sQName)).getInterned ());
   }
 
   /**

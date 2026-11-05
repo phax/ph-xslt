@@ -114,8 +114,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
 
   /**
    * Get the shared name instance for a namespace URI and lexical name,
-   * creating it on first use. The cache key includes the prefix, so that each
-   * node keeps the prefix used in the source.
+   * creating it on first use with canonical strings
+   * ({@link XdmQName#getInterned()}), as the names of node tests have them.
+   * The cache key includes the prefix, so that each node keeps the prefix used
+   * in the source.
    *
    * @param sUri
    *        Namespace URI, empty for none.
@@ -131,7 +133,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
     // Keyed by the lexical name and not by XdmQName, whose equals ignores the
     // prefix
     return m_aNames.computeIfAbsent (sUri, k -> new CommonsHashMap <> ())
-                   .computeIfAbsent (sQName, k -> new XdmQName (sUri, sLocalName, _getPrefix (sQName)));
+                   .computeIfAbsent (sQName, k -> new XdmQName (sUri, sLocalName, _getPrefix (sQName)).getInterned ());
   }
 
   /**

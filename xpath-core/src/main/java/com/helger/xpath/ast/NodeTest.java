@@ -75,6 +75,17 @@ public record NodeTest (@NonNull ENodeTestKind kind,
                         @Nullable IXdmTypeDefinition typeDefinition)
 {
   /**
+   * The name is kept with canonical strings ({@link XdmQName#getInterned()}),
+   * like the names of parsed documents, so that a name test that matches is
+   * decided by identity and not by comparing the namespace URIs.
+   */
+  public NodeTest
+  {
+    if (name != null)
+      name = name.getInterned ();
+  }
+
+  /**
    * A node test without schema declarations.
    *
    * @param kind
