@@ -80,6 +80,15 @@ public final class StylesheetLoader
   public record Level (@NonNull ICommonsList <XslElement> declarations, int importLo)
   {}
 
+  /**
+   * The deepest nesting the loader and the checks over the stylesheet tree
+   * accept: of elements within a module (counting the elements of the
+   * modules loaded from it) and of modules within xsl:include, xsl:import and
+   * xsl:use-package. Deeper input is rejected with XPDY0130 (an
+   * implementation limit) instead of exhausting the stack.
+   */
+  public static final int MAX_DEPTH = 1000;
+
   private final XsltCompileOptions m_aOptions;
   private final FunctionLibrary m_aStaticFunctions;
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticValues = new CommonsLinkedHashMap <> ();
@@ -97,6 +106,8 @@ public final class StylesheetLoader
   private PackageRegistry m_aRegistry;
   // "variable" or "param" per static name
   private final ICommonsMap <XdmQName, String> m_aStaticKinds = new CommonsHashMap <> ();
+  // The nesting depth of _build, including the elements of loaded modules
+  private int m_nBuildDepth;
 
   /**
    * Create a loader. The function library for static expressions is the
@@ -428,7 +439,7 @@ public final class StylesheetLoader
    *        The ID to find.
    * @return The element or <code>null</code> if there is none.
    */
-  @NonNull
+  @Nullable
   private static IXdmNode _findById (@NonNull final IXdmNode aRoot, @NonNull final String sID)
   {
     final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
@@ -623,6 +634,10 @@ public final class StylesheetLoader
    * parameter is processed, and an xsl:include, xsl:import or xsl:use-package
    * loads its target module at once, so all static processing happens in
    * stylesheet tree order. The children are built last.
+   *
+   * @throws XsltException
+   *         XPDY0130 if the elements, counting those of the modules loaded
+   *         from here, are nested deeper than {@link #MAX_DEPTH}
    */
   @Nullable
   private XslElement _build (@NonNull final XslModule aModule,
@@ -631,34 +646,44 @@ public final class StylesheetLoader
                              final boolean bTopLevel)
   {
     final XslElement aEl = new XslElement (aModule, aSrc);
-    final int nAttrs = aSrc.getAttributeCount ();
-    for (int i = 0; i < nAttrs; ++i)
+    if (m_nBuildDepth >= MAX_DEPTH)
+      throw XsltException.at (aEl, "XPDY0130", "The stylesheet is nested more than " + MAX_DEPTH + " levels deep");
+    m_nBuildDepth++;
+    try
     {
-      final IXdmNode aAttr = aSrc.getAttributeAtIndex (i);
-      aEl.setAttribute (aAttr.getName (), aAttr.getValue ());
-    }
-    if (aParent != null)
-      aParent.appendChild (aEl);
-    _expandShadowAttributes (aEl);
-    if (_isUseWhenFalse (aEl))
-    {
+      final int nAttrs = aSrc.getAttributeCount ();
+      for (int i = 0; i < nAttrs; ++i)
+      {
+        final IXdmNode aAttr = aSrc.getAttributeAtIndex (i);
+        aEl.setAttribute (aAttr.getName (), aAttr.getValue ());
+      }
       if (aParent != null)
-        aParent.removeLastChild ();
-      return null;
-    }
-    if (bTopLevel && aEl.isXsl ())
-    {
-      if ((aEl.isXsl ("param") || aEl.isXsl ("variable")) && XsltNames.isXsltTrue (aEl.getAttr ("static")))
-        _processStaticDeclaration (aEl);
-      else
-        if (aEl.isXsl ("include") || aEl.isXsl ("import"))
-          m_aLoadedModules.put (aEl, _loadReferencedModule (aEl));
+        aParent.appendChild (aEl);
+      _expandShadowAttributes (aEl);
+      if (_isUseWhenFalse (aEl))
+      {
+        if (aParent != null)
+          aParent.removeLastChild ();
+        return null;
+      }
+      if (bTopLevel && aEl.isXsl ())
+      {
+        if ((aEl.isXsl ("param") || aEl.isXsl ("variable")) && XsltNames.isXsltTrue (aEl.getAttr ("static")))
+          _processStaticDeclaration (aEl);
         else
-          if (aEl.isXsl ("use-package"))
-            m_aUsedPackages.put (aEl, _loadUsedPackage (aEl));
+          if (aEl.isXsl ("include") || aEl.isXsl ("import"))
+            m_aLoadedModules.put (aEl, _loadReferencedModule (aEl));
+          else
+            if (aEl.isXsl ("use-package"))
+              m_aUsedPackages.put (aEl, _loadUsedPackage (aEl));
+      }
+      _buildChildren (aModule, aSrc, aEl);
+      return aEl;
     }
-    _buildChildren (aModule, aSrc, aEl);
-    return aEl;
+    finally
+    {
+      m_nBuildDepth--;
+    }
   }
 
   /**
@@ -784,20 +809,27 @@ public final class StylesheetLoader
   /**
    * @param aModule
    *        A loaded module.
+   * @param nDepth
+   *        The number of including modules above it.
    * @return <code>true</code> if it contains an xsl:use-package declaration,
    *         directly or in a module it includes (recursively); imported
    *         modules are not searched.
+   * @throws XsltException
+   *         XPDY0130 if the includes are nested deeper than
+   *         {@link #MAX_DEPTH}
    */
-  private boolean _containsUsePackage (@NonNull final XslModule aModule)
+  private boolean _containsUsePackage (@NonNull final XslModule aModule, final int nDepth)
   {
     if (aModule.getRoot () == null || aModule.isSimplified ())
       return false;
+    if (nDepth >= MAX_DEPTH)
+      throw XsltException.at (aModule.getRoot (), "XPDY0130", "The modules are nested more than " + MAX_DEPTH + " levels deep");
     for (final XslElement aChild : aModule.getRoot ().getElementChildren ())
     {
       if (aChild.isXsl ("use-package"))
         return true;
       final XslModule aSub = m_aLoadedModules.get (aChild);
-      if (aSub != null && aChild.isXsl ("include") && _containsUsePackage (aSub))
+      if (aSub != null && aChild.isXsl ("include") && _containsUsePackage (aSub, nDepth + 1))
         return true;
     }
     return false;
@@ -816,13 +848,19 @@ public final class StylesheetLoader
    *
    * @param aModule
    *        The module.
+   * @param nDepth
+   *        The number of modules above it.
    * @return The levels; the last one is the module's own.
    * @throws XsltException
-   *         XTSE3008 if an imported module contains an xsl:use-package
+   *         XTSE3008 if an imported module contains an xsl:use-package;
+   *         XPDY0130 if the modules are nested deeper than
+   *         {@link #MAX_DEPTH}
    */
   @NonNull
-  private ICommonsList <Level> _gather (@NonNull final XslModule aModule)
+  private ICommonsList <Level> _gather (@NonNull final XslModule aModule, final int nDepth)
   {
+    if (nDepth >= MAX_DEPTH)
+      throw XsltException.at (aModule.getRoot (), "XPDY0130", "The modules are nested more than " + MAX_DEPTH + " levels deep");
     final ICommonsList <Level> ret = new CommonsArrayList <> ();
     final ICommonsList <XslElement> aOwn = new CommonsArrayList <> ();
     if (aModule.isSimplified ())
@@ -836,7 +874,7 @@ public final class StylesheetLoader
           // A used package sits below the using package, like an imported
           // module; the declarations of xsl:override join the using package
           final int nBase = ret.size ();
-          for (final Level aLevel : _gather (aUsed))
+          for (final Level aLevel : _gather (aUsed, nDepth + 1))
             ret.add (new Level (aLevel.declarations (), aLevel.importLo () + nBase));
           for (final XslElement aOverride : aChild.getXslChildren ("override"))
             aOwn.addAll (aOverride.getElementChildren ());
@@ -848,14 +886,14 @@ public final class StylesheetLoader
           aOwn.add (aChild);
           continue;
         }
-        final ICommonsList <Level> aSubLevels = _gather (aSub);
+        final ICommonsList <Level> aSubLevels = _gather (aSub, nDepth + 1);
         final int nBase = ret.size ();
         final ICommonsList <Level> aRebased = new CommonsArrayList <> ();
         for (final Level aLevel : aSubLevels)
           aRebased.add (new Level (aLevel.declarations (), aLevel.importLo () + nBase));
         if (aChild.isXsl ("import"))
         {
-          if (_containsUsePackage (aSub))
+          if (_containsUsePackage (aSub, 0))
             throw XsltException.at (aChild,
                                     "XTSE3008",
                                     "The module imported here contains an xsl:use-package; use xsl:include to bring one in");
@@ -885,7 +923,7 @@ public final class StylesheetLoader
   @NonNull
   public ICommonsList <Level> arrangeByPrecedence (@NonNull final XslModule aPrincipal)
   {
-    final ICommonsList <Level> ret = _gather (aPrincipal);
+    final ICommonsList <Level> ret = _gather (aPrincipal, 0);
     for (int i = 0; i < ret.size (); ++i)
       for (final XslElement aDecl : ret.get (i).declarations ())
       {

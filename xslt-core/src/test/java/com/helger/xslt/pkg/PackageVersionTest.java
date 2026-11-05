@@ -110,5 +110,11 @@ public final class PackageVersionTest
     assertNull (PackageVersionRanges.parse (""));
     assertNull (PackageVersionRanges.parse ("to"));
     assertNull (PackageVersionRanges.parse ("x+"));
+    // VersionTo and VersionFromTo require an upper bound, and whitespace only
+    // around "to" (XSLT 3.0 section 3.5.1)
+    assertNull (PackageVersionRanges.parse ("1.0 to"));
+    assertNull (PackageVersionRanges.parse ("1 .0 to 2"));
+    assertNull (PackageVersionRanges.parse ("1.0 to 2 .0"));
+    assertNull (PackageVersionRanges.parse ("1.0 to 2 to 3"));
   }
 }

@@ -26,8 +26,10 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
+import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
@@ -398,14 +400,16 @@ public final class PackageChecks
    * xsl:expose naming the component explicitly, else its own visibility,
    * else the last partial wildcard, else the last "*", else private.
    *
-   * @param aRoot
-   *        The xsl:package element.
-   * The components considered are the package module's top-level named
-   * declarations (not xsl:param, not the unnamed mode) plus a private mode
-   * for every mode name a template rule uses without an xsl:mode
-   * declaration. Only declarations of the package module itself are looked
-   * at, not those of included modules.
+   * The components considered are the top-level named declarations of all
+   * modules of the package (not xsl:param, not the unnamed mode; of several
+   * declarations with one symbolic name the one with the highest import
+   * precedence) plus a private mode for every mode name a template rule uses
+   * without an xsl:mode declaration.
    *
+   * @param aRoot
+   *        The xsl:package element; its xsl:expose children are the rules.
+   * @param aDecls
+   *        The top-level elements of all modules of the package.
    * @return The exposure or <code>null</code> if the package has no
    *         xsl:expose.
    * @throws XsltException
@@ -417,36 +421,34 @@ public final class PackageChecks
    *         if the result is abstract for a component not declared abstract.
    */
   @Nullable
-  public static Exposure getExposure (@NonNull final XslElement aRoot)
+  public static Exposure getExposure (@NonNull final XslElement aRoot, @NonNull final Iterable <XslElement> aDecls)
   {
-    final ICommonsList <XslElement> aExposes = new CommonsArrayList <> ();
-    final ICommonsList <PackageComponent> aComps = new CommonsArrayList <> ();
-    for (final XslElement aChild : aRoot.getElementChildren ())
-    {
-      if (!aChild.isXsl ())
-        continue;
-      if (aChild.isXsl ("expose"))
-      {
-        aExposes.add (aChild);
-        continue;
-      }
-      final PackageComponent aComp = getComponent (aChild);
-      if (aComp == null || aChild.isXsl ("param"))
-        continue;
-      if ("mode".equals (aComp.kind ()) && aComp.name () == null)
-        continue;
-      aComps.add (aComp);
-    }
+    final ICommonsList <XslElement> aExposes = aRoot.getXslChildren ("expose");
     if (aExposes.isEmpty ())
       return null;
+    final ICommonsOrderedMap <String, PackageComponent> aWinners = new CommonsLinkedHashMap <> ();
+    for (final XslElement aChild : aDecls)
+    {
+      if (!aChild.isXsl () || aChild.isXsl ("param"))
+        continue;
+      final PackageComponent aComp = getComponent (aChild);
+      if (aComp == null || ("mode".equals (aComp.kind ()) && aComp.name () == null))
+        continue;
+      final PackageComponent aPrev = aWinners.get (aComp.getSymbolicName ());
+      if (aPrev == null || aPrev.element ().getPrecedence () < aChild.getPrecedence ())
+        aWinners.put (aComp.getSymbolicName (), aComp);
+    }
+    final ICommonsList <PackageComponent> aComps = new CommonsArrayList <> (aWinners.values ());
     // Modes used only by template rules are components too
     final ICommonsSet <XdmQName> aDeclaredModes = new CommonsHashSet <> ();
     for (final PackageComponent aComp : aComps)
       if ("mode".equals (aComp.kind ()))
         aDeclaredModes.add (aComp.name ());
     final ICommonsSet <XdmQName> aImplicit = new CommonsHashSet <> ();
-    for (final XslElement aChild : aRoot.getXslChildren ("template"))
+    for (final XslElement aChild : aDecls)
     {
+      if (!aChild.isXsl ("template"))
+        continue;
       final String sMode = aChild.getAttr ("mode");
       if (sMode == null)
         continue;

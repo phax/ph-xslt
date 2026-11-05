@@ -375,7 +375,7 @@ public final class ControlInstructions
       if (aInput.size () > 1)
         throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string returns more than one item");
       if (aInput.isSingleton () && !((XdmAtomic) aInput.get (0)).isStringLike ())
-        throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string must return aFnArgs string");
+        throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string must return a string");
       final String sInput = aInput.isEmpty () ? "" : Atomizer.getStringValue (aInput.get (0));
       final String sRegex = aRegex.evaluate (aRtCtx);
       final String sFlags = aFlags == null ? "" : aFlags.evaluate (aRtCtx);
@@ -581,10 +581,9 @@ public final class ControlInstructions
    * The test of xsl:where-populated (XSLT 3.0 section 8.4.1): an item is kept
    * unless it is deemed empty.
    * <ul>
-   * <li>A document or element node is kept if it has an element child or a
-   * child with a non-empty string value. A child comment or processing
-   * instruction with an empty value therefore does not count, although the
-   * specification only asks whether the node has children.</li>
+   * <li>A document or element node is kept if it has a child, even an empty
+   * comment or processing instruction. Only a zero-length text node does not
+   * count (it cannot exist in a constructed tree).</li>
    * <li>A namespace node is always kept, even with a zero-length value, so
    * that adding it raises its error later.</li>
    * <li>Any other node is kept if its string value is not empty.</li>
@@ -606,7 +605,7 @@ public final class ControlInstructions
         for (int i = 0; i < aNode.getChildCount (); ++i)
         {
           final IXdmNode aChild = aNode.getChildAtIndex (i);
-          if (aChild.isElement () || !aChild.getValue ().isEmpty ())
+          if (!aChild.isText () || !aChild.getValue ().isEmpty ())
             return true;
         }
         return false;

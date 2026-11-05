@@ -367,4 +367,87 @@ public final class XsltInstructionsTest
                   errorCode (SHEET + "<xsl:mode typed='yes'/><xsl:template match='/'><xsl:apply-templates select='*'/></xsl:template>" + END,
                              "<doc/>"));
   }
+
+  @Test
+  public void testParamWithSelectAndContent ()
+  {
+    // XTSE0620 for every variable-binding element, XTSE0760 only for a
+    // parameter of xsl:function (XSLT 3.0 sections 9.3 and 10.3.2)
+    assertEquals ("XTSE0620", errorCode (SHEET + "<xsl:template name='xsl:initial-template'><xsl:param name='p' select='1'>x</xsl:param></xsl:template>" + END, null));
+    assertEquals ("XTSE0620", errorCode (SHEET + "<xsl:param name='p' select='1'>x</xsl:param><xsl:template name='xsl:initial-template'/>" + END, null));
+    assertEquals ("XTSE0760",
+                  errorCode (SHEET.replace ("version='3.0'", "version='3.0' xmlns:f='urn:f'") +
+                             "<xsl:function name='f:f'><xsl:param name='p' select='1'>x</xsl:param></xsl:function>" +
+                             "<xsl:template name='xsl:initial-template'/>" +
+                             END,
+                             null));
+  }
+
+  @Test
+  public void testWherePopulatedElementWithEmptyComment ()
+  {
+    // An element with a child is not deemed empty, even if the child is
+    // (XSLT 3.0 section 8.4.1)
+    assertEquals ("<r><e><!----></e><f><?pi?></f></r>",
+                  _xml (IT +
+                        "<r><xsl:where-populated><e><xsl:comment/></e><f><xsl:processing-instruction name='pi'/></f><g><xsl:value-of select=\"''\"/></g></xsl:where-populated></r>" +
+                        TE,
+                        null));
+  }
+
+  @Test
+  public void testSortBooleanAsNumber ()
+  {
+    // data-type="number" converts with fn:number: true is 1, false is 0
+    assertEquals ("false true", text (IT + "<xsl:value-of separator=' '><xsl:perform-sort select='(true(), false())'><xsl:sort select='.' data-type='number'/></xsl:perform-sort></xsl:value-of>" + TE, null));
+    // A value that cannot be cast to xs:double is NaN, which sorts first
+    assertEquals ("2001 1", text (IT + "<xsl:value-of separator=' '><xsl:perform-sort select='(1, xs:gYear(\"2001\"))'><xsl:sort select='.' data-type='number'/></xsl:perform-sort></xsl:value-of>" + TE, null));
+  }
+
+  @Test
+  public void testBuiltInRulesForFunctionsAndArrays ()
+  {
+    // XSLT 3.0 section 6.7: function items and arrays are copied with
+    // deep-copy and shallow-copy, function items are dropped otherwise, the
+    // members of an array are processed with text-only-copy and shallow-skip
+    final String sApply = "<xsl:variable name='r' as='item()*'><xsl:apply-templates select='(true#0, [1,2], map{})'/></xsl:variable>" +
+                          "<xsl:value-of select='for $i in $r return if ($i instance of array(*)) then \"A\" else if ($i instance of map(*)) then \"M\" else if ($i instance of function(*)) then \"F\" else string($i)'/>";
+    for (final String sMode : new String [] { "deep-copy", "shallow-copy" })
+      assertEquals (sMode, "F A M", text ("<xsl:mode on-no-match='" + sMode + "'/>" + IT + sApply + TE, null));
+    assertEquals ("1 2", text ("<xsl:mode on-no-match='text-only-copy'/>" + IT + sApply + TE, null));
+    assertEquals ("", text ("<xsl:mode on-no-match='shallow-skip'/>" + IT + sApply + TE, null));
+    assertEquals ("", text ("<xsl:mode on-no-match='deep-skip'/>" + IT + sApply + TE, null));
+    assertEquals ("XTDE0555", errorCode (SHEET + "<xsl:mode on-no-match='fail'/>" + IT + "<xsl:apply-templates select='true#0'/>" + TE + END, null));
+  }
+
+  @Test
+  public void testNestingLimits ()
+  {
+    // Deeper than StylesheetLoader.MAX_DEPTH: an implementation limit, not a
+    // stack overflow
+    final StringBuilder aDeep = new StringBuilder ();
+    for (int i = 0; i < 1100; ++i)
+      aDeep.append ("<e>");
+    for (int i = 0; i < 1100; ++i)
+      aDeep.append ("</e>");
+    assertEquals ("XPDY0130", errorCode (SHEET + IT + aDeep + TE + END, null));
+    final StringBuilder aSets = new StringBuilder ();
+    for (int i = 0; i < 1100; ++i)
+      aSets.append ("<xsl:attribute-set name='s" + i + "' use-attribute-sets='s" + (i + 1) + "'/>");
+    aSets.append ("<xsl:attribute-set name='s1100'><xsl:attribute name='a'/></xsl:attribute-set>");
+    assertEquals ("XPDY0130", errorCode (SHEET + aSets + IT + "<e xsl:use-attribute-sets='s0'/>" + TE + END, null));
+  }
+
+  @Test
+  public void testDecimalFormatExponentSeparator ()
+  {
+    // XSLT 3.0 section 5.4: the exponent separator need not be distinct from
+    // the other picture characters (XTSE1300 does not list it)
+    assertEquals ("1,5", text ("<xsl:decimal-format decimal-separator=',' grouping-separator='.' exponent-separator='.'/>" +
+                               IT +
+                               "<xsl:value-of select=\"format-number(1.5, '0,0')\"/>" +
+                               TE,
+                               null));
+    assertEquals ("XTSE1300", errorCode (SHEET + "<xsl:decimal-format decimal-separator=',' grouping-separator=','/>" + IT + TE + END, null));
+  }
 }

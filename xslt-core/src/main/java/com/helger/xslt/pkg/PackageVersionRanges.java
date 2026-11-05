@@ -16,8 +16,6 @@
  */
 package com.helger.xslt.pkg;
 
-import java.util.Arrays;
-
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -93,13 +91,13 @@ public final class PackageVersionRanges
   }
 
   /**
-   * Parse one comma-separated PackageVersionRange. The token is split at
-   * whitespace; if one field is "to", the fields before it (joined without
-   * separator) are the lower bound and those after it the upper bound, either
-   * of which may be absent but not both. A "V to" without an upper bound is
-   * therefore accepted and means the same as "V+". Without "to", the token
-   * must be a single field: "V+", "V.*" or an exact "V". A ".*" prefix must
-   * not carry a name-part suffix.
+   * Parse one comma-separated PackageVersionRange (XSLT 3.0 section 3.5.1).
+   * The token is split at whitespace; if one field is "to", it must be
+   * followed by exactly one field, the upper bound (a version or a version
+   * prefix), and preceded by at most one field, the lower bound (VersionTo or
+   * VersionFromTo). Without "to", the token must be a single field: "V+",
+   * "V.*" or an exact "V". A ".*" prefix must not carry a name-part
+   * suffix.
    *
    * @param sToken
    *        The trimmed range.
@@ -116,25 +114,19 @@ public final class PackageVersionRanges
     for (int i = 0; i < aFields.length; ++i)
       if ("to".equals (aFields[i]))
       {
-        final String sLo = String.join ("", Arrays.copyOfRange (aFields, 0, i));
-        final String sHi = String.join ("", Arrays.copyOfRange (aFields, i + 1, aFields.length));
+        if (i > 1 || aFields.length != i + 2)
+          return null;
         PackageVersion aLo = null;
-        PackageVersion aHi = null;
-        boolean bHiIsPrefix = false;
-        if (!sLo.isEmpty ())
+        if (i == 1)
         {
-          aLo = PackageVersion.parse (sLo);
+          aLo = PackageVersion.parse (aFields[0]);
           if (aLo == null)
             return null;
         }
-        if (!sHi.isEmpty ())
-        {
-          bHiIsPrefix = sHi.endsWith (".*");
-          aHi = PackageVersion.parse (bHiIsPrefix ? sHi.substring (0, sHi.length () - 2) : sHi);
-          if (aHi == null || (bHiIsPrefix && aHi.hasSuffix ()))
-            return null;
-        }
-        if (aLo == null && aHi == null)
+        final String sHi = aFields[i + 1];
+        final boolean bHiIsPrefix = sHi.endsWith (".*");
+        final PackageVersion aHi = PackageVersion.parse (bHiIsPrefix ? sHi.substring (0, sHi.length () - 2) : sHi);
+        if (aHi == null || (bHiIsPrefix && aHi.hasSuffix ()))
           return null;
         return new Range (false, null, null, aLo, aHi, bHiIsPrefix);
       }

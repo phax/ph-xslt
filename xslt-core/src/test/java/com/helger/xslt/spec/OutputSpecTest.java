@@ -97,6 +97,12 @@ public final class OutputSpecTest
                                "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><br/></body></html>"),
                     null,
                     "~<br />"),
+                // XSLT 3.0 section 26: indent defaults to yes for html and xhtml
+                ok ("xhtml method indents by default",
+                    _outSheet ("method=\"xhtml\" omit-xml-declaration=\"yes\"",
+                               "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p/></body></html>"),
+                    null,
+                    "~\n  <body>"),
                 ok ("text method", _outSheet ("method=\"text\"", "<e>a&lt;b</e>"), null, "a<b"),
                 ok ("indent", _outSheet ("method=\"xml\" omit-xml-declaration=\"yes\" indent=\"yes\"", "<e><f/></e>"), null, "~<e>\n"),
                 ok ("character map", CHARMAPS + "<xsl:template match=\"/\">axb</xsl:template></xsl:stylesheet>", null, "a[X]b"),
@@ -186,6 +192,10 @@ public final class OutputSpecTest
           <output:method value="text"/>
           <output:item-separator value="|"/>
         </output:serialization-parameters>""");
+    specWrite (aDir, "wrong.xml", """
+        <output:parameters xmlns:output="http://www.w3.org/2010/xslt-xquery-serialization">
+          <output:method value="text"/>
+        </output:parameters>""");
     specRunAll (aDir,
                 ok ("xsl:output parameter document",
                     _outSheet ("parameter-document=\"params.xml\"", "<xsl:sequence select=\"1, 2\"/>"),
@@ -198,9 +208,14 @@ public final class OutputSpecTest
                                                           "<xsl:template match=\"/\"><xsl:result-document href=\"out.txt\" parameter-document=\"params.xml\"><xsl:sequence select=\"1, 2\"/></xsl:result-document></xsl:template></xsl:stylesheet>",
                     null,
                     ""),
-                ok ("attribute overrides the parameter document",
+                // XSLT 3.0 section 26.1: the parameter document takes precedence
+                ok ("parameter document overrides the attribute",
                     _outSheet ("parameter-document=\"params.xml\" item-separator=\";\"", "<xsl:sequence select=\"1, 2\"/>"),
                     null,
-                    "1;2"));
+                    "1|2"),
+                err ("parameter document with another document element",
+                     _outSheet ("parameter-document=\"wrong.xml\"", "<xsl:sequence select=\"1, 2\"/>"),
+                     null,
+                     "SEPM0017"));
   }
 }

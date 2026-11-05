@@ -136,9 +136,8 @@ public final class SerializationChecks
    * <li>xml or xhtml method with a doctype-public that contains a character
    * outside the XML <code>PubidChar</code> production: SEPM0016;</li>
    * <li>xml or xhtml method with standalone other than <code>omit</code> or
-   * with doctype-system, and more than one element child of the tree root:
-   * SEPM0004 (Serialization 3.1 section 5; text children of the root are not
-   * counted);</li>
+   * with doctype-system, and more than one element child or a text child of
+   * the tree root: SEPM0004 (Serialization 3.1 section 5);</li>
    * <li>html method: the content checks of
    * {@link #checkHtmlContent(SerializationParams, IXdmNode, boolean)} on the
    * whole tree.</li>
@@ -187,8 +186,14 @@ public final class SerializationChecks
     {
       int nElements = 0;
       for (int i = 0; i < aTree.getChildCount (); ++i)
-        if (aTree.getChildAtIndex (i).isElement ())
+      {
+        final IXdmNode aChild = aTree.getChildAtIndex (i);
+        if (aChild.isElement ())
           nElements++;
+        else
+          if (aChild.isText ())
+            throw new XPathException ("SEPM0004", "A result with a top-level text node cannot be serialized with standalone or doctype-system");
+      }
       if (nElements > 1)
         throw new XPathException ("SEPM0004",
                                   "A result with " + nElements + " top-level elements cannot be serialized with standalone or doctype-system");

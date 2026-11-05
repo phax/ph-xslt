@@ -27,9 +27,11 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
+import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.CommonsLinkedHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsOrderedSet;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.XPathException;
@@ -113,6 +115,67 @@ public final class StylesheetCompiler
   private record FunctionEntry (@NonNull UserFunction function, int precedence)
   {}
 
+  /** The key of an xsl:namespace-alias: its package and literal namespace URI. */
+  private record AliasKey (@NonNull PackageUnit unit, @NonNull String literalUri)
+  {}
+
+  /**
+   * Declarations that clash with another one of the same name (or key) and the
+   * same import precedence. Such a clash is only an error if no declaration
+   * with the same name and a higher import precedence exists (XSLT 3.0
+   * XTSE0630, XTSE0660, XTSE0770, XTSE0810), so the error is raised only by
+   * {@link #check(String)} once all declarations are known.
+   */
+  private static final class DuplicateTracker
+  {
+    private final ICommonsMap <Object, Integer> m_aHighest = new CommonsHashMap <> ();
+    private final ICommonsOrderedMap <Object, Object []> m_aDuplicates = new CommonsLinkedHashMap <> ();
+
+    /**
+     * Note a declaration.
+     *
+     * @param aKey
+     *        The name or key of the declaration.
+     * @param aEl
+     *        The declaration.
+     * @param sDuplicateMessage
+     *        The error message if the declaration clashes with an earlier one
+     *        of the same import precedence, <code>null</code> if it does not.
+     */
+    void add (@NonNull final Object aKey, @NonNull final XslElement aEl, @Nullable final String sDuplicateMessage)
+    {
+      final int nPrecedence = aEl.getPrecedence ();
+      final Integer aHighest = m_aHighest.get (aKey);
+      if (aHighest == null || aHighest.intValue () < nPrecedence)
+        m_aHighest.put (aKey, Integer.valueOf (nPrecedence));
+      if (sDuplicateMessage != null)
+      {
+        final Object [] aPrev = m_aDuplicates.get (aKey);
+        if (aPrev == null || ((XslElement) aPrev[0]).getPrecedence () < nPrecedence)
+          m_aDuplicates.put (aKey, new Object [] { aEl, sDuplicateMessage });
+      }
+    }
+
+    /**
+     * Raise the error for the first clash (in the order noted) for which no
+     * declaration with a higher import precedence was noted.
+     *
+     * @param sCode
+     *        The error code.
+     * @throws XsltException
+     *         With the code, at the clashing declaration
+     */
+    void check (@NonNull final String sCode)
+    {
+      for (final Map.Entry <Object, Object []> aEntry : m_aDuplicates.entrySet ())
+      {
+        final XslElement aEl = (XslElement) aEntry.getValue ()[0];
+        if (aEl.getPrecedence () == m_aHighest.get (aEntry.getKey ()).intValue ())
+          throw XsltException.at (aEl, sCode, (String) aEntry.getValue ()[1]);
+      }
+    }
+  }
+
   /**
    * The declared signature of a stylesheet function: the parameter types and
    * the return type, each <code>item()*</code> where no <code>as</code>
@@ -140,6 +203,11 @@ public final class StylesheetCompiler
   private final ICommonsList <CallTemplateRef> m_aCallTemplateRefs = new CommonsArrayList <> ();
   private final ICommonsList <AttributeSetRef> m_aAttributeSetRefs = new CommonsArrayList <> ();
   private final ICommonsMap <XdmQName, Integer> m_aNamedTemplatePrecedence = new CommonsHashMap <> ();
+  private final DuplicateTracker m_aDuplicateGlobals = new DuplicateTracker ();
+  private final DuplicateTracker m_aDuplicateFunctions = new DuplicateTracker ();
+  private final DuplicateTracker m_aDuplicateTemplates = new DuplicateTracker ();
+  private final DuplicateTracker m_aDuplicateAliases = new DuplicateTracker ();
+  private final ICommonsOrderedSet <OutputDefinition> m_aMergedOutputs = new CommonsLinkedHashSet <> ();
   private int m_nOrder;
   private final ICommonsSet <XslModule> m_aGlobalContextItemModules = new CommonsHashSet <> ();
   private final ICommonsList <XslElement> m_aExposes = new CommonsArrayList <> ();
@@ -679,18 +747,17 @@ public final class StylesheetCompiler
    * section 11.1.4), keyed by the literal namespace URI (empty for
    * <code>#default</code> without a default namespace). The declaration with
    * the higher import precedence wins; at equal precedence the later one
-   * wins, which also takes its result prefix.
-   * <p>
-   * Declarations are processed lowest import precedence first, so two
-   * conflicting declarations at a lower precedence raise XTSE0810 even if a
-   * declaration with a higher precedence follows, which the spec allows.
+   * wins, which also takes its result prefix. A declaration that maps the
+   * same URI to a different result URI than an earlier one with the same
+   * precedence is noted in {@link #m_aDuplicateAliases}: XTSE0810 is raised
+   * once all declarations are known, unless one with a higher precedence
+   * exists.
    *
    * @param aEl
    *        The xsl:namespace-alias element.
    * @throws XsltException
    *         XTSE0812 if a prefix other than <code>#default</code> is not
-   *         bound; XTSE0810 if an earlier declaration with the same
-   *         precedence maps the same URI to a different result URI
+   *         bound
    */
   private void _prepareNamespaceAlias (@NonNull final XslElement aEl)
   {
@@ -706,8 +773,12 @@ public final class StylesheetCompiler
                                                       aEl.getPrecedence ());
     final ICommonsMap <String, NamespaceAlias> aAliases = m_aAliases.computeIfAbsent (m_aPackages.getUnit (aEl), k -> new CommonsHashMap <> ());
     final NamespaceAlias aPrev = aAliases.get (sKey);
-    if (aPrev != null && aPrev.precedence () == aAlias.precedence () && !aPrev.resultUri ().equals (aAlias.resultUri ()))
-      throw XsltException.at (aEl, "XTSE0810", "Conflicting xsl:namespace-alias declarations for '" + sStyPrefix + "'");
+    final boolean bConflict = aPrev != null &&
+                              aPrev.precedence () == aAlias.precedence () &&
+                              !aPrev.resultUri ().equals (aAlias.resultUri ());
+    m_aDuplicateAliases.add (new AliasKey (m_aPackages.getUnit (aEl), sKey),
+                             aEl,
+                             bConflict ? "Conflicting xsl:namespace-alias declarations for '" + sStyPrefix + "'" : null);
     if (aPrev == null || aPrev.precedence () <= aAlias.precedence ())
       aAliases.put (sKey, aAlias);
   }
@@ -737,9 +808,10 @@ public final class StylesheetCompiler
    *         XTSE1290 if two declarations with that highest precedence give
    *         different values for one attribute; XTSE1295 if zero-digit is not
    *         a digit with numeric value zero; XTSE1300 if the decimal
-   *         separator, grouping separator, percent, per-mille, digit, pattern
-   *         separator and exponent separator are not distinct or one of them
-   *         is among the ten digits starting at zero-digit
+   *         separator, grouping separator, percent, per-mille, digit and
+   *         pattern separator are not distinct or one of them is among the ten
+   *         digits starting at zero-digit (XSLT 3.0 section 5.4 does not list
+   *         the exponent separator)
    */
   private void _prepareDecimalFormats (@NonNull final ICommonsList <XslElement> aDecls)
   {
@@ -817,8 +889,7 @@ public final class StylesheetCompiler
                              aFormat.getPercent (),
                              aFormat.getPerMille (),
                              aFormat.getDigit (),
-                             aFormat.getPatternSeparator (),
-                             aFormat.getExponentSeparator () };
+                             aFormat.getPatternSeparator () };
       final ICommonsSet <Integer> aSeen = new CommonsHashSet <> ();
       for (final int c : aSyms)
       {
@@ -844,21 +915,17 @@ public final class StylesheetCompiler
    * homonym from another package is only kept for the scope of its own
    * package. Otherwise the function is registered in the stylesheet-wide
    * library if no function with this name and arity, or only one with a lower
-   * import precedence, is registered yet.
-   * <p>
-   * Declarations are processed lowest import precedence first, so two
-   * functions with the same name and arity at a lower precedence raise
-   * XTSE0770 even if a function with a higher precedence follows, which the
-   * spec allows.
+   * import precedence, is registered yet. A second function with the same
+   * name, arity and import precedence is noted in
+   * {@link #m_aDuplicateFunctions}: XTSE0770 is raised once all functions are
+   * known, unless one with a higher precedence exists.
    *
    * @param aEl
    *        The xsl:function element.
    * @throws XsltException
    *         XTSE0770 if a schema-aware stylesheet declares a one-argument
    *         function named like an imported simple type outside the XML
-   *         Schema namespace (it would clash with the constructor function),
-   *         or if a function with the same name, arity and import precedence
-   *         was declared before
+   *         Schema namespace (it would clash with the constructor function)
    */
   private void _prepareFunction (@NonNull final XslElement aEl)
   {
@@ -893,8 +960,8 @@ public final class StylesheetCompiler
                               "The function " + aName.getEQName () + "#1 clashes with the constructor function of a schema type");
     final String sKey = aName.getEQName () + "#" + aParams.size ();
     final FunctionEntry aPrev = m_aFunctionsByKey.get (sKey);
-    if (aPrev != null && aPrev.precedence () == aEl.getPrecedence ())
-      throw XsltException.at (aEl, "XTSE0770", "Duplicate function " + aName.getEQName () + "#" + aParams.size ());
+    final boolean bDuplicate = aPrev != null && aPrev.precedence () == aEl.getPrecedence ();
+    m_aDuplicateFunctions.add (sKey, aEl, bDuplicate ? "Duplicate function " + sKey : null);
     aFunc.setMemoize (XsltNames.isXsltTrue (aEl.getAttr ("cache")) || "no".equals (aEl.getAttr ("new-each-time")));
     m_aFunctionsByElement.put (aEl, aFunc);
     final SeqType aReturnType = aAs != null ? aAs : aCtx.compileSequenceType (aEl, "item()*");
@@ -925,24 +992,20 @@ public final class StylesheetCompiler
    * Make the name of a global xsl:variable or xsl:param known before any
    * expression is compiled, and track the highest import precedence it is
    * declared with, which decides the winning declaration in
-   * {@link #_compileGlobal(XslElement, boolean)} (XSLT 3.0 section 9.5).
-   * <p>
-   * Declarations are processed lowest import precedence first, so two
-   * bindings with the same name at a lower precedence raise XTSE0630 even if a
-   * binding with a higher precedence follows, which the spec allows.
+   * {@link #_compileGlobal(XslElement, boolean)} (XSLT 3.0 section 9.5). A
+   * second binding with the same name and import precedence is noted in
+   * {@link #m_aDuplicateGlobals}: XTSE0630 is raised once all bindings are
+   * known, unless one with a higher precedence exists.
    *
    * @param aEl
    *        The global xsl:variable or xsl:param element.
-   * @throws XsltException
-   *         XTSE0630 if a binding with the same name and import precedence was
-   *         seen before
    */
   private void _prepareGlobal (@NonNull final XslElement aEl)
   {
     final XdmQName aName = createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false);
     final Integer aPrev = m_aGlobalPrecedences.get (aName);
-    if (aPrev != null && aPrev.intValue () == aEl.getPrecedence ())
-      throw XsltException.at (aEl, "XTSE0630", "Duplicate global variable $" + aName.getEQName ());
+    final boolean bDuplicate = aPrev != null && aPrev.intValue () == aEl.getPrecedence ();
+    m_aDuplicateGlobals.add (aName, aEl, bDuplicate ? "Duplicate global variable $" + aName.getEQName () : null);
     if (aPrev == null || aPrev.intValue () < aEl.getPrecedence ())
       m_aGlobalPrecedences.put (aName, Integer.valueOf (aEl.getPrecedence ()));
     m_aGlobalNames.add (aName);
@@ -1038,11 +1101,10 @@ public final class StylesheetCompiler
    * wins if any of the modes is strict). An overriding named template keeps
    * the overridden one reachable under a fresh xsl:original name. The
    * template is added to the stylesheet; a named template is also registered
-   * by name if it has the highest import precedence so far.
-   * <p>
-   * Declarations are processed lowest import precedence first, so two named
-   * templates with the same name at a lower precedence raise XTSE0660 even if
-   * a template with a higher precedence follows, which the spec allows.
+   * by name if it has the highest import precedence so far. A second named
+   * template with the same name and import precedence is noted in
+   * {@link #m_aDuplicateTemplates}: XTSE0660 is raised once all templates are
+   * compiled, unless one with a higher precedence exists.
    *
    * @param aEl
    *        The xsl:template element.
@@ -1051,10 +1113,8 @@ public final class StylesheetCompiler
    *         XTSE0010 for more than one xsl:context-item or one that is not
    *         the first child; XTSE0020 for an invalid <code>use</code> or
    *         <code>use="absent"</code> on a template without a name; XTSE3088
-   *         for <code>use="absent"</code> together with <code>as</code>;
-   *         XTSE0660 for a second named template with the same name and
-   *         import precedence; the error of the typed-mode rewrite at the
-   *         element
+   *         for <code>use="absent"</code> together with <code>as</code>; the
+   *         error of the typed-mode rewrite at the element
    */
   private void _compileTemplate (@NonNull final XslElement aEl)
   {
@@ -1170,8 +1230,8 @@ public final class StylesheetCompiler
     if (aName != null)
     {
       final Integer aPrev = m_aNamedTemplatePrecedence.get (aName);
-      if (aPrev != null && aPrev.intValue () == aEl.getPrecedence ())
-        throw XsltException.at (aEl, "XTSE0660", "Duplicate named template " + aName.getEQName ());
+      final boolean bDuplicate = aPrev != null && aPrev.intValue () == aEl.getPrecedence ();
+      m_aDuplicateTemplates.add (aName, aEl, bDuplicate ? "Duplicate named template " + aName.getEQName () : null);
       if (aPrev == null || aPrev.intValue () < aEl.getPrecedence ())
       {
         m_aNamedTemplatePrecedence.put (aName, Integer.valueOf (aEl.getPrecedence ()));
@@ -1435,21 +1495,21 @@ public final class StylesheetCompiler
    * in the output namespace contributes its <code>value</code> attribute under
    * its local name; <code>output:use-character-maps</code> adds its
    * <code>output:character-map</code> entries as inline character mappings.
-   * The document element is only checked for its namespace, not its local
-   * name. Nothing happens without the attribute.
+   * The document element must be <code>output:serialization-parameters</code>.
+   * Nothing happens without the attribute.
    *
    * @param aEl
    *        The xsl:output element.
    * @param aAttrs
-   *        Receives the parameters by name; the attributes of the xsl:output
-   *        itself are added later and win.
+   *        Receives the parameters by name, replacing the attributes of the
+   *        xsl:output itself (the parameter document takes precedence).
    * @param aDef
    *        Receives the character mappings.
    * @throws XsltException
-   *         XTSE0020 if the URI is invalid, the document cannot be retrieved
-   *         or its document element is not in the output namespace;
-   *         SEPM0017 if a character map entry has a character that is not a
-   *         single character
+   *         XTSE0020 if the URI is invalid or the document cannot be
+   *         retrieved; SEPM0017 if its document element is not
+   *         output:serialization-parameters or a character map entry has a
+   *         character that is not a single character
    */
   private void _readParameterDocument (@NonNull final XslElement aEl,
                                        @NonNull final ICommonsMap <String, String> aAttrs,
@@ -1478,8 +1538,10 @@ public final class StylesheetCompiler
     for (int i = 0; i < aDoc.getChildCount (); ++i)
       if (aDoc.getChildAtIndex (i).isElement ())
         aRoot = aDoc.getChildAtIndex (i);
-    if (aRoot == null || !SerializationParams.NS_OUTPUT.equals (aRoot.getName ().namespaceUri ()))
-      throw XsltException.at (aEl, "XTSE0020", "'" + sUri + "' is not a serialization parameter document");
+    if (aRoot == null ||
+        !SerializationParams.NS_OUTPUT.equals (aRoot.getName ().namespaceUri ()) ||
+        !"serialization-parameters".equals (aRoot.getName ().localName ()))
+      throw XsltException.at (aEl, "SEPM0017", "'" + sUri + "' is not a serialization parameter document");
     for (int i = 0; i < aRoot.getChildCount (); ++i)
     {
       final IXdmNode aParam = aRoot.getChildAtIndex (i);
@@ -1512,9 +1574,10 @@ public final class StylesheetCompiler
    * section 26): the named one (package qualified) or, for an unnamed
    * declaration of the principal package, the principal output definition. An
    * unnamed declaration in a used package is ignored. The parameters from a
-   * parameter document come first and are overridden by the attributes; the
-   * merge by import precedence is done by
-   * {@link OutputDefinition#merge(XslElement, int, ICommonsMap)}.
+   * parameter document take precedence over the attributes (XSLT 3.0 section
+   * 26.1); the merge by import precedence is done by
+   * {@link OutputDefinition#merge(XslElement, int, ICommonsMap)}; its
+   * conflicts are checked once all declarations are compiled.
    *
    * @param aEl
    *        The xsl:output element.
@@ -1532,14 +1595,15 @@ public final class StylesheetCompiler
                                                                                                                                                   sName,
                                                                                                                                                   false)))
                                                 : m_aStylesheet.getOutput ();
-    _readParameterDocument (aEl, aAttrs, aDef);
     for (final String sAttr : OutputDefinition.ATTRIBUTES)
     {
       final String v = aEl.getAttr (sAttr);
       if (v != null)
         aAttrs.put (sAttr, v);
     }
+    _readParameterDocument (aEl, aAttrs, aDef);
     aDef.merge (aEl, aEl.getPrecedence (), aAttrs);
+    m_aMergedOutputs.add (aDef);
   }
 
   /**
@@ -1805,15 +1869,21 @@ public final class StylesheetCompiler
    * rule or an xsl:apply-templates in the subtree must have an xsl:mode
    * declaration. <code>#all</code> and <code>#current</code> name no
    * particular mode. Recurses over the element children, so the depth follows
-   * the nesting of the stylesheet.
+   * the nesting of the stylesheet; it is limited to
+   * {@link StylesheetLoader#MAX_DEPTH}.
    *
    * @param aEl
    *        The root of the subtree to check.
+   * @param nDepth
+   *        The nesting depth of the element below the module root.
    * @throws XsltException
-   *         XTSE3085 for a mode without declaration
+   *         XTSE3085 for a mode without declaration; XPDY0130 for a tree
+   *         nested too deeply
    */
-  private void _checkDeclaredModesRecursive (@NonNull final XslElement aEl)
+  private void _checkDeclaredModesRecursive (@NonNull final XslElement aEl, final int nDepth)
   {
+    if (nDepth >= StylesheetLoader.MAX_DEPTH)
+      throw XsltException.at (aEl, "XPDY0130", "The stylesheet is nested more than " + StylesheetLoader.MAX_DEPTH + " levels deep");
     final boolean bTemplateRule = aEl.isXsl ("template") && aEl.hasAttr ("match");
     if (bTemplateRule || aEl.isXsl ("apply-templates"))
     {
@@ -1843,7 +1913,7 @@ public final class StylesheetCompiler
       }
     }
     for (final XslElement aChild : aEl.getElementChildren ())
-      _checkDeclaredModesRecursive (aChild);
+      _checkDeclaredModesRecursive (aChild, nDepth + 1);
   }
 
   /**
@@ -1863,7 +1933,7 @@ public final class StylesheetCompiler
     if (sDeclared == null || XsltNames.isXsltTrue (sDeclared))
       for (final XslModule aModule : aModules)
         if (aModule.getRoot () != null)
-          _checkDeclaredModesRecursive (aModule.getRoot ());
+          _checkDeclaredModesRecursive (aModule.getRoot (), 0);
   }
 
   /**
@@ -1912,8 +1982,8 @@ public final class StylesheetCompiler
    * Depth first search for an attribute set that uses itself, directly or
    * indirectly, through use-attribute-sets (XTSE0720, XSLT 3.0 section 10.2).
    * Unknown names are ignored here (XTSE0710 is checked separately). The
-   * recursion depth is bounded by the number of distinct attribute sets on
-   * one use chain.
+   * recursion depth is the number of distinct attribute sets on one use
+   * chain, limited to {@link StylesheetLoader#MAX_DEPTH}.
    *
    * @param aName
    *        The attribute set to visit.
@@ -1922,9 +1992,10 @@ public final class StylesheetCompiler
    * @param aDone
    *        The names already found free of cycles.
    * @throws XsltException
-   *         XTSE0720 at the first declaration of the set closing a cycle
+   *         XTSE0720 at the first declaration of the set closing a cycle;
+   *         XPDY0130 for a use chain longer than the limit
    */
-  private void _checkAttributeSetCycle (@NonNull final XdmQName aName,
+  private void _checkAttributeSetCycleRecursive (@NonNull final XdmQName aName,
                                         @NonNull final ICommonsList <XdmQName> aStack,
                                         @NonNull final ICommonsSet <XdmQName> aDone)
   {
@@ -1935,10 +2006,14 @@ public final class StylesheetCompiler
       return;
     if (aStack.contains (aName))
       throw XsltException.at (aSet.decls ().getFirst ().element (), "XTSE0720", "The attribute set " + aName.getEQName () + " uses itself");
+    if (aStack.size () >= StylesheetLoader.MAX_DEPTH)
+      throw XsltException.at (aSet.decls ().getFirst ().element (),
+                              "XPDY0130",
+                              "The attribute sets use each other more than " + StylesheetLoader.MAX_DEPTH + " levels deep");
     aStack.add (aName);
     for (final AttributeSet.Decl aDecl : aSet.decls ())
       for (final XdmQName aUse : aDecl.uses ())
-        _checkAttributeSetCycle (aUse, aStack, aDone);
+        _checkAttributeSetCycleRecursive (aUse, aStack, aDone);
     aStack.removeLast ();
     aDone.add (aName);
   }
@@ -2002,7 +2077,7 @@ public final class StylesheetCompiler
       aSet.decls ().sort ( (a, b) -> Integer.compare (a.element ().getPrecedence (), b.element ().getPrecedence ()));
       final ICommonsList <XdmQName> aStack = new CommonsArrayList <> ();
       final ICommonsSet <XdmQName> aDone = new CommonsHashSet <> ();
-      _checkAttributeSetCycle (aSet.getName (), aStack, aDone);
+      _checkAttributeSetCycleRecursive (aSet.getName (), aStack, aDone);
     }
   }
 
@@ -2112,6 +2187,8 @@ public final class StylesheetCompiler
             // later
           }
         }
+    m_aDuplicateAliases.check ("XTSE0810");
+    m_aDuplicateGlobals.check ("XTSE0630");
     if (m_aPackages.isMultiPackage ())
     {
       for (final PackageUnit aUnit : m_aPackages.getUnits ())
@@ -2133,6 +2210,7 @@ public final class StylesheetCompiler
       else
         if (aEl.isXsl ("mode"))
           _prepareMode (aEl, aModeAttrs);
+    m_aDuplicateFunctions.check ("XTSE0770");
     for (final Map.Entry <Mode, ICommonsMap <String, Object []>> aEntry : aModeAttrs.entrySet ())
       for (final Map.Entry <String, Object []> aAttr : aEntry.getValue ().entrySet ())
         if (aAttr.getValue ()[2] != null)
@@ -2145,6 +2223,9 @@ public final class StylesheetCompiler
       _findLocalAttributeSets (aAll);
     for (final XslElement aEl : aAll)
       _compileDeclaration (aEl);
+    m_aDuplicateTemplates.check ("XTSE0660");
+    for (final OutputDefinition aDef : m_aMergedOutputs)
+      aDef.checkConflicts ();
 
     if (m_aStylesheet.getNamedTemplate (INITIAL_TEMPLATE) == null)
     {

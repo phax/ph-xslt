@@ -375,11 +375,10 @@ public final class ElementValidator
    * 7.2): it must be in a tail position of the body of an xsl:iterate. Walking
    * up from the element, it must be the last instruction of each parent (see
    * {@link #_isLastInstruction(XslElement, XslElement)}), and the walk may
-   * pass through xsl:if, xsl:try, xsl:catch and xsl:fork, and through
+   * pass through xsl:if, xsl:try and xsl:catch, and through
    * xsl:when/xsl:otherwise to their xsl:choose, until it reaches the
-   * xsl:iterate. The spec's definition of tail position does not mention
-   * xsl:fork; its content model only allows xsl:sequence, xsl:for-each-group
-   * and xsl:fallback, through which the walk does not pass. For
+   * xsl:iterate; these are the constructs of the spec's definition of tail
+   * position. For
    * xsl:next-iteration every xsl:with-param must name a parameter declared
    * on that xsl:iterate.
    *
@@ -413,7 +412,7 @@ public final class ElementValidator
           aIterate = aParent;
           break;
         }
-        if ("if".equals (sLocal) || "try".equals (sLocal) || "catch".equals (sLocal) || "fork".equals (sLocal))
+        if ("if".equals (sLocal) || "try".equals (sLocal) || "catch".equals (sLocal))
         {
           aCur = aParent;
           continue;
@@ -1178,28 +1177,18 @@ public final class ElementValidator
   }
 
   /**
-   * Validate a module tree: each XSLT element with
-   * {@link #_validateXslElement(XslElement, boolean)}, each literal result
-   * element with {@link #_validateLiteralResultElement(XslElement, boolean)},
-   * then its children recursively. An unknown XSLT element in forwards
-   * compatible mode is skipped with its content, and so is an unknown
-   * top-level child of the stylesheet element in forwards compatible mode.
-   * With schema-awareness the content of xsl:import-schema (an inline schema)
-   * is not validated. The recursion depth follows the nesting depth of the
-   * stylesheet.
+   * The recursion of {@link #validateTree(XslElement, boolean)}.
    *
-   * @param aEl
-   *        The element to start at (module root).
-   * @param bSchemaAware
-   *        <code>true</code> for a schema-aware processor (validation and type
-   *        attributes are allowed).
+   * @param nDepth
+   *        The nesting depth of the element below the start element.
    * @throws XsltException
-   *         the first static error found, including XTSE0120 for
-   *         non-whitespace text directly in xsl:stylesheet, xsl:transform or
-   *         xsl:package
+   *         XPDY0130 if the tree is nested deeper than
+   *         {@link StylesheetLoader#MAX_DEPTH}
    */
-  public static void validateTree (@NonNull final XslElement aEl, final boolean bSchemaAware)
+  private static void _validateTreeRecursive (@NonNull final XslElement aEl, final boolean bSchemaAware, final int nDepth)
   {
+    if (nDepth >= StylesheetLoader.MAX_DEPTH)
+      throw XsltException.at (aEl, "XPDY0130", "The stylesheet is nested more than " + StylesheetLoader.MAX_DEPTH + " levels deep");
     if (aEl.isXsl () && aEl.isForwardsCompatible () && !XsltElementSpecs.isKnown (aEl.getLocalName ()))
       return;
     if (aEl.isXsl ())
@@ -1221,7 +1210,33 @@ public final class ElementValidator
       final XslElement aChild = (XslElement) aNode;
       if (bSheet && aChild.isXsl () && !TOP_LEVEL_DECLARATIONS.contains (aChild.getLocalName ()) && aChild.isForwardsCompatible ())
         continue;
-      validateTree (aChild, bSchemaAware);
+      _validateTreeRecursive (aChild, bSchemaAware, nDepth + 1);
     }
+  }
+
+  /**
+   * Validate a module tree: each XSLT element with
+   * {@link #_validateXslElement(XslElement, boolean)}, each literal result
+   * element with {@link #_validateLiteralResultElement(XslElement, boolean)},
+   * then its children recursively. An unknown XSLT element in forwards
+   * compatible mode is skipped with its content, and so is an unknown
+   * top-level child of the stylesheet element in forwards compatible mode.
+   * With schema-awareness the content of xsl:import-schema (an inline schema)
+   * is not validated. The recursion depth follows the nesting depth of the
+   * stylesheet and is limited to {@link StylesheetLoader#MAX_DEPTH}.
+   *
+   * @param aEl
+   *        The element to start at (module root).
+   * @param bSchemaAware
+   *        <code>true</code> for a schema-aware processor (validation and type
+   *        attributes are allowed).
+   * @throws XsltException
+   *         the first static error found, including XTSE0120 for
+   *         non-whitespace text directly in xsl:stylesheet, xsl:transform or
+   *         xsl:package; XPDY0130 for a tree nested too deeply
+   */
+  public static void validateTree (@NonNull final XslElement aEl, final boolean bSchemaAware)
+  {
+    _validateTreeRecursive (aEl, bSchemaAware, 0);
   }
 }

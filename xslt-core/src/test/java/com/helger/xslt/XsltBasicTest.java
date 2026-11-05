@@ -52,4 +52,29 @@ public final class XsltBasicTest
                                             "<a><b>t</b></a>",
                                             null));
   }
+
+  @Test
+  public void testDefaultMethod ()
+  {
+    // XSLT 3.0 section 26.1: "html" in any case without a namespace gives the
+    // html method, only the lower-case "html" in the XHTML namespace gives
+    // xhtml
+    final String sIT = XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'>";
+    final String sEnd = "</xsl:template>" + XsltTestHelper.END;
+    assertEquals ("html", XsltTestHelper.run (sIT + "<HTML/>" + sEnd, null, null).principalMethod ());
+    assertEquals ("xhtml", XsltTestHelper.run (sIT + "<html xmlns='http://www.w3.org/1999/xhtml'/>" + sEnd, null, null).principalMethod ());
+    assertEquals ("xml", XsltTestHelper.run (sIT + "<HTML xmlns='http://www.w3.org/1999/xhtml'/>" + sEnd, null, null).principalMethod ());
+  }
+
+  @Test
+  public void testDoctypeSystemWithTopLevelText ()
+  {
+    // Serialization 3.1 section 5: doctype-system or standalone require a
+    // well-formed document, without text nodes as children of the root
+    final String sHead = XsltTestHelper.SHEET + "<xsl:output doctype-system='a.dtd'/><xsl:template name='xsl:initial-template'>";
+    final String sEnd = "</xsl:template>" + XsltTestHelper.END;
+    assertEquals ("SEPM0004", XsltTestHelper.errorCode (sHead + "<a/><xsl:text>x</xsl:text>" + sEnd, null));
+    assertEquals ("SEPM0004", XsltTestHelper.errorCode (sHead + "<a/><b/>" + sEnd, null));
+    XsltTestHelper.transform (sHead + "<a/>" + sEnd, null, null);
+  }
 }

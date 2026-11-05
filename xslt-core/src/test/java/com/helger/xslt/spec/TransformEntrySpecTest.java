@@ -207,9 +207,11 @@ public final class TransformEntrySpecTest
              _err ("undeclared initial mode", sSrc, e -> e.m_aRequest.setInitialMode (_qn ("zz")), "XTDE0045"),
              _ok ("initial match selection of atomic values", null, e -> e.m_aRequest.setInitialMatchSelection (e.eval ("(1, 2)")), "i1i2"),
              _ok ("initial match selection of nodes", sSrc, e -> e.m_aRequest.setInitialMatchSelection (e.eval ("//b")), "B"),
-             // XTDE0044: no initial match selection and no
-             // xsl:initial-template.
-             _err ("no source and no initial template", null, e -> {}, "XTDE0044"),
+             // No initial match selection: the default entry point
+             // xsl:initial-template must exist (XTDE0040, section 2.3.4); an
+             // initial mode needs a match selection (XTDE0044, section 2.3.3).
+             _err ("no source and no initial template", null, e -> {}, "XTDE0040"),
+             _err ("initial mode without match selection", null, e -> e.m_aRequest.setInitialMode (_qn ("m")), "XTDE0044"),
              // §2.3 initial function.
              _ok ("initial function", null, e -> {
                e.m_aRequest.setInitialFunction (_qn ("{urn:f}add"));

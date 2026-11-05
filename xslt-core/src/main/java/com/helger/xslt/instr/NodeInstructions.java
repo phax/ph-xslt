@@ -349,7 +349,7 @@ public final class NodeInstructions
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final String sName = XsltNames.trimXmlWhitespace (aName.evaluate (aRtCtx));
       if (!XsltNames.isNCName (sName) || "xml".equalsIgnoreCase (sName))
-        throw new XPathException ("XTDE0890", "'" + sName + "' is not aFnArgs valid processing instruction name");
+        throw new XPathException ("XTDE0890", "'" + sName + "' is not a valid processing instruction name");
       String s = _evaluateValue (aRtCtx, aSelect, aBody, null, true);
       int nStart = 0;
       while (nStart < s.length () && " \t\r\n".indexOf (s.charAt (nStart)) >= 0)
@@ -379,7 +379,7 @@ public final class NodeInstructions
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final String sPrefix = XsltNames.trimXmlWhitespace (aName.evaluate (aRtCtx));
       if ((!sPrefix.isEmpty () && !XsltNames.isNCName (sPrefix)) || "xmlns".equals (sPrefix))
-        throw new XPathException ("XTDE0920", "'" + sPrefix + "' is not aFnArgs valid namespace prefix");
+        throw new XPathException ("XTDE0920", "'" + sPrefix + "' is not a valid namespace prefix");
       final String sUri = _evaluateValue (aRtCtx, aSelect, aBody, null, true);
       if (sUri.isEmpty ())
         throw new XPathException ("XTDE0930", "The namespace URI of xsl:namespace is empty");
