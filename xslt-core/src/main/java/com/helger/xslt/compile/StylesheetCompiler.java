@@ -1867,15 +1867,21 @@ public final class StylesheetCompiler
    * rule or an xsl:apply-templates in the subtree must have an xsl:mode
    * declaration. <code>#all</code> and <code>#current</code> name no
    * particular mode. Recurses over the element children, so the depth follows
-   * the nesting of the stylesheet.
+   * the nesting of the stylesheet; it is limited to
+   * {@link StylesheetLoader#MAX_DEPTH}.
    *
    * @param aEl
    *        The root of the subtree to check.
+   * @param nDepth
+   *        The nesting depth of the element below the module root.
    * @throws XsltException
-   *         XTSE3085 for a mode without declaration
+   *         XTSE3085 for a mode without declaration; XPDY0130 for a tree
+   *         nested too deeply
    */
-  private void _checkDeclaredModesRecursive (@NonNull final XslElement aEl)
+  private void _checkDeclaredModesRecursive (@NonNull final XslElement aEl, final int nDepth)
   {
+    if (nDepth >= StylesheetLoader.MAX_DEPTH)
+      throw XsltException.at (aEl, "XPDY0130", "The stylesheet is nested more than " + StylesheetLoader.MAX_DEPTH + " levels deep");
     final boolean bTemplateRule = aEl.isXsl ("template") && aEl.hasAttr ("match");
     if (bTemplateRule || aEl.isXsl ("apply-templates"))
     {
@@ -1905,7 +1911,7 @@ public final class StylesheetCompiler
       }
     }
     for (final XslElement aChild : aEl.getElementChildren ())
-      _checkDeclaredModesRecursive (aChild);
+      _checkDeclaredModesRecursive (aChild, nDepth + 1);
   }
 
   /**
@@ -1925,7 +1931,7 @@ public final class StylesheetCompiler
     if (sDeclared == null || XsltNames.isXsltTrue (sDeclared))
       for (final XslModule aModule : aModules)
         if (aModule.getRoot () != null)
-          _checkDeclaredModesRecursive (aModule.getRoot ());
+          _checkDeclaredModesRecursive (aModule.getRoot (), 0);
   }
 
   /**
@@ -1974,8 +1980,8 @@ public final class StylesheetCompiler
    * Depth first search for an attribute set that uses itself, directly or
    * indirectly, through use-attribute-sets (XTSE0720, XSLT 3.0 section 10.2).
    * Unknown names are ignored here (XTSE0710 is checked separately). The
-   * recursion depth is bounded by the number of distinct attribute sets on
-   * one use chain.
+   * recursion depth is the number of distinct attribute sets on one use
+   * chain, limited to {@link StylesheetLoader#MAX_DEPTH}.
    *
    * @param aName
    *        The attribute set to visit.
@@ -1984,9 +1990,10 @@ public final class StylesheetCompiler
    * @param aDone
    *        The names already found free of cycles.
    * @throws XsltException
-   *         XTSE0720 at the first declaration of the set closing a cycle
+   *         XTSE0720 at the first declaration of the set closing a cycle;
+   *         XPDY0130 for a use chain longer than the limit
    */
-  private void _checkAttributeSetCycle (@NonNull final XdmQName aName,
+  private void _checkAttributeSetCycleRecursive (@NonNull final XdmQName aName,
                                         @NonNull final ICommonsList <XdmQName> aStack,
                                         @NonNull final ICommonsSet <XdmQName> aDone)
   {
@@ -1997,10 +2004,14 @@ public final class StylesheetCompiler
       return;
     if (aStack.contains (aName))
       throw XsltException.at (aSet.decls ().getFirst ().element (), "XTSE0720", "The attribute set " + aName.getEQName () + " uses itself");
+    if (aStack.size () >= StylesheetLoader.MAX_DEPTH)
+      throw XsltException.at (aSet.decls ().getFirst ().element (),
+                              "XPDY0130",
+                              "The attribute sets use each other more than " + StylesheetLoader.MAX_DEPTH + " levels deep");
     aStack.add (aName);
     for (final AttributeSet.Decl aDecl : aSet.decls ())
       for (final XdmQName aUse : aDecl.uses ())
-        _checkAttributeSetCycle (aUse, aStack, aDone);
+        _checkAttributeSetCycleRecursive (aUse, aStack, aDone);
     aStack.removeLast ();
     aDone.add (aName);
   }
@@ -2064,7 +2075,7 @@ public final class StylesheetCompiler
       aSet.decls ().sort ( (a, b) -> Integer.compare (a.element ().getPrecedence (), b.element ().getPrecedence ()));
       final ICommonsList <XdmQName> aStack = new CommonsArrayList <> ();
       final ICommonsSet <XdmQName> aDone = new CommonsHashSet <> ();
-      _checkAttributeSetCycle (aSet.getName (), aStack, aDone);
+      _checkAttributeSetCycleRecursive (aSet.getName (), aStack, aDone);
     }
   }
 

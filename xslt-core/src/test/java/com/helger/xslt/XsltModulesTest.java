@@ -22,6 +22,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.junit.Test;
 
+import com.helger.collection.commons.CommonsHashMap;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.xdm.IXdmNode;
 
@@ -195,5 +196,16 @@ public final class XsltModulesTest
     assertTrue (_run (sHead + "<xsl:output omit-xml-declaration='yes' indent='yes'/>" + sStart, aModules, null).contains ("\n  <b/>"));
     // Without it, it remains
     assertEquals ("XTSE1560", _compileError (sHead + "<xsl:output omit-xml-declaration='yes'/>" + sStart, aModules));
+  }
+
+  @Test
+  public void testIncludeNestingLimit ()
+  {
+    // A chain of includes deeper than StylesheetLoader.MAX_DEPTH
+    final Map <String, String> aModules = new CommonsHashMap <> ();
+    for (int i = 0; i < 1100; ++i)
+      aModules.put ("http://example.org/m" + i + ".xsl", XsltTestHelper.SHEET + "<xsl:include href='m" + (i + 1) + ".xsl'/>" + XsltTestHelper.END);
+    aModules.put ("http://example.org/m1100.xsl", XsltTestHelper.SHEET + XsltTestHelper.END);
+    assertEquals ("XPDY0130", _compileError (XsltTestHelper.SHEET + "<xsl:include href='m0.xsl'/>" + XsltTestHelper.END, aModules));
   }
 }

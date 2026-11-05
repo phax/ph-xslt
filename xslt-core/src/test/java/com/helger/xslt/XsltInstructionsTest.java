@@ -419,4 +419,22 @@ public final class XsltInstructionsTest
     assertEquals ("", text ("<xsl:mode on-no-match='deep-skip'/>" + IT + sApply + TE, null));
     assertEquals ("XTDE0555", errorCode (SHEET + "<xsl:mode on-no-match='fail'/>" + IT + "<xsl:apply-templates select='true#0'/>" + TE + END, null));
   }
+
+  @Test
+  public void testNestingLimits ()
+  {
+    // Deeper than StylesheetLoader.MAX_DEPTH: an implementation limit, not a
+    // stack overflow
+    final StringBuilder aDeep = new StringBuilder ();
+    for (int i = 0; i < 1100; ++i)
+      aDeep.append ("<e>");
+    for (int i = 0; i < 1100; ++i)
+      aDeep.append ("</e>");
+    assertEquals ("XPDY0130", errorCode (SHEET + IT + aDeep + TE + END, null));
+    final StringBuilder aSets = new StringBuilder ();
+    for (int i = 0; i < 1100; ++i)
+      aSets.append ("<xsl:attribute-set name='s" + i + "' use-attribute-sets='s" + (i + 1) + "'/>");
+    aSets.append ("<xsl:attribute-set name='s1100'><xsl:attribute name='a'/></xsl:attribute-set>");
+    assertEquals ("XPDY0130", errorCode (SHEET + aSets + IT + "<e xsl:use-attribute-sets='s0'/>" + TE + END, null));
+  }
 }
