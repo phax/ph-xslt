@@ -379,11 +379,34 @@ final class MarkupWriter
 
   /**
    * Write the content of an HTML <code>script</code> or <code>style</code>
-   * element with the html method (Serialization 3.1 section 7): nothing is
-   * escaped, only characters outside the encoding become character
-   * references.
+   * element with the html method, where character references are not
+   * recognised: nothing is escaped (Serialization 3.1 section 7.1).
+   *
+   * @throws XPathException
+   *         SERE0008 for a character the encoding cannot represent
    */
   private void _escapeRaw (@NonNull final StringBuilder aSB, @NonNull final String s)
+  {
+    for (int i = 0; i < s.length ();)
+    {
+      final int cp = s.codePointAt (i);
+      i += Character.charCount (cp);
+      if (!m_aCharset.canEncode (cp))
+        throw XPathException.of ("SERE0008",
+                                 "The character U+" +
+                                             Integer.toHexString (cp) +
+                                             " cannot be represented in the output encoding inside an HTML script or style element");
+      aSB.appendCodePoint (cp);
+    }
+  }
+
+  /**
+   * Write text with disable-output-escaping: written as it is, except that a
+   * character the encoding cannot represent is written as a character
+   * reference, since the request to disable output escaping is ignored for it
+   * (XSLT 3.0 section 26.2).
+   */
+  private void _writeUnescaped (@NonNull final StringBuilder aSB, @NonNull final String s)
   {
     for (int i = 0; i < s.length ();)
     {
@@ -918,8 +941,9 @@ final class MarkupWriter
    * Write text content: nothing for the empty string; as CDATA if the parent
    * is in cdata-section-elements (not with the html method); unescaped for
    * the content of an HTML <code>script</code> or <code>style</code> element
-   * with the html method; escaped otherwise. Character map and normalisation
-   * are applied in the last two cases.
+   * with the html method (SERE0008 for a character the encoding cannot
+   * represent); escaped otherwise. Character map and normalisation are
+   * applied in the last two cases.
    *
    * @param sText
    *        The text.
@@ -949,9 +973,13 @@ final class MarkupWriter
 
   /**
    * Write a text, comment or processing instruction node; other node kinds
-   * are ignored. Text with disable-output-escaping is written as it is.
-   * Comments and processing instructions are written without any escaping
-   * or encoding check; a processing instruction ends with <code>&gt;</code>
+   * are ignored. Text with disable-output-escaping is written as it is, bar
+   * the characters the encoding cannot represent (see
+   * {@link #_writeUnescaped(StringBuilder, String)}). Comments and processing
+   * instructions are written without any escaping or encoding check (the
+   * adaptive method delegates to this writer, and the W3C XSLT test
+   * output-0707 expects no error for a character outside the encoding in a
+   * comment there); a processing instruction ends with <code>&gt;</code>
    * instead of <code>?&gt;</code> with the html method.
    *
    * @param aNode
@@ -965,7 +993,7 @@ final class MarkupWriter
     {
       case TEXT:
         if (aNode.isDisableOutputEscaping ())
-          m_aSB.append (aNode.getValue ());
+          _writeUnescaped (m_aSB, aNode.getValue ());
         else
           _writeText (aNode.getValue (), aParent);
         break;
@@ -1138,12 +1166,20 @@ final class MarkupWriter
 
   /**
    * @return The string in double quotes, or in single quotes if it contains a
-   *         double quote. A string with both is not handled specially.
+   *         double quote.
+   * @throws XPathException
+   *         SEPM0016 if it contains both quote characters: no literal can hold
+   *         it, and Serialization 3.1 section 3 excludes such a doctype-system
+   *         value
    */
   @NonNull
   private static String _quote (@NonNull final String s)
   {
-    return s.indexOf ('"') >= 0 ? "'" + s + "'" : "\"" + s + "\"";
+    if (s.indexOf ('"') < 0)
+      return "\"" + s + "\"";
+    if (s.indexOf ('\'') >= 0)
+      throw XPathException.of ("SEPM0016", "The value '" + s + "' contains both an apostrophe and a quotation mark");
+    return "'" + s + "'";
   }
 
   /**

@@ -22,6 +22,11 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmParseException;
+import com.helger.xpath.xdm.XdmParser;
+
 /**
  * Test class for class {@link XdmSerializer}.
  *
@@ -122,5 +127,55 @@ public final class XdmSerializerTest
     assertError ("XPTY0004", "serialize(1, map{'indent':'yes'})");
     assertError ("SEPM0016", "serialize(1, map{'method':'nonsense'})");
     assertError ("SEPM0016", "serialize(1, map{'use-character-maps':map{'ab':'c'}})");
+  }
+
+  @Test
+  public void testParamsDefaultNamespace ()
+  {
+    // Serialization 3.1 section 3.1: the element names of
+    // cdata-section-elements are xs:QName values, the method is not affected
+    // by the default namespace
+    assertEquals ("<a xmlns=\"urn:x\"><b><![CDATA[t]]></b><c>u</c></a>",
+                  evalString ("serialize(parse-xml('<a xmlns=\"urn:x\"><b>t</b><c>u</c></a>'), parse-xml('<output:serialization-parameters " +
+                              "xmlns:output=\"http://www.w3.org/2010/xslt-xquery-serialization\" xmlns=\"urn:x\"><output:method value=\"xml\"/>" +
+                              "<output:cdata-section-elements value=\"b\"/></output:serialization-parameters>')/*)"));
+    assertEquals ("<a><b>t</b></a>",
+                  evalString ("serialize(parse-xml('<a><b>t</b></a>'), parse-xml('<output:serialization-parameters " +
+                              "xmlns:output=\"http://www.w3.org/2010/xslt-xquery-serialization\" xmlns=\"urn:x\">" +
+                              "<output:cdata-section-elements value=\"b\"/></output:serialization-parameters>')/*)"));
+  }
+
+  @Test
+  public void testDoctypeSystemWithBothQuotes ()
+  {
+    assertEquals ("<!DOCTYPE a SYSTEM 'a\"b'><a/>", evalString ("serialize(parse-xml('<a/>'), map{'doctype-system':'a\"b'})"));
+    // Serialization 3.1 section 3: no literal can hold both quote characters
+    assertError ("SEPM0016", "serialize(parse-xml('<a/>'), map{'doctype-system':'a\"b''c'})");
+  }
+
+  @Test
+  public void testCharactersOutsideTheEncoding ()
+  {
+    // Character references in text and attributes
+    assertEquals ("<a x=\"&#233;\">&#233;</a>",
+                  evalString ("serialize(parse-xml('<a x=\"\u00e9\">\u00e9</a>'), map{'encoding':'us-ascii'})"));
+    // No character references in HTML script and style elements
+    // (Serialization 3.1 section 7.1)
+    assertError ("SERE0008",
+                 "serialize(parse-xml('<html><script>\u00e9</script></html>'), map{'encoding':'us-ascii', 'method':'html'})");
+    assertEquals ("<html><script>e</script></html>",
+                  evalString ("serialize(parse-xml('<html><script>e</script></html>'), map{'encoding':'us-ascii', 'method':'html'})"));
+  }
+
+  @Test
+  public void testDisableOutputEscapingOutsideTheEncoding () throws XdmParseException
+  {
+    final IXdmNode aDoc = new XdmParser ().parse ("<a>&lt;b/&gt;\u00e9</a>");
+    final IXdmNode aText = aDoc.getChildAtIndex (0).getChildAtIndex (0);
+    aText.setDisableOutputEscaping (true);
+    // XSLT 3.0 section 26.2: the request is ignored for a character the
+    // encoding cannot represent
+    assertEquals ("<a><b/>&#233;</a>",
+                  XdmSerializer.serialize (XdmSequence.of (aDoc), new SerializationParams ().setEncoding ("US-ASCII").setOmitXmlDeclaration (true)));
   }
 }
