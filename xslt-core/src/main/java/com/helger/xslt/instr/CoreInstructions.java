@@ -530,9 +530,7 @@ public final class CoreInstructions
     if (sSelect != null)
     {
       if (bContent)
-        throw XsltException.at (aEl,
-                                aEl.isXsl ("variable") ? "XTSE0620" : "XTSE0760",
-                                "xsl:" + aEl.getLocalName () + " has both a select attribute and content");
+        throw XsltException.at (aEl, "XTSE0620", "xsl:" + aEl.getLocalName () + " has both a select attribute and content");
       aSelect = aCtx.compileExpression (aEl, sSelect);
     }
     else
