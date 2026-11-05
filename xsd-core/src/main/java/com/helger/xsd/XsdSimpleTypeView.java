@@ -133,6 +133,17 @@ public final class XsdSimpleTypeView implements IXsdTypeDefinitionView
     return XsdName.NONE;
   }
 
+  /**
+   * The built-in type this simple type ultimately rests on. For an atomic
+   * type that is the <code>xs:</code> name of the atomic type recorded on the
+   * first type of its base chain whose base is built-in (or that has no
+   * base), with <code>xs:anyAtomicType</code> (also the answer for a chain
+   * longer than 64 steps) reported as <code>xs:anySimpleType</code>. A list answers for its item type, or
+   * <code>xs:anySimpleType</code> without one; a union always answers
+   * <code>xs:anySimpleType</code>.
+   *
+   * @return The built-in type name, never <code>null</code>.
+   */
   @NonNull
   public XsdName getBuiltinBase ()
   {

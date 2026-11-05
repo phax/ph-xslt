@@ -106,6 +106,10 @@ final class XsdInstanceValidator
     return s.substring (nStart, nEnd);
   }
 
+  /**
+   * @return <code>true</code> if the string is empty or consists of
+   *         {@link #_isSpace} characters only.
+   */
   private static boolean _isBlank (@NonNull final String s)
   {
     for (int i = 0; i < s.length (); i++)
@@ -142,6 +146,10 @@ final class XsdInstanceValidator
     return ret;
   }
 
+  /**
+   * @return <code>true</code> if the element has at least one element child.
+   *         Attributes and other node kinds do not count.
+   */
   private static boolean _hasChildElements (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
@@ -151,6 +159,11 @@ final class XsdInstanceValidator
     return false;
   }
 
+  /**
+   * @return <code>true</code> if some text child of the element contains a
+   *         character that is not {@link #_isSpace} whitespace. Each text node
+   *         is checked on its own.
+   */
   private static boolean _hasNonWSText (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
@@ -197,6 +210,16 @@ final class XsdInstanceValidator
     return false;
   }
 
+  /**
+   * Whether the element has content in the sense of the value constraint and
+   * nil rules: an element child, or a text child that is not whitespace only.
+   * Whitespace-only text alone counts as no content. Used for the default or
+   * fixed value of an empty element (cvc-elt.5.1), the emptiness of a nilled
+   * element (cvc-elt.3.2.1, together with {@link #_elementHasAnyText} under
+   * 1.1) and whether a fixed value is compared at all.
+   *
+   * @return <code>true</code> if there is such content.
+   */
   private static boolean _elementHasContent (@NonNull final IXdmNode aElement)
   {
     final int nCount = aElement.getChildCount ();
@@ -211,12 +234,23 @@ final class XsdInstanceValidator
     return false;
   }
 
+  /**
+   * @return <code>true</code> if the element carries <code>xsi:nil</code> with
+   *         the exact value <code>true</code> or <code>1</code>. The value is
+   *         compared as written, so <code>" true"</code> is not nilled; the
+   *         presence check of cvc-elt.3.1 is done by the caller.
+   */
   private static boolean _isNilled (@NonNull final IXdmNode aElement)
   {
     final String s = XsdNodes.attrNS (aElement, XsdConstants.NS_XSI, "nil");
     return s != null && ("true".equals (s) || "1".equals (s));
   }
 
+  /**
+   * @return <code>true</code> if at least one of the wildcards admits the
+   *         expanded name (namespace constraint only, regardless of
+   *         processContents). <code>false</code> for an empty list.
+   */
   private static boolean _matchesAnyWildcard (@NonNull final ICommonsList <XsdWildcard> aWildcards,
                                               @NonNull final XsdName aName)
   {
@@ -478,6 +512,11 @@ final class XsdInstanceValidator
     return elementText (aElement);
   }
 
+  /**
+   * Saturating multiplication of two non-negative occurrence counts: the
+   * product, or {@link #CAPACITY_CAP} if it would exceed that bound, so that
+   * nested <code>maxOccurs</code> values never overflow.
+   */
   private static long _satMul (final long a, final long b)
   {
     return b > 0 && a > CAPACITY_CAP / b ? CAPACITY_CAP : a * b;
@@ -708,7 +747,7 @@ final class XsdInstanceValidator
   /**
    * The attributes of an element that lax assessment descends into: the
    * element has no declaration, so it is assessed against the ur-type, whose
-   * attribute wildcard is lax (XSD 1.0 section 3.4.4): an attribute with a
+   * attribute wildcard is lax (XSD 1.0 section 3.4.7): an attribute with a
    * global declaration is validated against it, which is how an xml:id or an
    * ID arriving this way is counted and bound. The xsi attributes are left
    * alone, as are attributes without a declaration.
@@ -1224,6 +1263,50 @@ final class XsdInstanceValidator
         XsdAttributeValidator.validateAttributes (aRun, aCT, aElement);
   }
 
+  /**
+   * The body of {@link #validateElementAgainst} without the location stamp.
+   * In order:
+   * <ol>
+   * <li>The governing type: an <code>xsi:type</code> is resolved
+   * (cvc-elt.4.2) and must be validly derived from the declared type, by no
+   * method the element's {disallowed substitutions} or the declared complex
+   * type's {prohibited substitutions} block (cvc-elt.4.3). Without
+   * <code>xsi:type</code> an XSD 1.1 type alternative may replace the
+   * declared type.</li>
+   * <li><code>xsi:nil</code> (any value) on a non-nillable declaration is
+   * cvc-elt.3.1. A nilled element must have no content (cvc-elt.3.2.1;
+   * under 1.1 not even whitespace text) and no fixed value constraint
+   * (cvc-elt.3.2.2); only its attributes are assessed, it is recorded as
+   * nilled and nothing else is checked - not even its identity
+   * constraints.</li>
+   * <li>The key and unique tables of the declaration's identity constraints
+   * are built over the element and added to the scopes passed to the
+   * descendants.</li>
+   * <li>The element is validated against the governing type, one level
+   * deeper in the run's depth count.</li>
+   * <li>Fixed value: a mixed-content element with a fixed value must have no
+   * element children (cvc-elt.5.2.2.1); an element without element children
+   * but with non-whitespace text must equal the fixed value in the value
+   * space of its simple content type, or that of one of
+   * <code>aExtraFixed</code> (cvc-elt.5.2.2.2). Content that is absent or
+   * whitespace only is not compared here.</li>
+   * <li>The declaration's keyrefs are checked against the tables whose scope
+   * is this element.</li>
+   * </ol>
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aDecl
+   *        The declaration.
+   * @param aElement
+   *        The instance element.
+   * @param aScopes
+   *        The key/unique tables in scope; not modified.
+   * @param aExtraFixed
+   *        Further acceptable fixed values; may be <code>null</code>.
+   * @throws XsdInvalidException
+   *         if the element is not valid
+   */
   private static void _validateElementAgainstImpl (@NonNull final XsdValidationRun aRun,
                                                    @NonNull final XsdElementDecl aDecl,
                                                    @NonNull final IXdmNode aElement,
@@ -1349,6 +1432,11 @@ final class XsdInstanceValidator
         XsdIdentityValidator.checkKeyref (aRun, aConstraint, aElement, aOwnScopes);
   }
 
+  /**
+   * Whether element content equals a fixed value: in the value space of the
+   * simple content type if there is one, otherwise by comparing the two
+   * strings after whitespace collapsing.
+   */
   private static boolean _fixedMatches (@Nullable final XsdSimpleType aType,
                                         @NonNull final String sContent,
                                         @NonNull final String sFixed)

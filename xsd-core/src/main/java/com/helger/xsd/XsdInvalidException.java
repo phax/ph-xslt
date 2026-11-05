@@ -44,6 +44,16 @@ public class XsdInvalidException extends RuntimeException
     this (aError, new CommonsArrayList <> ());
   }
 
+  /**
+   * The exception message is the error's {@link XsdError#toString()} form
+   * (<code>code: message</code>, or the message alone without a code).
+   *
+   * @param aError
+   *        The (first) error. May not be <code>null</code>.
+   * @param aMessages
+   *        The candidate <code>msg:message</code> entries the error's
+   *        wording is later chosen from; kept, not copied.
+   */
   XsdInvalidException (@NonNull final XsdError aError, @NonNull final ICommonsList <XsdMessage> aMessages)
   {
     super (ValueEnforcer.notNull (aError, "Error").toString ());

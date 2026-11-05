@@ -118,6 +118,12 @@ final class XsdRegexGrammar
     return c >= '0' && c <= '9';
   }
 
+  /**
+   * @param s
+   *        The string to check.
+   * @return <code>true</code> if the string is not empty and consists of
+   *         ASCII digits only.
+   */
   private static boolean _allDigits (@NonNull final String s)
   {
     if (s.isEmpty ())
@@ -155,6 +161,12 @@ final class XsdRegexGrammar
     return true;
   }
 
+  /**
+   * @param s
+   *        A digit string.
+   * @return The string without its leading zeros; empty for an all-zero
+   *         string.
+   */
   @NonNull
   private static String _trimLeftZeros (@NonNull final String s)
   {
@@ -164,12 +176,36 @@ final class XsdRegexGrammar
     return s.substring (i);
   }
 
+  /**
+   * @param a
+   *        The pattern as code points.
+   * @param nFrom
+   *        The first index, inclusive.
+   * @param nTo
+   *        The last index, exclusive.
+   * @return The code points in that range as a string.
+   */
   @NonNull
   private static String _slice (final int [] a, final int nFrom, final int nTo)
   {
     return new String (a, nFrom, nTo - nFrom);
   }
 
+  /**
+   * Check the body of a <code>\p{...}</code> or <code>\P{...}</code> escape
+   * (charProp: a category or an <code>Is</code> block escape). A block name
+   * must be non-empty and consist of ASCII letters, digits and hyphens; under
+   * XSD 1.0 it must also be a block the regular expression engine knows
+   * ({@link #isBlockKnown}), while XSD 1.1 accepts an unknown one. Anything
+   * else must be one of the general categories of <code>CATEGORIES</code>.
+   *
+   * @param sBody
+   *        The text between the braces.
+   * @param bXsd11
+   *        <code>true</code> for the XSD 1.1 grammar.
+   * @throws GrammarError
+   *         if the body is not acceptable
+   */
   private static void _validCharProp (@NonNull final String sBody, final boolean bXsd11)
   {
     if (sBody.startsWith ("Is"))
@@ -380,6 +416,29 @@ final class XsdRegexGrammar
     throw new GrammarError ("unclosed character class");
   }
 
+  /**
+   * Scan a whole pattern once, left to right, over its code points. Outside
+   * a character class it checks: escapes via {@link #_classAtomEnd} (closed
+   * escape repertoire, no back-references); character classes via
+   * {@link #_validateCharClass}; no unescaped <code>]</code>; a quantifier
+   * (<code>*</code>, <code>+</code>, <code>?</code> or a well-formed
+   * <code>{n}</code>, <code>{n,}</code>, <code>{n,m}</code> with n not above
+   * m) only directly after an atom and never two in a row, so
+   * <code>*?</code> and the like (reluctant quantifiers) are rejected; no
+   * <code>(?</code> group syntax; balanced parentheses. A <code>|</code>
+   * starts a new, possibly empty branch. Every other character counts as an
+   * atom; an unescaped <code>}</code> outside a quantifier is not flagged
+   * here.
+   *
+   * @param sPattern
+   *        The pattern.
+   * @param bXsd11
+   *        <code>true</code> for the XSD 1.1 grammar.
+   * @throws GrammarError
+   *         on the first construct outside the grammar
+   * @throws XsdUnsupportedException
+   *         if character class subtractions are nested too deeply
+   */
   private static void _validate (@NonNull final String sPattern, final boolean bXsd11)
   {
     final int [] a = sPattern.codePoints ().toArray ();

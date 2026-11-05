@@ -44,6 +44,9 @@ import com.helger.xpath.xdm.IXdmNode;
 @NotThreadSafe
 final class XsdComponentChecks
 {
+  /**
+   * Maximum number of derivation steps followed by {@link #typeRestrictsFrom}.
+   */
   private static final int MAX_CHAIN = 64;
 
   private final XsdCompiler m_aC;
@@ -83,6 +86,24 @@ final class XsdComponentChecks
     return true;
   }
 
+  /**
+   * Record one element declaration of a content model for the XSD 1.1 cos-element-consistent check
+   * (XSD 1.1 Structures section 3.8.6.3): the entry for the name keeps the
+   * {@link #typeSignature type signature} and the number of type alternatives. If the name was
+   * already recorded with a different signature or a different number of alternatives, the
+   * declarations are inconsistent. The entry is replaced in any case, so the last declaration seen
+   * for a name is the one remembered.
+   *
+   * @param aSigs
+   *        The entries so far, keyed by expanded name. Modified.
+   * @param aName
+   *        The expanded name to record under.
+   * @param aDecl
+   *        The declaration.
+   * @throws XsdInvalidException
+   *         (code <code>cos-element-consistent</code>) if the name was recorded with another type or
+   *         another number of alternatives
+   */
   private static void _addEdc (@NonNull final ICommonsOrderedMap <XsdName, EdcEntry> aSigs,
                                @NonNull final XsdName aName,
                                @NonNull final XsdElementDecl aDecl)
@@ -358,6 +379,19 @@ final class XsdComponentChecks
     return true;
   }
 
+  /**
+   * The case of the XSD 1.0 Attribute Wildcard Union (errata E1-10) that has no representation: a
+   * <code>##other</code> wildcard (not the target namespace and not absent) united with a list
+   * wildcard that admits absent but not that target namespace.
+   *
+   * @param aOther
+   *        The candidate <code>##other</code> wildcard.
+   * @param aList
+   *        The candidate list wildcard.
+   * @return <code>true</code> if <code>aOther</code> is <code>##other</code>, <code>aList</code> is a
+   *         list, and the list contains <code>##local</code> but not the target namespace of
+   *         <code>aOther</code>.
+   */
   private static boolean _inexpressible (@NonNull final XsdWildcard aOther, @NonNull final XsdWildcard aList)
   {
     if (!XsdWildcard.NS_OTHER.equals (aOther.m_sNsMode) || !XsdWildcard.NS_LIST.equals (aList.m_sNsMode))
@@ -376,6 +410,19 @@ final class XsdComponentChecks
     return !_inexpressible (aA, aB) && !_inexpressible (aB, aA);
   }
 
+  /**
+   * Whether one base particle already admits everything the derived open-content wildcard lets
+   * through: it must be a wildcard particle with <code>maxOccurs</code> unbounded whose namespace
+   * constraint includes the open-content wildcard's, whose excluded names (and
+   * <code>##defined</code>) the open-content wildcard does not admit, and whose processContents is
+   * no stricter than the open-content wildcard's.
+   *
+   * @param q
+   *        The base particle.
+   * @param aOwn
+   *        The derived type's open content, with a wildcard.
+   * @return <code>true</code> if the particle covers the open-content wildcard.
+   */
   private static boolean _covers (@NonNull final XsdParticle q, @NonNull final XsdOpenContent aOwn)
   {
     return q.m_aTerm instanceof final XsdWildcard w &&
@@ -458,6 +505,40 @@ final class XsdComponentChecks
       }
   }
 
+  /**
+   * The work of {@link #typeRestrictsFrom} and {@link #typeRestrictsFromStrict}. Conservative: the
+   * answer is <code>false</code> only where the derivation is provably impossible, and
+   * <code>true</code> beyond a nesting depth of 32 and for anonymous types that can only be compared
+   * by identity. The cases by kind:
+   * <ul>
+   * <li>Both complex (or neither simple): <code>true</code> if either is anonymous or the base is
+   * xs:anyType; otherwise the {base type} chain of the derived type must reach the base (by identity
+   * or name) within {@link #MAX_CHAIN} steps. With <code>bRestrictionOnly</code> a step that is an
+   * extension ends the walk with <code>false</code>.</li>
+   * <li>Base simple, derived complex: <code>true</code> for an anonymous base; otherwise the complex
+   * chain is followed to its first simple type, which must restrict from the base (recursively); a
+   * complex type without a base gives <code>false</code>.</li>
+   * <li>Base complex, derived simple: only xs:anyType (or an anonymous base) gives
+   * <code>true</code>.</li>
+   * <li>Both simple: <code>true</code> if the base is on the derived type's restriction chain (by
+   * identity or by name), or is the plain built-in anySimpleType/anyAtomicType. A union base that is
+   * not itself a restriction accepts a type that restricts one of its members (an anonymous union
+   * without members accepts anything). Otherwise the varieties must agree; a list base, or a union
+   * base that is a restriction, is accepted only if anonymous; an atomic base is accepted if its
+   * primitive is xs:anyAtomicType, or if it is a plain built-in reference (no facets, not a declared
+   * type) from which the derived type's primitive derives in the built-in hierarchy.</li>
+   * </ul>
+   *
+   * @param aDerived
+   *        The derived type. May be <code>null</code>.
+   * @param aBase
+   *        The base type. May be <code>null</code>.
+   * @param nDepth
+   *        Recursion depth.
+   * @param bRestrictionOnly
+   *        <code>true</code> if an extension step in the complex chain disqualifies.
+   * @return <code>false</code> only if the derived type provably does not derive from the base.
+   */
   private static boolean _typeRestrictsFromDepth (@Nullable final IXsdType aDerived,
                                                   @Nullable final IXsdType aBase,
                                                   final int nDepth,
@@ -561,7 +642,25 @@ final class XsdComponentChecks
     return XsdDerivation.atomDerivesFrom (aDS.resolvePrim (), eBP);
   }
 
-  /** The attribute-use checks of a complex-content restriction against its base. */
+  /**
+   * The attribute-use checks of a complex type restriction against its complex base (XSD 1.1
+   * Structures section 3.4.6.3, Derivation Valid (Restriction, Complex)), for simple and complex
+   * content alike. Each attribute use of the restriction is matched by name against the base's
+   * effective attribute uses: a prohibited use may not remove a required base use
+   * (derivation-ok-restriction.3); a redeclared use's type must not provably fail to derive from the
+   * base use's type ({@link #typeRestrictsFrom}); in 1.1 {inheritable} must not change; a use without
+   * a base counterpart must be admitted by the base's attribute wildcard
+   * (derivation-ok-restriction.2.2). Uses whose type is not resolved are skipped. Finally the
+   * restriction's own attribute wildcard, if any, needs a base wildcard of which it is a namespace
+   * subset, not weaker in processContents and not admitting names the base excludes.
+   *
+   * @param aCT
+   *        The restriction.
+   * @param aBase
+   *        Its complex base type.
+   * @throws XsdInvalidException
+   *         on the first violation
+   */
   private void _checkRestrictionAttributes (@NonNull final XsdComplexType aCT, @NonNull final XsdComplexType aBase)
   {
     final XsdSchema aSchema = m_aC.m_aSchema;
@@ -863,6 +962,17 @@ final class XsdComponentChecks
   /**
    * go-xslt <code>checkDuplicateConstraints</code>: identity constraints are unique by name across
    * the schema, and a keyref may not refer to a keyref.
+   * <p>
+   * Only the identity constraints of element declarations reachable from a global element
+   * declaration through the complex types' own particles are seen (an extension's inherited content
+   * is reached only if its base type is used elsewhere). XSD 1.1 <code>@ref</code> uses are not
+   * declarations and are skipped. The complete name uniqueness check over all constraints is
+   * {@link XsdIdentityCompiler#checkKeyrefs()}.
+   * </p>
+   *
+   * @throws XsdInvalidException
+   *         (empty code) for a second constraint with the same name, or a keyref whose
+   *         <code>@refer</code> names another keyref
    */
   void checkDuplicateConstraints ()
   {
@@ -922,7 +1032,15 @@ final class XsdComponentChecks
                                        " which is itself a keyref");
   }
 
-  /** go-xslt <code>isEmptyParticle</code>. */
+  /**
+   * go-xslt <code>isEmptyParticle</code>: whether a content model is empty in the sense of having
+   * no particles at all - <code>null</code>, or a model group without members. Occurrence counts
+   * are not considered, so an optional non-empty group is not empty.
+   *
+   * @param aParticle
+   *        The particle. May be <code>null</code>.
+   * @return <code>true</code> for <code>null</code> or a particle holding an empty model group.
+   */
   static boolean isEmptyParticle (@Nullable final XsdParticle aParticle)
   {
     if (aParticle == null)
@@ -932,7 +1050,14 @@ final class XsdComponentChecks
     return false;
   }
 
-  /** go-xslt <code>isAllParticle</code>. */
+  /**
+   * go-xslt <code>isAllParticle</code>.
+   *
+   * @param aParticle
+   *        The particle. May be <code>null</code>.
+   * @return <code>true</code> if the particle holds a model group with compositor
+   *         <code>all</code>.
+   */
   static boolean isAllParticle (@Nullable final XsdParticle aParticle)
   {
     return aParticle != null &&
@@ -1004,6 +1129,17 @@ final class XsdComponentChecks
   /**
    * go-xslt <code>checkAllRestrictions</code>: the per-type derivation checks over every complex
    * type, named and anonymous.
+   * <p>
+   * For each type in turn: the all-group checks (extension and placement), the base-kind checks of
+   * src-ct, and in 1.1 the open-content derivation; cos-element-consistent on the effective content
+   * model of an extension, plus the 1.1 additions over every effective model; in 1.0 the
+   * expressibility of the attribute wildcard union of an extension and its base. A restriction of a
+   * complex type must then be a valid particle restriction of the base's effective content model
+   * ({@link XsdRestrictionChecker#particleRestrictsOK}) and pass the attribute checks.
+   * </p>
+   *
+   * @throws XsdInvalidException
+   *         on the first violation
    */
   void checkAllRestrictions ()
   {

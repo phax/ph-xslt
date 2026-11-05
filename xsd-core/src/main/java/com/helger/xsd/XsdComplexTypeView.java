@@ -148,7 +148,15 @@ public final class XsdComplexTypeView implements IXsdTypeDefinitionView
     return new CommonsArrayList <> (aRoot);
   }
 
-  /** @return The effective attribute uses (after extension and restriction). */
+  /**
+   * The effective attribute uses (after extension and restriction), in the
+   * order the schema computes them, prohibited uses included. A use's value
+   * constraint is its own default or fixed value; only when the use has
+   * neither are the referenced declaration's default and fixed value
+   * reported.
+   *
+   * @return A new list of new use views.
+   */
   @NonNull
   public ICommonsList <XsdAttributeUseView> getAttributes ()
   {

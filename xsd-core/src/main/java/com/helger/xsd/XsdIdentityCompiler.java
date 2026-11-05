@@ -45,6 +45,11 @@ final class XsdIdentityCompiler
 {
   private final XsdCompiler m_aC;
 
+  /**
+   * @param aCompiler
+   *        The compiler whose target namespace, version, imports and
+   *        identity-constraint lists are used and filled.
+   */
   XsdIdentityCompiler (@NonNull final XsdCompiler aCompiler)
   {
     m_aC = aCompiler;
@@ -55,6 +60,11 @@ final class XsdIdentityCompiler
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
   }
 
+  /**
+   * @param s
+   *        The string to check.
+   * @return <code>true</code> if it contains a space, tab, CR or LF.
+   */
   private static boolean _containsWS (@NonNull final String s)
   {
     for (int i = 0; i < s.length (); i++)
@@ -167,7 +177,28 @@ final class XsdIdentityCompiler
 
   /**
    * go-xslt <code>validateIdentityXPath</code>: a selector or field against
-   * the restricted XPath subset of identity constraints.
+   * the restricted XPath subset of identity constraints (XSD 1.1 Structures
+   * 3.11.6.2 Selector Value OK and 3.11.6.3 Fields Value OK).
+   * <p>
+   * First a single <code>:</code> with whitespace on either side is rejected
+   * (a QName cannot be split; <code>::</code> is exempt). Then all whitespace
+   * is removed and the expression is split at <code>|</code>; every
+   * alternative must be a path of the form <code>(.//)? Step ('/' Step)*</code>
+   * where a step is <code>.</code>, a name test (<code>*</code>,
+   * <code>p:*</code>, an NCName or a QName whose prefix is bound at
+   * <code>aNode</code>), optionally with <code>child::</code>, and, for a
+   * field's last step only, <code>@</code> or <code>attribute::</code> with a
+   * name test. An empty alternative, a leading <code>/</code> and any other
+   * <code>//</code> are rejected.
+   *
+   * @param sExpr
+   *        The <code>xpath</code> attribute value.
+   * @param bField
+   *        <code>true</code> for a field, <code>false</code> for a selector.
+   * @param aNode
+   *        The xs:selector or xs:field element, for prefix resolution.
+   * @throws XsdInvalidException
+   *         (without an error code) if the expression is outside the subset
    */
   static void validateIdentityXPath (@NonNull final String sExpr, final boolean bField, @NonNull final IXdmNode aNode)
   {
@@ -195,6 +226,20 @@ final class XsdIdentityCompiler
    * go-xslt <code>resolveXPathDefaultNS</code>: the effective
    * xpathDefaultNamespace of an XPath-carrying schema element (the nearest
    * attribute on the element or an ancestor up to xs:schema).
+   * <p>
+   * <code>##local</code> and no attribute at all give the empty string (no
+   * namespace), <code>##targetNamespace</code> the target namespace of the
+   * schema document being compiled, <code>##defaultNamespace</code> the
+   * default namespace in scope at the element that carries the attribute
+   * (empty if none), any other value its whitespace-stripped self. Note that
+   * XSD 1.1 Structures 3.13.2 takes the in-scope default namespace of the
+   * host element instead of the carrier; the two differ only if the host
+   * element redeclares the default namespace.
+   *
+   * @param aNode
+   *        The host element (xs:selector, xs:field, xs:assert, ...).
+   * @return The namespace URI used for unprefixed element names, empty for
+   *         none. Never <code>null</code>.
    */
   @NonNull
   String resolveXPathDefaultNamespace (@NonNull final IXdmNode aNode)
@@ -234,6 +279,27 @@ final class XsdIdentityCompiler
   /**
    * go-xslt <code>parseIdentityConstraints</code>: the xs:key, xs:keyref and
    * xs:unique children of an element declaration.
+   * <p>
+   * A child with <code>@ref</code> (XSD 1.1 only, else
+   * src-identity-constraint) may have neither <code>@name</code> nor
+   * <code>@refer</code> nor any child other than xs:annotation (all
+   * src-identity-constraint); it becomes a pending reference registered
+   * with the compiler and resolved by {@link #checkKeyrefs}. Any other child
+   * needs an NCName <code>@name</code> (named in the target namespace), an
+   * xs:selector and at least one xs:field; the selector and each field are
+   * checked with {@link #validateIdentityXPath}, get their effective
+   * xpathDefaultNamespace and are compiled with the namespaces in scope at
+   * their own element. A keyref's <code>@refer</code> must be in a
+   * namespace this document can reach (src-resolve). Each non-reference
+   * constraint is also added to the compiler's list of all constraints.
+   *
+   * @param aNode
+   *        The xs:element.
+   * @return The constraints in document order, references included.
+   * @throws XsdInvalidException
+   *         as listed above
+   * @throws XsdUnsupportedException
+   *         if the XPath engine cannot compile a selector or field
    */
   @NonNull
   ICommonsList <XsdIdentityConstraint> parseIdentityConstraints (@NonNull final IXdmNode aNode)
@@ -317,6 +383,17 @@ final class XsdIdentityCompiler
    * go-xslt <code>checkKeyrefs</code>: identity-constraint names are unique,
    * XSD 1.1 @ref uses resolve, a keyref's @refer names a key or unique with as
    * many fields.
+   * <p>
+   * Runs once after all schema documents are parsed. A second constraint of
+   * the same name is c-props-correct.1. A pending <code>@ref</code> that
+   * names no constraint is src-resolve, one naming a constraint of another
+   * kind is c-props-correct; otherwise the referenced definition is copied
+   * into it. A keyref whose <code>@refer</code> names no constraint or a
+   * keyref, or a key/unique with a different number of fields, is
+   * c-props-correct.2.
+   *
+   * @throws XsdInvalidException
+   *         as listed above
    */
   void checkKeyrefs ()
   {

@@ -65,6 +65,16 @@ public final class XsdSchema
   /** Set at compile time when any xs:assert was parsed (XSD 1.1). */
   boolean m_bHasAsserts;
 
+  /**
+   * Create an empty component model; the compiler fills the maps afterwards.
+   *
+   * @param eVersion
+   *        The XSD version compiled for.
+   * @param aBaseDir
+   *        The directory of the entry document, <code>null</code> if unknown.
+   * @param aFileAccess
+   *        The rule every schema document read from disk is checked against.
+   */
   XsdSchema (@NonNull final EXsdVersion eVersion,
              @Nullable final Path aBaseDir,
              @NonNull final XsdFileAccess aFileAccess)
@@ -74,6 +84,13 @@ public final class XsdSchema
     m_aFileAccess = aFileAccess;
   }
 
+  /**
+   * @param aParticle
+   *        A particle. May be <code>null</code>.
+   * @return The particle's term if it is an <code>xs:all</code> model group
+   *         and the particle has <code>maxOccurs=1</code>, otherwise
+   *         <code>null</code>.
+   */
   @Nullable
   private static XsdModelGroup _allGroupOf (@Nullable final XsdParticle aParticle)
   {
@@ -84,6 +101,25 @@ public final class XsdSchema
     return null;
   }
 
+  /**
+   * One extension step of the effective content model (XSD 1.1 Structures
+   * 3.4.2.3.3, clause 4.2): without a base particle the type's own particle
+   * is the result, without an own particle the base particle. Under XSD 1.1,
+   * when both are <code>xs:all</code> groups (see {@link #_allGroupOf}), the
+   * result is one new all group with the base members followed by the own
+   * members, whose <code>minOccurs</code> is the larger of the two
+   * particles' <code>minOccurs</code> and whose <code>maxOccurs</code> is 1.
+   * Otherwise the result is a new <code>sequence</code> particle (1..1) of
+   * the base particle followed by the own particle. Neither input is
+   * modified.
+   *
+   * @param aCT
+   *        The extending complex type; its own particle is used.
+   * @param aBaseParticle
+   *        The effective particle of the base type. May be <code>null</code>.
+   * @return The combined particle, <code>null</code> only if both are
+   *         <code>null</code>.
+   */
   @Nullable
   private XsdParticle _combineExtension (@NonNull final XsdComplexType aCT, @Nullable final XsdParticle aBaseParticle)
   {
@@ -112,6 +148,18 @@ public final class XsdSchema
     return new XsdParticle (1, 1, aSeq);
   }
 
+  /**
+   * One derivation step of the effective attribute uses: the base uses whose
+   * name is not used by an own use (prohibited or not), in base order,
+   * followed by the own uses that are not prohibited. So an own use replaces
+   * the inherited one of the same name, and an own prohibited use removes it.
+   *
+   * @param aBase
+   *        The effective attribute uses of the base type.
+   * @param aOwn
+   *        The attribute uses declared on the derivation step.
+   * @return A new list. Never <code>null</code>.
+   */
   @NonNull
   private static ICommonsList <XsdAttributeUse> _mergeAttrs (@NonNull final ICommonsList <XsdAttributeUse> aBase,
                                                              @NonNull final ICommonsList <XsdAttributeUse> aOwn)
@@ -129,6 +177,25 @@ public final class XsdSchema
     return ret;
   }
 
+  /**
+   * Walk the derivation chain from the type towards its bases for the
+   * nearest open content. A type with its own open content of mode "none"
+   * ends the walk with <code>null</code> if it is a restriction, and is
+   * passed over if it is an extension. A type with another own open content
+   * returns it; if it is an extension of a complex type whose effective open
+   * content (computed recursively) also has a wildcard, a new open content
+   * of the own mode is returned whose wildcard is the union of the own and
+   * the base wildcard (with the own <code>processContents</code>). A
+   * restriction without own open content has none; an extension without it
+   * continues with its base. A cyclic chain or a recursion deeper than 64
+   * gives <code>null</code>.
+   *
+   * @param aCT
+   *        The complex type.
+   * @param nDepth
+   *        The recursion depth of the union case, 0 at the top.
+   * @return The effective open content, or <code>null</code> for none.
+   */
   @Nullable
   private XsdOpenContent _effectiveOpenContent (@NonNull final XsdComplexType aCT, final int nDepth)
   {

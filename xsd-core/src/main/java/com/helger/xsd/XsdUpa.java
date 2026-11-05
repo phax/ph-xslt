@@ -69,6 +69,24 @@ final class XsdUpa
     private final ICommonsMap <XsdModelGroup, XsdParticle> m_aActive = new CommonsHashMap <> ();
     private int m_nBudget = UNFOLD_BUDGET;
 
+    /**
+     * Copy one particle and, recursively, the model group it holds. Every call
+     * spends one unit of the node budget; once the budget is used up the particle
+     * is returned as it is (shared, not copied). A non-group term is copied as a
+     * new particle around the same term. A model group that is already being
+     * unfolded higher up on the current path is not entered again: the particle
+     * copied for it there is returned, so that a cyclic group reference becomes a
+     * cycle in the copy as well.
+     *
+     * @param aParticle
+     *        The particle to copy. May be <code>null</code>.
+     * @param nDepth
+     *        Current nesting depth, checked against the model limits.
+     * @return The copy, the original particle when the budget is exhausted, or
+     *         <code>null</code> for a <code>null</code> input.
+     * @throws XsdUnsupportedException
+     *         if the model is nested too deeply to be walked
+     */
     @Nullable
     XsdParticle unfold (@Nullable final XsdParticle aParticle, final int nDepth)
     {
@@ -106,6 +124,25 @@ final class XsdUpa
   private XsdUpa ()
   {}
 
+  /**
+   * Whether a particle can match the empty sequence (go-xslt
+   * <code>upaNullable</code>): <code>null</code> and every particle with
+   * <code>minOccurs=0</code> are nullable; an element or wildcard particle with
+   * a positive minimum is not. A choice is nullable if one of its particles is,
+   * an empty choice is not (it matches nothing); a sequence or all group is
+   * nullable if all of its particles are, so an empty one is. A model group
+   * already on the current path (a cyclic reference) counts as not nullable.
+   *
+   * @param aParticle
+   *        The particle. May be <code>null</code>.
+   * @param aSeen
+   *        The model groups on the current path; restored on return.
+   * @param nDepth
+   *        Current nesting depth, checked against the model limits.
+   * @return <code>true</code> if the particle is nullable.
+   * @throws XsdUnsupportedException
+   *         if the particle is nested too deeply to be walked
+   */
   private static boolean _nullableSeen (@Nullable final XsdParticle aParticle,
                                         @NonNull final Set <XsdModelGroup> aSeen,
                                         final int nDepth)
@@ -139,6 +176,16 @@ final class XsdUpa
     }
   }
 
+  /**
+   * Unfold the content model with a fresh {@link Unfolder} so that every group
+   * reference contributes its own positions. If the node budget runs out the
+   * original, shared tree is checked instead of a partial copy, as go-xslt does.
+   *
+   * @param aRoot
+   *        The effective particle.
+   * @return The unfolded copy, or <code>aRoot</code> itself when the budget was
+   *         exhausted.
+   */
   @NonNull
   private static XsdParticle _unfold (@NonNull final XsdParticle aRoot)
   {
@@ -148,6 +195,26 @@ final class XsdUpa
     return aUnfolder.m_nBudget <= 0 || ret == null ? aRoot : ret;
   }
 
+  /**
+   * Collect the first positions of a particle (Glushkov first set): the element
+   * and wildcard particles that can match the first child. A particle with
+   * <code>maxOccurs=0</code> contributes nothing. For a sequence the members are
+   * taken from the left up to and including the first one that is not
+   * {@link #upaNullable(XsdParticle) nullable}; for a choice or all group every
+   * member contributes. A model group already on the current path is skipped.
+   * Positions may be added more than once.
+   *
+   * @param aParticle
+   *        The particle. May be <code>null</code>.
+   * @param aOut
+   *        Receives the positions.
+   * @param aSeen
+   *        The model groups on the current path; restored on return.
+   * @param nDepth
+   *        Current nesting depth, checked against the model limits.
+   * @throws XsdUnsupportedException
+   *         if the particle is nested too deeply to be walked
+   */
   private static void _first (@Nullable final XsdParticle aParticle,
                               @NonNull final ICommonsList <XsdParticle> aOut,
                               @NonNull final Set <XsdModelGroup> aSeen,
@@ -187,6 +254,23 @@ final class XsdUpa
       aOut.add (aParticle);
   }
 
+  /**
+   * Collect the last positions of a particle (Glushkov last set): the element
+   * and wildcard particles that can match the last child. The mirror image of
+   * {@link #_first}: a sequence is walked from the right up to and including the
+   * first member that is not nullable.
+   *
+   * @param aParticle
+   *        The particle. May be <code>null</code>.
+   * @param aOut
+   *        Receives the positions.
+   * @param aSeen
+   *        The model groups on the current path; restored on return.
+   * @param nDepth
+   *        Current nesting depth, checked against the model limits.
+   * @throws XsdUnsupportedException
+   *         if the particle is nested too deeply to be walked
+   */
   private static void _last (@Nullable final XsdParticle aParticle,
                              @NonNull final ICommonsList <XsdParticle> aOut,
                              @NonNull final Set <XsdModelGroup> aSeen,
@@ -227,6 +311,12 @@ final class XsdUpa
       aOut.add (aParticle);
   }
 
+  /**
+   * @param aParticle
+   *        The particle.
+   * @return A new list with the first positions of the particle, see
+   *         {@link #_first}.
+   */
   @NonNull
   private static ICommonsList <XsdParticle> _firstOf (@NonNull final XsdParticle aParticle)
   {
@@ -235,6 +325,12 @@ final class XsdUpa
     return ret;
   }
 
+  /**
+   * @param aParticle
+   *        The particle.
+   * @return A new list with the last positions of the particle, see
+   *         {@link #_last}.
+   */
   @NonNull
   private static ICommonsList <XsdParticle> _lastOf (@NonNull final XsdParticle aParticle)
   {
@@ -250,6 +346,32 @@ final class XsdUpa
     aFollow.computeIfAbsent (aFrom, k -> new CommonsArrayList <> ()).addAll (aTo);
   }
 
+  /**
+   * Build the follow sets of all positions in a particle (Glushkov follow
+   * relation): for each position, the positions that may match the next child.
+   * In a sequence, the last positions of each member are followed by the first
+   * positions of the next members, up to and including the first one that is not
+   * nullable. In an all group, the last positions of each member are followed by
+   * the first positions of every other member. A choice adds no edges between
+   * its members. The members are then walked recursively; a model group already
+   * on the current path is skipped. Finally a particle that can repeat
+   * (<code>maxOccurs</code> unbounded, or above 1 and different from
+   * <code>minOccurs</code>) gets loop edges from its last to its first
+   * positions; a fixed count such as <code>b{2,2}</code> gets none, because it
+   * never offers a choice between looping and leaving. A particle with
+   * <code>maxOccurs=0</code> contributes nothing.
+   *
+   * @param aParticle
+   *        The particle. May be <code>null</code>.
+   * @param aFollow
+   *        Receives the follow sets, keyed by position (identity).
+   * @param aSeen
+   *        The model groups on the current path; restored on return.
+   * @param nDepth
+   *        Current nesting depth, checked against the model limits.
+   * @throws XsdUnsupportedException
+   *         if the particle is nested too deeply to be walked
+   */
   private static void _follow (@Nullable final XsdParticle aParticle,
                                @NonNull final ICommonsMap <XsdParticle, ICommonsList <XsdParticle>> aFollow,
                                @NonNull final Set <XsdModelGroup> aSeen,
@@ -321,6 +443,14 @@ final class XsdUpa
     }
   }
 
+  /**
+   * @param aList
+   *        The namespaces of a list wildcard.
+   * @param aExcluded
+   *        The namespaces excluded by an <code>##any</code> wildcard.
+   * @return <code>true</code> if at least one namespace of the list is not
+   *         excluded.
+   */
   private static boolean _anyNSOutside (@NonNull final ICommonsList <String> aList,
                                         @NonNull final ICommonsList <String> aExcluded)
   {
@@ -434,6 +564,24 @@ final class XsdUpa
     return false;
   }
 
+  /**
+   * Check one decision set (the first set of the model or the follow set of a
+   * position) for competing positions. Two different element positions that can
+   * match the same name ({@link #upaMatchNames}) collide. Two different wildcard
+   * positions collide if they {@link #wildcardsOverlap may overlap}, in both XSD
+   * versions. In XSD 1.0 a wildcard also collides with any element position of
+   * the set whose match names it admits; in 1.1 the element declaration wins
+   * that competition, so it is no error.
+   *
+   * @param aSchema
+   *        The schema (substitution groups, version).
+   * @param aSet
+   *        The decision set; a position may occur more than once.
+   * @param aNamesCache
+   *        Cache of the match names per declaration.
+   * @throws XsdInvalidException
+   *         (code <code>cos-nonambig</code>) on the first collision
+   */
   private static void _noCollision (@NonNull final XsdSchema aSchema,
                                     @NonNull final ICommonsList <XsdParticle> aSet,
                                     @NonNull final Map <XsdElementDecl, ICommonsSet <XsdName>> aNamesCache)

@@ -176,6 +176,11 @@ final class XsdFacetValidator
     }
   }
 
+  /**
+   * @return The value with every XML whitespace character (space, tab, line
+   *         feed, carriage return) removed, as the binary lexical forms allow
+   *         whitespace between their characters.
+   */
   @NonNull
   private static String _dropSpace (@NonNull final String sValue)
   {
@@ -351,6 +356,17 @@ final class XsdFacetValidator
     return sValue.equals (sEnum);
   }
 
+  /**
+   * Check the length, minLength and maxLength facets of an atomic value
+   * (Datatypes 4.3.1 to 4.3.3). The length is measured in characters (Unicode
+   * code points), or in octets for hexBinary and base64Binary. On any other
+   * primitive (QName, NOTATION, ...) the facets are taken as satisfied. A no-op
+   * if none of the three facets is set.
+   *
+   * @throws XsdInvalidException
+   *         <code>cvc-length-valid</code>, <code>cvc-minLength-valid</code> or
+   *         <code>cvc-maxLength-valid</code> on a violation
+   */
   private static void _checkLength (@NonNull final XsdFacetSet aFacets,
                                     @NonNull final String sValue,
                                     @NonNull final EAtomicType ePrim)
@@ -371,6 +387,21 @@ final class XsdFacetValidator
       throw XsdCompiler.invalid ("cvc-maxLength-valid", "length " + n + " > " + aFacets.m_nMaxLength);
   }
 
+  /**
+   * Check the four bounding facets (Datatypes 4.3.7 to 4.3.10): the value is
+   * cast to the primitive and ordered against each bound that is set with
+   * {@link #_order}. A pair that is incomparable (a date/time with and one
+   * without a timezone whose order depends on the imputed offset, or a numeric
+   * NaN) fails the bound; a bound that cannot be cast or ordered otherwise
+   * passes. A no-op if no bound is set.
+   *
+   * @throws XsdInvalidException
+   *         <code>cvc-datatype-valid</code> if the value cannot be cast to the
+   *         primitive, or <code>cvc-minInclusive-valid</code>,
+   *         <code>cvc-maxInclusive-valid</code>,
+   *         <code>cvc-minExclusive-valid</code> or
+   *         <code>cvc-maxExclusive-valid</code> on a violated bound
+   */
   private static void _checkBounds (@NonNull final XsdFacetSet aFacets,
                                     @NonNull final String sValue,
                                     @NonNull final EAtomicType ePrim)
@@ -410,6 +441,17 @@ final class XsdFacetValidator
     }
   }
 
+  /**
+   * Check the totalDigits and fractionDigits facets (Datatypes 4.3.11 and
+   * 4.3.12) on the lexical form: leading zeros of the integer part and
+   * trailing zeros of the fraction do not count, so <code>"0.050"</code> has
+   * two total and two fraction digits. A no-op if neither facet is set.
+   *
+   * @throws XsdInvalidException
+   *         <code>cvc-totalDigits-valid</code> or
+   *         <code>cvc-fractionDigits-valid</code> if there are more digits than
+   *         allowed
+   */
   private static void _checkDigits (@NonNull final XsdFacetSet aFacets, @NonNull final String sValue)
   {
     if (!aFacets.m_bHasTotalDigits && !aFacets.m_bHasFractionDigits)
@@ -444,7 +486,7 @@ final class XsdFacetValidator
 
     if (!f.m_sExplicitTZ.isEmpty ())
     {
-      // 4.3.16: value vocabulary and applicability (only the date/time
+      // 4.3.14: value vocabulary and applicability (only the date/time
       // primitives, atomic variety)
       switch (f.m_sExplicitTZ)
       {
@@ -538,6 +580,15 @@ final class XsdFacetValidator
       throw XsdCompiler.invalid ("", "fractionDigits exceeds totalDigits");
   }
 
+  /**
+   * A bounding facet value must be in the lexical space of the primitive
+   * (checked on its collapsed form); the stricter check against the base type
+   * happens in the loader.
+   *
+   * @throws XsdInvalidException
+   *         (schema error, no code) if the value is not a valid lexical of the
+   *         primitive
+   */
   private static void _checkBoundValue (@NonNull final EAtomicType ePrim, @NonNull final String sBound)
   {
     try
@@ -553,6 +604,12 @@ final class XsdFacetValidator
   /**
    * go-xslt <code>facetSet.checkIn</code>: check a normalised value against the
    * facets of one restriction step.
+   * <p>
+   * The facets are checked in this order and the first violation is thrown:
+   * pattern and enumeration, length family, the bounds, explicitTimezone
+   * (only on the date/time primitives: <code>required</code> needs a timezone
+   * in the lexical, <code>prohibited</code> forbids one,
+   * <code>optional</code> checks nothing), then totalDigits/fractionDigits.
    *
    * @param aFacets
    *        The facets.
@@ -684,7 +741,9 @@ final class XsdFacetValidator
   }
 
   /**
-   * go-xslt <code>facetSet.checkListLength</code>.
+   * go-xslt <code>facetSet.checkListLength</code>: the length, minLength and
+   * maxLength facets of a list type, measured in list items (Datatypes 4.3.1.3
+   * to 4.3.3.3, the list variety case).
    *
    * @param aFacets
    *        The facets of a list type step.
