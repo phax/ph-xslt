@@ -76,6 +76,12 @@ public final class FnError
   private FnError ()
   {}
 
+  /**
+   * @param aItem
+   *        A traced item.
+   * @return Its string value, or {@link Object#toString()} for an item without
+   *         one (e.g. a function item or a map), so tracing never fails.
+   */
   @NonNull
   private static String _getItemString (@NonNull final IXdmItem aItem)
   {
@@ -126,6 +132,20 @@ public final class FnError
     s_aTraceListener = aListener;
   }
 
+  /**
+   * <code>fn:error</code> with zero to three arguments (F&amp;O 3.1 section
+   * 3.1.1): raise an error whose code is the QName of the first argument, or
+   * {@link #FOER0000} when there is no argument or it is empty. The
+   * description (second argument) and the error object (third argument) are
+   * passed on as <code>null</code> when the arity does not supply them.
+   *
+   * @param aArgs
+   *        <code>[$code as xs:QName? [, $description as xs:string [,
+   *        $error-object as item()*]]]</code>.
+   * @return Never returns normally.
+   * @throws XPathException
+   *         Always, with the code, description and error object.
+   */
   @NonNull
   private static XdmSequence _error (@NonNull final List <XdmSequence> aArgs)
   {
@@ -137,6 +157,16 @@ public final class FnError
     throw new XPathException (aCode, sDescription, aErrorObject);
   }
 
+  /**
+   * <code>fn:trace($value as item()*[, $label as xs:string]) as item()*</code>
+   * (F&amp;O 3.1 section 3.2.1): pass the value and the label
+   * (<code>null</code> for the one-argument form) to the current trace
+   * listener and return the value unchanged.
+   *
+   * @param aArgs
+   *        The value and the optional label.
+   * @return The first argument.
+   */
   @NonNull
   private static XdmSequence _trace (@NonNull final List <XdmSequence> aArgs)
   {
@@ -146,6 +176,15 @@ public final class FnError
     return aValue;
   }
 
+  /**
+   * Register <code>fn:error</code> with arity 0 to 3 and <code>fn:trace</code>
+   * with arity 1 and 2. The declared return type of <code>fn:error</code> is
+   * <code>item()*</code>, since its real type <code>none</code> is not a
+   * SequenceType.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

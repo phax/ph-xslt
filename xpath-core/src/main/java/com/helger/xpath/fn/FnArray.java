@@ -55,15 +55,32 @@ public final class FnArray
   private FnArray ()
   {}
 
+  /**
+   * A member of the <code>array:sort</code> input with its prepared sort key.
+   */
   private record SortEntry (XdmSequence member, XdmSequence key)
   {}
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The index of an <code>array(*)</code> argument.
+   * @return The array.
+   */
   @NonNull
   private static XdmArray _array (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
     return (XdmArray) aArgs.get (nIndex).get (0);
   }
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The index of an <code>xs:integer</code> argument.
+   * @return Its value.
+   */
   @NonNull
   private static BigInteger _integer (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
@@ -86,6 +103,19 @@ public final class FnArray
     return XdmSequence.of (aItem);
   }
 
+  /**
+   * <code>array:subarray($array as array(*), $start as xs:integer[, $length as
+   * xs:integer]) as array(*)</code> (F&amp;O 3.1 section 17.3.5): the members
+   * from position <code>$start</code> (1 to size + 1), <code>$length</code> of
+   * them or all up to the end.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The new array.
+   * @throws XPathException
+   *         FOAY0001 if the start is out of range or start + length exceeds
+   *         size + 1, FOAY0002 for a negative length.
+   */
   @NonNull
   private static XdmSequence _subarray (@NonNull final List <XdmSequence> aArgs)
   {
@@ -108,6 +138,18 @@ public final class FnArray
     return _one (aArray.subArray (nStart, nStart + nLength));
   }
 
+  /**
+   * <code>array:remove($array as array(*), $positions as xs:integer*) as
+   * array(*)</code> (F&amp;O 3.1 section 17.3.6): drop the members at the
+   * given 1-based positions; duplicates and order of the positions do not
+   * matter. No position returns the array as it is.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The new array.
+   * @throws XPathException
+   *         FOAY0001 if any position is outside 1 to size.
+   */
   @NonNull
   private static XdmSequence _remove (@NonNull final List <XdmSequence> aArgs)
   {
@@ -124,6 +166,15 @@ public final class FnArray
     return _one (aBuilder.build ());
   }
 
+  /**
+   * <code>array:join($arrays as array(*)*) as array(*)</code> (F&amp;O 3.1
+   * section 17.3.11): concatenate the members of all arrays in order. A single
+   * array is returned as it is, no array gives the empty array.
+   *
+   * @param aArgs
+   *        The arrays.
+   * @return The joined array.
+   */
   @NonNull
   private static XdmSequence _join (@NonNull final List <XdmSequence> aArgs)
   {
@@ -136,6 +187,18 @@ public final class FnArray
     return _one (aBuilder.build ());
   }
 
+  /**
+   * <code>array:for-each($array as array(*), $action as function(item()*) as
+   * item()*) as array(*)</code> (F&amp;O 3.1 section 17.3.12): an array with
+   * the result of the function for each member, in order. Checks for
+   * interruption before every call.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The array and the function.
+   * @return The new array.
+   */
   @NonNull
   private static XdmSequence _forEach (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -150,6 +213,19 @@ public final class FnArray
     return _one (aBuilder.build ());
   }
 
+  /**
+   * <code>array:filter($array as array(*), $function as function(item()*) as
+   * xs:boolean) as array(*)</code> (F&amp;O 3.1 section 17.3.13): keep the
+   * members for which the function returns <code>true</code>, in order.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The array and the predicate.
+   * @return The new array.
+   * @throws XPathException
+   *         XPTY0004 if a call does not return exactly one xs:boolean.
+   */
   @NonNull
   private static XdmSequence _filter (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -170,6 +246,18 @@ public final class FnArray
     return _one (aBuilder.build ());
   }
 
+  /**
+   * <code>array:fold-left($array as array(*), $zero as item()*, $function as
+   * function(item()*, item()*) as item()*) as item()*</code> (F&amp;O 3.1
+   * section 17.3.14): starting with the zero value, call the function with the
+   * accumulator and each member from first to last.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The array, the zero value and the function.
+   * @return The final accumulator; the zero value for an empty array.
+   */
   @NonNull
   private static XdmSequence _foldLeft (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -184,6 +272,18 @@ public final class FnArray
     return aAcc;
   }
 
+  /**
+   * <code>array:fold-right($array as array(*), $zero as item()*, $function as
+   * function(item()*, item()*) as item()*) as item()*</code> (F&amp;O 3.1
+   * section 17.3.15): starting with the zero value, call the function with
+   * each member from last to first and the accumulator; iterative.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The array, the zero value and the function.
+   * @return The final accumulator; the zero value for an empty array.
+   */
   @NonNull
   private static XdmSequence _foldRight (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -198,6 +298,18 @@ public final class FnArray
     return aAcc;
   }
 
+  /**
+   * <code>array:for-each-pair($array1 as array(*), $array2 as array(*),
+   * $function as function(item()*, item()*) as item()*) as array(*)</code>
+   * (F&amp;O 3.1 section 17.3.16): an array with the result of the function
+   * for the members at the same position, up to the size of the smaller array.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The two arrays and the function.
+   * @return The new array.
+   */
   @NonNull
   private static XdmSequence _forEachPair (@NonNull final DynamicContext aCtx,
                                            @NonNull final List <XdmSequence> aArgs)
@@ -215,6 +327,15 @@ public final class FnArray
     return _one (aBuilder.build ());
   }
 
+  /**
+   * Prepare a sort key of <code>array:sort</code>: atomise the value and
+   * replace every xs:untypedAtomic value by an xs:string with the same string
+   * value, so untyped keys compare as strings.
+   *
+   * @param aValue
+   *        The member or the result of the key function.
+   * @return The atomic key sequence.
+   */
   @NonNull
   private static XdmSequence _getSortKey (@NonNull final XdmSequence aValue)
   {
@@ -236,6 +357,25 @@ public final class FnArray
     return aBuilder.build ();
   }
 
+  /**
+   * Compare two sort keys of <code>array:sort</code> item by item with
+   * {@link AtomicComparator#compareForOrder}; the first difference decides. If
+   * one key is a prefix of the other, the shorter one comes first.
+   *
+   * @param aLeft
+   *        The left key.
+   * @param aRight
+   *        The right key.
+   * @param aCollation
+   *        The collation for strings, <code>null</code> for the codepoint
+   *        collation.
+   * @param aCtx
+   *        The dynamic context (implicit timezone).
+   * @return Negative, 0 or positive.
+   * @throws XPathException
+   *         XPTY0004 if two key values at the same position are not
+   *         comparable.
+   */
   private static int _compareKeys (@NonNull final XdmSequence aLeft,
                                    @NonNull final XdmSequence aRight,
                                    @Nullable final ICollation aCollation,
@@ -254,6 +394,25 @@ public final class FnArray
     return Integer.compare (aLeft.size (), aRight.size ());
   }
 
+  /**
+   * <code>array:sort($array as array(*)[, $collation as xs:string?[, $key as
+   * function(item()*) as xs:anyAtomicType*]]) as array(*)</code> (F&amp;O 3.1
+   * section 17.3.17). The key of every member is the member itself or the
+   * result of the key function, prepared by {@link #_getSortKey(XdmSequence)}.
+   * Without a collation argument, or with an empty one, the default collation
+   * of the static context is used; a default collation the registry does not
+   * know falls back to the codepoint collation without an error. The sort is
+   * stable.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The sorted array.
+   * @throws XPathException
+   *         FOCH0002 for an unknown explicit collation, XPTY0004 for
+   *         incomparable keys.
+   */
   @NonNull
   private static XdmSequence _sort (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -290,6 +449,14 @@ public final class FnArray
     return _one (aBuilder.build ());
   }
 
+  /**
+   * @param aArray
+   *        An array.
+   * @return Its first member (<code>array:head</code>, F&amp;O 3.1 section
+   *         17.3.8).
+   * @throws XPathException
+   *         FOAY0001 for an empty array.
+   */
   @NonNull
   private static XdmSequence _head (@NonNull final XdmArray aArray)
   {
@@ -298,6 +465,14 @@ public final class FnArray
     return aArray.get (0);
   }
 
+  /**
+   * @param aArray
+   *        An array.
+   * @return An array of all members but the first (<code>array:tail</code>,
+   *         F&amp;O 3.1 section 17.3.9).
+   * @throws XPathException
+   *         FOAY0001 for an empty array.
+   */
   @NonNull
   private static XdmSequence _tail (@NonNull final XdmArray aArray)
   {
@@ -347,6 +522,23 @@ public final class FnArray
     return aBuilder.build ();
   }
 
+  /**
+   * Register the functions of F&amp;O 3.1 section 17.3:
+   * <code>array:size</code>, <code>array:get</code> and <code>array:put</code>
+   * (FOAY0001 for a position outside 1 to size), <code>array:append</code>,
+   * <code>array:subarray</code> (arity 2 and 3), <code>array:remove</code>,
+   * <code>array:insert-before</code> (FOAY0001 for a position outside 1 to
+   * size + 1), <code>array:head</code>, <code>array:tail</code>,
+   * <code>array:reverse</code>, <code>array:join</code>,
+   * <code>array:flatten</code>, <code>array:for-each</code>,
+   * <code>array:filter</code>, <code>array:fold-left</code>,
+   * <code>array:fold-right</code>, <code>array:for-each-pair</code> and
+   * <code>array:sort</code> (arity 1 to 3). The arrays are immutable; every
+   * modifying function returns a new array.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = FunctionLibrary.NS_ARRAY;

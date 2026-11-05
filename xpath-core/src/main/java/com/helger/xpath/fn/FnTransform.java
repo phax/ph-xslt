@@ -51,6 +51,18 @@ public final class FnTransform
   private FnTransform ()
   {}
 
+  /**
+   * Find the first {@link ITransformHandler} the {@link ServiceLoader} offers
+   * for a class loader.
+   *
+   * @param aLoader
+   *        The class loader to search; <code>null</code> means the system
+   *        class loader (as for
+   *        {@link ServiceLoader#load(Class, ClassLoader)}).
+   * @return The first provider, or <code>null</code> if there is none or the
+   *         provider configuration is broken
+   *         ({@link ServiceConfigurationError} is swallowed).
+   */
   @Nullable
   private static ITransformHandler _load (@Nullable final ClassLoader aLoader)
   {
@@ -87,6 +99,15 @@ public final class FnTransform
     return s_aHandler;
   }
 
+  /**
+   * Register <code>fn:transform($options as map(*)) as map(*)</code> (F&amp;O
+   * 3.1 section 16.3.2) if {@link #getHandler()} finds an XSLT processor; the
+   * call is passed on to {@link ITransformHandler#transform} unchanged.
+   * Without a processor nothing is registered.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final ITransformHandler aHandler = getHandler ();

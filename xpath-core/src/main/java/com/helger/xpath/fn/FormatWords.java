@@ -232,6 +232,16 @@ public final class FormatWords
   private FormatWords ()
   {}
 
+  /**
+   * Spell a number as an English cardinal in lower case: hyphenated tens and
+   * units below 100, "hundred" with "and" before the rest, and the short scale
+   * up to quintillion, where a remainder below 100 is joined with "and" (e.g.
+   * "one thousand and five", "one million two hundred and three").
+   *
+   * @param n
+   *        A number &gt;= 0.
+   * @return The words.
+   */
   @NonNull
   private static String _enCardinal (final long n)
   {
@@ -262,6 +272,15 @@ public final class FormatWords
     return EN_ONES[0];
   }
 
+  /**
+   * Spell a number as an English ordinal in lower case: the cardinal of
+   * {@link #_enCardinal(long)} with only the last word made ordinal, e.g.
+   * "twenty-first", "one hundred and second", "one thousandth".
+   *
+   * @param n
+   *        A number &gt;= 0.
+   * @return The words.
+   */
   @NonNull
   private static String _enOrdinal (final long n)
   {
@@ -289,12 +308,26 @@ public final class FormatWords
     return EN_ORD_ONES[0];
   }
 
+  /**
+   * @param n
+   *        A digit 1 to 9.
+   * @return The German unit as used before "hundert" and "und": "ein" for 1,
+   *         the plain number word otherwise.
+   */
   @NonNull
   private static String _deUnit (final long n)
   {
     return n == 1 ? "ein" : DE_ONES[(int) n];
   }
 
+  /**
+   * @param n
+   *        A number from 1 to 99.
+   * @param bAttach
+   *        <code>true</code> if a following word is attached, so 1 is written
+   *        "ein" instead of "eins".
+   * @return The German words, units before tens ("einundzwanzig").
+   */
   @NonNull
   private static String _deBelow100 (final long n, final boolean bAttach)
   {
@@ -307,6 +340,14 @@ public final class FormatWords
     return _deUnit (o) + "und" + DE_TENS[(int) t];
   }
 
+  /**
+   * @param n
+   *        A number from 0 to 999 (0 gives the empty string).
+   * @param bAttach
+   *        Passed on for the last two digits, see
+   *        {@link #_deBelow100(long, boolean)}.
+   * @return The German words as one word ("zweihunderteins").
+   */
   @NonNull
   private static String _deBelow1000 (final long n, final boolean bAttach)
   {
@@ -320,6 +361,16 @@ public final class FormatWords
     return s;
   }
 
+  /**
+   * Spell a number below 10<sup>12</sup> as a German cardinal: "null" for
+   * zero; billions ("Milliarde") and millions ("Million") are separate,
+   * capitalised words, the part below a million is one word
+   * ("eintausendzweihunderteins").
+   *
+   * @param n
+   *        A number from 0 to 999,999,999,999.
+   * @return The words.
+   */
   @NonNull
   private static String _deCardinal (final long n)
   {
@@ -344,6 +395,17 @@ public final class FormatWords
     return String.join (" ", aParts);
   }
 
+  /**
+   * The German ordinal without its inflection ending: irregular forms below 20
+   * ("erst", "dritt"), "st" after higher cardinals, and the scale words
+   * "millionst" and "milliardst"; a remainder after a million or billion is
+   * made ordinal on its own.
+   *
+   * @param n
+   *        A number from 0 to 999,999,999,999.
+   * @return The stem, to which {@link #_deOrdinal(long, String)} appends the
+   *         ending.
+   */
   @NonNull
   private static String _deOrdinalStem (final long n)
   {
@@ -370,6 +432,13 @@ public final class FormatWords
     return _deCardinal (n) + "st";
   }
 
+  /**
+   * @param sVariant
+   *        The variant from the format modifier, e.g. <code>-er</code>.
+   * @return The ending after a leading <code>-</code>, or <code>null</code> if
+   *         the variant does not start with <code>-</code> followed by
+   *         something.
+   */
   @Nullable
   private static String _ordinalEnding (@NonNull final String sVariant)
   {
@@ -378,6 +447,14 @@ public final class FormatWords
     return null;
   }
 
+  /**
+   * @param n
+   *        A number from 0 to 999,999,999,999.
+   * @param sVariant
+   *        The variant from the format modifier; an ending such as
+   *        <code>-er</code> replaces the default ending "e".
+   * @return The German ordinal.
+   */
   @NonNull
   private static String _deOrdinal (final long n, @NonNull final String sVariant)
   {
@@ -385,6 +462,16 @@ public final class FormatWords
     return _deOrdinalStem (n) + (sEnding != null ? sEnding : "e");
   }
 
+  /**
+   * @param n
+   *        A number from 0 to 99.
+   * @param bFinal
+   *        <code>true</code> if nothing follows in the same group, so 80 takes
+   *        the plural "quatre-vingts".
+   * @return The French words: hyphens between tens and units, "et un" for 21
+   *         to 61, "soixante et onze" for 71, the vigesimal forms for 70 to
+   *         99.
+   */
   @NonNull
   private static String _frBelow100 (final long n, final boolean bFinal)
   {
@@ -411,6 +498,14 @@ public final class FormatWords
     return "quatre-vingt-" + FR_ONES[(int) (n - 80)];
   }
 
+  /**
+   * @param n
+   *        A number from 1 to 999.
+   * @param bFinal
+   *        <code>true</code> if nothing follows the group, so the multiples of
+   *        a hundred and 80 take their plural "s".
+   * @return The French words, hundreds separated by a space.
+   */
   @NonNull
   private static String _frBelow1000 (final long n, final boolean bFinal)
   {
@@ -430,6 +525,15 @@ public final class FormatWords
     return sHead + " " + _frBelow100 (r, bFinal);
   }
 
+  /**
+   * Spell a number below 10<sup>12</sup> as a French cardinal: "zéro" for
+   * zero, the groups "milliard(s)", "million(s)" and "mille" (invariable,
+   * "mille" alone for 1000) separated by spaces.
+   *
+   * @param n
+   *        A number from 0 to 999,999,999,999.
+   * @return The words.
+   */
   @NonNull
   private static String _frCardinal (final long n)
   {
@@ -451,6 +555,20 @@ public final class FormatWords
     return String.join (" ", aParts);
   }
 
+  /**
+   * Spell a French ordinal: "premier", or "première" if the variant asks for a
+   * feminine form (ending <code>-e</code>, <code>-re</code>,
+   * <code>-ère</code>, <code>-ere</code>, or a variant ending in "feminine");
+   * otherwise the cardinal with its last word turned into an ordinal with
+   * "ième" (dropping a plural "s" and a final "e", "cinq" to "cinqu", "neuf"
+   * to "neuv", "mille" to "mill").
+   *
+   * @param n
+   *        A number from 1 to 999,999,999,999.
+   * @param sVariant
+   *        The variant from the format modifier.
+   * @return The ordinal.
+   */
   @NonNull
   private static String _frOrdinal (final long n, @NonNull final String sVariant)
   {
@@ -492,6 +610,15 @@ public final class FormatWords
     return sHead + sLast + "ième";
   }
 
+  /**
+   * @param n
+   *        A number from 0 to 99.
+   * @param bFinal
+   *        <code>true</code> if the number ends the word, so a final 3 is
+   *        written "tré".
+   * @return The Italian word, with the tens elided before "uno" and "otto"
+   *         ("ventuno", "ventotto").
+   */
   @NonNull
   private static String _itBelow100 (final long n, final boolean bFinal)
   {
@@ -510,6 +637,15 @@ public final class FormatWords
     return sBase + IT_ONES[(int) o];
   }
 
+  /**
+   * @param n
+   *        A number from 1 to 999.
+   * @param bFinal
+   *        Passed on for the last two digits, see
+   *        {@link #_itBelow100(long, boolean)}.
+   * @return The Italian word, with "cento" elided before a vowel "o"
+   *         ("centottanta").
+   */
   @NonNull
   private static String _itBelow1000 (final long n, final boolean bFinal)
   {
@@ -526,6 +662,15 @@ public final class FormatWords
     return sHead + sRest;
   }
 
+  /**
+   * Spell a number below 10<sup>12</sup> as an Italian cardinal: "zero" for
+   * zero, "un miliardo"/"miliardi" and "un milione"/"milioni" as separate
+   * words, the part below a million as one word ("duemilatrecento").
+   *
+   * @param n
+   *        A number from 0 to 999,999,999,999.
+   * @return The words.
+   */
   @NonNull
   private static String _itCardinal (final long n)
   {
@@ -550,6 +695,19 @@ public final class FormatWords
     return String.join (" ", aParts);
   }
 
+  /**
+   * Spell an Italian ordinal: irregular forms for 1 to 10 ("primo", "decimo"),
+   * otherwise the cardinal with its last word turned into an ordinal with
+   * "esim" ("undicesimo", "ventitreesimo", "millesimo"), followed by the
+   * ending: from a <code>-</code> variant, "a" for a variant ending in
+   * "feminine", "o" otherwise. Zero gives the cardinal "zero".
+   *
+   * @param n
+   *        A number from 0 to 999,999,999,999.
+   * @param sVariant
+   *        The variant from the format modifier.
+   * @return The ordinal.
+   */
   @NonNull
   private static String _itOrdinal (final long n, @NonNull final String sVariant)
   {

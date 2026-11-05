@@ -43,6 +43,16 @@ public final class FnMath
   private FnMath ()
   {}
 
+  /**
+   * Apply a function of one double to the optional first argument.
+   *
+   * @param aArgs
+   *        The arguments; the first is <code>xs:double?</code>.
+   * @param aOp
+   *        The operation.
+   * @return The empty sequence for an empty argument, otherwise the result as
+   *         xs:double.
+   */
   @NonNull
   private static XdmSequence _unary (@NonNull final List <XdmSequence> aArgs, @NonNull final DoubleUnaryOperator aOp)
   {
@@ -53,7 +63,7 @@ public final class FnMath
   }
 
   /**
-   * math:pow with the special cases of F&amp;O 3.1 section 4.8.10, which follow
+   * math:pow with the special cases of F&amp;O 3.1 section 4.8.6, which follow
    * IEEE 754-2008 <code>pow</code> and differ from {@link StrictMath#pow} for a
    * base of +1 or -1.
    *
@@ -74,6 +84,23 @@ public final class FnMath
     return StrictMath.pow (x, y);
   }
 
+  /**
+   * Register the functions of F&amp;O 3.1 section 4.8 in the math namespace:
+   * <code>math:pi()</code> ({@link Math#PI}), <code>math:exp</code>,
+   * <code>math:exp10</code> (as {@link #pow(double, double)} with base 10),
+   * <code>math:log</code>, <code>math:log10</code>, <code>math:sqrt</code>,
+   * <code>math:sin</code>, <code>math:cos</code>, <code>math:tan</code>,
+   * <code>math:asin</code>, <code>math:acos</code>, <code>math:atan</code>
+   * (all <code>(xs:double?) as xs:double?</code>, empty for an empty
+   * argument), <code>math:pow($x as xs:double?, $y as xs:numeric) as
+   * xs:double?</code> (empty if <code>$x</code> is empty) and
+   * <code>math:atan2($y as xs:double, $x as xs:double) as xs:double</code>.
+   * None of them raises an error; NaN and the infinities follow
+   * {@link StrictMath}.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = FunctionLibrary.NS_MATH;

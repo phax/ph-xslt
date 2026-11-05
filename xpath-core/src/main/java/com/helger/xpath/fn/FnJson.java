@@ -94,6 +94,18 @@ public final class FnJson
       m_sDuplicates = sDuplicates;
     }
 
+    /**
+     * Put a finished value into the innermost open container: as a member of an
+     * array, or under the pending key of a map, where a key that is already
+     * present raises FOJS0003 with <code>duplicates=reject</code>, replaces the
+     * value with <code>use-last</code> and keeps the first value otherwise. With
+     * no open container it becomes the result.
+     *
+     * @param aValue
+     *        The value (the empty sequence for JSON null).
+     * @throws XPathException
+     *         FOJS0003 for a duplicate key with <code>duplicates=reject</code>.
+     */
     private void _value (@NonNull final XdmSequence aValue)
     {
       final XdmFrame aTop = m_aStack.peek ();
@@ -153,6 +165,13 @@ public final class FnJson
       _value (XdmSequence.of (XdmAtomic.string (sValue)));
     }
 
+    /**
+     * A JSON number becomes an xs:double via {@link Double#parseDouble(String)};
+     * a magnitude beyond the double range becomes an infinity.
+     *
+     * @param sLexical
+     *        The number as written.
+     */
     public void number (final String sLexical)
     {
       _value (XdmSequence.of (XdmAtomic.dbl (Double.parseDouble (sLexical))));
@@ -198,12 +217,31 @@ public final class FnJson
       m_sDuplicates = sDuplicates;
     }
 
+    /**
+     * @param sLocalName
+     *        A local name of the XML representation of JSON.
+     * @return A new element in the fn namespace without prefix.
+     */
     @NonNull
     private static IXdmNode _element (@NonNull final String sLocalName)
     {
       return IXdmNode.createElement (new XdmQName (NS_FN, sLocalName, ""));
     }
 
+    /**
+     * Put a finished element into the innermost open <code>fn:map</code> or
+     * <code>fn:array</code> element, or make it the result if there is none. In
+     * a map it gets the pending key as <code>key</code> attribute (plus
+     * <code>escaped-key="true"</code> for an escaped key); keys are compared
+     * after unescaping. A duplicate key raises FOJS0003 with
+     * <code>duplicates=reject</code>, is dropped with <code>use-first</code> and
+     * kept with <code>retain</code>.
+     *
+     * @param aElement
+     *        The element of the value.
+     * @throws XPathException
+     *         FOJS0003 for a duplicate key with <code>duplicates=reject</code>.
+     */
     private void _value (@NonNull final IXdmNode aElement)
     {
       final XmlFrame aTop = m_aStack.peek ();
@@ -233,6 +271,13 @@ public final class FnJson
       aTop.m_aElement.appendChild (aElement);
     }
 
+    /**
+     * @param sLocalName
+     *        A local name of the XML representation of JSON.
+     * @param sText
+     *        The content; no text node is created for the empty string.
+     * @return A new element in the fn namespace with that text content.
+     */
     @NonNull
     private static IXdmNode _textElement (@NonNull final String sLocalName, @NonNull final String sText)
     {
@@ -368,6 +413,30 @@ public final class FnJson
     return aSB.toString ();
   }
 
+  /**
+   * Read the options map of <code>fn:parse-json</code>,
+   * <code>fn:json-doc</code> or <code>fn:json-to-xml</code> (F&amp;O 3.1
+   * sections 17.5.1 and 17.5.3). <code>liberal</code> is type-checked but has
+   * no effect (the parser is always strict); <code>validate</code> is only
+   * read for json-to-xml. <code>duplicates</code> defaults to
+   * <code>use-first</code> for parse-json and to <code>retain</code> (or
+   * <code>reject</code> with validation) for json-to-xml. A
+   * <code>fallback</code> function is wrapped so that it is called with the
+   * escape sequence of an invalid character and its string result is inserted.
+   *
+   * @param aOptionsArg
+   *        The options argument, <code>null</code> or empty for the defaults.
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param bJsonToXml
+   *        <code>true</code> for <code>fn:json-to-xml</code>.
+   * @return The resolved options.
+   * @throws XPathException
+   *         XPTY0004 for an option of the wrong type; FOJS0005 for a
+   *         <code>duplicates</code> value the function does not allow,
+   *         <code>validate=true</code> with <code>duplicates=retain</code>, or
+   *         <code>escape=true</code> together with a fallback.
+   */
   @NonNull
   private static JsonOptions _readOptions (@Nullable final XdmSequence aOptionsArg,
                                            @NonNull final DynamicContext aCtx,
@@ -408,6 +477,16 @@ public final class FnJson
     return new JsonOptions (sDuplicates, bEscape, aFallbackFunc, bValidate);
   }
 
+  /**
+   * @param sJson
+   *        The JSON text.
+   * @param aOptions
+   *        The resolved options.
+   * @return The XDM value of the text: maps, arrays, xs:string, xs:double,
+   *         xs:boolean, and the empty sequence for <code>null</code>.
+   * @throws XPathException
+   *         FOJS0001 for invalid JSON, FOJS0003 for a rejected duplicate key.
+   */
   @NonNull
   private static XdmSequence _parseJson (@NonNull final String sJson, @NonNull final JsonOptions aOptions)
   {
@@ -416,6 +495,18 @@ public final class FnJson
     return aHandler.m_aResult;
   }
 
+  /**
+   * <code>fn:parse-json($json-text as xs:string?[, $options as map(*)]) as
+   * item()?</code> (F&amp;O 3.1 section 17.5.1).
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The parsed value; the empty sequence for an empty argument.
+   * @throws XPathException
+   *         FOJS0001, FOJS0003 or FOJS0005.
+   */
   @NonNull
   private static XdmSequence _fnParseJson (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -425,6 +516,20 @@ public final class FnJson
     return _parseJson (((XdmAtomic) aArgs.get (0).get (0)).getString (), aOptions);
   }
 
+  /**
+   * Resolve the <code>$href</code> of <code>fn:json-doc</code> against the
+   * static base URI with {@link URI#resolve(URI)}; an absolute URI is returned
+   * as it is.
+   *
+   * @param sHref
+   *        The URI as given.
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @return The absolute URI.
+   * @throws XPathException
+   *         FOUT1170 for an invalid URI or a relative one without static base
+   *         URI.
+   */
   @NonNull
   private static String _resolveUri (@NonNull final String sHref, @NonNull final DynamicContext aCtx)
   {
@@ -444,6 +549,21 @@ public final class FnJson
     }
   }
 
+  /**
+   * <code>fn:json-doc($href as xs:string?[, $options as map(*)]) as
+   * item()?</code> (F&amp;O 3.1 section 17.5.2): read the resource as text
+   * through the resource resolver (without a requested encoding; the result is
+   * not cached) and parse it like <code>fn:parse-json</code>.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The parsed value; the empty sequence for an empty argument.
+   * @throws XPathException
+   *         FOUT1170 if the URI is invalid or the resource cannot be
+   *         retrieved, and the errors of <code>fn:parse-json</code>.
+   */
   @NonNull
   private static XdmSequence _fnJsonDoc (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -458,6 +578,24 @@ public final class FnJson
     return _parseJson (sText, aOptions);
   }
 
+  /**
+   * <code>fn:json-to-xml($json-text as xs:string?[, $options as map(*)]) as
+   * document-node()?</code> (F&amp;O 3.1 section 17.5.3): build the XML
+   * representation of JSON (section 17.4.2) in the fn namespace as default
+   * namespace, in a new document node with the static base URI. With
+   * <code>validate=true</code> the root is validated against the in-scope
+   * schema definitions, which must declare it.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The document; the empty sequence for an empty argument.
+   * @throws XPathException
+   *         FOJS0001, FOJS0003 or FOJS0005 as for <code>fn:parse-json</code>;
+   *         FOJS0004 if validation is requested but no schema declares the
+   *         root element, or the validation fails.
+   */
   @NonNull
   private static XdmSequence _fnJsonToXml (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -491,6 +629,12 @@ public final class FnJson
     return XdmSequence.of (aDoc);
   }
 
+  /**
+   * @param s
+   *        A string.
+   * @return <code>true</code> if it consists of XML whitespace (space, tab,
+   *         line feed, carriage return) only, also for the empty string.
+   */
   private static boolean _isWhitespace (@NonNull final String s)
   {
     for (int i = 0; i < s.length (); ++i)
@@ -502,6 +646,12 @@ public final class FnJson
     return true;
   }
 
+  /**
+   * @param sMessage
+   *        What is wrong.
+   * @return A FOJS0006 error for an invalid XML representation of JSON; the
+   *         caller throws it.
+   */
   @NonNull
   private static XPathException _invalid (@NonNull final String sMessage)
   {
@@ -527,6 +677,23 @@ public final class FnJson
     }
   }
 
+  /**
+   * Check one element of the input of <code>fn:xml-to-json</code> against the
+   * schema of F&amp;O 3.1 appendix C.2, as far as it can be checked locally:
+   * it must be in the fn namespace and be one of map, array, string, number,
+   * boolean or null; attributes in no namespace are restricted to
+   * <code>key</code> and <code>escaped-key</code> (and <code>escaped</code> on
+   * string), attributes in the fn namespace are forbidden, others are ignored;
+   * a child of a map needs a <code>key</code>; map and array may only contain
+   * whitespace text, the simple types no element children.
+   *
+   * @param aElement
+   *        The element.
+   * @param bInMap
+   *        <code>true</code> if its parent is a map.
+   * @throws XPathException
+   *         FOJS0006 if a rule is violated.
+   */
   private static void _checkElement (@NonNull final IXdmNode aElement, final boolean bInMap)
   {
     final XdmQName aName = aElement.getName ();
@@ -629,6 +796,21 @@ public final class FnJson
     return aSB.toString ();
   }
 
+  /**
+   * Append a JSON string literal with quotes: an escaped value (attribute
+   * <code>escaped</code> or <code>escaped-key</code>) keeps its valid escape
+   * sequences, see {@link #_reescape(String)}; any other value is escaped by
+   * {@link XdmSerializer#appendJsonString}.
+   *
+   * @param aSB
+   *        The target.
+   * @param s
+   *        The value.
+   * @param bEscaped
+   *        <code>true</code> if the value is marked as escaped.
+   * @throws XPathException
+   *         FOJS0007 for an invalid escape sequence in an escaped value.
+   */
   private static void _appendJsonString (@NonNull final StringBuilder aSB,
                                          @NonNull final String s,
                                          final boolean bEscaped)
@@ -639,6 +821,17 @@ public final class FnJson
       XdmSerializer.appendJsonString (aSB, s);
   }
 
+  /**
+   * With indentation, append a line feed and two spaces per depth level;
+   * otherwise nothing.
+   *
+   * @param aSB
+   *        The target.
+   * @param bIndent
+   *        <code>true</code> to indent.
+   * @param nDepth
+   *        The nesting depth.
+   */
   private static void _newline (@NonNull final StringBuilder aSB, final boolean bIndent, final int nDepth)
   {
     if (bIndent)
@@ -653,6 +846,28 @@ public final class FnJson
   private record XmlTask (IXdmNode element, boolean inMap, int depth, String literal)
   {}
 
+  /**
+   * Serialise the XML representation of JSON as JSON text, iteratively: an
+   * explicit stack holds the elements still to write and the literal pieces
+   * (separators, keys, closing brackets) between them, so deep nesting cannot
+   * overflow the Java stack. Every element is checked with
+   * {@link #_checkElement(IXdmNode, boolean)}; map keys must be unique after
+   * unescaping; a number must match the JSON-like number pattern (leading
+   * <code>+</code> allowed) and be finite, and is written in the canonical
+   * xs:double form; a boolean accepts <code>true</code>, <code>false</code>,
+   * <code>1</code> and <code>0</code> (trimmed); null must be empty or
+   * whitespace. With indentation every member starts on a new line, indented
+   * by two spaces per level, and keys are followed by <code>": "</code>.
+   *
+   * @param aRoot
+   *        The root element.
+   * @param bIndent
+   *        The <code>indent</code> option.
+   * @return The JSON text.
+   * @throws XPathException
+   *         FOJS0006 for an invalid representation, FOJS0007 for an invalid
+   *         escape sequence.
+   */
   @NonNull
   private static String _xmlToJson (@NonNull final IXdmNode aRoot, final boolean bIndent)
   {
@@ -763,6 +978,24 @@ public final class FnJson
     return aSB.toString ();
   }
 
+  /**
+   * <code>fn:xml-to-json($input as node()?[, $options as map(*)]) as
+   * xs:string?</code> (F&amp;O 3.1 section 17.5.4). A document node must have
+   * exactly one element child and no text other than whitespace; that element
+   * (or the element given) is converted with
+   * {@link #_xmlToJson(IXdmNode, boolean)}. Only the <code>indent</code>
+   * option is read.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The JSON text; the empty sequence for an empty argument.
+   * @throws XPathException
+   *         FOJS0006 for any other node kind or an invalid representation,
+   *         FOJS0007 for an invalid escape sequence, XPTY0004 if
+   *         <code>indent</code> is not a boolean.
+   */
   @NonNull
   private static XdmSequence _fnXmlToJson (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -799,6 +1032,22 @@ public final class FnJson
     return XdmSequence.of (XdmAtomic.string (_xmlToJson (aNode, bIndent)));
   }
 
+  /**
+   * <code>fn:serialize($arg as item()*[, $params as item()?]) as
+   * xs:string</code> (F&amp;O 3.1 section 14.7.3). The parameters are a map
+   * (read by {@link SerializationParamsReader#fromMap}) or an
+   * <code>output:serialization-parameters</code> element; absent or empty
+   * means the defaults. The work is done by {@link XdmSerializer#serialize}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The serialised string.
+   * @throws XPathException
+   *         XPTY0004 if the parameters are neither, and the errors of
+   *         reading the parameters and of the serialiser.
+   */
   @NonNull
   private static XdmSequence _fnSerialize (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -819,6 +1068,14 @@ public final class FnJson
     return XdmSequence.of (XdmAtomic.string (XdmSerializer.serialize (aArgs.get (0), aParams)));
   }
 
+  /**
+   * @param sXml
+   *        An XML document as a string.
+   * @return The document node built by a new {@link XdmParser}.
+   * @throws XPathException
+   *         FODC0006 if the string is not well-formed, with the parse
+   *         exception as cause.
+   */
   @NonNull
   private static IXdmNode _parse (@NonNull final String sXml)
   {
@@ -832,6 +1089,19 @@ public final class FnJson
     }
   }
 
+  /**
+   * <code>fn:parse-xml($arg as xs:string?) as
+   * document-node(element(*))?</code> (F&amp;O 3.1 section 14.7.1). The
+   * document has no document URI and the static base URI as base URI.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The string.
+   * @return The document; the empty sequence for an empty argument.
+   * @throws XPathException
+   *         FODC0006 if the string is not a well-formed document.
+   */
   @NonNull
   private static XdmSequence _fnParseXml (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -885,6 +1155,24 @@ public final class FnJson
     }
   }
 
+  /**
+   * <code>fn:parse-xml-fragment($arg as xs:string?) as document-node()?</code>
+   * (F&amp;O 3.1 section 14.7.2). A leading byte order mark is dropped and a
+   * leading text declaration (<code>&lt;?xml</code> with optional version and
+   * required encoding) is checked and removed; the rest is parsed inside a
+   * wrapper element and its children are copied into a new document node with
+   * the static base URI. Any occurrence of <code>&lt;!DOCTYPE</code> in the
+   * string is rejected, also inside a comment or CDATA section.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The string.
+   * @return The document; the empty sequence for an empty argument.
+   * @throws XPathException
+   *         FODC0006 for an invalid text declaration, a DOCTYPE or content
+   *         that is not a well-formed external entity.
+   */
   @NonNull
   private static XdmSequence _fnParseXmlFragment (@NonNull final DynamicContext aCtx,
                                                   @NonNull final List <XdmSequence> aArgs)
@@ -915,6 +1203,15 @@ public final class FnJson
     return XdmSequence.of (aDoc);
   }
 
+  /**
+   * Register <code>fn:parse-json</code>, <code>fn:json-doc</code>,
+   * <code>fn:json-to-xml</code> and <code>fn:xml-to-json</code> (each with and
+   * without options), <code>fn:serialize</code> (arity 1 and 2),
+   * <code>fn:parse-xml</code> and <code>fn:parse-xml-fragment</code>.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = NS_FN;

@@ -55,6 +55,15 @@ public final class FnDateTime
   private FnDateTime ()
   {}
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The 0-based argument index.
+   * @return The first item of the argument as an atomic value, or
+   *         <code>null</code> if the argument is empty or the arity does not
+   *         reach the index.
+   */
   @Nullable
   private static XdmAtomic _arg (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
@@ -70,6 +79,15 @@ public final class FnDateTime
     return XdmSequence.of (XdmAtomic.integer (n));
   }
 
+  /**
+   * The timezone of a date/time value as xs:dayTimeDuration, for
+   * <code>fn:timezone-from-dateTime</code>, <code>-date</code> and
+   * <code>-time</code> (F&amp;O 3.1 sections 9.5.7, 9.5.11 and 9.5.15).
+   *
+   * @param aValue
+   *        The value.
+   * @return The empty sequence if the value has no timezone.
+   */
   @NonNull
   private static XdmSequence _timezone (@NonNull final XdmDateTimeValue aValue)
   {
@@ -81,6 +99,14 @@ public final class FnDateTime
                                                                                   60L))));
   }
 
+  /**
+   * Create a component accessor on a date/time value: an empty argument gives
+   * the empty sequence, otherwise the extractor is applied to the value.
+   *
+   * @param aExtractor
+   *        Computes the result from the value.
+   * @return The function implementation.
+   */
   @NonNull
   private static IXPathFunction _dateTimeComponent (@NonNull final Function <XdmDateTimeValue, XdmSequence> aExtractor)
   {
@@ -92,6 +118,14 @@ public final class FnDateTime
     };
   }
 
+  /**
+   * Create a component accessor on a duration: an empty argument gives the
+   * empty sequence, otherwise the extractor is applied to the value.
+   *
+   * @param aExtractor
+   *        Computes the result from the value.
+   * @return The function implementation.
+   */
   @NonNull
   private static IXPathFunction _durationComponent (@NonNull final Function <XdmDurationValue, XdmSequence> aExtractor)
   {
@@ -103,6 +137,21 @@ public final class FnDateTime
     };
   }
 
+  /**
+   * Extract an integer component of the day-time part of a duration: the
+   * seconds are divided by the unit with truncation towards zero, and the
+   * remainder modulo <code>nModulo</code> is taken, so the result has the sign
+   * of the duration (F&amp;O 3.1 sections 8.3.3 to 8.3.5).
+   *
+   * @param aDur
+   *        The duration.
+   * @param aUnit
+   *        Seconds per unit (day, hour or minute).
+   * @param nModulo
+   *        The number of such units in the next larger unit, or 0 for none
+   *        (days).
+   * @return The component as xs:integer.
+   */
   @NonNull
   private static XdmSequence _durationPart (@NonNull final XdmDurationValue aDur,
                                             @NonNull final BigDecimal aUnit,
@@ -114,6 +163,13 @@ public final class FnDateTime
     return XdmSequence.of (XdmAtomic.integer (aPart));
   }
 
+  /**
+   * @param aValue
+   *        A seconds value.
+   * @return The value as xs:decimal with trailing fractional zeros removed and
+   *         a scale of at least 0 (so <code>60</code> stays <code>60</code>,
+   *         not <code>6E+1</code>).
+   */
   @NonNull
   private static XdmSequence _decimal (@NonNull final BigDecimal aValue)
   {
@@ -124,6 +180,22 @@ public final class FnDateTime
   }
 
   // Must match IXPathFunction signature
+  /**
+   * <code>fn:dateTime($arg1 as xs:date?, $arg2 as xs:time?) as
+   * xs:dateTime?</code> (F&amp;O 3.1 section 9.3.1): combine the date
+   * components of the date with the time components of the time. The result
+   * has the timezone of the date if it has one, else that of the time, else
+   * none.
+   *
+   * @param aCtx
+   *        The dynamic context of the call (unused).
+   * @param aArgs
+   *        The date and the time.
+   * @return The empty sequence if either argument is empty, the combined value
+   *         otherwise.
+   * @throws XPathException
+   *         FORG0008 if both have a timezone and they differ.
+   */
   @NonNull
   private static XdmSequence _dateTime (@SuppressWarnings ("unused") @NonNull final DynamicContext aCtx,
                                         @NonNull final List <XdmSequence> aArgs)
@@ -150,7 +222,7 @@ public final class FnDateTime
   }
 
   /**
-   * Adjust a value to a timezone (F&amp;O 9.7).
+   * Adjust a value to a timezone (F&amp;O 3.1 section 9.6).
    *
    * @param aValue
    *        The value.
@@ -173,6 +245,24 @@ public final class FnDateTime
     return XdmDateTimeValue.ofEpochSeconds (aValue.getEpochSeconds (0), aTarget);
   }
 
+  /**
+   * Create the implementation of <code>fn:adjust-dateTime-to-timezone</code>,
+   * <code>fn:adjust-date-to-timezone</code> or
+   * <code>fn:adjust-time-to-timezone</code> (F&amp;O 3.1 section 9.6) with one
+   * or two arguments. With one argument the target is the implicit timezone of
+   * the dynamic context; with an empty second argument the timezone is
+   * removed. After {@link #_adjust(XdmDateTimeValue, boolean, int)} a date
+   * keeps only its date components (time 00:00:00) and a time only its time
+   * components (on the reference date), each with the new timezone. An empty
+   * first argument gives the empty sequence.
+   *
+   * @param eType
+   *        The type of the value and result: xs:dateTime, xs:date or xs:time.
+   * @return The function implementation.
+   * @throws XPathException
+   *         FODT0003 (when called) if the timezone has a month part, is not a
+   *         whole number of minutes or lies outside -14:00 to +14:00.
+   */
   @NonNull
   private static IXPathFunction _adjustFunction (@NonNull final EAtomicType eType)
   {
@@ -222,6 +312,19 @@ public final class FnDateTime
     };
   }
 
+  /**
+   * <code>fn:parse-ietf-date($value as xs:string?) as xs:dateTime?</code>
+   * (F&amp;O 3.1 section 9.9.1), delegated to {@link DateTimeIetfParser}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The string.
+   * @return The empty sequence for an empty argument, the parsed value
+   *         otherwise.
+   * @throws XPathException
+   *         FORG0010 if the string is not a valid IETF date.
+   */
   @NonNull
   private static XdmSequence _parseIetfDate (@NonNull final DynamicContext aCtx,
                                              @NonNull final List <XdmSequence> aArgs)
@@ -232,6 +335,19 @@ public final class FnDateTime
     return XdmSequence.of (XdmAtomic.of (EAtomicType.DATE_TIME, DateTimeIetfParser.parse (aArg.getString ())));
   }
 
+  /**
+   * Register <code>fn:dateTime</code>, the duration component functions
+   * <code>fn:years-from-duration</code> to
+   * <code>fn:seconds-from-duration</code> (F&amp;O 3.1 section 8.3; years and
+   * months from the month count, the others from the seconds, all with the
+   * sign of the duration), the date/time component functions of section 9.5,
+   * the timezone adjustment functions of section 9.6 (arity 1 and 2) and
+   * <code>fn:parse-ietf-date</code>. All return the empty sequence for an
+   * empty first argument.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

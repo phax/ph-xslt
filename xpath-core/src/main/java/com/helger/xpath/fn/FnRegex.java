@@ -53,18 +53,45 @@ public final class FnRegex
   private FnRegex ()
   {}
 
+  /**
+   * @param aSeq
+   *        An <code>xs:string?</code> argument.
+   * @return Its string value, the empty string for the empty sequence.
+   */
   @NonNull
   private static String _optString (@NonNull final XdmSequence aSeq)
   {
     return aSeq.isEmpty () ? "" : ((XdmAtomic) aSeq.get (0)).getString ();
   }
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The index of the optional <code>$flags</code> argument.
+   * @return The flags, or the empty string if the arity does not include them.
+   */
   @NonNull
   private static String _flags (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
     return aArgs.size () > nIndex ? _optString (aArgs.get (nIndex)) : "";
   }
 
+  /**
+   * Compile a regular expression (through the cache of {@link XPathRegex})
+   * with the XSD 1.1 character class grammar, unless the static context
+   * explicitly declares XSD 1.0.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param sPattern
+   *        The regular expression.
+   * @param sFlags
+   *        The flags (any of "smixq"), <code>null</code> for none.
+   * @return The compiled expression.
+   * @throws XPathException
+   *         FORX0001 for invalid flags, FORX0002 for an invalid expression.
+   */
   @NonNull
   private static XPathRegex _compile (@NonNull final DynamicContext aCtx,
                                       @NonNull final String sPattern,
@@ -77,6 +104,20 @@ public final class FnRegex
                                !aStaticCtx.isXsdVersionSet () || aStaticCtx.getXsdVersion () == EXsdVersion.V11);
   }
 
+  /**
+   * <code>fn:matches($input as xs:string?, $pattern as xs:string[, $flags as
+   * xs:string]) as xs:boolean</code> (F&amp;O 3.1 section 5.6.3):
+   * <code>true</code> if some substring of the input (the empty string for an
+   * empty sequence) matches.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The result.
+   * @throws XPathException
+   *         FORX0001 or FORX0002 from the compilation.
+   */
   @NonNull
   private static XdmSequence _matches (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -163,6 +204,26 @@ public final class FnRegex
     }
   }
 
+  /**
+   * <code>fn:replace($input as xs:string?, $pattern as xs:string, $replacement
+   * as xs:string[, $flags as xs:string]) as xs:string</code> (F&amp;O 3.1
+   * section 5.6.4): replace every non-overlapping match, from left to right,
+   * by the replacement. With the <code>q</code> flag the replacement is
+   * inserted literally; otherwise it is first checked with
+   * {@link #_checkReplacement(String)} and then expanded per match with
+   * {@link #_appendReplacement(StringBuilder, String, Matcher, XPathRegex)}.
+   * Matching runs under {@link XPathRegex#withStackFallback}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The result string; the empty string for an empty input.
+   * @throws XPathException
+   *         FORX0001 or FORX0002 from the compilation, FORX0004 for an invalid
+   *         replacement string, FORX0003 if the expression matches the
+   *         zero-length string.
+   */
   @NonNull
   private static XdmSequence _replace (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -194,6 +255,27 @@ public final class FnRegex
     return XdmSequence.of (XdmAtomic.string (sResult));
   }
 
+  /**
+   * <code>fn:tokenize($input as xs:string?, $pattern as xs:string[, $flags as
+   * xs:string]) as xs:string*</code> (F&amp;O 3.1 section 5.6.5): the
+   * substrings between the matches, in order, including a leading or trailing
+   * empty string where the input starts or ends with a match. An empty input
+   * gives the empty sequence, but only after the expression has been checked.
+   * Matching runs under {@link XPathRegex#withStackFallback}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param sInput
+   *        The input, empty for an empty sequence.
+   * @param sPattern
+   *        The regular expression.
+   * @param sFlags
+   *        The flags.
+   * @return The tokens.
+   * @throws XPathException
+   *         FORX0001 or FORX0002 from the compilation, FORX0003 if the
+   *         expression matches the zero-length string.
+   */
   @NonNull
   private static XdmSequence _tokenize (@NonNull final DynamicContext aCtx,
                                         @NonNull final String sInput,
@@ -219,6 +301,17 @@ public final class FnRegex
     });
   }
 
+  /**
+   * The single-argument <code>fn:tokenize($input as xs:string?) as
+   * xs:string*</code>: normalise the whitespace of the input (as
+   * <code>fn:normalize-space</code>) and split it at the single spaces that
+   * remain.
+   *
+   * @param aArgs
+   *        The input.
+   * @return The tokens; the empty sequence if the input is empty or consists
+   *         of whitespace only.
+   */
   @NonNull
   private static XdmSequence _tokenize1 (@NonNull final List <XdmSequence> aArgs)
   {
@@ -231,6 +324,14 @@ public final class FnRegex
     return aBuilder.build ();
   }
 
+  /**
+   * @param sLocalName
+   *        The local name of an element of the <code>fn:analyze-string</code>
+   *        result.
+   * @return A new element in the fn namespace with the prefix <code>fn</code>,
+   *         annotated with xs:anyType as an approximation of its type in the
+   *         schema of F&amp;O 3.1 appendix C.1.
+   */
   @NonNull
   private static IXdmNode _createElement (@NonNull final String sLocalName)
   {
@@ -307,6 +408,26 @@ public final class FnRegex
     return nNext;
   }
 
+  /**
+   * Build the result tree of <code>fn:analyze-string</code>: a document node
+   * whose <code>fn:analyze-string-result</code> element (with the
+   * <code>fn</code> namespace declared) holds, in input order, a
+   * <code>fn:non-match</code> element for each non-empty stretch between
+   * matches and a <code>fn:match</code> element for each match, with the
+   * participating capturing groups as nested <code>fn:group</code> elements
+   * (see
+   * {@link #_fillGroups(IXdmNode, String, Matcher, XPathRegex, int, int, int, int)}).
+   * Document order is assigned once the tree is complete.
+   *
+   * @param aCtx
+   *        The dynamic context of the call (for interruption).
+   * @param sInput
+   *        The input string.
+   * @param aRegex
+   *        The compiled expression.
+   * @return The <code>fn:analyze-string-result</code> element, not the
+   *         document node.
+   */
   @NonNull
   private static IXdmNode _buildAnalyzeResult (@NonNull final DynamicContext aCtx,
                                               @NonNull final String sInput,
@@ -341,6 +462,21 @@ public final class FnRegex
     return aRoot;
   }
 
+  /**
+   * <code>fn:analyze-string($input as xs:string?, $pattern as xs:string[,
+   * $flags as xs:string]) as element(fn:analyze-string-result)</code> (F&amp;O
+   * 3.1 section 5.6.6). An empty input gives a result element without
+   * children. Building runs under {@link XPathRegex#withStackFallback}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The result element.
+   * @throws XPathException
+   *         FORX0001 or FORX0002 from the compilation, FORX0003 if the
+   *         expression matches the zero-length string.
+   */
   @NonNull
   private static XdmSequence _analyzeString (@NonNull final DynamicContext aCtx,
                                              @NonNull final List <XdmSequence> aArgs)
@@ -355,6 +491,15 @@ public final class FnRegex
     return XdmSequence.of (aRoot);
   }
 
+  /**
+   * Register <code>fn:matches</code> and <code>fn:replace</code> (with and
+   * without flags), <code>fn:tokenize</code> (arity 1 to 3) and
+   * <code>fn:analyze-string</code> (with and without flags), F&amp;O 3.1
+   * section 5.6.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

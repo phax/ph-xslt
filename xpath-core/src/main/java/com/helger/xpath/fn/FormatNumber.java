@@ -81,12 +81,33 @@ public final class FormatNumber
   private FormatNumber ()
   {}
 
+  /**
+   * @param sMsg
+   *        What is wrong.
+   * @param sPicture
+   *        The whole picture string.
+   * @return A FODF1310 error naming the picture; the caller throws it.
+   */
   @NonNull
   private static XPathException _err (@NonNull final String sMsg, @NonNull final String sPicture)
   {
     return new XPathException ("FODF1310", sMsg + " in picture '" + sPicture + "'");
   }
 
+  /**
+   * Convert a float or double. NaN and the infinities are flagged; a finite
+   * value keeps its absolute value both as double (for the floating point
+   * scaling by percent or per-mille) and as the exact decimal of its shortest
+   * canonical string ({@link Float#toString(float)} or
+   * {@link Double#toString(double)}), so <code>0.1e0</code> formats as 0.1,
+   * not as its binary expansion. Negative zero counts as negative.
+   *
+   * @param d
+   *        The value.
+   * @param bSingle
+   *        <code>true</code> if it is an xs:float.
+   * @return The input.
+   */
   @NonNull
   private static Input _fromFloating (final double d, final boolean bSingle)
   {
@@ -111,6 +132,15 @@ public final class FormatNumber
     return ret;
   }
 
+  /**
+   * Analyse the value to format: an xs:integer or xs:decimal payload is taken
+   * exactly, an xs:float or anything else through
+   * {@link #_fromFloating(double, boolean)}.
+   *
+   * @param aValue
+   *        The value, <code>null</code> for the empty sequence, which is NaN.
+   * @return The input.
+   */
   @NonNull
   private static Input _input (final XdmAtomic aValue)
   {
@@ -140,6 +170,13 @@ public final class FormatNumber
     return _fromFloating (aValue.getAsDouble (), false);
   }
 
+  /**
+   * @param aCPs
+   *        Code points.
+   * @param c
+   *        A code point.
+   * @return How often it occurs.
+   */
   private static int _count (@NonNull final int [] aCPs, final int c)
   {
     int ret = 0;
@@ -167,11 +204,28 @@ public final class FormatNumber
     return new int [] [] { aCPs };
   }
 
+  /**
+   * @param c
+   *        A code point.
+   * @param aDF
+   *        The decimal format.
+   * @return <code>true</code> for a digit of the zero-digit family or the
+   *         optional digit sign (F&amp;O 3.1 section 4.7.3).
+   */
   private static boolean _isDigitSign (final int c, @NonNull final FormatDecimalFormat aDF)
   {
     return aDF.isDecimalDigit (c) || c == aDF.getDigit ();
   }
 
+  /**
+   * @param c
+   *        A code point.
+   * @param aDF
+   *        The decimal format.
+   * @return <code>true</code> for an active character other than the exponent
+   *         separator: a digit sign, the decimal separator or the grouping
+   *         separator.
+   */
   private static boolean _isActive (final int c, @NonNull final FormatDecimalFormat aDF)
   {
     return _isDigitSign (c, aDF) || c == aDF.getDecimalSeparator () || c == aDF.getGroupingSeparator ();
@@ -215,6 +269,27 @@ public final class FormatNumber
     return new int [] { nIdx, nCount };
   }
 
+  /**
+   * Check the rules of F&amp;O 3.1 section 4.7.3 that depend on the order of
+   * the characters in one sub-picture: at most one exponent separator (a
+   * character equal to it counts only if it has an active character somewhere
+   * before and after it); no passive character between two active ones; with
+   * an exponent no percent or per-mille sign, only decimal digits after the
+   * separator and at least one of them; a digit sign in the mantissa; no two
+   * adjacent grouping separators and none next to the decimal separator; a
+   * grouping separator in the integer part followed by a digit sign; no
+   * optional digit after a mandatory one in the integer part, and no mandatory
+   * digit after an optional one in the fractional part.
+   *
+   * @param aCPs
+   *        The code points of the sub-picture.
+   * @param aDF
+   *        The decimal format.
+   * @param sPicture
+   *        The whole picture, for the message.
+   * @throws XPathException
+   *         FODF1310 for the first rule violated.
+   */
   private static void _validateSubPictureShape (@NonNull final int [] aCPs,
                                                 @NonNull final FormatDecimalFormat aDF,
                                                 @NonNull final String sPicture)
@@ -356,6 +431,15 @@ public final class FormatNumber
     }
   }
 
+  /**
+   * @param aCPs
+   *        Code points.
+   * @param nFrom
+   *        Start index, inclusive.
+   * @param nTo
+   *        End index, exclusive.
+   * @return The code points in the range as a string.
+   */
   @NonNull
   private static String _str (@NonNull final int [] aCPs, final int nFrom, final int nTo)
   {
@@ -388,6 +472,29 @@ public final class FormatNumber
     return g;
   }
 
+  /**
+   * Analyse a sub-picture that passed validation (F&amp;O 3.1 section 4.7.4):
+   * prefix and suffix are the passive characters before the first and after
+   * the last active character (the exponent separator counts as active); the
+   * multiplier is 100 for a percent and 1000 for a per-mille sign; the minimum
+   * integer, minimum and maximum fraction digits and the minimum exponent size
+   * are counted from the digit signs; the scaling factor is the minimum
+   * integer part size. The adjustments of section 4.7.4 then apply: with no
+   * digit at all on either side of the decimal separator there is one
+   * mandatory integer digit (or with an exponent one fraction digit), with an
+   * exponent and only optional integer digits one mandatory integer digit, and
+   * if neither part has a mandatory digit one mandatory fraction digit.
+   * Integer grouping separators become a regular interval when
+   * {@link #_classifyGrouping(ICommonsList, int)} finds one, otherwise a set
+   * of positions counted from the right; fraction separators are kept as
+   * positions from the left.
+   *
+   * @param aCPs
+   *        The code points of the sub-picture.
+   * @param aDF
+   *        The decimal format.
+   * @return The analysis.
+   */
   @NonNull
   private static SubPicture _parseSubPicture (@NonNull final int [] aCPs, @NonNull final FormatDecimalFormat aDF)
   {
@@ -494,6 +601,14 @@ public final class FormatNumber
     return ret;
   }
 
+  /**
+   * @param s
+   *        A string of ASCII digits (other characters are kept).
+   * @param aDF
+   *        The decimal format.
+   * @return The digits mapped to the zero-digit family of the decimal format;
+   *         unchanged if that family is ASCII.
+   */
   @NonNull
   private static String _dfDigits (@NonNull final String s, @NonNull final FormatDecimalFormat aDF)
   {
@@ -508,6 +623,19 @@ public final class FormatNumber
     return aSB.toString ();
   }
 
+  /**
+   * Insert a grouping separator at every multiple of the interval, counted
+   * from the right.
+   *
+   * @param sDigits
+   *        The integer digits.
+   * @param nSize
+   *        The grouping interval; 0 or less for none.
+   * @param nSep
+   *        The separator code point.
+   * @return The grouped digits; unchanged if they are not longer than the
+   *         interval.
+   */
   @NonNull
   private static String _group (@NonNull final String sDigits, final int nSize, final int nSep)
   {
@@ -526,6 +654,18 @@ public final class FormatNumber
     return aSB.toString ();
   }
 
+  /**
+   * Insert a grouping separator at each given position, counted from the
+   * right; positions beyond the length of the digits are ignored.
+   *
+   * @param sDigits
+   *        The integer digits.
+   * @param aSeps
+   *        The number of digits to the right of each separator.
+   * @param nSep
+   *        The separator code point.
+   * @return The grouped digits.
+   */
   @NonNull
   private static String _groupPositional (@NonNull final String sDigits,
                                           @NonNull final ICommonsSet <Integer> aSeps,
@@ -543,6 +683,19 @@ public final class FormatNumber
     return aSB.toString ();
   }
 
+  /**
+   * Insert a grouping separator into the fractional digits at each given
+   * position, counted from the decimal separator; positions at or beyond the
+   * end of the digits are ignored.
+   *
+   * @param sDigits
+   *        The fractional digits.
+   * @param aPositions
+   *        The number of digits to the left of each separator.
+   * @param nSep
+   *        The separator code point.
+   * @return The grouped digits.
+   */
   @NonNull
   private static String _groupFrac (@NonNull final String sDigits,
                                     @NonNull final ICommonsList <Integer> aPositions,
@@ -605,6 +758,26 @@ public final class FormatNumber
            _groupFrac (_dfDigits (sFrac, aDF), aSP.m_aFracSeps, aDF.getGroupingSeparator ());
   }
 
+  /**
+   * Render in exponential notation (F&amp;O 3.1 section 4.7.5): for a non-zero
+   * value the exponent is chosen so that the mantissa has as many integer
+   * digits as the scaling factor, then the mantissa is rendered like a plain
+   * number
+   * ({@link #_renderMantissa(BigDecimal, SubPicture, FormatDecimalFormat)})
+   * and followed by the exponent separator of the picture, the minus sign of
+   * the decimal format for a negative exponent, and the exponent padded with
+   * zeros to the minimum exponent size. Zero has the exponent 0. The exponent
+   * is not adjusted again if rounding the mantissa carries into another
+   * integer digit.
+   *
+   * @param aAbs
+   *        The absolute value.
+   * @param aSP
+   *        The sub-picture.
+   * @param aDF
+   *        The decimal format.
+   * @return The number without prefix, suffix and sign.
+   */
   @NonNull
   private static String _renderScientific (@NonNull final BigDecimal aAbs,
                                            @NonNull final SubPicture aSP,

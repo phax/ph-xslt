@@ -73,12 +73,26 @@ public final class FnNumeric
     return XdmSequence.of (aValue);
   }
 
+  /**
+   * @param aSeq
+   *        An optional atomic argument.
+   * @return The value, or <code>null</code> for the empty sequence.
+   */
   @Nullable
   private static XdmAtomic _optAtomic (@NonNull final XdmSequence aSeq)
   {
     return aSeq.isEmpty () ? null : (XdmAtomic) aSeq.get (0);
   }
 
+  /**
+   * <code>fn:abs($arg as xs:numeric?) as xs:numeric?</code> (F&amp;O 3.1
+   * section 4.4.1): the absolute value in the type of the argument (an
+   * xs:integer stays xs:integer, and so on).
+   *
+   * @param aArgs
+   *        The argument.
+   * @return The result, empty for an empty argument.
+   */
   @NonNull
   private static XdmSequence _abs (@NonNull final List <XdmSequence> aArgs)
   {
@@ -95,6 +109,18 @@ public final class FnNumeric
     return _one (XdmAtomic.dbl (Math.abs (aArg.getAsDouble ())));
   }
 
+  /**
+   * <code>fn:floor</code> and <code>fn:ceiling</code> (F&amp;O 3.1 sections
+   * 4.4.3 and 4.4.2): an xs:integer is returned unchanged, an xs:decimal is
+   * rounded to scale 0, a float or double keeps its type (NaN, the infinities
+   * and negative zero stay as they are).
+   *
+   * @param aArgs
+   *        The argument.
+   * @param bFloor
+   *        <code>true</code> for floor, <code>false</code> for ceiling.
+   * @return The result, empty for an empty argument.
+   */
   @NonNull
   private static XdmSequence _floorCeiling (@NonNull final List <XdmSequence> aArgs, final boolean bFloor)
   {
@@ -150,6 +176,24 @@ public final class FnNumeric
     return aValue.setScale ((int) nPrecision, eMode);
   }
 
+  /**
+   * Round a double for <code>fn:round</code> or
+   * <code>fn:round-half-to-even</code>. NaN, the infinities, zero and integral
+   * values with a non-negative precision are returned unchanged, as is any
+   * value for a precision above 1100 (more fraction digits than a double has).
+   * Otherwise the exact binary value is rounded as a decimal with
+   * {@link #_roundDecimal(BigDecimal, long, boolean)}, except the common case
+   * of <code>fn:round</code> to precision 0, which is computed directly. A
+   * zero result keeps the sign of the input.
+   *
+   * @param d
+   *        The value.
+   * @param nPrecision
+   *        Number of fraction digits; negative to round to a power of ten.
+   * @param bHalfEven
+   *        <code>true</code> for round-half-to-even.
+   * @return The rounded value.
+   */
   private static double _roundDouble (final double d, final long nPrecision, final boolean bHalfEven)
   {
     if (Double.isNaN (d) || Double.isInfinite (d) || d == 0)
@@ -171,6 +215,20 @@ public final class FnNumeric
     return ret == 0 ? Math.copySign (0.0, d) : ret;
   }
 
+  /**
+   * Round a float like {@link #_roundDouble(double, long, boolean)}: NaN, the
+   * infinities, zero, integral values with a non-negative precision and any
+   * precision above 200 return the value unchanged; otherwise its exact binary
+   * value is rounded as a decimal. A zero result keeps the sign of the input.
+   *
+   * @param f
+   *        The value.
+   * @param nPrecision
+   *        Number of fraction digits; negative to round to a power of ten.
+   * @param bHalfEven
+   *        <code>true</code> for round-half-to-even.
+   * @return The rounded value.
+   */
   private static float _roundFloat (final float f, final long nPrecision, final boolean bHalfEven)
   {
     if (Float.isNaN (f) || Float.isInfinite (f) || f == 0)
@@ -183,6 +241,14 @@ public final class FnNumeric
     return ret == 0 ? Math.copySign (0.0f, f) : ret;
   }
 
+  /**
+   * @param aArgs
+   *        The arguments of <code>fn:round</code> or
+   *        <code>fn:round-half-to-even</code>.
+   * @return The <code>$precision</code> argument, 0 if absent, clamped to
+   *         -100,000 to 100,000 (no value has more digits, so the result does
+   *         not change).
+   */
   private static long _getPrecision (@NonNull final List <XdmSequence> aArgs)
   {
     if (aArgs.size () < 2)
@@ -196,6 +262,19 @@ public final class FnNumeric
     return aBI.longValue ();
   }
 
+  /**
+   * <code>fn:round($arg as xs:numeric?[, $precision as xs:integer]) as
+   * xs:numeric?</code> and <code>fn:round-half-to-even</code> with the same
+   * signature (F&amp;O 3.1 sections 4.4.4 and 4.4.5). The result has the type
+   * of the argument; an xs:integer only changes with a negative precision.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @param bHalfEven
+   *        <code>true</code> for round-half-to-even, <code>false</code> for
+   *        halves rounded towards positive infinity.
+   * @return The result, empty for an empty argument.
+   */
   @NonNull
   private static XdmSequence _round (@NonNull final List <XdmSequence> aArgs, final boolean bHalfEven)
   {
@@ -217,6 +296,21 @@ public final class FnNumeric
     return _one (XdmAtomic.dbl (_roundDouble (aArg.getAsDouble (), nPrecision, bHalfEven)));
   }
 
+  /**
+   * <code>fn:number([$arg as xs:anyAtomicType?]) as xs:double</code> (F&amp;O
+   * 3.1 section 4.5.1). Without an argument the context item is atomised. A
+   * numeric, string-like (except xs:anyURI) or boolean value is cast to
+   * xs:double; an empty sequence, any other type and a failed cast give NaN.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        No argument or the value.
+   * @return The double.
+   * @throws XPathException
+   *         XPDY0002 without argument and context item, XPTY0004 if the
+   *         context item atomises to more than one value.
+   */
   @NonNull
   private static XdmSequence _number (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -250,6 +344,14 @@ public final class FnNumeric
     return _one (XdmAtomic.dbl (Double.NaN));
   }
 
+  /**
+   * One step of the SplitMix64 generator: advance the state by the golden
+   * gamma and mix it.
+   *
+   * @param nState
+   *        The state.
+   * @return A pseudo-random 64-bit value; a pure function of the state.
+   */
   private static long _splitMix64 (final long nState)
   {
     long z = nState + GOLDEN_GAMMA;
@@ -258,6 +360,12 @@ public final class FnNumeric
     return z ^ (z >>> 31);
   }
 
+  /**
+   * @param s
+   *        A string.
+   * @return The 64-bit FNV-1a hash of its UTF-8 bytes, stable across runs and
+   *         platforms.
+   */
   private static long _hashString (@NonNull final String s)
   {
     // FNV-1a over the UTF-8 bytes: stable across runs and platforms
@@ -287,6 +395,13 @@ public final class FnNumeric
     private final List <SeqType> m_aParamTypes;
     private final SeqType m_aReturnType;
 
+    /**
+     * @param nSeed
+     *        The seed of the generator the function belongs to.
+     * @param bPermute
+     *        <code>true</code> for <code>permute</code>, <code>false</code> for
+     *        <code>next</code>.
+     */
     RngFunction (final long nSeed, final boolean bPermute)
     {
       m_nSeed = nSeed;
@@ -319,6 +434,19 @@ public final class FnNumeric
       return m_aReturnType;
     }
 
+    /**
+     * <code>next</code> returns a new generator for the seed plus the golden
+     * gamma; <code>permute</code> returns the items of its argument shuffled
+     * with Fisher-Yates, driven by SplitMix64 from the seed. Both are
+     * deterministic: the same generator always gives the same result.
+     *
+     * @param aCtx
+     *        The dynamic context of the call (unused).
+     * @param aArgs
+     *        No argument for <code>next</code>, the sequence for
+     *        <code>permute</code>.
+     * @return The new generator or the permuted sequence.
+     */
     @NonNull
     public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
     {
@@ -339,6 +467,16 @@ public final class FnNumeric
     }
   }
 
+  /**
+   * Create the result map of <code>fn:random-number-generator</code>:
+   * <code>number</code> is a double in [0, 1) from the upper 53 bits of
+   * SplitMix64 of the seed, <code>next</code> and <code>permute</code> are
+   * anonymous function items over the same seed.
+   *
+   * @param nSeed
+   *        The seed.
+   * @return The map.
+   */
   @NonNull
   private static XdmMap _createGenerator (final long nSeed)
   {
@@ -348,6 +486,20 @@ public final class FnNumeric
                        .put (XdmAtomic.string ("permute"), XdmSequence.of (new RngFunction (nSeed, true)));
   }
 
+  /**
+   * <code>fn:random-number-generator([$seed as xs:anyAtomicType?]) as
+   * map(xs:string, item())</code> (F&amp;O 3.1 section 4.9.1). The seed is the
+   * hash of the type name and the lexical form of the seed value, so equal
+   * seeds give equal sequences in every run. Without a seed (or with an empty
+   * one) it is the hash of the current date/time of the run, which stays fixed
+   * for the whole execution.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        No argument or the seed.
+   * @return The generator map.
+   */
   @NonNull
   private static XdmSequence _randomNumberGenerator (@NonNull final DynamicContext aCtx,
                                                      @NonNull final List <XdmSequence> aArgs)
@@ -414,6 +566,19 @@ public final class FnNumeric
                                              aValue.getType ().getQualifiedName ());
   }
 
+  /**
+   * Add the values from left to right with the <code>+</code> operator; checks
+   * for interruption every 1024 values.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aValues
+   *        At least one summable value.
+   * @return The sum.
+   * @throws XPathException
+   *         The errors of the addition, e.g. FODT0002 for a duration
+   *         overflow.
+   */
   @NonNull
   private static XdmAtomic _sumOf (@NonNull final DynamicContext aCtx, @NonNull final XdmAtomic [] aValues)
   {
@@ -427,6 +592,22 @@ public final class FnNumeric
     return ret;
   }
 
+  /**
+   * <code>fn:sum($arg as xs:anyAtomicType*[, $zero as
+   * xs:anyAtomicType?])</code> (F&amp;O 3.1 section 14.4.5). xs:untypedAtomic
+   * values are cast to xs:double first. An empty input gives the zero argument
+   * (possibly the empty sequence) or the xs:integer 0.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The sum.
+   * @throws XPathException
+   *         FORG0001 if an untyped value is not a number, FORG0006 for values
+   *         that cannot be summed or mix numbers and durations or the two
+   *         duration types.
+   */
   @NonNull
   private static XdmSequence _sum (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -437,6 +618,19 @@ public final class FnNumeric
     return _one (_sumOf (aCtx, aValues));
   }
 
+  /**
+   * <code>fn:avg($arg as xs:anyAtomicType*) as xs:anyAtomicType?</code>
+   * (F&amp;O 3.1 section 14.4.2): the sum divided by the count with the
+   * <code>div</code> operator, so an average of integers is an xs:decimal.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The values.
+   * @return The average, empty for an empty input.
+   * @throws XPathException
+   *         FORG0001 or FORG0006 as for <code>fn:sum</code>.
+   */
   @NonNull
   private static XdmSequence _avg (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -448,12 +642,41 @@ public final class FnNumeric
     return _one (AtomicArithmetic.arithmetic (EBinaryOp.DIVIDE, aSum, XdmAtomic.integer (aValues.length), aCtx));
   }
 
+  /**
+   * @param aValue
+   *        An atomic value.
+   * @return <code>true</code> if it is a float or double NaN.
+   */
   private static boolean _isNaN (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
     return (aPayload instanceof final Double aD && aD.isNaN ()) || (aPayload instanceof final Float aF && aF.isNaN ());
   }
 
+  /**
+   * <code>fn:min</code> and <code>fn:max</code> (<code>($arg as
+   * xs:anyAtomicType*[, $collation as xs:string]) as xs:anyAtomicType?</code>,
+   * F&amp;O 3.1 sections 14.4.3 and 14.4.4). xs:untypedAtomic values are cast
+   * to xs:double; the values are compared with
+   * {@link AtomicComparator#compareForOrder} under the collation (resolved
+   * even for an empty input), and the first of equal extremes wins. For
+   * numbers, any NaN gives NaN (xs:double if any value is a double, else
+   * xs:float), and the result is promoted to xs:double or xs:float if any
+   * value has that type. An xs:anyURI result among strings is returned as
+   * xs:string.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @param bMax
+   *        <code>true</code> for max, <code>false</code> for min.
+   * @return The extreme value, empty for an empty input.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation, FORG0001 if an untyped
+   *         value is not a number, FORG0006 if the values are not comparable
+   *         or of a type without order.
+   */
   @NonNull
   private static XdmSequence _minMax (@NonNull final DynamicContext aCtx,
                                       @NonNull final List <XdmSequence> aArgs,
@@ -527,6 +750,18 @@ public final class FnNumeric
     return _one (aBest);
   }
 
+  /**
+   * Register <code>fn:abs</code>, <code>fn:ceiling</code>,
+   * <code>fn:floor</code>, <code>fn:round</code> and
+   * <code>fn:round-half-to-even</code> (arity 1 and 2), <code>fn:number</code>
+   * (arity 0 focus-dependent, and 1), <code>fn:random-number-generator</code>
+   * (arity 0 and 1) and the aggregate functions <code>fn:count</code>,
+   * <code>fn:sum</code> (arity 1 and 2), <code>fn:avg</code>,
+   * <code>fn:max</code> and <code>fn:min</code> (arity 1 and 2).
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

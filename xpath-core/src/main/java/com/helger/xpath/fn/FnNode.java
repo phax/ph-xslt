@@ -40,6 +40,18 @@ public final class FnNode
   private FnNode ()
   {}
 
+  /**
+   * Register <code>fn:in-scope-prefixes($element as element()) as
+   * xs:string*</code> (F&amp;O 3.1 section 10.2.6), which returns the prefixes
+   * of the key set of {@link IXdmNode#getInScopeNamespaces()} of the element
+   * as strings, and <code>fn:namespace-uri-for-prefix($prefix as xs:string?,
+   * $element as element()) as xs:anyURI?</code> (section 10.2.5), which treats
+   * an empty sequence as the empty prefix and returns the empty sequence if
+   * the prefix is not bound on the element.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

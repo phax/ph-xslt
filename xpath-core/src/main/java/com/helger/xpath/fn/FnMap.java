@@ -46,18 +46,54 @@ public final class FnMap
   private FnMap ()
   {}
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The index of a <code>map(*)</code> argument.
+   * @return The map.
+   */
   @NonNull
   private static XdmMap _map (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
     return (XdmMap) aArgs.get (nIndex).get (0);
   }
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The index of an <code>xs:anyAtomicType</code> argument.
+   * @return The atomic value.
+   */
   @NonNull
   private static XdmAtomic _atomic (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
     return (XdmAtomic) aArgs.get (nIndex).get (0);
   }
 
+  /**
+   * <code>map:merge($maps as map(*)*[, $options as map(*)]) as map(*)</code>
+   * (F&amp;O 3.1 section 17.1.2). The <code>duplicates</code> option (default
+   * <code>use-first</code>) is validated first, even if there is nothing to
+   * merge. No map gives the empty map, a single map is returned as it is.
+   * Otherwise the entries are added map by map, in order; for a key that is
+   * already present, <code>reject</code> raises FOJS0003,
+   * <code>use-last</code> replaces the value, <code>combine</code> appends the
+   * new value to the old one, and <code>use-first</code> and
+   * <code>use-any</code> keep the first value. Checks for interruption once
+   * per input map.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The merged map.
+   * @throws XPathException
+   *         FOJS0005 for an unknown <code>duplicates</code> value, FOJS0003
+   *         for a duplicate key with <code>reject</code>, XPTY0004 if the
+   *         option is not a string.
+   */
   @NonNull
   private static XdmSequence _merge (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -113,6 +149,21 @@ public final class FnMap
     return XdmSequence.of (aBuilder.build ());
   }
 
+  /**
+   * <code>map:find($input as item()*, $key as xs:anyAtomicType) as
+   * array(*)</code> (F&amp;O 3.1 section 17.1.7): collect the values of every
+   * map with that key found anywhere in the input, searching recursively
+   * through the values of map entries and the members of arrays. The walk is
+   * pre-order depth-first in input order with an explicit stack, so deep
+   * nesting cannot overflow the Java stack; items that are neither maps nor
+   * arrays are skipped. Checks for interruption every 1024 items.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The input and the key.
+   * @return An array with one member per match, in the order found.
+   */
   @NonNull
   private static XdmSequence _find (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -156,6 +207,18 @@ public final class FnMap
     return XdmSequence.of (aResult.build ());
   }
 
+  /**
+   * <code>map:for-each($map as map(*), $action as function(xs:anyAtomicType,
+   * item()*) as item()*) as item()*</code> (F&amp;O 3.1 section 17.1.11): call
+   * the function with every key and value, in the iteration order of the map,
+   * and concatenate the results. Checks for interruption before every call.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The map and the function.
+   * @return The concatenated results.
+   */
   @NonNull
   private static XdmSequence _forEach (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -172,6 +235,12 @@ public final class FnMap
     return aBuilder.build ();
   }
 
+  /**
+   * @param aMap
+   *        A map.
+   * @return The keys of the map in its iteration order (<code>map:keys</code>,
+   *         F&amp;O 3.1 section 17.1.4).
+   */
   @NonNull
   private static XdmSequence _keys (@NonNull final XdmMap aMap)
   {
@@ -181,6 +250,14 @@ public final class FnMap
     return aBuilder.build ();
   }
 
+  /**
+   * @param aMap
+   *        A map.
+   * @param aKey
+   *        The key, compared by the same-key rules of the map.
+   * @return The value of the entry, or the empty sequence if there is none
+   *         (<code>map:get</code>, F&amp;O 3.1 section 17.1.6).
+   */
   @NonNull
   private static XdmSequence _get (@NonNull final XdmMap aMap, @NonNull final XdmAtomic aKey)
   {
@@ -194,6 +271,17 @@ public final class FnMap
     return XdmSequence.of (aItem);
   }
 
+  /**
+   * Register the functions of F&amp;O 3.1 section 17.1: <code>map:merge</code>
+   * (arity 1 and 2), <code>map:size</code>, <code>map:keys</code>,
+   * <code>map:contains</code>, <code>map:get</code>, <code>map:find</code>,
+   * <code>map:put</code> (a new map, the input stays unchanged),
+   * <code>map:entry</code>, <code>map:remove</code> (any number of keys, keys
+   * that are absent are ignored) and <code>map:for-each</code>.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = FunctionLibrary.NS_MAP;

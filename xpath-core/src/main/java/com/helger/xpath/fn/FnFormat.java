@@ -52,6 +52,15 @@ public final class FnFormat
   private FnFormat ()
   {}
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The 0-based argument index.
+   * @return The first item of the argument as an atomic value, or
+   *         <code>null</code> if the argument is empty or the arity does not
+   *         reach the index.
+   */
   @Nullable
   private static XdmAtomic _arg (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
@@ -61,6 +70,14 @@ public final class FnFormat
     return aSeq.isEmpty () ? null : (XdmAtomic) aSeq.getFirst ();
   }
 
+  /**
+   * @param aArgs
+   *        The arguments.
+   * @param nIndex
+   *        The 0-based argument index.
+   * @return The string value of the argument, or <code>null</code> if it is
+   *         empty or not supplied.
+   */
   @Nullable
   private static String _stringArg (@NonNull final List <XdmSequence> aArgs, final int nIndex)
   {
@@ -74,6 +91,22 @@ public final class FnFormat
     return XdmSequence.of (XdmAtomic.string (s));
   }
 
+  /**
+   * <code>fn:format-integer($value as xs:integer?, $picture as xs:string[,
+   * $lang as xs:string?]) as xs:string</code> (F&amp;O 3.1 section 4.6.1). An
+   * empty value gives the zero-length string without the picture being looked
+   * at; an absent language or an empty sequence falls back to the default
+   * language of the dynamic context. The work is done by
+   * {@link FormatInteger}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The formatted string.
+   * @throws XPathException
+   *         FODF1310 for an invalid picture.
+   */
   @NonNull
   private static XdmSequence _formatInteger (@NonNull final DynamicContext aCtx,
                                              @NonNull final List <XdmSequence> aArgs)
@@ -140,6 +173,24 @@ public final class FnFormat
     return ret;
   }
 
+  /**
+   * <code>fn:format-number($value as xs:numeric?, $picture as xs:string[,
+   * $decimal-format-name as xs:string?]) as xs:string</code> (F&amp;O 3.1
+   * section 4.7.2). An absent, empty or zero-length format name selects the
+   * unnamed decimal format of the static context, any other name is resolved
+   * with {@link #resolveDecimalFormat(StaticContext, String)}. An empty value
+   * is passed on as <code>null</code> and formats as NaN. The work is done by
+   * {@link FormatNumber}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The formatted string.
+   * @throws XPathException
+   *         FODF1280 for an unknown decimal format, FODF1310 for an invalid
+   *         picture.
+   */
   @NonNull
   private static XdmSequence _formatNumber (@NonNull final DynamicContext aCtx,
                                             @NonNull final List <XdmSequence> aArgs)
@@ -155,6 +206,21 @@ public final class FnFormat
     return _string (FormatNumber.format (_arg (aArgs, 0), sPicture == null ? "" : sPicture, aDF));
   }
 
+  /**
+   * Create the implementation of <code>fn:format-dateTime</code>,
+   * <code>fn:format-date</code> or <code>fn:format-time</code> (F&amp;O 3.1
+   * section 9.8) with two or five arguments: <code>($value, $picture[,
+   * $language, $calendar, $place])</code>. An empty value gives the empty
+   * sequence; an absent language or an empty sequence falls back to the
+   * default language of the dynamic context; calendar and place are passed on
+   * as given (<code>null</code> if absent or empty). The work is done by
+   * {@link FormatDateTime}.
+   *
+   * @param eType
+   *        The type of the value (xs:dateTime, xs:date or xs:time), which
+   *        decides the components the picture may use.
+   * @return The function implementation.
+   */
   @NonNull
   private static IXPathFunction _formatDateTime (@NonNull final EAtomicType eType)
   {
@@ -173,6 +239,15 @@ public final class FnFormat
     };
   }
 
+  /**
+   * Register <code>fn:format-integer</code> (arity 2 and 3),
+   * <code>fn:format-number</code> (arity 2 and 3) and
+   * <code>fn:format-dateTime</code>, <code>fn:format-date</code> and
+   * <code>fn:format-time</code> (arity 2 and 5).
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

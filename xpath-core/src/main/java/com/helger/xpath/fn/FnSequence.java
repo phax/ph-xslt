@@ -81,6 +81,20 @@ public final class FnSequence
   private FnSequence ()
   {}
 
+  /**
+   * Resolve a collation URI: a relative URI is resolved against the static
+   * base URI (if there is one) with {@link URI#resolve(URI)}, then looked up
+   * in the {@link CollationRegistry}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param sUri
+   *        The collation URI as written.
+   * @return The collation, <code>null</code> for the codepoint collation (the
+   *         convention of the comparison helpers).
+   * @throws XPathException
+   *         FOCH0002 for a syntactically invalid or unsupported collation URI.
+   */
   @Nullable
   private static ICollation _resolveCollation (@NonNull final DynamicContext aCtx, @NonNull final String sUri)
   {
@@ -148,6 +162,15 @@ public final class FnSequence
     return aBI.longValue ();
   }
 
+  /**
+   * <code>fn:insert-before($target as item()*, $position as xs:integer,
+   * $inserts as item()*) as item()*</code> (F&amp;O 3.1 section 14.1.5): a
+   * position below 1 inserts at the start, one beyond the end appends.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The new sequence.
+   */
   @NonNull
   private static XdmSequence _insertBefore (@NonNull final List <XdmSequence> aArgs)
   {
@@ -160,6 +183,15 @@ public final class FnSequence
                                aTarget.subSequence (nIndex, aTarget.size ()));
   }
 
+  /**
+   * <code>fn:remove($target as item()*, $position as xs:integer) as
+   * item()*</code> (F&amp;O 3.1 section 14.1.6).
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The sequence without the item at the 1-based position; unchanged
+   *         if the position is out of range.
+   */
   @NonNull
   private static XdmSequence _remove (@NonNull final List <XdmSequence> aArgs)
   {
@@ -171,6 +203,12 @@ public final class FnSequence
     return XdmSequence.concat (aTarget.subSequence (0, nIndex), aTarget.subSequence (nIndex + 1, aTarget.size ()));
   }
 
+  /**
+   * @param aSeq
+   *        A sequence.
+   * @return The items in reverse order (<code>fn:reverse</code>, F&amp;O 3.1
+   *         section 14.1.7); the sequence itself if it has at most one item.
+   */
   @NonNull
   private static XdmSequence _reverse (@NonNull final XdmSequence aSeq)
   {
@@ -191,6 +229,19 @@ public final class FnSequence
     return Math.floor (d + 0.5);
   }
 
+  /**
+   * <code>fn:subsequence($sourceSeq as item()*, $startingLoc as xs:double[,
+   * $length as xs:double]) as item()*</code> (F&amp;O 3.1 section 14.1.8): the
+   * items at the 1-based positions <code>p</code> with <code>round($start)
+   * &lt;= p &lt; round($start) + round($length)</code>, with the rounding of
+   * {@link #_roundHalfUp(double)} and no upper limit without
+   * <code>$length</code>. A NaN bound, also from <code>-INF + INF</code>,
+   * gives the empty sequence.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The subsequence.
+   */
   @NonNull
   private static XdmSequence _subsequence (@NonNull final List <XdmSequence> aArgs)
   {
@@ -216,12 +267,36 @@ public final class FnSequence
     return aValue.getType () == EAtomicType.UNTYPED_ATOMIC ? XdmAtomic.string (aValue.getString ()) : aValue;
   }
 
+  /**
+   * @param aValue
+   *        An atomic value.
+   * @return <code>true</code> if it is a float or double NaN.
+   */
   private static boolean _isNaN (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
     return (aPayload instanceof final Double aD && aD.isNaN ()) || (aPayload instanceof final Float aF && aF.isNaN ());
   }
 
+  /**
+   * <code>fn:distinct-values($arg as xs:anyAtomicType*[, $collation as
+   * xs:string]) as xs:anyAtomicType*</code> (F&amp;O 3.1 section 14.2.1): keep
+   * the first of every group of values that are equal by
+   * {@link AtomicComparator#isEqualForDistinct} (xs:untypedAtomic compared as
+   * xs:string, NaN equal to NaN), in input order. To stay linear the values
+   * are put into buckets by {@link AtomicComparator#getDistinctBucketKey} and
+   * only compared within a bucket; values without a bucket key are compared
+   * with all other such values. If any value is an xs:float, the keys are
+   * computed for float precision. Checks for interruption every 1024 values.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The distinct values.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _distinctValues (@NonNull final DynamicContext aCtx,
                                               @NonNull final List <XdmSequence> aArgs)
@@ -270,6 +345,21 @@ public final class FnSequence
     return aBuilder.build ();
   }
 
+  /**
+   * <code>fn:index-of($seq as xs:anyAtomicType*, $search as xs:anyAtomicType[,
+   * $collation as xs:string]) as xs:integer*</code> (F&amp;O 3.1 section
+   * 14.2.2): the 1-based positions of the values equal to the search value by
+   * {@link AtomicComparator#isEqualForDistinct}, with xs:untypedAtomic
+   * compared as xs:string. A NaN search value matches nothing.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The positions in ascending order.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _indexOf (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -290,6 +380,20 @@ public final class FnSequence
     return aBuilder.build ();
   }
 
+  /**
+   * <code>fn:deep-equal($parameter1 as item()*, $parameter2 as item()*[,
+   * $collation as xs:string]) as xs:boolean</code> (F&amp;O 3.1 section
+   * 14.2.3), delegated to {@link AtomicComparator#deepEqual}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The result.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation, FOTY0015 if a function item
+   *         has to be compared.
+   */
   @NonNull
   private static XdmSequence _deepEqual (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -316,6 +420,15 @@ public final class FnSequence
     return aNode;
   }
 
+  /**
+   * @param aNode
+   *        The node whose tree is searched.
+   * @param sFunc
+   *        The function name, for the message.
+   * @return The root of the tree, which must be a document node.
+   * @throws XPathException
+   *         FODC0001 if the root is not a document node.
+   */
   @NonNull
   private static IXdmNode _getDocumentRoot (@NonNull final IXdmNode aNode, @NonNull final String sFunc)
   {
@@ -325,6 +438,12 @@ public final class FnSequence
     return aRoot;
   }
 
+  /**
+   * @param c
+   *        A character.
+   * @return <code>true</code> for XML whitespace: space, tab, line feed and
+   *         carriage return.
+   */
   private static boolean _isXmlWhitespace (final char c)
   {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
@@ -354,6 +473,30 @@ public final class FnSequence
     return ret;
   }
 
+  /**
+   * <code>fn:id($arg as xs:string*[, $node as node()]) as element()*</code>
+   * and <code>fn:element-with-id</code> with the same signature (F&amp;O 3.1
+   * sections 14.5.1 and 14.5.2). The strings are split at whitespace into the
+   * wanted ID values; the document of the node (the context node without
+   * <code>$node</code>) is searched iteratively for elements with an ID
+   * attribute (DTD type ID or <code>xml:id</code>) whose trimmed value is
+   * wanted, and for elements whose own typed value is an ID: those are
+   * returned themselves by <code>fn:id</code> and as their parent element by
+   * <code>fn:element-with-id</code>. Checks for interruption every 1024
+   * elements.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @param bElementWithID
+   *        <code>true</code> for <code>fn:element-with-id</code>.
+   * @return The elements in document order without duplicates; empty if no ID
+   *         value is wanted.
+   * @throws XPathException
+   *         XPDY0002 or XPTY0004 if the context item is needed and absent or
+   *         not a node, FODC0001 if the tree is not rooted at a document node.
+   */
   @NonNull
   private static XdmSequence _id (@NonNull final DynamicContext aCtx,
                                   @NonNull final List <XdmSequence> aArgs,
@@ -410,12 +553,25 @@ public final class FnSequence
     return NodeSorter.sortAndDeduplicate (aBuilder.build ());
   }
 
+  /**
+   * @param aNode
+   *        An element or attribute.
+   * @return <code>true</code> if its ID kind is IDREF or IDREFS.
+   */
   private static boolean _isIDRef (@NonNull final IXdmNode aNode)
   {
     final EIDKind eKind = aNode.getIDKind ();
     return eKind == EIDKind.IDREF || eKind == EIDKind.IDREFS;
   }
 
+  /**
+   * @param sValue
+   *        The value of an IDREF or IDREFS node.
+   * @param aWanted
+   *        The wanted ID values.
+   * @return <code>true</code> if any whitespace-separated token of the value
+   *         is wanted.
+   */
   private static boolean _matchesIDRef (@NonNull final String sValue, @NonNull final ICommonsSet <String> aWanted)
   {
     for (final String sToken : _tokenize (sValue))
@@ -424,6 +580,24 @@ public final class FnSequence
     return false;
   }
 
+  /**
+   * <code>fn:idref($arg as xs:string*[, $node as node()]) as node()*</code>
+   * (F&amp;O 3.1 section 14.5.3): every string that is a single token after
+   * whitespace collapsing is a wanted ID value; the document of the node (the
+   * context node without <code>$node</code>) is searched iteratively for
+   * elements and attributes of kind IDREF or IDREFS that reference one of
+   * them. The traversal visits nodes in document order, so the result needs no
+   * sorting. Checks for interruption every 1024 elements.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The referencing elements and attributes in document order.
+   * @throws XPathException
+   *         XPDY0002 or XPTY0004 if the context item is needed and absent or
+   *         not a node, FODC0001 if the tree is not rooted at a document node.
+   */
   @NonNull
   private static XdmSequence _idref (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -470,6 +644,23 @@ public final class FnSequence
     return aBuilder.build ();
   }
 
+  /**
+   * <code>fn:lang($testlang as xs:string?[, $node as node()]) as
+   * xs:boolean</code> (F&amp;O 3.1 section 13.4): find the nearest
+   * <code>xml:lang</code> attribute on the node or its ancestors; it matches
+   * if, both lower-cased with the root locale, it equals the test language
+   * or starts with it followed by <code>-</code>. An empty test language
+   * counts as the empty string.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return <code>false</code> if there is no <code>xml:lang</code>.
+   * @throws XPathException
+   *         XPDY0002 or XPTY0004 if the context item is needed and absent or
+   *         not a node.
+   */
   @NonNull
   private static XdmSequence _lang (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -489,6 +680,23 @@ public final class FnSequence
     return _bool (false);
   }
 
+  /**
+   * <code>fn:innermost($nodes as node()*) as node()*</code> and
+   * <code>fn:outermost</code> with the same signature (F&amp;O 3.1 sections
+   * 13.8 and 13.9). The nodes are first sorted into document order without
+   * duplicates. Innermost keeps the nodes that are not an ancestor of another
+   * node in the set (the ancestors of every node are marked once, stopping at
+   * the first already marked one); outermost keeps the nodes that have no
+   * ancestor in the set. Checks for interruption once per node.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aInput
+   *        The nodes.
+   * @param bInnermost
+   *        <code>true</code> for innermost, <code>false</code> for outermost.
+   * @return The selected nodes in document order.
+   */
   @NonNull
   private static XdmSequence _innermostOutermost (@NonNull final DynamicContext aCtx,
                                                   @NonNull final XdmSequence aInput,
@@ -535,6 +743,24 @@ public final class FnSequence
     return aBuilder.build ();
   }
 
+  /**
+   * Register the sequence functions <code>fn:empty</code> ({@link #EMPTY}),
+   * <code>fn:exists</code> ({@link #EXISTS}), <code>fn:head</code>,
+   * <code>fn:tail</code>, <code>fn:insert-before</code>,
+   * <code>fn:remove</code>, <code>fn:reverse</code>,
+   * <code>fn:subsequence</code>, <code>fn:unordered</code> (returns its
+   * argument unchanged), <code>fn:distinct-values</code>,
+   * <code>fn:index-of</code>, <code>fn:deep-equal</code>, the cardinality
+   * checks <code>fn:zero-or-one</code> (FORG0003), <code>fn:one-or-more</code>
+   * (FORG0004) and <code>fn:exactly-one</code> (FORG0005), the ID functions
+   * <code>fn:id</code>, <code>fn:element-with-id</code> and
+   * <code>fn:idref</code> and <code>fn:lang</code> (with a focus-dependent
+   * form without node argument), and <code>fn:innermost</code> and
+   * <code>fn:outermost</code>.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;
