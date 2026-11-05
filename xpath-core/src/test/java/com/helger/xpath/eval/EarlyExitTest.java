@@ -30,10 +30,12 @@ import com.helger.xpath.XPathException;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.fn.FnAccessor;
+import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.XdmQName;
 
 /**
  * Test class for the early exit of existence tests and effective boolean values
@@ -293,5 +295,73 @@ public final class EarlyExitTest
     assertTrue (_ebv ("//@a/..", aRoot));
     assertEquals ("true", _eval ("exists(//@a/parent::x)", aDoc));
     assertEquals ("false", _eval ("exists(//@a/parent::y)", aDoc));
+  }
+
+  @Test
+  public void testEmptyByNameIndex ()
+  {
+    // The last step names an element the document does not contain: the
+    // name index answers without evaluating the prefix
+    final IXdmNode aDoc = _parse ("<Invoice xmlns:cac='" +
+                                  NS_CAC +
+                                  "' xmlns:cbc='" +
+                                  NS_CBC +
+                                  "'><cac:InvoiceLine><cbc:ID>1</cbc:ID><cac:Item><cbc:Name>a</cbc:Name></cac:Item>" +
+                                  "</cac:InvoiceLine><cac:InvoiceLine><cbc:ID>2</cbc:ID></cac:InvoiceLine>" +
+                                  "<cbc:Note>n</cbc:Note></Invoice>");
+    final IXdmNode aRoot = aDoc.getChildAtIndex (0);
+    assertEquals ("true", _eval ("not((cac:InvoiceLine|cac:CreditNoteLine)/cbc:UUID)", aRoot));
+    assertEquals ("true", _eval ("empty((cac:InvoiceLine|cac:CreditNoteLine)/cac:Item/cac:TaxScheme/cbc:TaxTypeCode)",
+                                 aRoot));
+    assertFalse (_ebv ("(cac:InvoiceLine|cac:CreditNoteLine)/cbc:UUID", aRoot));
+    assertFalse (_ebv ("/Invoice/cac:InvoiceLine//cbc:UUID", aRoot));
+    assertFalse (_ebv ("cac:InvoiceLine/descendant::cbc:UUID[1]", aRoot));
+    assertEquals ("0", _eval ("count((cac:InvoiceLine|cac:CreditNoteLine)/cbc:UUID)", aRoot));
+    assertEquals ("", _eval ("(cac:InvoiceLine|cac:CreditNoteLine)/cbc:UUID", aRoot));
+    // The name occurs: the path is evaluated
+    assertEquals ("true", _eval ("exists((cac:InvoiceLine|cac:CreditNoteLine)/cbc:ID)", aRoot));
+    assertEquals ("1 2", _eval ("(cac:InvoiceLine|cac:CreditNoteLine)/cbc:ID", aRoot));
+    assertEquals ("a", _eval ("((cac:InvoiceLine)/cac:Item | cac:Nothing)/cbc:Name", aRoot));
+    // The name occurs elsewhere in the document only
+    assertEquals ("false", _eval ("exists(cac:InvoiceLine/cbc:Note)", aRoot));
+    assertEquals ("0", _eval ("count(cac:InvoiceLine/cac:Item/cbc:ID)", aRoot));
+
+    // Errors of the prefix are still raised: a context item that is no node
+    // or is absent
+    _assertError ("XPTY0020", "exists((cac:InvoiceLine|cac:CreditNoteLine)/cbc:UUID)", XdmAtomic.integer (1));
+    _assertEbvError ("XPTY0020", "cac:InvoiceLine/cbc:UUID", XdmAtomic.string ("x"));
+    _assertError ("XPTY0020", "count(/Invoice/cbc:UUID)", XdmAtomic.integer (1));
+    final CompiledXPath aNoFocus = XPathCompiler.compile ("exists(cac:InvoiceLine/cbc:UUID)", _createStaticContext ());
+    try
+    {
+      aNoFocus.evaluate (aNoFocus.createDynamicContext ());
+      fail ("XPDY0002 expected");
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("XPDY0002", ex.getCode ());
+    }
+    // Prefixes that may raise an error are evaluated
+    _assertError ("FOER0000", "exists(cac:InvoiceLine[error()]/cbc:UUID)", aRoot);
+    _assertError ("FOER0000", "exists((cac:InvoiceLine[error()] | cac:CreditNoteLine)/cbc:UUID)", aRoot);
+    _assertError ("FOER0000", "count(cac:InvoiceLine/cac:Item[error()]/cbc:UUID)", aRoot);
+    _assertEbvError ("XPTY0019", "(1, cac:InvoiceLine)/cbc:UUID", aRoot);
+    _assertError ("XPTY0019", "let $v := 1 return exists($v/cac:Item/cbc:UUID)", aRoot);
+    _assertError ("XPTY0004", "exists((cac:InvoiceLine except 1)/cbc:UUID)", aRoot);
+
+    // A tree whose root is no document node: "/" raises XPDY0050
+    final IXdmNode aElement = IXdmNode.createElement (new XdmQName ("r"));
+    aElement.appendChild (IXdmNode.createElement (new XdmQName ("x")));
+    _assertError ("XPDY0050", "exists(/r/x/zz)", aElement);
+    assertEquals ("false", _eval ("exists(x/zz)", aElement));
+
+    // A structural change drops the index: the new element is found
+    final IXdmNode aLine = aRoot.getChildAtIndex (0);
+    assertEquals ("false", _eval ("exists(cac:InvoiceLine/cac:Item/cbc:UUID)", aRoot));
+    aLine.getChildAtIndex (1).appendChild (IXdmNode.createElement (new XdmQName (NS_CBC, "UUID", "cbc")));
+    assertEquals ("true", _eval ("exists(cac:InvoiceLine/cac:Item/cbc:UUID)", aRoot));
+    aDoc.assignDocumentOrder ();
+    assertEquals ("true", _eval ("exists(cac:InvoiceLine/cac:Item/cbc:UUID)", aRoot));
+    assertEquals ("1", _eval ("count((cac:InvoiceLine|cac:CreditNoteLine)/cac:Item/cbc:UUID)", aRoot));
   }
 }
