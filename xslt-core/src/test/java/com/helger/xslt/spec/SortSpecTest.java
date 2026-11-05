@@ -76,6 +76,15 @@ public final class SortSpecTest
                     "A a b B "),
                 // XTDE1035: an unknown collation.
                 err ("unknown collation", _each ("<xsl:sort select=\"@s\" collation=\"http://example.com/no-such-collation\"/>"), sSrc, "XTDE1035"),
+                // lang without collation: Swedish sorts ö after z
+                ok ("lang selects a collation",
+                    "<xsl:template match=\"/\"><xsl:perform-sort select=\"('ört', 'zon', 'ost')\"><xsl:sort select=\".\" lang=\"sv\"/></xsl:perform-sort></xsl:template>",
+                    null,
+                    "ost zon ört"),
+                ok ("lang with case-order",
+                    "<xsl:template match=\"/\"><xsl:perform-sort select=\"('b', 'B', 'a')\"><xsl:sort select=\".\" lang=\"en\" case-order=\"upper-first\"/></xsl:perform-sort></xsl:template>",
+                    null,
+                    "a B b"),
                 err ("invalid lang", _each ("<xsl:sort select=\"@s\" lang=\"{'not a language'}\"/>"), sSrc, "XTDE0030"),
                 ok ("sort body instead of select",
                     _each ("<xsl:sort data-type=\"number\"><xsl:value-of select=\"@n\"/></xsl:sort>"),

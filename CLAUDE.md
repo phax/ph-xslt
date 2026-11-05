@@ -30,6 +30,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   same change that makes them wrong.
 - XSD: the native validator (`xsd-core`) does XSD 1.0 and 1.1; `XsdSchemaProvider` (schema-aware XPath/XSLT) compiles as
   1.1. `XsdNativeIT` gates both versions (`xsd-conformance/target/xsd-native-fails.txt`, `xsd-native11-fails.txt`).
+- Streaming (plan: `docs/PLAN.md`, "Streaming"): `-Dxslt30.streaming=true` claims it in the XSLT30 harness (out dir
+  `xslt-conformance/target/streaming`, accepted file `xslt30-streaming.md`); with `-Dxslt30.schemaAware=true` as well
+  it writes to `target/schema-aware-streaming` and is no gate (`checkAccepted` off by default). The engine switches are
+  `XsltCompileOptions.setStreamingClaim` (only `system-property('xsl:supports-streaming')`, default off until streamed
+  execution exists), `setEnforceStreamability` (XTSE3430 binding; stored only until S3) and
+  `XsltTransformRequest.setSourceStreamed` (recorded only). The default run must keep claiming no streaming.
 - Local `xsl:variable`s are lazy (`DynamicContext.withLazyVariable`, evaluated once on first use); `xsl:try` must not
   catch errors of variables declared outside it (`TryScope`, `LazyVariableException`). The XPath `let` stays eager.
 - Streamability (XSLT 3.0 section 19): `com.helger.xpath.stream.XPathStreamability` classifies expressions and

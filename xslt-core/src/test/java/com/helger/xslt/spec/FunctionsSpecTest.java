@@ -189,6 +189,8 @@ public final class FunctionsSpecTest
       ok ("uri is xs:anyURI", "<xsl:template match=\"/\"><xsl:value-of select=\"unparsed-entity-uri('pic') instance of xs:anyURI\"/></xsl:template>", sSrc, "true"),
       ok ("unknown entity gives zero-length strings", "<xsl:template match=\"/\">[<xsl:value-of select=\"unparsed-entity-uri('none')\"/>][<xsl:value-of select=\"unparsed-entity-public-id('none')\"/>]</xsl:template>", sSrc, "[][]"),
       ok ("second argument selects the document", "<xsl:template match=\"/\"><xsl:value-of select=\"unparsed-entity-uri('pic', /)\"/></xsl:template>", sSrc, "http://example.com/pic.gif"),
+      // The document node copied by fn:snapshot keeps the unparsed entities
+      ok ("snapshot keeps the unparsed entities", "<xsl:template match=\"/r\"><xsl:value-of select=\"unparsed-entity-uri('pic', snapshot(.)), unparsed-entity-public-id('pic', snapshot(.))\" separator=\"|\"/></xsl:template>", sSrc, "http://example.com/pic.gif|-//PIC//EN"),
       // XTDE1370: no context node.
       err ("absent focus", "<xsl:function name=\"f:u\"><xsl:sequence select=\"unparsed-entity-uri('pic')\"/></xsl:function>\n" +
         "<xsl:template match=\"/\"><xsl:value-of select=\"f:u()\"/></xsl:template>", sSrc, "XTDE1370"),

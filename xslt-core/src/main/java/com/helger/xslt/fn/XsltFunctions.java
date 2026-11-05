@@ -148,7 +148,9 @@ public final class XsltFunctions
   }
 
   @NonNull
-  private static XdmSequence _systemProperty (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
+  private static XdmSequence _systemProperty (@NonNull final DynamicContext aCtx,
+                                              @NonNull final List <XdmSequence> aArgs,
+                                              final boolean bStreamingClaim)
   {
     final String sName = _getString (aArgs.get (0));
     final XdmQName aName = _resolveName (aCtx.getStaticContext (), sName, "");
@@ -159,6 +161,9 @@ public final class XsltFunctions
     // carry the in-scope schema definitions
     if (XsltNames.NS_XSL.equals (aName.namespaceUri ()) && "is-schema-aware".equals (aName.localName ()))
       sValue = aCtx.getStaticContext ().getSchemaSet () != null ? "yes" : "no";
+    // So is the streaming claim (XsltCompileOptions.setStreamingClaim)
+    if (bStreamingClaim && XsltNames.NS_XSL.equals (aName.namespaceUri ()) && "supports-streaming".equals (aName.localName ()))
+      sValue = "yes";
     return XdmSequence.of (XdmAtomic.string (sValue));
   }
 
@@ -251,7 +256,10 @@ public final class XsltFunctions
    */
   public static void registerStatic (@NonNull final FunctionLibrary aLib)
   {
-    aLib.register (NS, "system-property", "(xs:string) as xs:string", XsltFunctions::_systemProperty);
+    aLib.register (NS,
+                   "system-property",
+                   "(xs:string) as xs:string",
+                   (aRtCtx, aFnArgs) -> _systemProperty (aRtCtx, aFnArgs, false));
     aLib.register (NS, "function-available", "(xs:string) as xs:boolean", XsltFunctions::_functionAvailable);
     aLib.register (NS, "function-available", "(xs:string, xs:integer) as xs:boolean", XsltFunctions::_functionAvailable);
     aLib.register (NS, "element-available", "(xs:string) as xs:boolean", XsltFunctions::_elementAvailable);
@@ -447,6 +455,9 @@ public final class XsltFunctions
     for (final IXdmNode aAnc : aAncestors)
     {
       final IXdmNode aCopy = NodeCopier.copyShallow (aAnc);
+      // The copied document node keeps the unparsed entities, as with a deep
+      // copy
+      NodeCopier.copyUnparsedEntities (aAnc, aCopy);
       if (aAnc.isElement ())
       {
         NodeCopier.copyNamespaces (aAnc, aCopy, aParentCopy == null);
@@ -617,6 +628,23 @@ public final class XsltFunctions
       sText = null;
     }
     return XdmSequence.of (XdmAtomic.bool (sText != null && _startsWithXmlElement (sText)));
+  }
+
+  /**
+   * Replace <code>system-property</code> in a library that already has the
+   * static functions by one for a stylesheet compiled with the streaming
+   * claim: <code>system-property('xsl:supports-streaming')</code> reports
+   * "yes".
+   *
+   * @param aLib
+   *        Library of a stylesheet compiled with the streaming claim.
+   */
+  public static void registerStreamingClaim (@NonNull final FunctionLibrary aLib)
+  {
+    aLib.register (NS,
+                   "system-property",
+                   "(xs:string) as xs:string",
+                   (aRtCtx, aFnArgs) -> _systemProperty (aRtCtx, aFnArgs, true));
   }
 
   /**

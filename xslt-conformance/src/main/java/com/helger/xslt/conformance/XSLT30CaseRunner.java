@@ -114,6 +114,7 @@ public final class XSLT30CaseRunner
   private final boolean m_bStrictErrorCodes;
   private final boolean m_bRunUnicodeExcluded;
   private final boolean m_bSchemaAware;
+  private final boolean m_bStreaming;
 
   /**
    * @param aCatalog
@@ -167,6 +168,42 @@ public final class XSLT30CaseRunner
                            final boolean bRunUnicodeExcluded,
                            final boolean bSchemaAware)
   {
+    this (aCatalog, aCompiler, aCache, aNow, bStrictErrorCodes, bRunUnicodeExcluded, bSchemaAware, false);
+  }
+
+  /**
+   * @param aCatalog
+   *        The catalog (for catalog level environments).
+   * @param aCompiler
+   *        The stylesheet compiler, normally {@link IXSLT30Compiler#ENGINE}.
+   * @param aCache
+   *        The compile cache of the run.
+   * @param aNow
+   *        The current date/time of the run.
+   * @param bStrictErrorCodes
+   *        <code>true</code> to require matching error codes.
+   * @param bRunUnicodeExcluded
+   *        <code>true</code> to run the cases excluded for their Unicode
+   *        version.
+   * @param bSchemaAware
+   *        <code>true</code> to claim schema-awareness: stylesheets are
+   *        compiled schema-aware, the environment schemas are offered to
+   *        xsl:import-schema and sources are validated as the catalog asks.
+   * @param bStreaming
+   *        <code>true</code> to claim streaming: stylesheets are compiled with
+   *        the streaming claim and binding streamability declarations, and a
+   *        principal source with <code>streaming="true"</code> is declared
+   *        streamed.
+   */
+  public XSLT30CaseRunner (@NonNull final XSLT30Catalog aCatalog,
+                           @NonNull final IXSLT30Compiler aCompiler,
+                           @NonNull final XSLT30StylesheetCache aCache,
+                           @NonNull final OffsetDateTime aNow,
+                           final boolean bStrictErrorCodes,
+                           final boolean bRunUnicodeExcluded,
+                           final boolean bSchemaAware,
+                           final boolean bStreaming)
+  {
     ValueEnforcer.notNull (aCatalog, "Catalog");
     ValueEnforcer.notNull (aCompiler, "Compiler");
     ValueEnforcer.notNull (aCache, "Cache");
@@ -178,6 +215,7 @@ public final class XSLT30CaseRunner
     m_bStrictErrorCodes = bStrictErrorCodes;
     m_bRunUnicodeExcluded = bRunUnicodeExcluded;
     m_bSchemaAware = bSchemaAware;
+    m_bStreaming = bStreaming;
   }
 
   @NonNull
@@ -411,6 +449,8 @@ public final class XSLT30CaseRunner
         aOptions.setSchemaAware (true);
         aOptions.hostSchemas ().addAll (aHostSchemas);
       }
+      if (m_bStreaming)
+        aOptions.setStreamingClaim (true).setEnforceStreamability (true);
       for (final XSLT30Param aParam : aStaticParams.values ())
         aOptions.setStaticParam (aParam.name (), _evaluateParam (aParam, null, aResolver, sBaseUri));
       if (bEmbedded)
@@ -445,6 +485,7 @@ public final class XSLT30CaseRunner
     // when there is no role "." source; the last one found wins, like Go
     IXdmNode aSource = null;
     String sSourceSelect = "";
+    boolean bSourceStreamed = false;
     if (aEnv != null)
     {
       boolean bHasExplicitPrimary = false;
@@ -458,6 +499,9 @@ public final class XSLT30CaseRunner
         try
         {
           final String sValidation = m_bSchemaAware ? XSLT30SchemaSupport.getValidationMode (aEnv, aSrc) : null;
+          // <source streaming="true"/> declares the principal source streamed
+          final String sStreaming = aSrc.streaming ().strip ();
+          bSourceStreamed = "true".equals (sStreaming) || "yes".equals (sStreaming);
           if (aSrc.content () != null && !aSrc.content ().isBlank ())
           {
             // Inline content has the base URI of the file it is written in
@@ -535,6 +579,8 @@ public final class XSLT30CaseRunner
     final XsltTransformRequest aRequest = new XsltTransformRequest ();
     aRequest.setResolver (aResolver);
     aRequest.setCurrentDateTime (m_aNow);
+    if (m_bStreaming && bSourceStreamed)
+      aRequest.setSourceStreamed (true);
 
     // Global context item
     IXdmItem aContextItem = aSource;
@@ -631,7 +677,10 @@ public final class XSLT30CaseRunner
                          @NonNull final XSLT30TestCase aCase,
                          @NonNull final XSLT30DocumentCache aDocs)
   {
-    final String sSkip = XSLT30Dependencies.getSkipReason (aSet.dependencies (), aCase.dependencies (), m_bSchemaAware);
+    final String sSkip = XSLT30Dependencies.getSkipReason (aSet.dependencies (),
+                                                           aCase.dependencies (),
+                                                           m_bSchemaAware,
+                                                           m_bStreaming);
     if (sSkip != null)
       return CaseResult.skip (sSkip);
     if (!m_bRunUnicodeExcluded)

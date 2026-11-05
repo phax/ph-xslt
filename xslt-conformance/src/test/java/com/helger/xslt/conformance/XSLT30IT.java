@@ -32,7 +32,8 @@ import com.helger.xpath.conformance.QT3AcceptedFailures;
  * Skipped when the suite is absent (<code>-Dxslt30.dir=...</code>). A failing
  * case that is not named in <code>docs/accepted-failures/xslt30.md</code>
  * fails the build; switch that off with
- * <code>-Dxslt30.checkAccepted=false</code>.
+ * <code>-Dxslt30.checkAccepted=false</code>. A run claiming schema-awareness
+ * or streaming checks its own file (see {@link XSLT30Settings}).
  * <p>
  * Named after the Go test <code>TestXSLT30</code>, not after a class; an integration test that runs with
  * <code>-Pconformance</code>.

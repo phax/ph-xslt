@@ -204,13 +204,26 @@ a `streamable="yes"` construct is guaranteed streamable and fails closed (XTSE34
 About 8,200 lines of Go: `internal/xpath/streamability.go`, `internal/xslt/streamability.go`,
 `internal/xmltree/stream.go`, `internal/xslt/stream_{exec,acc,group,fork,property}.go`, `transform_to.go`.
 
-| Stage | Content | Go reference |
-|-------|---------|--------------|
-| S1 | Claim: `-Dxslt30.streaming=true` in the harness (streaming supported in both directions, `<source streaming>`, own out dir and accepted-failures file), the compile option that makes `streamable="yes"` binding, `system-property('xsl:supports-streaming')`; baseline with buffered execution | `xslt30_test.go`, `stream_property.go`, `features.go` |
-| S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` |
-| S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` |
-| S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` |
-| S5 | Bounded-memory output: serialize while transforming | `transform_to.go` |
+| Stage | Content | Go reference | Status |
+|-------|---------|--------------|--------|
+| S1 | Claim: `-Dxslt30.streaming=true` in the harness (streaming supported in both directions, `<source streaming>`, own out dir and accepted-failures file), the compile option that makes `streamable="yes"` binding, `system-property('xsl:supports-streaming')`; baseline with buffered execution | `xslt30_test.go`, `stream_property.go`, `features.go` | done (2026-11-04): streaming run 11,111 of 11,291 applicable cases pass, 180 fail, all in `xslt-conformance/docs/accepted-failures/xslt30-streaming.md` (119 expect XTSE3430 and 2 XTSE3155 for S3, 6 need streamed execution for S4, 45 need undeclared schema-awareness, 1 contradicts XPath, the 7 of the default run) |
+| S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` | done (2026-11-04): `com.helger.xpath.stream.XPathStreamability` with go-xslt's test cases; not yet called. Deviation from go-xslt: a call to a stylesheet function is not assumed to return childless items (go-xslt classifies `string(f:filter(.))` as streamable although it reads the subtree) |
+| S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` | open |
+| S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` | open |
+| S5 | Bounded-memory output: serialize while transforming | `transform_to.go` | open |
+
+S1 notes: the first streaming run had 190 fails; fixed on the way, also for the default processor: `lang` without
+`collation` on `xsl:sort`/`xsl:merge-key` now selects a UCA collation for that language with `case-order` as its
+case-first parameter (`merge-070`, `-076`, `-078` to `-081`, `-083`, `-084`: Swedish order), `fn:snapshot` keeps the
+unparsed entities of the copied document node (`sf-unparsed-entity-03/04`), and XTSE0730 (a streamable attribute set
+using a non-streamable one). `system-property('xsl:supports-streaming')` stays "no" by default (go-xslt reports "yes"
+because it does stream; flip the default of `XsltCompileOptions.DEFAULT_STREAMING_CLAIM` in S4). Deferred to S4,
+because they need run-time knowledge of declared-streamable constructs: XTDE3350 for a function item captured over a
+streamed node (section 10.3.6, `accumulator-061`), the absent current group in templates called inside a streamable
+construct (`si-fork-113` to `-115`), snapshots from a streamable `xsl:merge-source` (`merge-079`, `merge-097s`), and
+global variables without a context item when the initial mode is streamable (go-xslt `streamedVarsNoFocus`,
+`streamable-116`, which also needs schema-awareness). XTDE3362 is not raised for a host-streamed source: go-xslt
+deliberately does not either, as the error is optional for a processor that can evaluate the accumulator.
 
 Gate per stage: the default lists (QT3, XSLT30, schema-aware XSLT30, xsdtests) unchanged by name on JDK 21 and 25; the
 streaming run only improves, and every failure in it is documented.

@@ -98,6 +98,8 @@ public final class StylesheetLoader
     m_aOptions = aOptions;
     m_aStaticFunctions = FunctionLibrary.createDefault ();
     XsltFunctions.registerStatic (m_aStaticFunctions);
+    if (aOptions.isStreamingClaim ())
+      XsltFunctions.registerStreamingClaim (m_aStaticFunctions);
   }
 
   /** @return The static variables and parameters with their values. */

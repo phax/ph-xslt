@@ -17,6 +17,7 @@
 package com.helger.xslt.conformance;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -129,7 +130,9 @@ public final class XSLT30CaseRunnerTest
                        StandardCharsets.UTF_8);
   }
 
-  private XSLT30CaseRunner.CaseResult _run (final IXSLT30Compiler aCompiler, final String sTestCases) throws Exception
+  private XSLT30CaseRunner.CaseResult _run (final IXSLT30Compiler aCompiler,
+                                            final String sTestCases,
+                                            final boolean bStreaming) throws Exception
   {
     final XSLT30TestSet aSet = XSLT30CatalogReader.readTestSet ("<test-set xmlns='http://www.w3.org/2012/10/xslt-test-catalog' " +
                                                                 "xmlns:xs='http://www.w3.org/2001/XMLSchema' name='t'>" +
@@ -143,8 +146,15 @@ public final class XSLT30CaseRunnerTest
                                                            new XSLT30StylesheetCache (),
                                                            OffsetDateTime.now (),
                                                            false,
-                                                           false);
+                                                           false,
+                                                           false,
+                                                           bStreaming);
     return aRunner.run (aSet, aSet.testCases ().getFirstOrNull (), new XSLT30DocumentCache ());
+  }
+
+  private XSLT30CaseRunner.CaseResult _run (final IXSLT30Compiler aCompiler, final String sTestCases) throws Exception
+  {
+    return _run (aCompiler, sTestCases, false);
   }
 
   @Test
@@ -181,6 +191,32 @@ public final class XSLT30CaseRunnerTest
     assertEquals (m_aDir.resolve ("out/result.xml").toUri ().toString (), aReq.getBaseOutputUri ());
     assertNotNull (aReq.getResolver ());
     assertNotNull (aReq.getCurrentDateTime ());
+  }
+
+  @Test
+  public void testStreamingClaim () throws Exception
+  {
+    final String sCase = "<test-case name='c'><environment><source role='.' file='src.xml' streaming='true'/></environment>" +
+                         "<test><stylesheet file='t.xsl'/></test>" +
+                         "<result><assert-xml><![CDATA[<out/>]]></assert-xml></result></test-case>";
+    // Default run: nothing claimed, the source is not declared streamed
+    FakeCompiler aFake = new FakeCompiler (r -> _result ("<out/>"));
+    assertTrue (_run (aFake, sCase).outcome ().isPass ());
+    assertFalse (aFake.m_aOptions.get ().isStreamingClaim ());
+    assertFalse (aFake.m_aOptions.get ().isEnforceStreamability ());
+    assertFalse (aFake.m_aRequest.get ().isSourceStreamed ());
+
+    // Streaming run
+    aFake = new FakeCompiler (r -> _result ("<out/>"));
+    assertTrue (_run (aFake, sCase, true).outcome ().isPass ());
+    assertTrue (aFake.m_aOptions.get ().isStreamingClaim ());
+    assertTrue (aFake.m_aOptions.get ().isEnforceStreamability ());
+    assertTrue (aFake.m_aRequest.get ().isSourceStreamed ());
+
+    // Streaming run, source not declared streamed
+    aFake = new FakeCompiler (r -> _result ("<out/>"));
+    assertTrue (_run (aFake, sCase.replace (" streaming='true'", ""), true).outcome ().isPass ());
+    assertFalse (aFake.m_aRequest.get ().isSourceStreamed ());
   }
 
   @Test

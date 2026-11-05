@@ -86,6 +86,34 @@ public final class XSLT30DependenciesTest
     assertNull (_skip (_d ("feature", "dynamic_evaluation")));
   }
 
+  @Nullable
+  private static String _skipStreaming (final XSLT30Dependency... aCaseDeps)
+  {
+    return XSLT30Dependencies.getSkipReason (new CommonsArrayList <> (),
+                                             new CommonsArrayList <> (aCaseDeps),
+                                             false,
+                                             true);
+  }
+
+  @Test
+  public void testStreamingClaim ()
+  {
+    // Claimed in both directions
+    assertNull (_skipStreaming (_d ("feature", "streaming")));
+    assertEquals ("feat-not:streaming", _skipStreaming (_not ("feature", "streaming")));
+    // streaming-fallback stays unsupported
+    assertEquals ("feat:streaming-fallback", _skipStreaming (_d ("feature", "streaming-fallback")));
+    // The other claims are untouched
+    assertEquals ("feat:schema_aware", _skipStreaming (_d ("feature", "schema_aware")));
+    assertNull (_skipStreaming (_not ("feature", "schema_aware")));
+    // Both claims at once
+    assertNull (XSLT30Dependencies.getSkipReason (new CommonsArrayList <> (),
+                                                  new CommonsArrayList <> (_d ("feature", "streaming"),
+                                                                           _d ("feature", "schema_aware")),
+                                                  true,
+                                                  true));
+  }
+
   @Test
   public void testOtherDependencies ()
   {

@@ -34,7 +34,8 @@ import com.helger.collection.commons.ICommonsSet;
  * schema-awareness and backwards compatibility. Packages, higher-order
  * functions, serialization and dynamic evaluation (<code>xsl:evaluate</code>)
  * are claimed; a test for a processor <em>without</em> a claimed feature does
- * not apply.
+ * not apply. A run may additionally claim schema-awareness or streaming, each
+ * in both directions.
  * <p>
  * The test-set dependencies are checked before the test-case ones, and within
  * one <code>&lt;dependencies&gt;</code> element the categories are checked in
@@ -47,8 +48,16 @@ public final class XSLT30Dependencies
 {
   /**
    * Features not implemented: a test requiring one (satisfied other than
-   * "false") is skipped. <code>streaming-fallback</code> names a processor
-   * configuration, not a capability.
+   * "false") is skipped. <code>streaming</code> is supported in a run that
+   * claims it. <code>streaming-fallback</code> names a processor
+   * configuration, not a capability: a processor configured to fall back to
+   * non-streamed execution for a stylesheet found not streamable. A run that
+   * claims streaming configures the opposite (a <code>streamable="yes"</code>
+   * declaration is binding, see
+   * {@link com.helger.xslt.XsltCompileOptions#setEnforceStreamability(boolean)}),
+   * and the two cannot hold at once: <code>streaming-fallback-005/006</code>
+   * run the stylesheets for which <code>merge-094/095</code> expect XTSE3430.
+   * So it stays unsupported in every run.
    */
   private static final ICommonsSet <String> UNSUPPORTED_FEATURES = new CommonsHashSet <> ("streaming",
                                                                                          "static_typing",
@@ -66,6 +75,9 @@ public final class XSLT30Dependencies
                                                                                           "schemaImport",
                                                                                           "schemaValidation",
                                                                                           "schemaAware");
+
+  /** The streaming feature, see {@link #UNSUPPORTED_FEATURES}. */
+  private static final String STREAMING_FEATURE = "streaming";
 
   /**
    * Optional features this processor claims: a test written for a processor
@@ -99,7 +111,9 @@ public final class XSLT30Dependencies
   }
 
   @Nullable
-  private static String _getSkipReason (@NonNull final List <XSLT30Dependency> aDeps, final boolean bSchemaAware)
+  private static String _getSkipReason (@NonNull final List <XSLT30Dependency> aDeps,
+                                        final boolean bSchemaAware,
+                                        final boolean bStreaming)
   {
     for (final XSLT30Dependency aDep : aDeps)
       if ("spec".equals (aDep.type ()) && !aDep.isNotSatisfied () && !_isSpecApplicable (aDep.value ()))
@@ -112,6 +126,13 @@ public final class XSLT30Dependencies
         {
           if (aDep.isNotSatisfied () == bSchemaAware)
             return (bSchemaAware ? "feat-not:" : "feat:") + aDep.value ();
+          continue;
+        }
+        // A run that claims streaming claims it in both directions
+        if (bStreaming && STREAMING_FEATURE.equals (aDep.value ()))
+        {
+          if (aDep.isNotSatisfied ())
+            return "feat-not:" + aDep.value ();
           continue;
         }
         if (!aDep.isNotSatisfied () && UNSUPPORTED_FEATURES.contains (aDep.value ()))
@@ -218,7 +239,28 @@ public final class XSLT30Dependencies
                                       @NonNull final List <XSLT30Dependency> aCaseDeps,
                                       final boolean bSchemaAware)
   {
-    final String ret = _getSkipReason (aSetDeps, bSchemaAware);
-    return ret != null ? ret : _getSkipReason (aCaseDeps, bSchemaAware);
+    return getSkipReason (aSetDeps, aCaseDeps, bSchemaAware, false);
+  }
+
+  /**
+   * @param aSetDeps
+   *        The dependencies of the test set.
+   * @param aCaseDeps
+   *        The dependencies of the test case.
+   * @param bSchemaAware
+   *        <code>true</code> if the run claims schema-awareness.
+   * @param bStreaming
+   *        <code>true</code> if the run claims streaming.
+   * @return <code>null</code> if the case applies, otherwise a short skip
+   *         reason.
+   */
+  @Nullable
+  public static String getSkipReason (@NonNull final List <XSLT30Dependency> aSetDeps,
+                                      @NonNull final List <XSLT30Dependency> aCaseDeps,
+                                      final boolean bSchemaAware,
+                                      final boolean bStreaming)
+  {
+    final String ret = _getSkipReason (aSetDeps, bSchemaAware, bStreaming);
+    return ret != null ? ret : _getSkipReason (aCaseDeps, bSchemaAware, bStreaming);
   }
 }

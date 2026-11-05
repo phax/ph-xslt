@@ -98,12 +98,27 @@ public final class XsltCompileOptions
   /** Schema-awareness is off by default: the processor is a basic processor. */
   public static final boolean DEFAULT_SCHEMA_AWARE = false;
 
+  /**
+   * A <code>streamable="yes"</code> declaration is not binding by default: a
+   * construct that is not guaranteed streamable runs with the whole document in
+   * memory.
+   */
+  public static final boolean DEFAULT_ENFORCE_STREAMABILITY = false;
+
+  /**
+   * The streaming feature is not claimed by default, as the engine has no
+   * streamed execution yet.
+   */
+  public static final boolean DEFAULT_STREAMING_CLAIM = false;
+
   private String m_sBaseUri;
   private IResourceResolver m_aResolver;
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticParams = new CommonsLinkedHashMap <> ();
   private final ICommonsList <PackageSource> m_aPackages = new CommonsArrayList <> ();
   private boolean m_bLoadExternalEntities = false;
   private boolean m_bSchemaAware = DEFAULT_SCHEMA_AWARE;
+  private boolean m_bEnforceStreamability = DEFAULT_ENFORCE_STREAMABILITY;
+  private boolean m_bStreamingClaim = DEFAULT_STREAMING_CLAIM;
   private final ICommonsList <HostSchema> m_aHostSchemas = new CommonsArrayList <> ();
 
   /** @return The stylesheet's own URI, against which import/include hrefs resolve. */
@@ -228,5 +243,60 @@ public final class XsltCompileOptions
   public ICommonsList <HostSchema> hostSchemas ()
   {
     return m_aHostSchemas;
+  }
+
+  /**
+   * @return <code>true</code> if a <code>streamable="yes"</code> declaration is
+   *         binding. Default {@link #DEFAULT_ENFORCE_STREAMABILITY}.
+   */
+  public boolean isEnforceStreamability ()
+  {
+    return m_bEnforceStreamability;
+  }
+
+  /**
+   * Make a <code>streamable="yes"</code> declaration binding: a construct
+   * declared streamable that is not guaranteed streamable (XSLT 3.0 section 19)
+   * is then a static error (XTSE3430) instead of running with the whole
+   * document in memory, which XTSE3430 permits when "the user has indicated
+   * that the processor is to handle this situation by processing the
+   * stylesheet without streaming". The streamability analysis does not exist
+   * yet, so the option is only stored.
+   *
+   * @param bEnforceStreamability
+   *        <code>true</code> to make streamability declarations binding.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions setEnforceStreamability (final boolean bEnforceStreamability)
+  {
+    m_bEnforceStreamability = bEnforceStreamability;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if the stylesheet is compiled by a processor
+   *         that claims the streaming feature. Default
+   *         {@link #DEFAULT_STREAMING_CLAIM}.
+   */
+  public boolean isStreamingClaim ()
+  {
+    return m_bStreamingClaim;
+  }
+
+  /**
+   * Claim the optional streaming conformance feature of XSLT 3.0 for the
+   * stylesheet: <code>system-property('xsl:supports-streaming')</code> then
+   * reports "yes".
+   *
+   * @param bStreamingClaim
+   *        <code>true</code> to claim streaming.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions setStreamingClaim (final boolean bStreamingClaim)
+  {
+    m_bStreamingClaim = bStreamingClaim;
+    return this;
   }
 }

@@ -237,6 +237,13 @@ public final class InstrControlSpecTest
       err ("undeclared attribute set in a declaration", specXml ("\n" +
         "<xsl:attribute-set name=\"s\" use-attribute-sets=\"nope\"/>\n" +
         "<xsl:template match=\"/\"><e/></xsl:template>"), null, "XTSE0710"),
+      // XTSE0730: a streamable attribute set uses one that is not streamable.
+      err ("streamable attribute set uses a non-streamable one", specXml ("\n" +
+        "<xsl:attribute-set name=\"a\" streamable=\"yes\" use-attribute-sets=\"b\"/><xsl:attribute-set name=\"b\"/>\n" +
+        "<xsl:template match=\"/\"><e xsl:use-attribute-sets=\"a\"/></xsl:template>"), null, "XTSE0730"),
+      ok ("streamable attribute set uses a streamable one", specXml ("\n" +
+        "<xsl:attribute-set name=\"a\" streamable=\"yes\" use-attribute-sets=\"b\"/><xsl:attribute-set name=\"b\" streamable=\"yes\"><xsl:attribute name=\"x\" select=\"1\"/></xsl:attribute-set>\n" +
+        "<xsl:template match=\"/\"><e xsl:use-attribute-sets=\"a\"/></xsl:template>"), null, "<e x=\"1\"/>"),
       // XTSE0720: an attribute set that uses itself.
       err ("circular attribute sets", specXml ("\n" +
         "<xsl:attribute-set name=\"a\" use-attribute-sets=\"b\"/><xsl:attribute-set name=\"b\" use-attribute-sets=\"a\"/>\n" +
