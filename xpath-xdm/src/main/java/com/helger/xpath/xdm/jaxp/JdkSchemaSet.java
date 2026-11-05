@@ -44,6 +44,10 @@ final class JdkSchemaSet extends AbstractJaxpSchemaSet
     super (aSchema);
   }
 
+  /**
+   * Every reported type is wrapped anew; equality of the wrappers is the
+   * identity of the reported type.
+   */
   @NonNull
   @Override
   protected IXdmTypeDefinition getDefinition (@NonNull final TypeInfo aTypeInfo)

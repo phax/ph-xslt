@@ -29,6 +29,15 @@ public class XdmValidationException extends XdmParseException
 {
   private final boolean m_bDocumentConstraint;
 
+  /**
+   * Create an exception for a node that is not valid, i.e. not for a
+   * document-level constraint.
+   *
+   * @param sMessage
+   *        Message.
+   * @param aCause
+   *        Cause.
+   */
   public XdmValidationException (@NonNull final String sMessage, @NonNull final Throwable aCause)
   {
     this (sMessage, aCause, false);

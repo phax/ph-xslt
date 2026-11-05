@@ -48,6 +48,10 @@ public final class XdmSaxEmitter
   private XdmSaxEmitter ()
   {}
 
+  /**
+   * @return The lexical name for SAX: <code>prefix:local</code>, or the local
+   *         name if the name has no prefix.
+   */
   @NonNull
   private static String _qname (@NonNull final XdmQName aName)
   {
@@ -55,6 +59,20 @@ public final class XdmSaxEmitter
     return sPrefix == null || sPrefix.isEmpty () ? aName.localName () : sPrefix + ":" + aName.localName ();
   }
 
+  /**
+   * Report the namespace mappings (except the <code>xml</code> prefix), then
+   * the start tag with all attributes as type <code>CDATA</code>, so that a
+   * validator sees no DTD attribute types.
+   *
+   * @param aElement
+   *        The element to start.
+   * @param aNamespaces
+   *        The mappings to report, prefix to URI.
+   * @param aHandler
+   *        The receiver.
+   * @throws SAXException
+   *         from the handler
+   */
   private static void _startElement (@NonNull final IXdmNode aElement,
                                      @NonNull final Map <String, String> aNamespaces,
                                      @NonNull final ContentHandler aHandler) throws SAXException
@@ -72,6 +90,19 @@ public final class XdmSaxEmitter
     aHandler.startElement (aName.namespaceUri (), aName.localName (), _qname (aName), aAttrs);
   }
 
+  /**
+   * Report the end tag, then the end of the namespace mappings reported by
+   * {@link #_startElement(IXdmNode, Map, ContentHandler)} for the element.
+   *
+   * @param aElement
+   *        The element to end.
+   * @param aNamespaces
+   *        The mappings given to the start of the element.
+   * @param aHandler
+   *        The receiver.
+   * @throws SAXException
+   *         from the handler
+   */
   private static void _endElement (@NonNull final IXdmNode aElement,
                                    @NonNull final Map <String, String> aNamespaces,
                                    @NonNull final ContentHandler aHandler) throws SAXException

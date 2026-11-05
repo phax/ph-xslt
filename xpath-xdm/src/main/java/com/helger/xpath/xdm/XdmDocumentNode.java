@@ -78,6 +78,13 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   XdmDocumentNode ()
   {}
 
+  /**
+   * Mark this document as built by an {@link XdmStreamReader} (or not) and
+   * drop both name indexes.
+   *
+   * @param bStreamed
+   *        <code>true</code> if only a part of the document is attached.
+   */
   void internalSetStreamed (final boolean bStreamed)
   {
     m_bStreamed = bStreamed;
@@ -96,6 +103,18 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     return m_bStreamed;
   }
 
+  /**
+   * Walk the element subtree of this document iteratively in document order
+   * and collect the elements, or the attributes of the elements, by name.
+   * Only elements are descended into; the other child kinds have no children.
+   *
+   * @param nTree
+   *        The tree number of the current numbering, stored in the index.
+   * @param bAttributes
+   *        <code>true</code> to index the attributes, <code>false</code> for
+   *        the elements.
+   * @return The new index with immutable lists in document order.
+   */
   @NonNull
   private NameIndex _buildNameIndex (final long nTree, final boolean bAttributes)
   {
@@ -213,6 +232,10 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     return List.copyOf (ret);
   }
 
+  /**
+   * Drop both name indexes, after a structural change of the tree (see
+   * {@link AbstractXdmNode#internalInvalidateOrder()}).
+   */
   void internalDropNameIndex ()
   {
     m_aNameIndex = null;
@@ -299,6 +322,10 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     return ENodeKind.DOCUMENT;
   }
 
+  /**
+   * The first declaration of an entity name is binding (XML 1.0 section
+   * 4.2); a later one with the same name is ignored.
+   */
   @Override
   public void addUnparsedEntity (@NonNull final String sName,
                                  @NonNull final String sSystemId,
@@ -312,6 +339,9 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     m_aUnparsedEntities.putIfAbsent (sName, new String [] { sSystemId, sPublicId });
   }
 
+  /**
+   * The returned array is a copy; changing it does not change the document.
+   */
   @Override
   @Nullable
   public String [] getUnparsedEntity (@NonNull final String sName)
@@ -322,6 +352,10 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     return ret == null ? null : ret.clone ();
   }
 
+  /**
+   * The name is appended without a duplicate check, so a name declared twice
+   * is listed twice.
+   */
   @Override
   public void addParsedEntityName (@NonNull final String sName)
   {

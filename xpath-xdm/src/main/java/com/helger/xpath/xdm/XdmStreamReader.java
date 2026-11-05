@@ -96,6 +96,10 @@ public final class XdmStreamReader implements AutoCloseable
     END
   }
 
+  /**
+   * A queued event: what was read, the node it concerns and the depth of that
+   * node (see {@link XdmStreamReader#getDepth()}).
+   */
   private record Event (@NonNull EEvent kind, @NonNull AbstractXdmNode node, int depth)
   {}
 
@@ -124,6 +128,27 @@ public final class XdmStreamReader implements AutoCloseable
   private final Set <IXdmNode> m_aIncomplete = Collections.newSetFromMap (new IdentityHashMap <> ());
   private final ICommonsMap <String, ICommonsMap <String, XdmQName>> m_aNames = new CommonsHashMap <> ();
 
+  /**
+   * Create the streamed document node and number it as the first node of a
+   * new tree. Its end order is {@link Integer#MAX_VALUE} until the end of the
+   * document is read, so that it covers every node read in the meantime.
+   *
+   * @param aReader
+   *        The StAX reader, positioned at the start of the document.
+   * @param aOwnedStream
+   *        The stream this reader opened itself and closes in
+   *        {@link #close()}; <code>null</code> if the caller owns the input.
+   * @param sSystemId
+   *        The system ID, which becomes the document URI; may be
+   *        <code>null</code>.
+   * @param bLoadExternalEntities
+   *        See {@link #open(InputSource, boolean, int, Predicate)}.
+   * @param nMaxElementDepth
+   *        The maximum element nesting depth, 0 for unlimited.
+   * @param aStripWhitespace
+   *        The element names whose whitespace-only text is stripped; may be
+   *        <code>null</code>.
+   */
   private XdmStreamReader (@NonNull final XMLStreamReader aReader,
                            @Nullable final InputStream aOwnedStream,
                            @Nullable final String sSystemId,
@@ -145,6 +170,12 @@ public final class XdmStreamReader implements AutoCloseable
     m_aDocument.internalSetEndOrder (Integer.MAX_VALUE);
   }
 
+  /**
+   * Give a node the next document order number of this tree.
+   *
+   * @throws XdmParseException
+   *         if the document has more than {@link #MAX_NODES} nodes
+   */
   private void _stamp (@NonNull final AbstractXdmNode aNode) throws XdmParseException
   {
     if (m_nOrder >= MAX_NODES)
@@ -152,6 +183,10 @@ public final class XdmStreamReader implements AutoCloseable
     aNode.internalStamp (m_nTree, m_nOrder++);
   }
 
+  /**
+   * @return The innermost open element, or the document node at document
+   *         level: the node new content is appended to.
+   */
   @NonNull
   private AbstractXdmParentNode _top ()
   {
@@ -159,6 +194,12 @@ public final class XdmStreamReader implements AutoCloseable
     return ret != null ? ret : m_aDocument;
   }
 
+  /**
+   * @param sQName
+   *        A lexical QName.
+   * @return The part before the first colon, or the empty string if there is
+   *         no colon.
+   */
   @NonNull
   private static String _getPrefix (@NonNull final String sQName)
   {
@@ -166,6 +207,20 @@ public final class XdmStreamReader implements AutoCloseable
     return nIndex < 0 ? "" : sQName.substring (0, nIndex);
   }
 
+  /**
+   * Get the shared name instance for a namespace URI and lexical name,
+   * creating it on first use, like {@link XdmTreeBuilder} does. The cache key
+   * includes the prefix, so that each node keeps the prefix used in the
+   * source.
+   *
+   * @param sUri
+   *        Namespace URI; <code>null</code> or empty for none.
+   * @param sLocalName
+   *        Local part.
+   * @param sPrefix
+   *        Prefix; <code>null</code> or empty for none.
+   * @return The name. Never <code>null</code>.
+   */
   @NonNull
   private XdmQName _getName (@Nullable final String sUri, @NonNull final String sLocalName, @Nullable final String sPrefix)
   {
@@ -176,6 +231,15 @@ public final class XdmStreamReader implements AutoCloseable
                    .computeIfAbsent (sQName, k -> new XdmQName (sRealUri, sLocalName, _getPrefix (sQName)));
   }
 
+  /**
+   * Map the DTD attribute type reported by StAX to the ID kind.
+   *
+   * @param sType
+   *        The attribute type; may be <code>null</code>.
+   * @return {@link EIDKind#ID}, {@link EIDKind#IDREF} or
+   *         {@link EIDKind#IDREFS} for these types, {@link EIDKind#NONE} for
+   *         every other type.
+   */
   @NonNull
   private static EIDKind _getIDKind (@Nullable final String sType)
   {
@@ -194,6 +258,10 @@ public final class XdmStreamReader implements AutoCloseable
     return EIDKind.NONE;
   }
 
+  /**
+   * @return A parse exception with the message and cause of the StAX
+   *         exception, to be thrown by the caller.
+   */
   @NonNull
   private static XdmParseException _wrap (@NonNull final XMLStreamException ex)
   {
@@ -215,6 +283,18 @@ public final class XdmStreamReader implements AutoCloseable
     return sHead.contains ("SYSTEM") || sHead.contains ("PUBLIC");
   }
 
+  /**
+   * Take the entity declarations of the internal DTD subset the parser
+   * reports at the DTD event. Parameter entities are ignored. An unparsed
+   * entity is recorded on the document with its system ID resolved against
+   * the declaration's base URI (kept as written if it is no valid URI or
+   * there is no base URI; skipped without system ID); an internal parsed
+   * entity is recorded by name.
+   *
+   * @throws XdmStreamUnsupportedException
+   *         if external entities are to be loaded and the DOCTYPE names an
+   *         external subset, or if an external parsed entity is declared
+   */
   private void _readDTD () throws XdmParseException
   {
     if (m_bLoadExternalEntities && _hasExternalSubset (m_aReader.getText ()))
@@ -250,6 +330,10 @@ public final class XdmStreamReader implements AutoCloseable
         }
   }
 
+  /**
+   * @return <code>true</code> if the string consists of XML whitespace (space,
+   *         tab, line feed, carriage return) only, also for the empty string.
+   */
   private static boolean _isWhitespace (@NonNull final String s)
   {
     for (int i = 0; i < s.length (); ++i)
@@ -261,6 +345,17 @@ public final class XdmStreamReader implements AutoCloseable
     return true;
   }
 
+  /**
+   * Turn the character data collected since the last node into one text node
+   * appended to the innermost open element, numbered and queued as a
+   * {@link EEvent#LEAF}. Character data at document level is discarded, and
+   * so is whitespace-only text whose parent name the strip predicate accepts
+   * while no <code>xml:space="preserve"</code> is in effect. A no-op without
+   * pending character data.
+   *
+   * @throws XdmParseException
+   *         if the node limit is exceeded
+   */
   private void _flushText () throws XdmParseException
   {
     if (m_aText.isEmpty ())
@@ -284,6 +379,23 @@ public final class XdmStreamReader implements AutoCloseable
     m_aQueue.add (new Event (EEvent.LEAF, aText, m_aSpine.size () + 1));
   }
 
+  /**
+   * Handle a start tag, after flushing pending text. The element gets its
+   * name, location, namespace declarations and attributes (DTD ID types and
+   * <code>xml:id</code> set the ID kind and normalise the value, as in
+   * {@link XdmTreeBuilder}; the attributes share the location of the
+   * element). It is appended to the innermost open element and numbered,
+   * then its attributes; its end order stays {@link Integer#MAX_VALUE} until
+   * its end tag. The <code>xml:space</code> setting in effect is inherited
+   * from the parent and changed by an own <code>xml:space</code> attribute of
+   * <code>preserve</code> or <code>default</code> (any other value keeps the
+   * inherited one). The element is pushed on the spine and queued as
+   * {@link EEvent#ENTER}.
+   *
+   * @throws XdmParseException
+   *         if the element is nested deeper than the maximum depth or the
+   *         node limit is exceeded
+   */
   private void _startElement () throws XdmParseException
   {
     _flushText ();
@@ -337,6 +449,12 @@ public final class XdmStreamReader implements AutoCloseable
     m_aQueue.add (new Event (EEvent.ENTER, aElement, m_aSpine.size ()));
   }
 
+  /**
+   * Close the innermost open element: pop it from the spine, set its end
+   * order to the last number given so far and queue an {@link EEvent#EXIT}.
+   *
+   * @return The closed element.
+   */
   @NonNull
   private AbstractXdmParentNode _popElement ()
   {
@@ -348,6 +466,14 @@ public final class XdmStreamReader implements AutoCloseable
     return aElement;
   }
 
+  /**
+   * Flush pending text, then append a comment or processing instruction node
+   * with the current location to the innermost open element (or the
+   * document), number it and queue it as {@link EEvent#LEAF}.
+   *
+   * @throws XdmParseException
+   *         if the node limit is exceeded
+   */
   private void _leaf (@NonNull final AbstractXdmNode aNode) throws XdmParseException
   {
     _flushText ();
@@ -357,6 +483,13 @@ public final class XdmStreamReader implements AutoCloseable
     m_aQueue.add (new Event (EEvent.LEAF, aNode, m_aSpine.size () + 1));
   }
 
+  /**
+   * Handle the end of the input: flush pending text, finish the document's
+   * end order, mark the reader as ended and queue {@link EEvent#END}.
+   *
+   * @throws XdmParseException
+   *         if an element is still open
+   */
   private void _end () throws XdmParseException
   {
     _flushText ();
@@ -612,6 +745,13 @@ public final class XdmStreamReader implements AutoCloseable
     return m_aDocument;
   }
 
+  /**
+   * Close the StAX reader and the stream this reader opened itself. A stream
+   * passed in by the caller is not closed.
+   *
+   * @throws XdmParseException
+   *         if closing fails
+   */
   public void close () throws XdmParseException
   {
     try
@@ -630,6 +770,9 @@ public final class XdmStreamReader implements AutoCloseable
     }
   }
 
+  /**
+   * Close a stream, ignoring <code>null</code> and any {@link IOException}.
+   */
   private static void _closeQuietly (@Nullable final InputStream aIS)
   {
     if (aIS != null)
@@ -643,6 +786,17 @@ public final class XdmStreamReader implements AutoCloseable
       }
   }
 
+  /**
+   * Create the JDK StAX factory with the settings of {@link XdmParser}:
+   * namespace aware, not coalescing (text is merged by this reader), not
+   * validating, the internal DTD subset read and entity references replaced,
+   * the external DTD subset ignored, every external resource refused by the
+   * resolver, and the {@link XdmParser#ENTITY_LIMITS} and depth limit set.
+   *
+   * @param nMaxElementDepth
+   *        The maximum element nesting depth, 0 for unlimited.
+   * @return The new factory.
+   */
   @NonNull
   private static XMLInputFactory _createFactory (final int nMaxElementDepth)
   {

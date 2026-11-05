@@ -133,6 +133,18 @@ public final class XmlNames
     return c == ':' || isNCNameChar (c);
   }
 
+  /**
+   * Check a string code point by code point (surrogate pairs included): the
+   * first must be an NCName start character, the others NCName characters,
+   * and a colon is accepted anywhere, also first, only if allowed.
+   *
+   * @param s
+   *        The string to check. May not be <code>null</code>.
+   * @param bAllowColon
+   *        <code>true</code> for the XML <code>Name</code> production,
+   *        <code>false</code> for <code>NCName</code>.
+   * @return <code>false</code> for the empty string.
+   */
   private static boolean _isName (@NonNull final String s, final boolean bAllowColon)
   {
     final int nLen = s.length ();

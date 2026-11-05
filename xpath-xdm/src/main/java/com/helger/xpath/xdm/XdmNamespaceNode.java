@@ -35,6 +35,16 @@ public final class XdmNamespaceNode extends AbstractXdmValueNode
   // Position among the namespace nodes of the parent element
   private final int m_nNamespaceIndex;
 
+  /**
+   * @param sPrefix
+   *        The prefix; the empty string for the default namespace, which
+   *        gives a node without name.
+   * @param sNamespaceUri
+   *        The namespace URI, the value of the node.
+   * @param nNamespaceIndex
+   *        The position among the namespace nodes of the parent element, used
+   *        for document order; 0 for a parentless node.
+   */
   XdmNamespaceNode (@NonNull final String sPrefix,
                     @NonNull final String sNamespaceUri,
                     @Nonnegative final int nNamespaceIndex)

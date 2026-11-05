@@ -75,6 +75,10 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     m_aBuiltinAtomicType = _findAtomicBase (aTypeInfo, bListItem);
   }
 
+  /**
+   * @return <code>true</code> if the type has the given name itself, or the
+   *         JDK reports it as derived from it by one of the methods.
+   */
   private static boolean _isDerivedFrom (@NonNull final TypeInfo aTypeInfo,
                                          @NonNull final String sNamespace,
                                          @NonNull final String sLocalName,
@@ -86,6 +90,11 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     return aTypeInfo.isDerivedFrom (sNamespace, sLocalName, nMethods);
   }
 
+  /**
+   * @return The most specific built-in atomic type the type derives from by
+   *         restriction or extension (for the item view also by list), or
+   *         <code>null</code>.
+   */
   @Nullable
   private static XdmQName _findAtomicBase (@NonNull final TypeInfo aTypeInfo, final boolean bListItem)
   {
@@ -99,6 +108,11 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
                                                                         nMethods));
   }
 
+  /**
+   * <code>null</code> for the item view of a list and for a type the
+   * validator reports without local name or with one starting with
+   * <code>#</code> (anonymous).
+   */
   @Nullable
   public XdmQName getName ()
   {
@@ -111,6 +125,10 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     return new XdmQName (sNamespace == null ? "" : sNamespace, sLocal);
   }
 
+  /**
+   * The name the validator reports, also for anonymous types;
+   * <code>#anonymous</code> if it reports no local name.
+   */
   @NonNull
   public XdmQName getAnnotationName ()
   {
@@ -150,6 +168,12 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     return this;
   }
 
+  /**
+   * {@link EXdmSimpleVariety#LIST} for a list,
+   * {@link EXdmSimpleVariety#ATOMIC} if a built-in atomic base type was
+   * found, otherwise <code>null</code> (complex types, unions and
+   * <code>xs:anySimpleType</code> cannot be told apart).
+   */
   @Nullable
   public EXdmSimpleVariety getVariety ()
   {
@@ -158,6 +182,10 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     return m_aBuiltinAtomicType != null ? EXdmSimpleVariety.ATOMIC : null;
   }
 
+  /**
+   * For a list the item view of the same reported type (the JDK does not
+   * give the item type itself), otherwise <code>null</code>.
+   */
   @Nullable
   public IXdmTypeDefinition getItemType ()
   {
@@ -189,6 +217,10 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     throw new UnsupportedOperationException ("The JDK validator does not tell the base type");
   }
 
+  /**
+   * Derived from a definition over the identical reported type, otherwise
+   * checked by the name of the base; an anonymous base never matches.
+   */
   public boolean isDerivedFrom (@NonNull final IXdmTypeDefinition aBase)
   {
     if (aBase instanceof final JdkTypeDefinition aOther && aOther.m_aTypeInfo == m_aTypeInfo)
@@ -202,6 +234,10 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     return _isDerivedFrom (m_aTypeInfo, aBase.namespaceUri (), aBase.localName (), DERIVATION_RESTRICTION_EXTENSION);
   }
 
+  /**
+   * Only by the built-in atomic type: <code>xs:QName</code> or
+   * <code>xs:NOTATION</code>. Lists and unions of them are not recognised.
+   */
   public boolean isNamespaceSensitive ()
   {
     return m_aBuiltinAtomicType != null &&

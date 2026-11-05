@@ -62,6 +62,12 @@ public final class XdmTreeBuilder extends DefaultHandler2
   // nodes of a document do not each carry their own copy
   private final ICommonsMap <String, ICommonsMap <String, XdmQName>> m_aNames = new CommonsHashMap <> ();
 
+  /**
+   * Append the character data collected since the last node as one text node
+   * to the current node, with the location of its first character event, and
+   * clear the buffer. Nothing happens if no character data is pending, so no
+   * empty text node is ever created.
+   */
   private void _flushText ()
   {
     if (!m_aText.isEmpty ())
@@ -93,6 +99,12 @@ public final class XdmTreeBuilder extends DefaultHandler2
     return sSystemId;
   }
 
+  /**
+   * @param sQName
+   *        A lexical QName as reported by SAX.
+   * @return The part before the first colon, or the empty string if there is
+   *         no colon.
+   */
   @NonNull
   private static String _getPrefix (@NonNull final String sQName)
   {
@@ -100,6 +112,19 @@ public final class XdmTreeBuilder extends DefaultHandler2
     return nIndex < 0 ? "" : sQName.substring (0, nIndex);
   }
 
+  /**
+   * Get the shared name instance for a namespace URI and lexical name,
+   * creating it on first use. The cache key includes the prefix, so that each
+   * node keeps the prefix used in the source.
+   *
+   * @param sUri
+   *        Namespace URI, empty for none.
+   * @param sLocalName
+   *        Local part.
+   * @param sQName
+   *        Lexical name as written in the source.
+   * @return The name. Never <code>null</code>.
+   */
   @NonNull
   private XdmQName _getName (@NonNull final String sUri, @NonNull final String sLocalName, @NonNull final String sQName)
   {
@@ -109,6 +134,16 @@ public final class XdmTreeBuilder extends DefaultHandler2
                    .computeIfAbsent (sQName, k -> new XdmQName (sUri, sLocalName, _getPrefix (sQName)));
   }
 
+  /**
+   * Map the DTD attribute type reported by SAX to the ID kind.
+   *
+   * @param sSaxType
+   *        The attribute type from {@link Attributes#getType(int)}; may be
+   *        <code>null</code>.
+   * @return {@link EIDKind#ID}, {@link EIDKind#IDREF} or
+   *         {@link EIDKind#IDREFS} for these types, {@link EIDKind#NONE} for
+   *         every other type (<code>CDATA</code> for undeclared attributes).
+   */
   @NonNull
   private static EIDKind _getIDKind (@Nullable final String sSaxType)
   {
@@ -188,6 +223,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aLocator = aLocator;
   }
 
+  /**
+   * Create the document node, which becomes the current node, with the system
+   * ID of the locator (if any) as document URI.
+   */
   @Override
   public void startDocument ()
   {
@@ -197,6 +236,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
       m_aDocument.setDocumentUri (m_aLocator.getSystemId ());
   }
 
+  /**
+   * Append pending text and number the finished tree in document order.
+   */
   @Override
   public void endDocument ()
   {
@@ -204,6 +246,11 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aDocument.assignDocumentOrder ();
   }
 
+  /**
+   * Remember the mapping until the next {@link #startElement}, which declares
+   * it on the new element. An empty URI (undeclaring the default namespace)
+   * is kept as it is.
+   */
   @Override
   public void startPrefixMapping (final String sPrefix, final String sUri)
   {
@@ -211,6 +258,16 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aPendingUris.add (sUri);
   }
 
+  /**
+   * Append pending text, then create the element with the location reported
+   * at the end of its start tag, the namespace declarations collected by
+   * {@link #startPrefixMapping(String, String)} and the base URI of an entity
+   * boundary. Attributes follow in the reported order, without the
+   * <code>xmlns</code> declarations: a DTD type ID, IDREF or IDREFS, and an
+   * <code>xml:id</code> attribute (always an ID), set the ID kind and
+   * normalise the value with {@link #normaliseTokenised(String)}. The element
+   * is appended to the current node and becomes the current node.
+   */
   @Override
   public void startElement (final String sUri,
                             final String sLocalName,
@@ -249,6 +306,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aSystemIds.push (sSystemId == null ? "" : sSystemId);
   }
 
+  /**
+   * Append pending text and make the parent of the closed element the current
+   * node.
+   */
   @Override
   public void endElement (final String sUri, final String sLocalName, final String sQName)
   {
@@ -257,6 +318,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aSystemIds.pop ();
   }
 
+  /**
+   * Collect character data for the next text node; the location of the first
+   * event after a flush becomes the location of that node.
+   */
   @Override
   public void characters (final char [] aChars, final int nStart, final int nLength)
   {
@@ -268,6 +333,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aText.append (aChars, nStart, nLength);
   }
 
+  /**
+   * Dropped: this is whitespace in element-only content, and XDM 3.1 section
+   * 6.7.3 discards such text.
+   */
   @Override
   public void ignorableWhitespace (final char [] aChars, final int nStart, final int nLength)
   {
@@ -277,6 +346,11 @@ public final class XdmTreeBuilder extends DefaultHandler2
     // is discarded
   }
 
+  /**
+   * Record an unparsed entity on the document; a declaration without name or
+   * system ID, or before the document node exists, is ignored. The notation
+   * name is not kept.
+   */
   @Override
   public void unparsedEntityDecl (final String sName, final String sPublicId, final String sSystemId, final String sNotationName)
   {
@@ -284,6 +358,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
       m_aDocument.addUnparsedEntity (sName, sSystemId, sPublicId);
   }
 
+  /**
+   * Record the name of an internal general entity on the document; parameter
+   * entities (name starting with <code>%</code>) are ignored.
+   */
   @Override
   public void internalEntityDecl (final String sName, final String sValue)
   {
@@ -291,6 +369,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
       m_aDocument.addParsedEntityName (sName);
   }
 
+  /**
+   * Record the name of an external parsed general entity on the document;
+   * parameter entities (name starting with <code>%</code>) are ignored.
+   */
   @Override
   public void externalEntityDecl (final String sName, final String sPublicId, final String sSystemId)
   {
@@ -298,6 +380,11 @@ public final class XdmTreeBuilder extends DefaultHandler2
       m_aDocument.addParsedEntityName (sName);
   }
 
+  /**
+   * Append pending text, then a processing instruction node (missing data
+   * becomes the empty string) with the current location and the base URI of
+   * an entity boundary.
+   */
   @Override
   public void processingInstruction (final String sTarget, final String sData)
   {
@@ -321,6 +408,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_bInDTD = false;
   }
 
+  /**
+   * Append pending text, then a comment node with the current location.
+   * Comments inside the DTD are dropped.
+   */
   @Override
   public void comment (final char [] aChars, final int nStart, final int nLength)
   {

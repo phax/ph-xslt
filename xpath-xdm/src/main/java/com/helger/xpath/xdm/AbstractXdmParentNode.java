@@ -42,6 +42,15 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   AbstractXdmParentNode ()
   {}
 
+  /**
+   * Append a parentless node as the last child and make this node its parent.
+   * If the tree was numbered, the numbering of the whole tree and the name
+   * indexes of its document are removed and assigned again on demand.
+   *
+   * @throws IllegalArgumentException
+   *         if the node already has a parent, or is an attribute, namespace or
+   *         document node
+   */
   @Override
   public final void appendChild (@NonNull final IXdmNode aChild)
   {
@@ -65,6 +74,14 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
     internalInvalidateOrder ();
   }
 
+  /**
+   * Detach a child, which becomes a parentless root of its own. The numbering
+   * of the whole tree, the removed subtree included, and the name indexes of
+   * its document are removed first, so both are assigned again on demand.
+   *
+   * @throws IllegalArgumentException
+   *         if the node is not a child of this node
+   */
   @Override
   public final void removeChild (@NonNull final IXdmNode aChild)
   {
@@ -148,6 +165,12 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
     return m_aChildren == null ? new CommonsArrayList <> () : new CommonsArrayList <> (m_aChildren);
   }
 
+  /**
+   * The concatenation of the descendant text nodes in document order, built
+   * iteratively; a node with exactly one text child returns that value
+   * without copying, a node without children the empty string. Comments,
+   * processing instructions and attributes do not contribute.
+   */
   @NonNull
   public final String getStringValue ()
   {
