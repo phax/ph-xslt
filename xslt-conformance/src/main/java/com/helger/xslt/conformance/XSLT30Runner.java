@@ -49,12 +49,37 @@ public final class XSLT30Runner
   private final XSLT30Settings m_aSettings;
   private final OffsetDateTime m_aNow = OffsetDateTime.now ();
 
+  /**
+   * The current date/time of the run is taken here, once, so all cases see
+   * the same <code>fn:current-dateTime()</code>.
+   *
+   * @param aSettings
+   *        The settings of the run.
+   */
   public XSLT30Runner (@NonNull final XSLT30Settings aSettings)
   {
     ValueEnforcer.notNull (aSettings, "Settings");
     m_aSettings = aSettings;
   }
 
+  /**
+   * Read one test-set file and run its cases in document order with a fresh
+   * document cache. A test set that cannot be read gives a result with only
+   * that load error (it counts no cases). Pass and skip are counted; a fail
+   * (anything that is neither) records the case name and reason, plus a
+   * <code>FAIL set/case [reason] detail</code> line when fail lines are
+   * collected ({@link XSLT30Settings#isCollectFailLines()}). The set is named
+   * after the <code>name</code> of the test-set file, or the catalog's name
+   * if that is empty.
+   *
+   * @param aCatalog
+   *        The catalog (its directory resolves the test-set file).
+   * @param aRef
+   *        The test-set reference from the catalog.
+   * @param aCaseRunner
+   *        The case runner shared by the run.
+   * @return The counts of the test set.
+   */
   @NonNull
   private QT3SetResult _runSet (@NonNull final XSLT30Catalog aCatalog,
                                 final XSLT30Catalog.@NonNull TestSetRef aRef,

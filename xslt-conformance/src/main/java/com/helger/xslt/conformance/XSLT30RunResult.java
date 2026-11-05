@@ -60,6 +60,9 @@ public final class XSLT30RunResult
     m_aSets = aSets.getClone ();
   }
 
+  /**
+   * Add the counts of the source to those of the target, key by key.
+   */
   private static void _add (@NonNull final ICommonsSortedMap <String, Integer> aTarget,
                             @NonNull final Map <String, Integer> aSource)
   {

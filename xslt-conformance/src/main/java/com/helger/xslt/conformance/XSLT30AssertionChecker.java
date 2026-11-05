@@ -149,6 +149,13 @@ public final class XSLT30AssertionChecker
     m_aSchemaSet = aSchemaSet;
   }
 
+  /**
+   * @return The text trimmed, without a leading XML declaration and the
+   *         whitespace after it. Any leading <code>&lt;?xml</code>... up to
+   *         the first <code>?&gt;</code> is taken as the declaration, so a
+   *         leading <code>&lt;?xml-stylesheet ...?&gt;</code> processing
+   *         instruction is removed as well.
+   */
   @NonNull
   private static String _stripDecl (@NonNull final String s)
   {
@@ -162,12 +169,21 @@ public final class XSLT30AssertionChecker
     return ret;
   }
 
+  /**
+   * @return The text without its XML declaration, wrapped in a
+   *         <code>&lt;_x_&gt;</code> element so that a fragment with several
+   *         top-level nodes parses.
+   */
   @NonNull
   private static String _wrapFragment (@NonNull final String s)
   {
     return "<_x_>" + _stripDecl (s) + "</_x_>";
   }
 
+  /**
+   * @return The parsed document, or <code>null</code> if the text is not
+   *         well-formed.
+   */
   @Nullable
   private static IXdmNode _tryParse (@NonNull final String sXml)
   {
@@ -226,6 +242,12 @@ public final class XSLT30AssertionChecker
     return HTML_VOID_TAG.matcher (s.replace ("&nbsp;", "&#xa0;")).replaceAll ("<$1$2/>");
   }
 
+  /**
+   * @return <code>true</code> if the expression, whitespace normalised,
+   *         contains one of {@link #PSVI_MARKERS}: a plain text test for
+   *         expressions that ask about type annotations, which a reparsed
+   *         serialisation cannot answer.
+   */
   private static boolean _isAssertNeedingPsvi (@NonNull final String sExpr)
   {
     final String sNorm = XSLT30XmlCompare.normalizeSpace (sExpr);
@@ -235,6 +257,11 @@ public final class XSLT30AssertionChecker
     return false;
   }
 
+  /**
+   * @return <code>true</code> if the assertion or any nested assertion is an
+   *         <code>assert</code> whose expression needs type annotations (see
+   *         {@link #_isAssertNeedingPsvi(String)}).
+   */
   private static boolean _isTreeNeedingPsvi (@NonNull final XSLT30Assertion aAssertion)
   {
     if ("assert".equals (aAssertion.kind ()) && _isAssertNeedingPsvi (aAssertion.value ()))
@@ -255,6 +282,13 @@ public final class XSLT30AssertionChecker
     return null;
   }
 
+  /**
+   * Create the XPath evaluator for an assertion expression: the run's current
+   * date/time, the prefixed namespaces in scope on the assertion in the
+   * catalog (except <code>xml</code>), the given context item and the
+   * in-scope schema of the stylesheet, if any. No base URI and no resource
+   * resolver are set.
+   */
   @NonNull
   private QT3EngineEvaluator _createEvaluator (@NonNull final XSLT30Assertion aAssertion,
                                                @Nullable final IXdmItem aContextItem)
@@ -318,6 +352,13 @@ public final class XSLT30AssertionChecker
     return aAssertion.value ();
   }
 
+  /**
+   * Find the secondary result an <code>assert-result-document</code> names.
+   * The first result whose href equals the URI, ends with
+   * <code>/</code>URI, or merely has the same last path segment matches.
+   *
+   * @return The result or <code>null</code> if none matches.
+   */
   private static XsltTransformResult.@Nullable SecondaryResult _findSecondary (@NonNull final XSLT30Actual aActual,
                                                                                @NonNull final String sUri)
   {
@@ -333,6 +374,12 @@ public final class XSLT30AssertionChecker
     return null;
   }
 
+  /**
+   * @return An absolute href as it is; otherwise (also for a href that is not
+   *         a valid URI) the <code>file:</code> URI of the href resolved against
+   *         the test-set directory; <code>null</code> if that is no valid path.
+   *         Used as base URI of a reparsed secondary result.
+   */
   @Nullable
   private String _resolveHref (@NonNull final String sHref)
   {
@@ -356,6 +403,14 @@ public final class XSLT30AssertionChecker
     }
   }
 
+  /**
+   * Evaluate the expression of an <code>assert</code> with the document as
+   * context item. The raw result is bound to the result variable (empty
+   * sequence if there is none) unless the variable name is empty.
+   *
+   * @return Pass or fail with reason <code>assert</code>, or fail with
+   *         <code>assert-eval</code> if the evaluation raised an error.
+   */
   @NonNull
   private QT3Outcome _evalAssertOn (@NonNull final XSLT30Assertion aAssertion,
                                     @NonNull final IXdmNode aDoc,
@@ -373,6 +428,21 @@ public final class XSLT30AssertionChecker
     return QT3Outcome.of (aValue.booleanValue (), "assert");
   }
 
+  /**
+   * Check an <code>assert</code>: find the document the expression is
+   * evaluated on, then evaluate it. For a message, that is the message parsed
+   * as a document node. Otherwise the raw principal result tree is used if
+   * the expression needs type annotations, or if the output is no markup at
+   * all (a text result). Else the serialised output is reparsed, trying in
+   * turn: as a document; as a document node with several top-level children;
+   * wrapped in <code>&lt;_x_&gt;</code>; with HTML void tags closed (unwrapped,
+   * then wrapped); as XML 1.1 (unwrapped, then wrapped). A reparsed document
+   * gets the base URI of the outcome if it has none. If nothing parses, the
+   * raw tree is the last resort.
+   *
+   * @return The outcome; fail with <code>assert-parse</code> if there is no
+   *         document to evaluate on.
+   */
   @NonNull
   private QT3Outcome _checkAssert (@NonNull final XSLT30Assertion aAssertion, @NonNull final XSLT30Actual aActual)
   {
@@ -427,6 +497,27 @@ public final class XSLT30AssertionChecker
     return _evalAssertOn (aAssertion, aDoc, aActual);
   }
 
+  /**
+   * Check an assertion on the raw result sequence:
+   * <ul>
+   * <li><code>assert-empty</code>: the sequence is empty;</li>
+   * <li><code>assert-count</code>: its length equals the (trimmed) integer
+   * text; a text that is no integer is a skip;</li>
+   * <li><code>assert-true</code>/<code>assert-false</code>: a single
+   * <code>xs:boolean</code> (or derived) with that value;</li>
+   * <li><code>assert-deep-eq</code>: <code>fn:deep-equal</code> of the result
+   * and the expression;</li>
+   * <li><code>assert-type</code>: <code>$result instance of T</code>;</li>
+   * <li><code>assert-permutation</code>: the same number of items, and every
+   * item of the result occurs equally often (by <code>fn:deep-equal</code>) in
+   * the result and the expected sequence.</li>
+   * </ul>
+   * The expressions are evaluated without a context item, with the result
+   * bound to an internal variable.
+   *
+   * @return The outcome; fail with <code>&lt;kind&gt;-eval</code> if the
+   *         evaluation raised an error, skip for any other kind.
+   */
   @NonNull
   private QT3Outcome _checkValueAssert (@NonNull final XSLT30Assertion aAssertion,
                                         @NonNull final XdmSequence aRaw)
@@ -489,6 +580,55 @@ public final class XSLT30AssertionChecker
 
   /**
    * Check one assertion.
+   * <p>
+   * The combinators and the assertions that look at the error come first:
+   * <code>error</code> passes on any error (with strict error codes the code
+   * must match, unless it is empty or <code>*</code>);
+   * <code>assert-message</code> passes if any <code>xsl:message</code> text
+   * satisfies the nested assertion (which sees the message text as output;
+   * an <code>assert</code> is evaluated on it as a document node), or
+   * without a nested assertion if there is a message at all;
+   * <code>assert-serialization-error</code> passes on any error, whatever
+   * its code; <code>all-of</code> passes if every child passes (a skipping
+   * child fails it); <code>any-of</code> if one child passes;
+   * <code>not</code> if its child does not pass, so a child that fails
+   * because the transformation raised an error, cannot be evaluated or is
+   * skipped makes <code>not</code> pass.
+   * <p>
+   * Every other assertion fails with <code>errored:&lt;code&gt;</code> after
+   * an error. Then:
+   * <ul>
+   * <li><code>assert-xml</code>: the expected XML (inline or from
+   * <code>file</code>) and the output compared by
+   * {@link XSLT30XmlCompare#isXmlEqual(String, String, boolean)}; failing
+   * that, against the result tree serialised as XML (html and xhtml
+   * output).</li>
+   * <li><code>assert-serialization</code>: the texts compared trimmed (or
+   * whitespace normalised with <code>normalize-space="true"</code>); failing
+   * that, after indent="yes" output, with the whitespace the serializer may
+   * add removed from both.</li>
+   * <li><code>serialization-matches</code>: <code>fn:matches</code> of the
+   * output, the trimmed regex and the <code>flags</code>; an invalid regex
+   * fails with <code>bad-regex</code>.</li>
+   * <li><code>assert-string-value</code>: the string value of the output
+   * (reparsed as a fragment if possible, else the text) equals the expected
+   * text, both whitespace normalised unless
+   * <code>normalize-space="false"</code>.</li>
+   * <li><code>assert-result-document</code>: the secondary result named by
+   * <code>uri</code> exists, and the nested assertion holds for its
+   * serialisation (or its tree, if the nested assertion needs type
+   * annotations).</li>
+   * <li><code>assert-eq</code>: the expected expression's items, as strings
+   * joined by a space, equal the string value of the output, exactly or
+   * after trimming. Types and the number of items are not compared.</li>
+   * <li><code>assert</code>: see {@link #_checkAssert}.</li>
+   * <li><code>assert-count</code>, <code>assert-deep-eq</code>,
+   * <code>assert-type</code>, <code>assert-empty</code>,
+   * <code>assert-true</code>, <code>assert-false</code>,
+   * <code>assert-permutation</code>: on the raw result (skip if there is
+   * none), see {@link #_checkValueAssert}.</li>
+   * </ul>
+   * Any other kind is a skip.
    *
    * @param aAssertion
    *        The assertion.

@@ -131,6 +131,14 @@ public final class QT3AssertionChecker
     return sTrimmed.replaceAll ("[ \\t\\r\\n]+", " ");
   }
 
+  /**
+   * @param aResult
+   *        The test result, bound as <code>$result</code> if not
+   *        <code>null</code>.
+   * @param aMore
+   *        Further variables, may be <code>null</code>.
+   * @return The extra variables for one assertion evaluation.
+   */
   @NonNull
   private Map <XdmQName, XdmSequence> _vars (@Nullable final XdmSequence aResult,
                                               @Nullable final Map <XdmQName, XdmSequence> aMore)
@@ -179,6 +187,21 @@ public final class QT3AssertionChecker
     }
   }
 
+  /**
+   * Evaluate an assertion expression with <code>$result</code> bound and
+   * judge it by its effective boolean value.
+   *
+   * @param sExpr
+   *        The expression.
+   * @param aResult
+   *        The test result.
+   * @param sKind
+   *        Fail reason if the value is false.
+   * @param sEvalFailReason
+   *        Fail reason if the evaluation raised an error or the EBV is
+   *        undefined.
+   * @return The outcome.
+   */
   @NonNull
   private QT3Outcome _checkBool (@NonNull final String sExpr,
                                  @NonNull final XdmSequence aResult,
@@ -191,6 +214,15 @@ public final class QT3AssertionChecker
     return QT3Outcome.of (aValue.booleanValue (), sKind);
   }
 
+  /**
+   * @param aResult
+   *        The test result.
+   * @param bExpected
+   *        The expected boolean.
+   * @return <code>true</code> if the result is exactly one
+   *         <code>xs:boolean</code> (or derived) with the expected value; no
+   *         effective boolean value is taken.
+   */
   private static boolean _isSingleBoolean (@NonNull final XdmSequence aResult, final boolean bExpected)
   {
     // Equivalent to "$result eq true()" / "$result eq false()": a single
@@ -202,7 +234,39 @@ public final class QT3AssertionChecker
   }
 
   /**
-   * Check one assertion.
+   * Check one assertion (FOTS catalogue schema). <code>all-of</code> passes
+   * if every child passes and otherwise returns the first non-pass;
+   * <code>any-of</code> passes on the first passing child, else is a skip
+   * if a child was skipped, else fails; <code>not</code> inverts its single
+   * child (a skip stays a skip; another number of children is a skip);
+   * <code>error</code> passes for any error. With an error, every other known
+   * assertion fails with <code>errored:CODE</code>. Otherwise:
+   * <ul>
+   * <li><code>assert-true</code>/<code>assert-false</code>: exactly one
+   * boolean with that value.</li>
+   * <li><code>assert-empty</code>, <code>assert-count</code> (the trimmed
+   * text as integer): the item count.</li>
+   * <li><code>assert-type</code>: <code>$result instance of T</code>.</li>
+   * <li><code>assert-eq</code>: <code>$result eq (V)</code>;
+   * <code>assert-deep-eq</code>: <code>deep-equal($result, (V))</code>;
+   * <code>assert</code>: the EBV of the expression;
+   * <code>assert-permutation</code>: the same items as <code>(V)</code> by
+   * <code>deep-equal</code> with the same multiplicities, in any order.</li>
+   * <li><code>assert-string-value</code>: the string values joined with a
+   * space must equal the text exactly, or after normalising whitespace on
+   * both sides with <code>normalize-space="true"</code>.</li>
+   * <li><code>assert-xml</code> (and its old name
+   * <code>assert-serialization</code>): <code>serialize($result)</code>
+   * compared with the text or the <code>file</code> by
+   * {@link QT3XmlCompare#isXmlEqual}.</li>
+   * <li><code>serialization-matches</code>: <code>fn:matches</code> of the
+   * serialisation with the pattern and <code>flags</code> (unanchored).</li>
+   * <li><code>assert-serialization-error</code>: serialising the result
+   * raises an error (the code is not compared).</li>
+   * </ul>
+   * The serialisation always uses the default parameters of
+   * <code>fn:serialize</code>. An unknown assertion kind is a skip
+   * <code>unknown:kind</code>.
    *
    * @param aAssertion
    *        The assertion.

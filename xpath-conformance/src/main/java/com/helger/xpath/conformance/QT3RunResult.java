@@ -54,6 +54,14 @@ public final class QT3RunResult
     m_aSets = aSets.getClone ();
   }
 
+  /**
+   * Add the counts of one map to another, key by key.
+   *
+   * @param aTarget
+   *        The sums, changed in place.
+   * @param aSource
+   *        The counts to add.
+   */
   private static void _add (@NonNull final ICommonsSortedMap <String, Integer> aTarget,
                             @NonNull final Map <String, Integer> aSource)
   {
@@ -142,7 +150,13 @@ public final class QT3RunResult
     return ret;
   }
 
-  /** @return The human readable summary. */
+  /**
+   * @return The human readable summary: total, ran, pass, fail, pass rate
+   *         (pass divided by the cases that ran, skips excluded) and skipped
+   *         on one line, then the number of test sets, all skip and fail
+   *         reasons by count, one line per test set that could not be
+   *         loaded, and the {@value #TOP_SETS} test sets with the most fails.
+   */
   @NonNull
   public String getSummary ()
   {

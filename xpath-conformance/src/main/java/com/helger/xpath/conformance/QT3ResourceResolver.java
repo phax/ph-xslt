@@ -70,6 +70,19 @@ public final class QT3ResourceResolver implements IResourceResolver
   private final ICommonsMap <Path, IXdmNode> m_aValidated = new CommonsHashMap <> ();
 
   /**
+   * Build the URI map of the environment: every <code>resource</code> with a
+   * URI and a file under its URI (with its declared encoding, lower case)
+   * and, for a relative URI, also under that URI resolved against the base
+   * directory; every <code>source</code> with a file under its declared URI
+   * (if any) and its own file URI; every <code>collection</code> under its
+   * URI (empty: the default collection) with the files of its sources,
+   * which are also mapped by their file URIs. Schema documents of the
+   * environment are collected for validation; a <code>schema</code> without
+   * a file for the namespace <code>fn</code> stands for the schema of the XML
+   * representation of JSON, taken from
+   * <code>json-to-xml/schema-for-json.xsd</code> below the base directory
+   * if it exists and the schema processor is not the JDK validator.
+   *
    * @param aEnv
    *        The resolved environment (not a reference).
    * @param aDocs
@@ -138,8 +151,10 @@ public final class QT3ResourceResolver implements IResourceResolver
   }
 
   /**
-   * @return The in-scope schema definitions of the environment (Xerces-J
-   *         only), or <code>null</code>.
+   * @return The in-scope schema definitions of the environment (not with the
+   *         JDK validator, see {@link QT3SchemaCache#getSchemaSet}), or
+   *         <code>null</code> if it declares no schema documents or they do
+   *         not compile.
    */
   @Nullable
   public IXdmSchemaSet getSchemaSet ()
@@ -147,6 +162,13 @@ public final class QT3ResourceResolver implements IResourceResolver
     return m_aSchemaFiles.isEmpty () ? null : QT3SchemaCache.getSchemaSet (m_aSchemaFiles);
   }
 
+  /**
+   * @param sUri
+   *        A URI.
+   * @return The absolute normalised path of a <code>file:</code> URI, or
+   *         <code>null</code> for any other scheme or a URI that is not a
+   *         valid file URI.
+   */
   @Nullable
   private static Path _fileUriToPath (@NonNull final String sUri)
   {
@@ -163,6 +185,18 @@ public final class QT3ResourceResolver implements IResourceResolver
     }
   }
 
+  /**
+   * Find the file for unparsed text: a declared URI first; then a
+   * <code>file:</code> URI, mapped to its declared entry if its normalised
+   * form is declared (<code>file:/x</code> and <code>file:///x</code>);
+   * then, for a relative reference without scheme or leading slash, the
+   * path resolved against the base directory. The last two are only used
+   * if they name an existing regular file.
+   *
+   * @param sUri
+   *        The URI as passed by the engine.
+   * @return The file, or <code>null</code> if the resource is unavailable.
+   */
   @Nullable
   private Path _getTextPath (@NonNull final String sUri)
   {
@@ -191,6 +225,12 @@ public final class QT3ResourceResolver implements IResourceResolver
     return aCandidate != null && Files.isRegularFile (aCandidate) ? aCandidate : null;
   }
 
+  /**
+   * @param sName
+   *        An encoding name, may be <code>null</code>.
+   * @return The charset, or <code>null</code> if the name is empty, invalid
+   *         or not supported.
+   */
   @Nullable
   private static Charset _getCharset (@Nullable final String sName)
   {
@@ -206,6 +246,16 @@ public final class QT3ResourceResolver implements IResourceResolver
     }
   }
 
+  /**
+   * @param aBytes
+   *        The raw bytes.
+   * @param nOffset
+   *        Where decoding starts (after a byte order mark).
+   * @param aCharset
+   *        The charset.
+   * @return The decoded text, or <code>null</code> if the bytes contain a
+   *         malformed or unmappable sequence (no replacement characters).
+   */
   @Nullable
   private static String _decodeStrict (@NonNull final byte [] aBytes,
                                        final int nOffset,
@@ -227,8 +277,9 @@ public final class QT3ResourceResolver implements IResourceResolver
 
   /**
    * Decode unparsed text: a declared ISO-8859-1 resource encoding (the "HTTP
-   * header") wins, then a byte order mark, then the requested encoding, then
-   * UTF-8.
+   * header") wins, then a byte order mark (UTF-16BE, UTF-16LE, UTF-8; it is
+   * removed), then the requested encoding, then UTF-8. Any other declared
+   * encoding is ignored. Except for ISO-8859-1, decoding is strict.
    *
    * @param aBytes
    *        The raw bytes.
@@ -295,7 +346,12 @@ public final class QT3ResourceResolver implements IResourceResolver
    * @return The parsed source document or <code>null</code> if it cannot be
    *         loaded (a deliberately malformed source is left to the engine). A
    *         source with a <code>validation</code> attribute is validated
-   *         against the environment's schemas, if it has any.
+   *         against the environment's schemas, if it has any; if they do not
+   *         compile or the source is not valid, it is loaded unvalidated. A
+   *         source bound to a variable that declares a <code>uri</code> is
+   *         parsed afresh with that URI as its document URI. Both are
+   *         remembered, so <code>fn:doc</code> of their file returns the same
+   *         node; any other source comes from the test set's document cache.
    */
   @Nullable
   public IXdmNode getSourceDocument (final QT3Environment.@NonNull Source aSource)
@@ -343,6 +399,17 @@ public final class QT3ResourceResolver implements IResourceResolver
     return m_aDocs.getDocument (aPath);
   }
 
+  /**
+   * Resolve <code>fn:doc</code>: a declared URI, else any <code>file:</code>
+   * URI. A source this resolver validated or re-parsed is returned as that
+   * node, anything else through the document cache.
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @return The document node, or <code>null</code> if the URI is not
+   *         declared and not a <code>file:</code> URI, or the file does not
+   *         exist or is not well-formed.
+   */
   @Nullable
   public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
@@ -356,6 +423,19 @@ public final class QT3ResourceResolver implements IResourceResolver
     return aValidated != null ? aValidated : m_aDocs.getDocument (aFile);
   }
 
+  /**
+   * Resolve unparsed text (see <code>_getTextPath</code>) and decode it with
+   * {@link #decodeText}, using the encoding declared for exactly this URI.
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @param sEncoding
+   *        The requested encoding, may be <code>null</code>.
+   * @return The text, or <code>null</code> if the resource is unavailable or
+   *         cannot be read.
+   * @throws XPathException
+   *         FOUT1190 if the bytes cannot be decoded.
+   */
   @Nullable
   public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
   {

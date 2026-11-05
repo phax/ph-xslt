@@ -222,6 +222,27 @@ public final class QT3EngineEvaluator implements IQT3Evaluator
     return m_aVars.getClone ();
   }
 
+  /**
+   * Compile and evaluate an expression under the configured environment. A
+   * new {@link StaticContext} gets the namespaces, the default element
+   * namespace, the static base URI, the default collation, XPath 1.0
+   * compatibility mode, static typing, the schema set, the XML and XSD
+   * versions, the decimal formats and a declaration of every configured and
+   * extra variable. The dynamic context gets the run's current date/time,
+   * the default language, the resource resolver, the context item as a
+   * singleton focus (position and size 1) if one is set, and the variable
+   * values; an extra variable with the same name as a configured one wins.
+   * Unset optional settings leave the engine's defaults.
+   *
+   * @param sExpr
+   *        The XPath expression.
+   * @param aExtraVars
+   *        Variables bound for this evaluation only (e.g.
+   *        <code>$result</code>).
+   * @return The result.
+   * @throws com.helger.xpath.XPathException
+   *         if compiling or evaluating raises an error.
+   */
   @NonNull
   public XdmSequence evaluate (@NonNull final String sExpr, @NonNull final Map <XdmQName, XdmSequence> aExtraVars)
   {

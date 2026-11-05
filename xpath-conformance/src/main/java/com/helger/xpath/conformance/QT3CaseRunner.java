@@ -46,9 +46,11 @@ import com.helger.xpath.xdm.schema.IXdmSchemaSet;
  * aborts the run.
  * <p>
  * A source with <code>validation="strict"</code> (or <code>lax</code>, run
- * strict) is validated against the environment's schemas with the JDK
- * validator (see {@link QT3ResourceResolver#getSourceDocument}); there are no
- * in-scope schema types, so schema imports are not applied.
+ * strict) is validated against the environment's schemas with the schema
+ * processor of the run (see {@link QT3SchemaCache} and
+ * {@link QT3ResourceResolver#getSourceDocument}). Unless that is the JDK
+ * validator, the compiled schemas are also the in-scope schema definitions
+ * of the test expression and of the assertions.
  * <p>
  * A case (or its test set) with the dependency <code>feature staticTyping</code>
  * opts in to the engine's narrow part of the optional Static Typing Feature,
@@ -81,6 +83,17 @@ public final class QT3CaseRunner
   /**
    * Resolve a lexical variable name like <code>x</code> or
    * <code>test:x</code>.
+   *
+   * @param sLexical
+   *        The lexical name.
+   * @param sBoundUri
+   *        The namespace URI bound to the prefix in the catalogue file, empty
+   *        if none; it wins over the environment's namespaces.
+   * @param aEval
+   *        The evaluator whose declared namespaces resolve the prefix
+   *        otherwise.
+   * @return The name; an unprefixed name has no namespace, a prefix bound
+   *         nowhere gives the empty namespace URI (no error).
    */
   @NonNull
   private static XdmQName _varName (@NonNull final String sLexical,
@@ -100,6 +113,17 @@ public final class QT3CaseRunner
     return new XdmQName (sUri, sLexical.substring (nColon + 1), sPrefix);
   }
 
+  /**
+   * Determine the static base URI of the test expression: an explicit
+   * <code>static-base-uri</code> of the environment
+   * (<code>#UNDEFINED</code> means none), else the file URI of the (last)
+   * source with role "." and a file, else the directory of the file the
+   * environment comes from, with a trailing slash.
+   *
+   * @param aEnv
+   *        The resolved environment.
+   * @return The base URI, or <code>null</code> for an undefined one.
+   */
   @Nullable
   private static String _getBaseUri (@NonNull final QT3Environment aEnv)
   {
@@ -121,6 +145,16 @@ public final class QT3CaseRunner
     return ret;
   }
 
+  /**
+   * @param aDeps
+   *        Test-set plus test-case dependencies.
+   * @param sType
+   *        The dependency type, e.g. <code>feature</code>.
+   * @param sValue
+   *        The exact (untrimmed) value, e.g. <code>staticTyping</code>.
+   * @return <code>true</code> if a dependency with that type and value is
+   *         present and not <code>satisfied="false"</code>.
+   */
   private static boolean _hasDependency (@NonNull final List <QT3Dependency> aDeps,
                                          @NonNull final String sType,
                                          @NonNull final String sValue)
@@ -166,6 +200,14 @@ public final class QT3CaseRunner
     return new XdmQName (sUri == null ? "" : sUri, sName.substring (nColon + 1), sPrefix);
   }
 
+  /**
+   * @param sValue
+   *        A decimal-format attribute value, may be <code>null</code>.
+   * @param nDefault
+   *        The code point of the default format.
+   * @return The first code point of the value (further characters are
+   *         ignored), or the default if it is absent or empty.
+   */
   private static int _firstCodePoint (@Nullable final String sValue, final int nDefault)
   {
     return sValue == null || sValue.isEmpty () ? nDefault : sValue.codePointAt (0);
@@ -205,6 +247,12 @@ public final class QT3CaseRunner
     }
   }
 
+  /**
+   * @param ex
+   *        The error the test raised.
+   * @return <code>error</code> plus the message, or the error code if there
+   *         is no message, for the "got" part of a fail line.
+   */
   @NonNull
   private static String _describeError (@NonNull final XPathException ex)
   {
@@ -212,6 +260,51 @@ public final class QT3CaseRunner
     return "error " + (sMsg == null ? ex.getCode () : sMsg);
   }
 
+  /**
+   * Run one case without the crash guard. Steps:
+   * <ol>
+   * <li>Skip with <code>no-assertion</code> if the case has no assertion;
+   * take the expression from the <code>file</code> of <code>test</code> if
+   * given (relative to the set directory; unreadable: skip
+   * <code>test-file</code>).</li>
+   * <li>Configure the evaluator of the test: namespaces (an empty prefix sets
+   * the default element namespace), static base URI, the default collation,
+   * XPath 1.0 compatibility for <code>feature xpath-1.0-compatibility</code>,
+   * decimal formats, the XML and XSD versions of the last
+   * <code>xml-version</code>/<code>xsd-version</code> dependency, the default
+   * language of a <code>default-language</code> dependency, the
+   * {@link QT3ResourceResolver} and the environment's schema set.</li>
+   * <li>Bind the sources: role "." becomes the context item, "$name" a
+   * variable; a source that cannot be loaded is left out silently, so an
+   * expression reading it raises the error itself.</li>
+   * <li>Without a "." source, evaluate <code>context-item select</code>; a
+   * single item becomes the context item, an error or any other result
+   * leaves no focus.</li>
+   * <li>Evaluate every <code>param</code> with a <code>select</code> in
+   * order (a param can use the earlier ones) and bind it; one that raises an
+   * error stays unbound. <code>as</code> and <code>declared</code> are not
+   * used.</li>
+   * <li>Turn on static typing for <code>feature staticTyping</code> and
+   * evaluate the test expression, keeping either its result or its
+   * {@link XPathException}.</li>
+   * <li>Check the assertion with a second evaluator that has the prefixed
+   * namespaces, the versions, the schema set and the variables, but no
+   * default element namespace, focus, base URI, resolver, collation or
+   * decimal formats.</li>
+   * </ol>
+   *
+   * @param aCase
+   *        The test case.
+   * @param aAllDeps
+   *        Test-set plus test-case dependencies.
+   * @param aEnv
+   *        The resolved environment.
+   * @param aSetDir
+   *        Directory of the test-set file.
+   * @param aDocs
+   *        Document cache of the test set.
+   * @return The outcome and a description of the result or error.
+   */
   @NonNull
   private CaseResult _run (@NonNull final QT3TestCase aCase,
                            @NonNull final List <QT3Dependency> aAllDeps,
@@ -341,7 +434,9 @@ public final class QT3CaseRunner
   }
 
   /**
-   * Run one test case. Never throws.
+   * Run one test case. Never throws: any {@link Throwable} (including
+   * errors such as {@link StackOverflowError}) becomes a fail with the reason
+   * <code>crash:</code> plus the simple class name.
    *
    * @param aCase
    *        The test case.

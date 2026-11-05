@@ -37,6 +37,20 @@ public final class XsdMain
   private XsdMain ()
   {}
 
+  /**
+   * Read the settings from the system properties, run every configured
+   * version and print the summaries. If the accepted-failures check is on,
+   * the fail names of all versions together are compared with the
+   * accepted-failures file (via {@link QT3AcceptedFailures#getUndocumented});
+   * any undocumented name is printed to <code>System.err</code> and the JVM
+   * exits with 1.
+   *
+   * @param aArgs
+   *        Ignored.
+   * @throws IOException
+   *         if the suite, a test set or the accepted-failures file cannot be
+   *         read, or the output files cannot be written
+   */
   public static void main (final String [] aArgs) throws IOException
   {
     final XsdSettings aSettings = XsdSettings.fromSystemProperties ();

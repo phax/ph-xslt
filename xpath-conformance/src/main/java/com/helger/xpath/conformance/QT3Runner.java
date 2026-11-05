@@ -46,12 +46,26 @@ public final class QT3Runner
   private final QT3Settings m_aSettings;
   private final OffsetDateTime m_aNow = OffsetDateTime.now ();
 
+  /**
+   * @param aSettings
+   *        The run settings. The current date/time of the run is fixed when
+   *        the runner is created and shared by every case, so
+   *        <code>fn:current-dateTime()</code> is stable across the run.
+   */
   public QT3Runner (@NonNull final QT3Settings aSettings)
   {
     ValueEnforcer.notNull (aSettings, "Settings");
     m_aSettings = aSettings;
   }
 
+  /**
+   * @param s
+   *        A text for a fail line.
+   * @param nMax
+   *        The maximum length.
+   * @return The text stripped, with CR and LF replaced by spaces and cut to
+   *         at most <code>nMax</code> characters (without an ellipsis).
+   */
   @NonNull
   private static String _cut (@NonNull final String s, final int nMax)
   {
@@ -59,6 +73,14 @@ public final class QT3Runner
     return sOneLine.length () > nMax ? sOneLine.substring (0, nMax) : sOneLine;
   }
 
+  /**
+   * @param aCase
+   *        The test case.
+   * @return The expected result for a fail line: <code>kind:value</code> of
+   *         the assertion, or for a composite one
+   *         <code>kind(child:value, ...)</code> with the direct children only;
+   *         empty if the case has no assertion.
+   */
   @NonNull
   private static String _describeWant (@NonNull final QT3TestCase aCase)
   {
@@ -79,6 +101,26 @@ public final class QT3Runner
     return aAssertion.kind () + ":" + _cut (aAssertion.value (), MAX_EXPR_LEN);
   }
 
+  /**
+   * Read and run one test set with a fresh document cache and case runner.
+   * Per case: the dependencies of the set and the case are combined and
+   * checked with {@link QT3Dependencies#getSkipReason(java.util.List)}; the
+   * environment is the inline one, the empty environment (base directory of
+   * the set) if there is none, or a referenced one looked up first among the
+   * set's and then among the catalog's named environments (unknown name:
+   * skip <code>env-missing</code>). The outcome of
+   * {@link QT3CaseRunner#run} is counted; for a fail, a
+   * <code>FAIL name [reason] expr=... want=... got=...</code> line is kept if
+   * fail lines are collected. A test-set file that cannot be read gives a
+   * result with only a load error.
+   *
+   * @param aCatalog
+   *        The catalog (named environments and root directory).
+   * @param aRef
+   *        The test set to run.
+   * @return The counts of the test set, named after the set file's
+   *         <code>name</code> attribute, else after the catalog reference.
+   */
   @NonNull
   private QT3SetResult _runSet (@NonNull final QT3Catalog aCatalog, final QT3Catalog.@NonNull TestSetRef aRef)
   {
@@ -158,7 +200,12 @@ public final class QT3Runner
   }
 
   /**
-   * Run the catalog.
+   * Run the catalog: read <code>catalog.xml</code>, keep the test sets whose
+   * name contains <code>qt3.only</code> (all if it is empty), and run them
+   * on a fixed thread pool with one thread per available processor (one
+   * with <code>qt3.seq=true</code>). Results are collected in catalog order;
+   * a set whose run threw is recorded with a "harness error" load error
+   * instead of aborting the run.
    *
    * @return The result.
    * @throws IOException

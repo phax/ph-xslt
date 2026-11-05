@@ -39,7 +39,15 @@ import com.helger.xpath.xdm.schema.XdmSchemaSupport;
  * of the run and caches the result by the list of files, since the same
  * catalogue environment is used by many test cases. A schema that does not
  * compile is cached as unavailable; its sources are then read without
- * validation, like Go.
+ * validation, like Go. The caches are static and shared by all test sets of
+ * the JVM.
+ * <p>
+ * The schema processor is the provider of {@link XdmSchemaSupport} (the
+ * native validator of <code>xsd-core</code> if it is on the class path, else
+ * Apache Xerces-J; <code>-Dxdm.schemaProvider=native|xerces</code> picks
+ * one), unless that is not available or <code>-Dqt3.schemaProcessor=jdk</code>
+ * selects the JDK validator, which only validates and gives no in-scope
+ * schema definitions.
  *
  * @author Philip Helger
  */
@@ -47,9 +55,11 @@ import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 public final class QT3SchemaCache
 {
   /**
-   * The schema processor: Apache Xerces-J if it is on the class path (schema
-   * component model: element declarations, content types, user-defined types),
-   * unless <code>-Dqt3.schemaProcessor=jdk</code> selects the JDK validator.
+   * The schema processor: the provider of {@link XdmSchemaSupport} (the
+   * native validator or Apache Xerces-J, both with a schema component model:
+   * element declarations, content types, user-defined types) if one is
+   * available, unless <code>-Dqt3.schemaProcessor=jdk</code> selects the JDK
+   * validator. Despite the name, <code>true</code> does not mean Xerces-J.
    */
   private static final boolean USE_XERCES = XdmSchemaSupport.isAvailable () &&
                                             !"jdk".equals (System.getProperty ("qt3.schemaProcessor"));
@@ -66,14 +76,21 @@ public final class QT3SchemaCache
   {}
 
   /**
-   * @return <code>true</code> if Apache Xerces-J is the schema processor of
-   *         the run.
+   * @return <code>true</code> if the provider of {@link XdmSchemaSupport}
+   *         (the native validator or Apache Xerces-J) is the schema processor
+   *         of the run, <code>false</code> for the JDK validator.
    */
   public static boolean isXerces ()
   {
     return USE_XERCES;
   }
 
+  /**
+   * @param aFiles
+   *        The schema documents.
+   * @return One schema source per file, identified by its <code>file:</code>
+   *         URI only (the processor reads the file itself).
+   */
   @NonNull
   private static ICommonsList <XdmSchemaSource> _getSources (@NonNull final List <Path> aFiles)
   {
@@ -83,6 +100,15 @@ public final class QT3SchemaCache
     return ret;
   }
 
+  /**
+   * Compile the files together into one schema set with the provider of
+   * {@link XdmSchemaSupport}.
+   *
+   * @param aFiles
+   *        The schema documents.
+   * @return The schema set, or empty if compiling raised an
+   *         {@link XdmSchemaException}.
+   */
   @NonNull
   private static Optional <IXdmSchemaSet> _compileSet (@NonNull final List <Path> aFiles)
   {
@@ -96,12 +122,26 @@ public final class QT3SchemaCache
     }
   }
 
+  /**
+   * @param aFiles
+   *        The schema documents.
+   * @return The cached result of <code>_compileSet</code> for this list of
+   *         files (order matters), compiling it on first use.
+   */
   @NonNull
   private static Optional <IXdmSchemaSet> _getSchemaSetOptional (@NonNull final List <Path> aFiles)
   {
     return SET_CACHE.computeIfAbsent (List.copyOf (aFiles), QT3SchemaCache::_compileSet);
   }
 
+  /**
+   * Compile the files together with the JDK validator.
+   *
+   * @param aFiles
+   *        The schema documents.
+   * @return The schema set (validation only), or empty if compiling raised
+   *         an {@link XdmSchemaException}.
+   */
   @NonNull
   private static Optional <IXdmSchemaSet> _compileJdk (@NonNull final List <Path> aFiles)
   {
@@ -118,8 +158,10 @@ public final class QT3SchemaCache
   /**
    * @param aFiles
    *        Absolute, normalised paths of the schema documents. Not empty.
-   * @return The schema set to validate source documents against (Xerces-J or
-   *         the JDK validator), or <code>null</code> if it does not compile.
+   * @return The schema set to validate source documents against (the
+   *         provider of {@link XdmSchemaSupport} or the JDK validator, see
+   *         {@link #isXerces()}), or <code>null</code> if it does not
+   *         compile. Cached per list of files.
    */
   @Nullable
   public static IXdmSchemaSet getValidationSchemaSet (@NonNull final List <Path> aFiles)
@@ -134,7 +176,7 @@ public final class QT3SchemaCache
    *        Absolute, normalised paths of the schema documents. Not empty.
    * @return The in-scope schema definitions of the documents, or
    *         <code>null</code> if they do not compile or the schema processor
-   *         is not Xerces-J.
+   *         is the JDK validator.
    */
   @Nullable
   public static IXdmSchemaSet getSchemaSet (@NonNull final List <Path> aFiles)

@@ -88,6 +88,7 @@ public final class XSLT30CaseRunner
    * same error code); a difference fails the case with "harness".
    */
   static final boolean WRITE_TO = Boolean.getBoolean ("xslt30.writeTo");
+  /** The number of transformations compared by the writeTo check. */
   static final AtomicLong WRITE_TO_COMPARED = new AtomicLong (0);
 
   /**
@@ -228,6 +229,11 @@ public final class XSLT30CaseRunner
     m_bStreaming = bStreaming;
   }
 
+  /**
+   * @return The text trimmed, on one line (CR and LF become spaces) and cut
+   *         to {@link #MAX_DETAIL_LEN} characters, for the fail dump; empty for
+   *         <code>null</code>.
+   */
   @NonNull
   private static String _cut (@Nullable final String s)
   {
@@ -393,6 +399,11 @@ public final class XSLT30CaseRunner
     return _evaluate (sExpr, aParam.namespaces (), aFocus, aResolver, sBaseUri);
   }
 
+  /**
+   * @return The expanded name of the parameter.
+   * @throws HarnessException
+   *         if the prefix of its name is not bound in the catalog
+   */
   @NonNull
   private static XdmQName _requireName (@NonNull final XSLT30Param aParam)
   {
@@ -402,6 +413,11 @@ public final class XSLT30CaseRunner
     return ret;
   }
 
+  /**
+   * Check the case's assertion against the outcome, with a checker for the
+   * test-set directory and, in a schema-aware run, the stylesheet's schema
+   * set.
+   */
   @NonNull
   private QT3Outcome _check (@NonNull final XSLT30TestSet aSet,
                              @NonNull final XSLT30TestCase aCase,
@@ -411,6 +427,13 @@ public final class XSLT30CaseRunner
     return new XSLT30AssertionChecker (aSet.dir (), m_aNow, m_bStrictErrorCodes, aSchemaSet).check (aCase.result (), aActual);
   }
 
+  /**
+   * Register a library package file for <code>xsl:use-package</code>: under
+   * the name and version the catalog gives (if it gives a name; a blank
+   * version means none), and in any case without a name, so the compiler
+   * registers it under the identity its own <code>xsl:package</code>
+   * declares.
+   */
   private static void _addPackage (@NonNull final ICommonsList <XsltCompileOptions.PackageSource> aPackages,
                                    @NonNull final Path aPath,
                                    final XSLT30Environment.@NonNull Module aModule)
@@ -425,6 +448,60 @@ public final class XSLT30CaseRunner
     aPackages.add (new XsltCompileOptions.PackageSource (null, null, sUri));
   }
 
+  /**
+   * Compile (through the shared cache) and run one case:
+   * <ol>
+   * <li>Parameters: those of the environment, then those of the test, which
+   * override by name; static ones go to the compiler, the others to the
+   * request.</li>
+   * <li>Library packages: those of the environment and the secondary
+   * <code>&lt;package&gt;</code> elements of the test.</li>
+   * <li>Compilation, with external entities read, the stylesheet's file URI as
+   * base URI and the claimed options (schema-aware with the host schemas,
+   * streaming with binding streamability). The cache key is the file,
+   * embedded or not, the static parameters (name, <code>as</code>,
+   * <code>select</code>), the packages and the host schemas.</li>
+   * <li>The principal source: the environment source with role
+   * <code>.</code>, or one with neither role nor URI if no role
+   * <code>.</code> exists (the last matching one wins). It is inline content
+   * (with the test-set file as base URI unless declared in the catalog), a
+   * file (from the document cache, or freshly parsed and validated in a
+   * schema-aware run), or built by its <code>select</code> alone (e.g.
+   * <code>parse-xml(...)</code>). A missing file gives no source. Secondary
+   * sources with <code>validation</code> are validated and registered with
+   * the resolver in a schema-aware run.</li>
+   * <li>The global context item: the source, or the first item of the
+   * <code>&lt;context-item select&gt;</code> (or the source's
+   * <code>select</code>) evaluated with the source as focus.</li>
+   * <li>The invocation: an initial template (default
+   * <code>xsl:initial-template</code>), else an initial function with its
+   * arguments, else an initial mode with its initial match selection; the
+   * template or mode parameters, tunnel or not.</li>
+   * <li><code>&lt;output file&gt;</code> sets the base output URI (an empty
+   * file the test-set directory, <code>#absent</code> none);
+   * <code>result-var</code> names the result variable.</li>
+   * <li>In a streaming run, a source declared streamed that is nothing but
+   * the initial match selection of the (default) initial mode is passed by
+   * URI to be read as a stream.</li>
+   * </ol>
+   * With <code>-Dxslt30.writeTo=true</code> the transformation is repeated
+   * into a writer and compared ({@link #_compareWriteTo}).
+   *
+   * @param aSchemaSetOut
+   *        Receives the schema set of the compiled stylesheet, for assertions
+   *        that name schema components.
+   * @return The outcome to check the assertion against. The raw result is the
+   *         returned sequence for an initial function or
+   *         <code>&lt;output tree="no"/&gt;</code>; the output is the
+   *         serialisation if <code>&lt;output serialize="yes"/&gt;</code> asks
+   *         for it (see {@link XSLT30Actual#ofResult}).
+   * @throws XPathException
+   *         from compiling, preparing or transforming (FODC0002 for a source
+   *         that is not well-formed, XTSE0010 for an embedded stylesheet that
+   *         is not found, XTSE0165 for a stylesheet file that cannot be read)
+   * @throws HarnessException
+   *         for an unbound prefix in the catalog or a writeTo difference
+   */
   @NonNull
   private XSLT30Actual _transform (@NonNull final XSLT30TestSet aSet,
                                    @NonNull final XSLT30TestCase aCase,
@@ -736,6 +813,20 @@ public final class XSLT30CaseRunner
 
   /**
    * Run one test case.
+   * <p>
+   * The order: the dependency filter ({@link XSLT30Dependencies}), the
+   * Unicode exclusions (unless switched off) and a missing assertion each
+   * give a skip. The principal module is the last non-secondary
+   * <code>&lt;stylesheet&gt;</code> of the test, overridden by the last
+   * non-secondary <code>&lt;package&gt;</code>; else the last non-secondary
+   * stylesheet of the environment; else the last source with
+   * <code>defines-stylesheet="true"</code> (embedded). It is resolved against
+   * the test-set directory; no module at all is a skip
+   * (<code>no-stylesheet</code>). An {@link XPathException} from the
+   * transformation becomes the error the assertion sees; a harness problem
+   * fails the case with <code>harness</code>, any other throwable (also from
+   * the check) with <code>crash:&lt;class&gt;</code>. The detail of a fail
+   * is the error code and message, or the start of the output.
    *
    * @param aSet
    *        The test set.

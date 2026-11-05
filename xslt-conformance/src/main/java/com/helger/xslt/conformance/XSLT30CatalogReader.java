@@ -62,6 +62,15 @@ public final class XSLT30CatalogReader
   private XSLT30CatalogReader ()
   {}
 
+  /**
+   * Parse a catalog or test-set file into a namespace-aware DOM. Secure
+   * processing is on and no external DTD is loaded (the catalog files need
+   * none).
+   *
+   * @throws IOException
+   *         if the file cannot be read or is not well-formed; a parser
+   *         configuration error is reported the same way
+   */
   @NonNull
   private static Document _parse (@NonNull final InputSource aSource) throws IOException
   {
@@ -88,6 +97,11 @@ public final class XSLT30CatalogReader
     return ret != null ? ret : aNode.getNodeName ();
   }
 
+  /**
+   * @return The child elements with the given local name (any namespace), or
+   *         all child elements if the name is <code>null</code>, in document
+   *         order.
+   */
   @NonNull
   private static ICommonsList <Element> _childElements (@NonNull final Element aParent, @Nullable final String sLocalName)
   {
@@ -98,6 +112,10 @@ public final class XSLT30CatalogReader
     return ret;
   }
 
+  /**
+   * @return The first child element with the given local name (any
+   *         namespace), or <code>null</code>.
+   */
   @Nullable
   private static Element _firstChildElement (@NonNull final Element aParent, @NonNull final String sLocalName)
   {
@@ -128,6 +146,11 @@ public final class XSLT30CatalogReader
     return aElement.getAttribute (sName);
   }
 
+  /**
+   * @return <code>true</code> for the boolean attribute values
+   *         <code>yes</code>, <code>true</code> and <code>1</code> (surrounding
+   *         whitespace ignored).
+   */
   private static boolean _isYes (@NonNull final String sValue)
   {
     final String s = sValue.strip ();
@@ -196,6 +219,11 @@ public final class XSLT30CatalogReader
     return new XdmQName (sUri, sName.substring (nColon + 1), sPrefix);
   }
 
+  /**
+   * @return Every child element of every <code>&lt;dependencies&gt;</code>
+   *         child of the element, flattened in document order, as type (local
+   *         name), <code>value</code> and <code>satisfied</code>.
+   */
   @NonNull
   private static ICommonsList <XSLT30Dependency> _readDependencies (@NonNull final Element aParent)
   {
@@ -206,6 +234,12 @@ public final class XSLT30CatalogReader
     return ret;
   }
 
+  /**
+   * Read a <code>&lt;source&gt;</code> (of an environment or a collection).
+   * The text of a <code>&lt;content&gt;</code> child is the inline document;
+   * only <code>defines-stylesheet="true"</code> (exactly, after trimming) marks
+   * a source that embeds the stylesheet.
+   */
   private static XSLT30Environment.@NonNull Source _readSource (@NonNull final Element aSource)
   {
     final Element aContent = _firstChildElement (aSource, "content");
@@ -219,6 +253,11 @@ public final class XSLT30CatalogReader
                                          "true".equals (_attr (aSource, "defines-stylesheet").strip ()));
   }
 
+  /**
+   * Read a <code>&lt;stylesheet&gt;</code> or <code>&lt;package&gt;</code>:
+   * <code>file</code>, <code>role</code>, <code>uri</code> and
+   * <code>package-version</code>, each empty if absent.
+   */
   private static XSLT30Environment.@NonNull Module _readModule (@NonNull final Element aModule)
   {
     return new XSLT30Environment.Module (_attr (aModule, "file"),
@@ -227,6 +266,13 @@ public final class XSLT30CatalogReader
                                          _attr (aModule, "package-version"));
   }
 
+  /**
+   * Read a <code>&lt;param&gt;</code>. The name is resolved with the
+   * namespaces in scope on the element (<code>null</code> if its prefix is
+   * unbound; the case runner reports that as a harness error), the
+   * <code>as</code> type is trimmed, and <code>static</code> and
+   * <code>tunnel</code> are read with {@link #_isYes(String)}.
+   */
   @NonNull
   private static XSLT30Param _readParam (@NonNull final Element aParam)
   {
@@ -354,6 +400,16 @@ public final class XSLT30CatalogReader
                                 aChildren);
   }
 
+  /**
+   * Read an <code>&lt;initial-template&gt;</code>,
+   * <code>&lt;initial-mode&gt;</code> or <code>&lt;initial-function&gt;</code>
+   * with its <code>&lt;param&gt;</code> children. A blank <code>name</code>
+   * gives a <code>null</code> name and an empty lexical name (for an initial
+   * template: the default <code>xsl:initial-template</code>).
+   *
+   * @return The entry, or <code>null</code> if the element is
+   *         <code>null</code>.
+   */
   private static XSLT30Invocation.@Nullable Entry _readEntry (@Nullable final Element aEntry)
   {
     if (aEntry == null)
@@ -367,6 +423,14 @@ public final class XSLT30CatalogReader
                                  aNamespaces);
   }
 
+  /**
+   * Read the <code>&lt;test&gt;</code> element of a test case: its
+   * stylesheets, packages, initial template/mode/function (the first of each),
+   * stylesheet parameters, the <code>select</code> of the first
+   * <code>&lt;context-item&gt;</code> and the first <code>&lt;output&gt;</code>.
+   * Without a <code>&lt;test&gt;</code> element everything is empty and the
+   * namespaces are those of the test case.
+   */
   @NonNull
   private static XSLT30Invocation _readTest (@Nullable final Element aTest, @NonNull final Element aTestCase)
   {
@@ -402,6 +466,17 @@ public final class XSLT30CatalogReader
                                  getInScopeNamespaces (aTest));
   }
 
+  /**
+   * Read a <code>&lt;test-case&gt;</code>. Only the first
+   * <code>&lt;environment&gt;</code> and, of the <code>&lt;result&gt;</code>,
+   * only its first child element (the single top-level assertion) are read; a
+   * case without a result gets a <code>null</code> assertion and is skipped by
+   * the case runner.
+   *
+   * @param aDir
+   *        The directory of the test-set file, the base directory of an inline
+   *        environment.
+   */
   @NonNull
   private static XSLT30TestCase _readTestCase (@NonNull final Element aTC, @NonNull final Path aDir)
   {

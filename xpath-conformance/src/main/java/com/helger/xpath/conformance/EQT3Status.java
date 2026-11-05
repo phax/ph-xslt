@@ -23,7 +23,18 @@ package com.helger.xpath.conformance;
  */
 public enum EQT3Status
 {
+  /** The case ran and its assertion held; counted in the pass rate. */
   PASS,
+  /**
+   * The case ran and its assertion did not hold, or the run crashed; the
+   * case name goes to the fail list and must be named in the
+   * accepted-failures file.
+   */
   FAIL,
+  /**
+   * The case was not run (inapplicable dependency, missing environment or
+   * test file, no assertion, unknown assertion kind); not part of the pass
+   * rate.
+   */
   SKIP
 }

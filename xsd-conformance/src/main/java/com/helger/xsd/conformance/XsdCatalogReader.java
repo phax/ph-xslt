@@ -55,6 +55,18 @@ public final class XsdCatalogReader
   private XsdCatalogReader ()
   {}
 
+  /**
+   * Parse a catalogue file into a namespace-aware JDK DOM, non-validating, with
+   * secure processing on and without loading an external DTD, so the parse
+   * never leaves the local file system for a DTD.
+   *
+   * @param aSource
+   *        The XML to parse; its system ID is the base of relative references.
+   * @return The document. Never <code>null</code>.
+   * @throws IOException
+   *         if the source cannot be read, or wrapping the parser
+   *         configuration or SAX error
+   */
   @NonNull
   private static Document _parse (@NonNull final InputSource aSource) throws IOException
   {
@@ -80,6 +92,12 @@ public final class XsdCatalogReader
     return _parse (new InputSource (aFile.toUri ().toString ()));
   }
 
+  /**
+   * @param aNode
+   *        An element or attribute.
+   * @return Its local name, or its node name if the DOM has no local name for
+   *         it (a node not created namespace-aware).
+   */
   @NonNull
   private static String _localName (@NonNull final Node aNode)
   {
@@ -87,6 +105,16 @@ public final class XsdCatalogReader
     return ret != null ? ret : aNode.getNodeName ();
   }
 
+  /**
+   * The element children of an element with the given local name, in any
+   * namespace, in document order. Only direct children are looked at.
+   *
+   * @param aParent
+   *        The parent element.
+   * @param sLocalName
+   *        The local name to match.
+   * @return The matching children; empty if there is none.
+   */
   @NonNull
   private static ICommonsList <Element> _childElements (@NonNull final Element aParent, @NonNull final String sLocalName)
   {
@@ -118,6 +146,16 @@ public final class XsdCatalogReader
     return "";
   }
 
+  /**
+   * Read every <code>&lt;expected&gt;</code> child of a schema or instance
+   * test with its <code>validity</code> and <code>version</code> (each empty
+   * if absent), in document order.
+   *
+   * @param aTest
+   *        The <code>&lt;schemaTest&gt;</code> or
+   *        <code>&lt;instanceTest&gt;</code> element.
+   * @return The expected verdicts; empty if there is none.
+   */
   @NonNull
   private static ICommonsList <XsdExpected> _readExpected (@NonNull final Element aTest)
   {
@@ -127,6 +165,17 @@ public final class XsdCatalogReader
     return ret;
   }
 
+  /**
+   * Read the <code>status</code> of every <code>&lt;current&gt;</code> child of
+   * a test in document order (empty string for a missing attribute).
+   * {@link XsdSuiteRules#isQueried(java.util.List)} takes the last one as the
+   * current status.
+   *
+   * @param aTest
+   *        The <code>&lt;schemaTest&gt;</code> or
+   *        <code>&lt;instanceTest&gt;</code> element.
+   * @return The statuses; empty if there is no <code>&lt;current&gt;</code>.
+   */
   @NonNull
   private static ICommonsList <String> _readCurrentStatuses (@NonNull final Element aTest)
   {
@@ -136,6 +185,16 @@ public final class XsdCatalogReader
     return ret;
   }
 
+  /**
+   * Read a <code>&lt;schemaTest&gt;</code>: its <code>name</code> and
+   * <code>version</code>, the <code>xlink:href</code> of every
+   * <code>&lt;schemaDocument&gt;</code> child (empty for a missing href), the
+   * expected verdicts and the current statuses.
+   *
+   * @param aTest
+   *        The <code>&lt;schemaTest&gt;</code> element.
+   * @return The schema test. Never <code>null</code>.
+   */
   @NonNull
   private static XsdSchemaTest _readSchemaTest (@NonNull final Element aTest)
   {
@@ -149,6 +208,16 @@ public final class XsdCatalogReader
                               _readCurrentStatuses (aTest));
   }
 
+  /**
+   * Read an <code>&lt;instanceTest&gt;</code>: its <code>name</code> and
+   * <code>version</code>, the <code>xlink:href</code> of the first
+   * <code>&lt;instanceDocument&gt;</code> child (further ones are ignored;
+   * empty if there is none), the expected verdicts and the current statuses.
+   *
+   * @param aTest
+   *        The <code>&lt;instanceTest&gt;</code> element.
+   * @return The instance test. Never <code>null</code>.
+   */
   @NonNull
   private static XsdInstanceTest _readInstanceTest (@NonNull final Element aTest)
   {
@@ -160,6 +229,17 @@ public final class XsdCatalogReader
                                 _readCurrentStatuses (aTest));
   }
 
+  /**
+   * Read a <code>&lt;testGroup&gt;</code>: its <code>name</code> and
+   * <code>version</code>, its schema test (the last
+   * <code>&lt;schemaTest&gt;</code> child if there are several,
+   * <code>null</code> if there is none) and all
+   * <code>&lt;instanceTest&gt;</code> children in document order.
+   *
+   * @param aGroup
+   *        The <code>&lt;testGroup&gt;</code> element.
+   * @return The group. Never <code>null</code>.
+   */
   @NonNull
   private static XsdTestGroup _readGroup (@NonNull final Element aGroup)
   {

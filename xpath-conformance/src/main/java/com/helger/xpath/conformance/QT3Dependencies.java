@@ -27,12 +27,15 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 
 /**
  * Dependency filtering, a port of Go's <code>specApplies</code> and
- * <code>skipReason</code>. The engine is a real XPath 3.1 processor; the only
- * category-level exclusion is a <code>spec</code> dependency its identity does
- * not satisfy (XQuery only, or an exact older version whose behaviour 3.0/3.1
- * changed). Every other dependency (feature, xml-version, xsd-version,
+ * <code>skipReason</code>. The engine is a real XPath 3.1 processor; the
+ * category-level exclusions are a <code>spec</code> dependency its identity
+ * does not satisfy (XQuery only, or an exact older version whose behaviour
+ * 3.0/3.1 changed) and a <code>unicode-normalization-form</code> dependency
+ * on <code>FULLY-NORMALIZED</code> with <code>satisfied="false"</code>.
+ * Every other dependency (feature, xml-version, xsd-version,
  * default-language, limits, unicode-version, ...) is left to run, so a gap is
- * scored as a fail, not hidden behind a skip.
+ * scored as a fail, not hidden behind a skip. Some of them configure the run
+ * instead (see {@link QT3CaseRunner}).
  *
  * @author Philip Helger
  */
@@ -71,6 +74,11 @@ public final class QT3Dependencies
   {}
 
   /**
+   * Split a spec token into its family (everything before the first digit),
+   * its version (the digits after it) and the trailing "+". A token with a
+   * non-digit after the first digit, e.g. <code>XP3x</code>, gets version 0;
+   * a token without digits gets the whole text as family and version 0.
+   *
    * @param sToken
    *        A token like <code>XP31+</code>.
    * @return The parsed token.
@@ -96,6 +104,11 @@ public final class QT3Dependencies
   }
 
   /**
+   * Decide whether a <code>spec</code> dependency admits the engine:
+   * <code>XP31+</code> or <code>XT30+</code> admit it, <code>XP30</code>
+   * (exactly 3.0) or <code>XQ31+</code> do not. Tokens of a family not in
+   * {@link #ENGINE_SPEC_VERSIONS} are ignored; an empty value admits nothing.
+   *
    * @param sValue
    *        A spec dependency value, a whitespace separated OR of tokens (e.g.
    *        <code>XP31+ XQ31+</code>).
@@ -123,6 +136,16 @@ public final class QT3Dependencies
   }
 
   /**
+   * Find the first dependency that excludes the case: a satisfied
+   * <code>spec</code> dependency that does not admit the engine
+   * ({@link #SKIP_SPEC_INAPPLICABLE}), or
+   * <code>unicode-normalization-form FULLY-NORMALIZED</code> with
+   * <code>satisfied="false"</code>
+   * (<code>norm-form-not:FULLY-NORMALIZED</code>). A <code>spec</code>
+   * dependency with <code>satisfied="false"</code> never excludes. Each
+   * dependency of the list is checked on its own, so a case excluded by the
+   * test set's spec cannot be re-admitted by its own.
+   *
    * @param aDeps
    *        The union of test-set and test-case dependencies.
    * @return <code>null</code> if the case should run, else a short reason.
