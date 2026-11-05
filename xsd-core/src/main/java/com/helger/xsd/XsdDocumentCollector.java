@@ -396,8 +396,9 @@ final class XsdDocumentCollector
    * Then each directive child is handled in order:
    * <ul>
    * <li>xs:import: no <code>namespace</code> without a target namespace
-   * (src-import.1.2), an empty <code>namespace</code> and the document's own
-   * target namespace (src-import.1.1) are schema errors.</li>
+   * (src-import.1.2), an empty <code>namespace</code> (no clause of its own,
+   * reported without a code) and the document's own target namespace
+   * (src-import.1.1) are schema errors.</li>
    * <li>A missing <code>schemaLocation</code> is an error except for an
    * import; an import without location, any directive while the base
    * directory is unknown, and a location that is no local file are
@@ -496,9 +497,9 @@ final class XsdDocumentCollector
         // src-import: an import without namespace needs a target namespace
         final String sNs = XsdNodes.attr (aChild, "namespace");
         if (sNs == null && aSD.m_sTNS.isEmpty ())
-          throw XsdCompiler.invalid ("", "import without a namespace requires a targetNamespace");
+          throw XsdCompiler.invalid ("src-import.1.2", "import without a namespace requires a targetNamespace");
         if (sNs != null && sNs.isEmpty ())
-          throw XsdCompiler.invalid ("src-import.1.2", "xs:import namespace must not be the empty string");
+          throw XsdCompiler.invalid ("", "xs:import namespace must not be the empty string");
         if (sNs != null && sNs.equals (aSD.m_sTNS))
           throw XsdCompiler.invalid ("src-import.1.1",
                                      "a schema may not import its own target namespace " + XsdLexHelper.quote (sNs));

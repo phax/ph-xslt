@@ -795,9 +795,9 @@ final class XsdComponentParser
    * go-xslt <code>parseComplexContent</code>: fill a complex type with
    * complex content from its xs:complexContent child (XSD 1.1 Part 1,
    * 3.4.2.3). Under 1.1 a <code>mixed</code> on both xs:complexType and
-   * xs:complexContent must agree (raised as src-ct.1). The derivation is extension if
-   * an xs:extension child exists, else restriction; neither is a schema
-   * error. The base type, the particle (checked for consistent element
+   * xs:complexContent must agree (raised as src-ct.5). The derivation is
+   * extension if an xs:extension child exists, else restriction; neither is a
+   * schema error. The base type, the particle (checked for consistent element
    * declarations), the attribute uses, the attribute wildcard and the
    * assertions come from the extension or restriction. The kind is mixed if
    * either <code>mixed</code> says so, else element-only; an extension that
@@ -812,7 +812,7 @@ final class XsdComponentParser
                                      final boolean bMixedIn)
   {
     boolean bMixed = bMixedIn;
-    // src-ct.1 (1.1): @mixed on complexType and complexContent must agree
+    // src-ct.5 (1.1): @mixed on complexType and complexContent must agree
     if (m_aC.isXsd11 ())
     {
       final String sCCM = XsdNodes.attr (aCC, "mixed");
@@ -824,7 +824,7 @@ final class XsdComponentParser
         final boolean bA = "true".equals (sA) || "1".equals (sA);
         final boolean bB = "true".equals (sB) || "1".equals (sB);
         if (bA != bB)
-          throw XsdCompiler.invalid ("src-ct.1", "conflicting @mixed on complexType and complexContent");
+          throw XsdCompiler.invalid ("src-ct.5", "conflicting @mixed on complexType and complexContent");
       }
     }
     if (XsdNodes.boolAttrTrue (aCC, "mixed"))

@@ -17,6 +17,7 @@
 package com.helger.xsd;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -238,5 +239,21 @@ public final class XsdSpecClauseTest
                    "<xs:element name='e'><xs:simpleType><xs:restriction base='xs:string'>" +
                    "<xs:pattern value='a\\}{2}'/></xs:restriction></xs:simpleType></xs:element></xs:schema>",
                    EVerdict.VALID);
+  }
+
+  @Test
+  public void testErrorCodes ()
+  {
+    final Compiled aMixed = _compile (XS +
+                                      "<xs:complexType name='b'/><xs:complexType name='t' mixed='true'>" +
+                                      "<xs:complexContent mixed='false'><xs:extension base='b'/></xs:complexContent>" +
+                                      "</xs:complexType></xs:schema>",
+                                      null,
+                                      EXsdVersion.V11);
+    assertEquals (EVerdict.INVALID, aMixed.verdict ());
+    assertTrue (aMixed.message (), aMixed.message ().contains ("src-ct.5"));
+    final Compiled aImport = _compile (XS + "<xs:import/></xs:schema>", null, EXsdVersion.V11);
+    assertEquals (EVerdict.INVALID, aImport.verdict ());
+    assertTrue (aImport.message (), aImport.message ().contains ("src-import.1.2"));
   }
 }
