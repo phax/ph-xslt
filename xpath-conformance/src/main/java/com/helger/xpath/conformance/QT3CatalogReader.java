@@ -53,6 +53,13 @@ import com.helger.collection.commons.ICommonsOrderedMap;
 @Immutable
 public final class QT3CatalogReader
 {
+  /**
+   * The maximum nesting depth of assertions (<code>all-of</code>,
+   * <code>any-of</code>, <code>not</code>); the catalogue nests at most a
+   * few levels.
+   */
+  public static final int MAX_ASSERTION_DEPTH = 64;
+
   @PresentForCodeCoverage
   private static final QT3CatalogReader INSTANCE = new QT3CatalogReader ();
 
@@ -300,20 +307,43 @@ public final class QT3CatalogReader
   /**
    * Read an assertion with its nested assertions (for <code>all-of</code>,
    * <code>any-of</code>, <code>not</code>): every child element is read as an
-   * assertion, recursively; the depth is that of the catalogue file.
+   * assertion, recursively, down to {@link #MAX_ASSERTION_DEPTH} levels.
    *
    * @param aElement
    *        The assertion element.
+   * @param nDepth
+   *        The nesting depth of the element, 1 for the top-level assertion.
    * @return The assertion with its local name, attributes by local name and
    *         direct text (untrimmed).
+   * @throws IOException
+   *         if the assertions nest deeper than {@link #MAX_ASSERTION_DEPTH}
    */
   @NonNull
-  static QT3Assertion readAssertion (@NonNull final Element aElement)
+  private static QT3Assertion _readAssertionRecursive (@NonNull final Element aElement, final int nDepth)
+                                                                                                      throws IOException
   {
+    if (nDepth > MAX_ASSERTION_DEPTH)
+      throw new IOException ("Assertions nested deeper than " + MAX_ASSERTION_DEPTH + " levels");
     final ICommonsList <QT3Assertion> aChildren = new CommonsArrayList <> ();
     for (final Element aChild : _childElements (aElement, null))
-      aChildren.add (readAssertion (aChild));
+      aChildren.add (_readAssertionRecursive (aChild, nDepth + 1));
     return new QT3Assertion (_localName (aElement), _allAttributes (aElement, true), _directText (aElement), aChildren);
+  }
+
+  /**
+   * Read an assertion with its nested assertions, see
+   * {@link #_readAssertionRecursive(Element, int)}.
+   *
+   * @param aElement
+   *        The top-level assertion element.
+   * @return The assertion.
+   * @throws IOException
+   *         if the assertions nest deeper than {@link #MAX_ASSERTION_DEPTH}
+   */
+  @NonNull
+  static QT3Assertion readAssertion (@NonNull final Element aElement) throws IOException
+  {
+    return _readAssertionRecursive (aElement, 1);
   }
 
   /**
@@ -328,9 +358,11 @@ public final class QT3CatalogReader
    *        The directory of the test-set file, the base directory of an
    *        inline environment.
    * @return The test case.
+   * @throws IOException
+   *         if its assertions nest too deeply
    */
   @NonNull
-  private static QT3TestCase _readTestCase (@NonNull final Element aTC, @NonNull final Path aDir)
+  private static QT3TestCase _readTestCase (@NonNull final Element aTC, @NonNull final Path aDir) throws IOException
   {
     final Element aEnv = _firstChildElement (aTC, "environment");
     final Element aTest = _firstChildElement (aTC, "test");

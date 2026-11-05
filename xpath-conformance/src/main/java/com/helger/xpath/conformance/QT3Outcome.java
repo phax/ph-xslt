@@ -19,18 +19,34 @@ package com.helger.xpath.conformance;
 import org.jspecify.annotations.NonNull;
 
 /**
- * Status plus a short reason (empty for a pass) of one test case or assertion.
+ * Status plus a short reason of one test case or assertion. A fail is either
+ * conclusive (the assertion was evaluated and does not hold) or inconclusive
+ * (it could not be evaluated: the test raised an error, the expected value
+ * did not evaluate, the harness could not set the case up). Only a conclusive
+ * fail makes a <code>not</code> assertion pass.
  *
  * @param status
  *        The status.
  * @param reason
  *        A short reason, e.g. the assertion kind that failed or the skip
- *        category. Empty for a pass.
+ *        category. Empty for a plain pass; a pass may carry a note (e.g.
+ *        {@link #NOTE_ERROR_CODE} for an expected error raised with another
+ *        code).
+ * @param conclusive
+ *        For a fail: <code>true</code> if the assertion was evaluated and is
+ *        false, <code>false</code> if it could not be evaluated. Always
+ *        <code>true</code> for a pass or skip.
  * @author Philip Helger
  */
-public record QT3Outcome (@NonNull EQT3Status status, @NonNull String reason)
+public record QT3Outcome (@NonNull EQT3Status status, @NonNull String reason, boolean conclusive)
 {
-  private static final QT3Outcome PASS = new QT3Outcome (EQT3Status.PASS, "");
+  /**
+   * The reason of an expected error raised with another error code: a fail
+   * with strict error codes, otherwise a note on a pass.
+   */
+  public static final String NOTE_ERROR_CODE = "error-code";
+
+  private static final QT3Outcome PASS = new QT3Outcome (EQT3Status.PASS, "", true);
 
   @NonNull
   public static QT3Outcome pass ()
@@ -38,16 +54,43 @@ public record QT3Outcome (@NonNull EQT3Status status, @NonNull String reason)
     return PASS;
   }
 
+  /**
+   * @param sNote
+   *        The note, e.g. {@link #NOTE_ERROR_CODE}.
+   * @return A pass that carries a note in its reason.
+   */
+  @NonNull
+  public static QT3Outcome passWithNote (@NonNull final String sNote)
+  {
+    return new QT3Outcome (EQT3Status.PASS, sNote, true);
+  }
+
+  /**
+   * @param sReason
+   *        The fail reason.
+   * @return A conclusive fail: the assertion was evaluated and is false.
+   */
   @NonNull
   public static QT3Outcome fail (@NonNull final String sReason)
   {
-    return new QT3Outcome (EQT3Status.FAIL, sReason);
+    return new QT3Outcome (EQT3Status.FAIL, sReason, true);
+  }
+
+  /**
+   * @param sReason
+   *        The fail reason.
+   * @return An inconclusive fail: the assertion could not be evaluated.
+   */
+  @NonNull
+  public static QT3Outcome failInconclusive (@NonNull final String sReason)
+  {
+    return new QT3Outcome (EQT3Status.FAIL, sReason, false);
   }
 
   @NonNull
   public static QT3Outcome skip (@NonNull final String sReason)
   {
-    return new QT3Outcome (EQT3Status.SKIP, sReason);
+    return new QT3Outcome (EQT3Status.SKIP, sReason, true);
   }
 
   /**
@@ -55,7 +98,7 @@ public record QT3Outcome (@NonNull EQT3Status status, @NonNull String reason)
    *        Whether the check passed.
    * @param sReason
    *        The fail reason.
-   * @return pass or fail
+   * @return pass or conclusive fail
    */
   @NonNull
   public static QT3Outcome of (final boolean bPass, @NonNull final String sReason)
@@ -71,6 +114,15 @@ public record QT3Outcome (@NonNull EQT3Status status, @NonNull String reason)
   public boolean isFail ()
   {
     return status == EQT3Status.FAIL;
+  }
+
+  /**
+   * @return <code>true</code> for a fail of an assertion that was evaluated
+   *         and is false.
+   */
+  public boolean isConclusiveFail ()
+  {
+    return status == EQT3Status.FAIL && conclusive;
   }
 
   public boolean isSkip ()

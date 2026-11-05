@@ -27,7 +27,10 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.wrapper.Wrapper;
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.value.EAtomicType;
@@ -42,12 +45,16 @@ import com.helger.xpath.xdm.XdmQName;
  * <code>checkAssert</code>. Expressions in assertions are evaluated by the
  * engine under test (through {@link IQT3Evaluator}), so an assertion the
  * engine cannot evaluate is a failure, not a skip. An {@link XPathException}
- * while evaluating an assertion fails that assertion; any other
- * {@link Throwable} propagates, and the case runner reports it as a crash.
+ * while evaluating an assertion fails that assertion inconclusively; any
+ * other {@link Throwable} propagates, and the case runner reports it as a
+ * crash.
  * <p>
- * Rules taken over from Go: <code>error</code> passes for any error,
- * whatever its code; every other assertion fails when the test raised an
- * error (except <code>not</code>, which inverts its child).
+ * <code>error</code> passes for any error (FOTS: "an implementation is
+ * considered to pass a test if the test expects an error and the
+ * implementation raises an error, regardless whether the error codes match");
+ * with strict error codes the code must match. A code mismatch is reported
+ * as {@link QT3Outcome#NOTE_ERROR_CODE} either way. Every other assertion
+ * fails inconclusively when the test raised an error.
  *
  * @author Philip Helger
  */
@@ -61,8 +68,11 @@ public final class QT3AssertionChecker
 
   private final IQT3Evaluator m_aEvaluator;
   private final Path m_aDir;
+  private final boolean m_bStrictErrorCodes;
 
   /**
+   * Constructor without strict error codes.
+   *
    * @param aEvaluator
    *        Evaluates assertion expressions.
    * @param aDir
@@ -71,10 +81,152 @@ public final class QT3AssertionChecker
    */
   public QT3AssertionChecker (@NonNull final IQT3Evaluator aEvaluator, @NonNull final Path aDir)
   {
+    this (aEvaluator, aDir, false);
+  }
+
+  /**
+   * @param aEvaluator
+   *        Evaluates assertion expressions.
+   * @param aDir
+   *        Directory of the test set (an assertion's <code>file</code> is
+   *        relative to it).
+   * @param bStrictErrorCodes
+   *        <code>true</code> to fail <code>error</code> and
+   *        <code>assert-serialization-error</code> when the error code differs
+   *        (<code>qt3.strictCode</code>).
+   */
+  public QT3AssertionChecker (@NonNull final IQT3Evaluator aEvaluator,
+                              @NonNull final Path aDir,
+                              final boolean bStrictErrorCodes)
+  {
     ValueEnforcer.notNull (aEvaluator, "Evaluator");
     ValueEnforcer.notNull (aDir, "Dir");
     m_aEvaluator = aEvaluator;
     m_aDir = aDir;
+    m_bStrictErrorCodes = bStrictErrorCodes;
+  }
+
+  /**
+   * Compare an expected error code of the catalogue with a raised error.
+   *
+   * @param sExpected
+   *        The <code>code</code> attribute: empty or <code>*</code> for any
+   *        code, <code>Q{uri}local</code> for a code in any namespace, else
+   *        the local name of a code in the standard error namespace
+   *        {@link XPathException#ERR_NAMESPACE}.
+   * @param aError
+   *        The raised error.
+   * @return <code>true</code> if the error has the expected code.
+   */
+  public static boolean isErrorCodeMatching (@NonNull final String sExpected, @NonNull final XPathException aError)
+  {
+    final String sWant = sExpected.strip ();
+    if (sWant.isEmpty () || "*".equals (sWant))
+      return true;
+    final XdmQName aGot = aError.getCodeName ();
+    if (sWant.startsWith ("Q{"))
+    {
+      final int nEnd = sWant.indexOf ('}');
+      return nEnd > 0 &&
+             sWant.substring (2, nEnd).equals (aGot.namespaceUri ()) &&
+             sWant.substring (nEnd + 1).equals (aGot.localName ());
+    }
+    return XPathException.ERR_NAMESPACE.equals (aGot.namespaceUri ()) && sWant.equals (aGot.localName ());
+  }
+
+  /**
+   * @param aError
+   *        A raised error.
+   * @return <code>true</code> if it is a serialization error: a code in the
+   *         standard error namespace starting with <code>SE</code>.
+   */
+  public static boolean isSerializationError (@NonNull final XPathException aError)
+  {
+    final XdmQName aCode = aError.getCodeName ();
+    return XPathException.ERR_NAMESPACE.equals (aCode.namespaceUri ()) && aCode.localName ().startsWith ("SE");
+  }
+
+  /**
+   * Judge an error raised where an error was expected.
+   *
+   * @param sExpectedCode
+   *        The <code>code</code> attribute of the assertion.
+   * @param aError
+   *        The raised error.
+   * @param bStrictErrorCodes
+   *        <code>true</code> to fail on another code.
+   * @return Pass if the code matches; otherwise a fail
+   *         {@link QT3Outcome#NOTE_ERROR_CODE} with strict codes, else a pass
+   *         with that note.
+   */
+  @NonNull
+  public static QT3Outcome checkErrorCode (@NonNull final String sExpectedCode,
+                                          @NonNull final XPathException aError,
+                                          final boolean bStrictErrorCodes)
+  {
+    if (isErrorCodeMatching (sExpectedCode, aError))
+      return QT3Outcome.pass ();
+    return bStrictErrorCodes ? QT3Outcome.fail (QT3Outcome.NOTE_ERROR_CODE)
+                             : QT3Outcome.passWithNote (QT3Outcome.NOTE_ERROR_CODE);
+  }
+
+  /**
+   * Combine the outcomes of the children of <code>any-of</code>: the first
+   * pass wins; else a skip if every child was skipped; else a fail that is
+   * conclusive only if every child failed conclusively (a skipped child among
+   * failing ones never turns the result into a skip).
+   *
+   * @param aOutcomes
+   *        The outcomes of the children, in order.
+   * @return The outcome of <code>any-of</code>.
+   */
+  @NonNull
+  public static QT3Outcome combineAnyOf (@NonNull final Iterable <QT3Outcome> aOutcomes)
+  {
+    boolean bAllSkipped = true;
+    boolean bAllConclusive = true;
+    String sSkip = null;
+    for (final QT3Outcome aOutcome : aOutcomes)
+    {
+      if (aOutcome.isPass ())
+        return aOutcome;
+      if (aOutcome.isSkip ())
+      {
+        if (sSkip == null)
+          sSkip = aOutcome.reason ();
+        bAllConclusive = false;
+      }
+      else
+      {
+        bAllSkipped = false;
+        if (!aOutcome.isConclusiveFail ())
+          bAllConclusive = false;
+      }
+    }
+    if (bAllSkipped && sSkip != null)
+      return QT3Outcome.skip (sSkip);
+    return bAllConclusive ? QT3Outcome.fail ("any-of") : QT3Outcome.failInconclusive ("any-of");
+  }
+
+  /**
+   * Judge <code>not</code> from the outcome of its child: it passes only if
+   * the child was evaluated and is false (a conclusive fail). A passing
+   * child fails it conclusively; a skipped child or one that could not be
+   * evaluated (the test raised an error, an expression did not evaluate, a
+   * harness problem) fails it inconclusively.
+   *
+   * @param aChild
+   *        The outcome of the single child.
+   * @return The outcome of <code>not</code>.
+   */
+  @NonNull
+  public static QT3Outcome negate (@NonNull final QT3Outcome aChild)
+  {
+    if (aChild.isConclusiveFail ())
+      return QT3Outcome.pass ();
+    if (aChild.isPass ())
+      return QT3Outcome.fail ("not");
+    return QT3Outcome.failInconclusive ("not:" + aChild.reason ());
   }
 
   /**
@@ -171,11 +323,16 @@ public final class QT3AssertionChecker
   }
 
   /**
+   * @param aResult
+   *        The test result.
+   * @param aErrorOut
+   *        Receives the error if serialising raised one; may be
+   *        <code>null</code>.
    * @return The result of <code>serialize($result)</code> or <code>null</code>
    *         if serialising raised an error.
    */
   @Nullable
-  private String _serialize (@NonNull final XdmSequence aResult)
+  private String _serialize (@NonNull final XdmSequence aResult, @Nullable final Wrapper <XPathException> aErrorOut)
   {
     try
     {
@@ -183,6 +340,8 @@ public final class QT3AssertionChecker
     }
     catch (final XPathException ex)
     {
+      if (aErrorOut != null)
+        aErrorOut.set (ex);
       return null;
     }
   }
@@ -200,7 +359,8 @@ public final class QT3AssertionChecker
    * @param sEvalFailReason
    *        Fail reason if the evaluation raised an error or the EBV is
    *        undefined.
-   * @return The outcome.
+   * @return The outcome; an inconclusive fail if the expression did not
+   *         evaluate.
    */
   @NonNull
   private QT3Outcome _checkBool (@NonNull final String sExpr,
@@ -210,7 +370,7 @@ public final class QT3AssertionChecker
   {
     final Boolean aValue = _evalBool (sExpr, aResult);
     if (aValue == null)
-      return QT3Outcome.fail (sEvalFailReason);
+      return QT3Outcome.failInconclusive (sEvalFailReason);
     return QT3Outcome.of (aValue.booleanValue (), sKind);
   }
 
@@ -236,11 +396,11 @@ public final class QT3AssertionChecker
   /**
    * Check one assertion (FOTS catalogue schema). <code>all-of</code> passes
    * if every child passes and otherwise returns the first non-pass;
-   * <code>any-of</code> passes on the first passing child, else is a skip
-   * if a child was skipped, else fails; <code>not</code> inverts its single
-   * child (a skip stays a skip; another number of children is a skip);
-   * <code>error</code> passes for any error. With an error, every other known
-   * assertion fails with <code>errored:CODE</code>. Otherwise:
+   * <code>any-of</code> see {@link #combineAnyOf}; <code>not</code> see
+   * {@link #negate} (another number of children than one is a harness
+   * fail); <code>error</code> passes for any error, see
+   * {@link #checkErrorCode}. With an error, every other known assertion fails
+   * inconclusively with <code>errored:CODE</code>. Otherwise:
    * <ul>
    * <li><code>assert-true</code>/<code>assert-false</code>: exactly one
    * boolean with that value.</li>
@@ -262,11 +422,13 @@ public final class QT3AssertionChecker
    * <li><code>serialization-matches</code>: <code>fn:matches</code> of the
    * serialisation with the pattern and <code>flags</code> (unanchored).</li>
    * <li><code>assert-serialization-error</code>: serialising the result
-   * raises an error (the code is not compared).</li>
+   * raises a serialization error (a code <code>SE*</code>); its code is
+   * judged like that of <code>error</code>.</li>
    * </ul>
    * The serialisation always uses the default parameters of
-   * <code>fn:serialize</code>. An unknown assertion kind is a skip
-   * <code>unknown:kind</code>.
+   * <code>fn:serialize</code>. An expression that does not evaluate fails
+   * inconclusively. An unknown assertion kind is an inconclusive fail
+   * <code>harness:unknown:kind</code>.
    *
    * @param aAssertion
    *        The assertion.
@@ -294,29 +456,24 @@ public final class QT3AssertionChecker
         return QT3Outcome.pass ();
       case "any-of":
       {
-        String sAnySkip = null;
+        final ICommonsList <QT3Outcome> aOutcomes = new CommonsArrayList <> ();
         for (final QT3Assertion aChild : aAssertion.children ())
         {
           final QT3Outcome aOutcome = check (aChild, aResult, aError);
+          aOutcomes.add (aOutcome);
           if (aOutcome.isPass ())
-            return aOutcome;
-          if (aOutcome.isSkip ())
-            sAnySkip = aOutcome.reason ();
+            break;
         }
-        return sAnySkip != null ? QT3Outcome.skip (sAnySkip) : QT3Outcome.fail ("any-of");
+        return combineAnyOf (aOutcomes);
       }
       case "not":
         if (aAssertion.children ().size () == 1)
-        {
-          final QT3Outcome aOutcome = check (aAssertion.children ().getFirstOrNull (), aResult, aError);
-          if (aOutcome.isSkip ())
-            return aOutcome;
-          return QT3Outcome.of (!aOutcome.isPass (), sKind);
-        }
-        return QT3Outcome.skip ("not");
+          return negate (check (aAssertion.children ().getFirstOrNull (), aResult, aError));
+        return QT3Outcome.failInconclusive ("harness:not-children");
       case "error":
-        // Like Go: any error passes, the code is not compared
-        return QT3Outcome.of (aError != null, sKind);
+        if (aError == null)
+          return QT3Outcome.fail (sKind);
+        return checkErrorCode (aAssertion.getAttribute ("code"), aError, m_bStrictErrorCodes);
       default:
         break;
     }
@@ -340,9 +497,9 @@ public final class QT3AssertionChecker
         case "serialization-matches":
         case "assert-serialization-error":
         case "assert-permutation":
-          return QT3Outcome.fail (aError != null ? ERRORED + ":" + aError.getCode () : ERRORED);
+          return QT3Outcome.failInconclusive (aError != null ? ERRORED + ":" + aError.getCode () : ERRORED);
         default:
-          return QT3Outcome.skip ("unknown:" + sKind);
+          return QT3Outcome.failInconclusive ("harness:unknown:" + sKind);
       }
     }
 
@@ -363,7 +520,7 @@ public final class QT3AssertionChecker
         }
         catch (final NumberFormatException ex)
         {
-          return QT3Outcome.fail ("count-eval");
+          return QT3Outcome.failInconclusive ("count-eval");
         }
         return QT3Outcome.of (aResult.size () == nExpected, sKind);
       }
@@ -398,7 +555,7 @@ public final class QT3AssertionChecker
           sGot = null;
         }
         if (sGot == null)
-          return QT3Outcome.fail ("strval");
+          return QT3Outcome.failInconclusive ("strval");
         String sWant = aAssertion.value ();
         if ("true".equals (aAssertion.getAttribute ("normalize-space")))
         {
@@ -421,12 +578,12 @@ public final class QT3AssertionChecker
           }
           catch (final IOException ex)
           {
-            return QT3Outcome.fail ("xml-file");
+            return QT3Outcome.failInconclusive ("xml-file");
           }
         }
-        final String sGot = _serialize (aResult);
+        final String sGot = _serialize (aResult, null);
         if (sGot == null)
-          return QT3Outcome.fail ("serialize");
+          return QT3Outcome.failInconclusive ("serialize");
         return QT3Outcome.of (QT3XmlCompare.isXmlEqual (sWant,
                                                         sGot,
                                                         "true".equals (aAssertion.getAttribute ("ignore-prefixes"))),
@@ -434,9 +591,9 @@ public final class QT3AssertionChecker
       }
       case "serialization-matches":
       {
-        final String sGot = _serialize (aResult);
+        final String sGot = _serialize (aResult, null);
         if (sGot == null)
-          return QT3Outcome.fail ("serialize");
+          return QT3Outcome.failInconclusive ("serialize");
         // The regex is the engine's (XSD/XPath flavour), via fn:matches
         final ICommonsMap <XdmQName, XdmSequence> aMore = new CommonsHashMap <> ();
         aMore.put (new XdmQName ("qt3-s"), XdmSequence.of (XdmAtomic.string (sGot)));
@@ -450,17 +607,24 @@ public final class QT3AssertionChecker
         }
         catch (final XPathException ex)
         {
-          return QT3Outcome.fail ("regex");
+          return QT3Outcome.failInconclusive ("regex");
         }
         if (aMatch == null)
-          return QT3Outcome.fail ("regex");
+          return QT3Outcome.failInconclusive ("regex");
         return QT3Outcome.of (aMatch.booleanValue (), sKind);
       }
       case "assert-serialization-error":
+      {
         // The test must run without error; only serialising its result fails
-        return QT3Outcome.of (_serialize (aResult) == null, sKind);
+        final Wrapper <XPathException> aSerError = new Wrapper <> ();
+        if (_serialize (aResult, aSerError) != null || aSerError.isNotSet ())
+          return QT3Outcome.fail (sKind);
+        if (!isSerializationError (aSerError.get ()))
+          return QT3Outcome.fail ("serialization-error-code");
+        return checkErrorCode (aAssertion.getAttribute ("code"), aSerError.get (), m_bStrictErrorCodes);
+      }
       default:
-        return QT3Outcome.skip ("unknown:" + sKind);
+        return QT3Outcome.failInconclusive ("harness:unknown:" + sKind);
     }
   }
 }

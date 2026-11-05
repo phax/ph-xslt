@@ -41,6 +41,7 @@ public final class QT3SetResult
   private final ICommonsSortedMap <String, Integer> m_aFailReasons = new CommonsTreeMap <> ();
   private final ICommonsList <String> m_aFailNames = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aFailLines = new CommonsArrayList <> ();
+  private final ICommonsList <String> m_aCodeMismatches = new CommonsArrayList <> ();
   private String m_sLoadError;
 
   public QT3SetResult (@NonNull final String sName)
@@ -75,7 +76,7 @@ public final class QT3SetResult
 
   /**
    * Count one skipped case and its reason (e.g.
-   * <code>spec-inapplicable</code>, <code>env-missing</code>).
+   * <code>spec-inapplicable</code>).
    *
    * @param sReason
    *        Short skip reason.
@@ -101,6 +102,18 @@ public final class QT3SetResult
     m_aFailNames.add (sCaseName);
     if (sLine != null)
       m_aFailLines.add (sLine);
+  }
+
+  /**
+   * Remember a case whose expected error was raised with another error code
+   * (whether that passed or, with strict error codes, failed).
+   *
+   * @param sLine
+   *        The case name with what was expected and got.
+   */
+  public void addCodeMismatch (@NonNull final String sLine)
+  {
+    m_aCodeMismatches.add (sLine);
   }
 
   /**
@@ -156,6 +169,13 @@ public final class QT3SetResult
   public ICommonsList <String> getFailNames ()
   {
     return m_aFailNames.getClone ();
+  }
+
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <String> getCodeMismatches ()
+  {
+    return m_aCodeMismatches.getClone ();
   }
 
   @NonNull

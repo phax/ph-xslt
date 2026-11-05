@@ -30,6 +30,10 @@ import org.jspecify.annotations.NonNull;
  * <li><code>qt3.faildump=true</code> - print a line per failing case (implied
  * by <code>qt3.only</code>)</li>
  * <li><code>qt3.seq=true</code> - run the test sets sequentially</li>
+ * <li><code>qt3.strictCode=true</code> - an expected error raised with
+ * another error code fails (by default it passes, as FOTS specifies; the
+ * mismatches are listed in <code>qt3-code-mismatches.txt</code> either
+ * way)</li>
  * <li><code>qt3.checkAccepted=false</code> - do not fail on failing cases not
  * named in the accepted-failures file (the check is on by default)</li>
  * <li><code>qt3.out</code> - output directory (default <code>target</code>)</li>
@@ -47,6 +51,8 @@ import org.jspecify.annotations.NonNull;
  *        Collect and print fail lines.
  * @param sequential
  *        Run test sets one after the other.
+ * @param strictCode
+ *        Fail an expected error raised with another error code.
  * @param checkAccepted
  *        Check fails against the accepted-failures file.
  * @param outDir
@@ -60,6 +66,7 @@ public record QT3Settings (@NonNull Path suiteDir,
                            boolean progress,
                            boolean failDump,
                            boolean sequential,
+                           boolean strictCode,
                            boolean checkAccepted,
                            @NonNull Path outDir,
                            @NonNull Path acceptedFile)
@@ -89,6 +96,7 @@ public record QT3Settings (@NonNull Path suiteDir,
                             Boolean.getBoolean ("qt3.progress"),
                             Boolean.getBoolean ("qt3.faildump"),
                             Boolean.getBoolean ("qt3.seq"),
+                            Boolean.getBoolean ("qt3.strictCode"),
                             !"false".equals (System.getProperty ("qt3.checkAccepted")),
                             Path.of (System.getProperty ("qt3.out", "target")),
                             Path.of (System.getProperty ("qt3.accepted", DEFAULT_ACCEPTED_FILE)));

@@ -28,7 +28,14 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   Iterate with `entries ()`/`members ()` (views); `getAllEntries ()`/`getAllMembers ()` copy.
 - QT3: `mvn verify -Pconformance -pl xpath-conformance -am` (`-Dqt3.only=<set>` for one test set). Every failing
   case must be named in `xpath-conformance/docs/accepted-failures/qt3.md` with a reason, or `QT3IT` fails. Compare
-  fail lists (`xpath-conformance/target/qt3-fails.txt`) by name, never by count.
+  fail lists (`xpath-conformance/target/qt3-fails.txt`) by name, never by count. Only dependency skips (spec, normalisation
+  form) are skips; a case the harness cannot set up (missing environment, unreadable test file, no assertion, unknown
+  assertion kind, a `param` that does not evaluate or match its `as`) fails as `harness:<reason>`. `error` passes on
+  any error as FOTS says; `-Dqt3.strictCode=true` makes a wrong code fail, and the mismatches are listed in
+  `target/qt3-code-mismatches.txt` either way.
+- All harnesses: `not` passes only if its child was evaluated and is false (an error result, an expression that does
+  not evaluate or a skipped child fail it); an accepted-failures file accepts only backticked names in a heading line or
+  on a line that is nothing but a list of backticked names, never a name in prose.
 - Keep `README.md` in sync like a wiki page: status figures, the module table and the setup sections are updated in the
   same change that makes them wrong.
 - XSD: the native validator (`xsd-core`) does XSD 1.0 and 1.1; `XsdSchemaProvider` (schema-aware XPath/XSLT) compiles as
