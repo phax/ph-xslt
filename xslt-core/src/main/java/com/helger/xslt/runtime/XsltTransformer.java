@@ -147,9 +147,10 @@ public final class XsltTransformer
   /**
    * The output method when no xsl:output states one, decided from the result
    * tree: the first element child of the document node decides if no text
-   * node with non-whitespace content comes before it. A local name equal to
-   * "html" in any case gives the html method in no namespace and the xhtml
-   * method in the XHTML namespace; everything else (another element, a
+   * node with non-whitespace content comes before it (XSLT 3.0 section 26.1).
+   * The local name "html" in any case gives the html method in no namespace,
+   * the lower-case "html" in the XHTML namespace gives the xhtml method;
+   * everything else (another element, a
    * non-whitespace text before it, no element at all, no tree) gives xml.
    *
    * @param aTree
@@ -167,13 +168,10 @@ public final class XsltTransformer
         if (aChild.isElement ())
         {
           final XdmQName aName = aChild.getName ();
-          if ("html".equals (aName.localName ().toLowerCase (Locale.ROOT)))
-          {
-            if (!aName.hasNamespace ())
-              return SerializationParams.METHOD_HTML;
-            if (NS_XHTML.equals (aName.namespaceUri ()))
-              return SerializationParams.METHOD_XHTML;
-          }
+          if (!aName.hasNamespace () && "html".equals (aName.localName ().toLowerCase (Locale.ROOT)))
+            return SerializationParams.METHOD_HTML;
+          if (NS_XHTML.equals (aName.namespaceUri ()) && "html".equals (aName.localName ()))
+            return SerializationParams.METHOD_XHTML;
           return SerializationParams.METHOD_XML;
         }
         if (aChild.isText () && !XsltNames.isWhitespaceOnly (aChild.getValue ()))
