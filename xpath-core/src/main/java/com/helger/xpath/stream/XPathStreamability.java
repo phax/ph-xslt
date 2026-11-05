@@ -28,6 +28,7 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.base.numeric.mutable.MutableBoolean;
+import com.helger.base.numeric.mutable.MutableInt;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
@@ -90,11 +91,11 @@ import com.helger.xpath.xdm.XdmQName;
  * ({@link IStreamFunctionResolver}) and the "definite verdict" flag.
  * <p>
  * <b>Recursion</b>: the walk recurses over the expression tree like the
- * evaluator does. Its depth is bounded by the nesting limit of the parser
- * (5,000 levels, XPDY0130); should that still overflow the stack of the calling
- * thread, the public entry points catch the {@link StackOverflowError} and
- * fail closed (roaming and free-ranging, never a definite verdict). The
- * searches over the tree are iterative.
+ * evaluator does, at most {@link #MAX_DEPTH} expressions deep per thread; a
+ * deeper expression makes the public entry points fail closed (roaming and
+ * free-ranging, never a definite verdict). As a last resort they do the same
+ * if the walk still overflows the stack of the calling thread. The searches
+ * over the tree are iterative.
  *
  * @author Philip Helger
  */
@@ -103,6 +104,25 @@ public final class XPathStreamability
 {
   private static final PostureSweep GM = PostureSweep.GROUNDED_MOTIONLESS;
   private static final PostureSweep RF = PostureSweep.ROAMING_FREE_RANGING;
+
+  /**
+   * The maximum nesting of expressions the walk descends into, as the
+   * stylesheet walk of the XSLT layer does. A deeper expression is roaming
+   * and free-ranging.
+   */
+  public static final int MAX_DEPTH = 1000;
+
+  /** The current nesting of the walk on this thread. */
+  private static final ThreadLocal <MutableInt> DEPTH = ThreadLocal.withInitial ( () -> new MutableInt (0));
+
+  /** Thrown when the walk would go deeper than {@link #MAX_DEPTH}. */
+  private static final class DepthExceededException extends RuntimeException
+  {
+    DepthExceededException ()
+    {
+      super ("Expression nested more than " + MAX_DEPTH + " levels deep", null, false, false);
+    }
+  }
 
   private static final EStreamUsage A = EStreamUsage.ABSORPTION;
   private static final EStreamUsage I = EStreamUsage.INSPECTION;
@@ -2033,13 +2053,13 @@ public final class XPathStreamability
   }
 
   /**
-   * The expression walk. Recursive; the depth is bounded by the nesting limit
-   * of the parser, see the class Javadoc.
+   * The expression walk for one expression, called through
+   * {@link #_expr(IExpr, EPosture, StreamContext)}, which bounds the depth.
    */
   @NonNull
-  private static PostureSweep _expr (@NonNull final IExpr aExpr,
-                                     @NonNull final EPosture eCP,
-                                     @NonNull final StreamContext aEnv)
+  private static PostureSweep _exprUnbounded (@NonNull final IExpr aExpr,
+                                              @NonNull final EPosture eCP,
+                                              @NonNull final StreamContext aEnv)
   {
     // The switch over the sealed interface is exhaustive, so no expression kind
     // can slip through without a rule
@@ -2278,6 +2298,33 @@ public final class XPathStreamability
   }
 
   /**
+   * The expression walk. Recursive, at most {@link #MAX_DEPTH} levels deep on
+   * this thread.
+   *
+   * @throws DepthExceededException
+   *         if the walk would go deeper; the public entry points turn it into
+   *         roaming and free-ranging.
+   */
+  @NonNull
+  private static PostureSweep _expr (@NonNull final IExpr aExpr,
+                                     @NonNull final EPosture eCP,
+                                     @NonNull final StreamContext aEnv)
+  {
+    final MutableInt aDepth = DEPTH.get ();
+    if (aDepth.intValue () >= MAX_DEPTH)
+      throw new DepthExceededException ();
+    aDepth.inc ();
+    try
+    {
+      return _exprUnbounded (aExpr, eCP, aEnv);
+    }
+    finally
+    {
+      aDepth.dec ();
+    }
+  }
+
+  /**
    * Check the top-level predicates of a pattern step: non-positional and
    * motionless.
    */
@@ -2413,10 +2460,10 @@ public final class XPathStreamability
   }
 
   /**
-   * Run a recursive walk of the analysis and fail closed if it overflows the
-   * stack: the result is then roaming and free-ranging, and the "definite"
-   * flag is reset to its value before the walk, because the verdict is not
-   * one of the Recommendation.
+   * Run a recursive walk of the analysis and fail closed if it nests deeper
+   * than {@link #MAX_DEPTH} or still overflows the stack: the result is then
+   * roaming and free-ranging, and the "definite" flag is reset to its value
+   * before the walk, because the verdict is not one of the Recommendation.
    *
    * @param aWalk
    *        The walk to run.
@@ -2434,10 +2481,10 @@ public final class XPathStreamability
     {
       return aWalk.get ();
     }
-    catch (final StackOverflowError ex)
+    catch (final DepthExceededException | StackOverflowError ex)
     {
-      // Nested deeper than the stack of this thread allows: fail closed, and
-      // not as a verdict of the Recommendation
+      // Nested deeper than the limit or the stack of this thread allows: fail
+      // closed, and not as a verdict of the Recommendation
       if (aDefinite != null)
         aDefinite.set (bDefiniteBefore);
       return RF;

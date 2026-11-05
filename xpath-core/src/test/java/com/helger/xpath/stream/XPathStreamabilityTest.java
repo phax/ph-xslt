@@ -1518,23 +1518,35 @@ public final class XPathStreamabilityTest
       assertFalse (sExpr, XPathStreamability.usesFunction (_parse (sExpr), "current-group"));
   }
 
-  /** Expressions nested deeper than the stack allows fail closed. */
+  @NonNull
+  private static IExpr _parseNestedNegations (final int nDepth)
+  {
+    final StringBuilder aSB = new StringBuilder ();
+    for (int i = 0; i < nDepth; ++i)
+      aSB.append ("-(");
+    aSB.append ("@a");
+    for (int i = 0; i < nDepth; ++i)
+      aSB.append (')');
+    return _parse (aSB.toString ());
+  }
+
+  /** Expressions nested deeper than {@link XPathStreamability#MAX_DEPTH} fail closed. */
   @Test
   public void testDeepNestingFailsClosed ()
   {
-    // 4,000 nested negations stay below the parser limit
-    final StringBuilder aSB = new StringBuilder ();
-    for (int i = 0; i < 4000; ++i)
-      aSB.append ("-(");
-    aSB.append ("@a");
-    for (int i = 0; i < 4000; ++i)
-      aSB.append (')');
-    final IExpr aExpr = _parse (aSB.toString ());
+    final String sShallow = XPathStreamability.getStreamability (_parseNestedNegations (1), _striding ()).toString ();
+    assertEquals (sShallow,
+                  XPathStreamability.getStreamability (_parseNestedNegations (XPathStreamability.MAX_DEPTH - 10), _striding ())
+                                    .toString ());
+    // 4,000 nested negations stay below the parser limit, but not below the
+    // depth limit of the walk: roaming and free-ranging, never a definite
+    // verdict
     final MutableBoolean aDefinite = new MutableBoolean (false);
-    final PostureSweep aPS = XPathStreamability.getStreamability (aExpr, _striding ().setDefiniteFlag (aDefinite));
-    // Either the walk completes (grounded/motionless) or it overflows and fails
-    // closed; never a definite verdict
-    assertTrue (aPS.toString (), aPS.toString ().equals (GM) || aPS.toString ().equals (RF));
+    assertEquals (RF,
+                  XPathStreamability.getStreamability (_parseNestedNegations (4000), _striding ().setDefiniteFlag (aDefinite))
+                                    .toString ());
     assertFalse (aDefinite.booleanValue ());
+    // The depth count was reset
+    assertEquals (sShallow, XPathStreamability.getStreamability (_parseNestedNegations (1), _striding ()).toString ());
   }
 }
