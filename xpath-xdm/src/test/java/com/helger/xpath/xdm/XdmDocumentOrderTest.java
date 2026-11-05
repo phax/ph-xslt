@@ -123,6 +123,52 @@ public final class XdmDocumentOrderTest
   }
 
   @Test
+  public void testAttributeIndex () throws XdmParseException
+  {
+    final XdmQName aNameA = new XdmQName ("a");
+    final XdmDocumentNode aDoc = _parse ("<r a='1'><x a='2' b='3'><y a='4'/></x><x xmlns:p='urn:p' p:a='5'/></r>");
+    final List <IXdmNode> aAs = aDoc.getAttributesByName (aNameA);
+    assertNotNull (aAs);
+    assertEquals (3, aAs.size ());
+    assertEquals ("1", aAs.get (0).getStringValue ());
+    assertEquals ("2", aAs.get (1).getStringValue ());
+    assertEquals ("4", aAs.get (2).getStringValue ());
+    assertEquals (1, aDoc.getAttributesByName (new XdmQName ("urn:p", "a")).size ());
+    assertEquals (0, aDoc.getAttributesByName (X).size ());
+    assertSame (aAs, aDoc.getAttributesByName (aNameA));
+
+    // A change drops the attribute index with the numbering
+    final IXdmNode aR = aDoc.getChildAtIndex (0);
+    aR.getChildAtIndex (1).addAttribute (IXdmNode.createAttribute (aNameA, "6"));
+    assertNull (aDoc.getAttributesByName (aNameA));
+    aDoc.assignDocumentOrder ();
+    assertEquals (4, aDoc.getAttributesByName (aNameA).size ());
+  }
+
+  @Test
+  public void testChildElementIndex () throws XdmParseException
+  {
+    final XdmDocumentNode aDoc = _parse ("<r><x n='1'><x n='1.1'/></x><y><x n='2.1'/></y><x n='3'/></r>");
+    final IXdmNode aR = aDoc.getChildAtIndex (0);
+    final List <IXdmNode> aXs = aDoc.getChildElementsByName (aR, X);
+    assertNotNull (aXs);
+    assertEquals (2, aXs.size ());
+    assertEquals ("1", aXs.get (0).getAttributeAtIndex (0).getStringValue ());
+    assertEquals ("3", aXs.get (1).getAttributeAtIndex (0).getStringValue ());
+    // Kept with the index
+    assertSame (aXs, aDoc.getChildElementsByName (aR, X));
+    assertEquals (1, aDoc.getChildElementsByName (aR, new XdmQName ("y")).size ());
+    assertEquals (0, aDoc.getChildElementsByName (aR, new XdmQName ("none")).size ());
+    assertEquals (1, aDoc.getChildElementsByName (aXs.get (0), X).size ());
+
+    // A change drops the kept children with the numbering
+    aR.appendChild (IXdmNode.createElement (X));
+    assertNull (aDoc.getChildElementsByName (aR, X));
+    aDoc.assignDocumentOrder ();
+    assertEquals (3, aDoc.getChildElementsByName (aR, X).size ());
+  }
+
+  @Test
   public void testTextAppendValue ()
   {
     final IXdmNode aElement = IXdmNode.createElement (X);

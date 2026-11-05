@@ -16,8 +16,6 @@
  */
 package com.helger.xpath.xdm;
 
-import java.util.Objects;
-
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -104,15 +102,19 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
   {
     if (this == aOther)
       return true;
+    // The local names are short and usually differ, the namespace URIs are
+    // long and often equal, so the local name is compared first
     return aOther instanceof final XdmQName aOtherName &&
-           namespaceUri.equals (aOtherName.namespaceUri) &&
-           localName.equals (aOtherName.localName);
+           localName.equals (aOtherName.localName) &&
+           namespaceUri.equals (aOtherName.namespaceUri);
   }
 
   @Override
   public int hashCode ()
   {
-    return Objects.hash (namespaceUri, localName);
+    // The value of Objects.hash (namespaceUri, localName) without the varargs
+    // array
+    return 31 * (31 + namespaceUri.hashCode ()) + localName.hashCode ();
   }
 
   @Override
