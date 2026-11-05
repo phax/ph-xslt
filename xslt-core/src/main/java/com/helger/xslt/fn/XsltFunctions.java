@@ -452,8 +452,9 @@ public final class XsltFunctions
    * reference, resolved against the base URI of that node; any other item
    * is one reference, resolved against the static base URI. A second
    * argument replaces these bases with its base URI. A reference is trimmed
-   * and converted from an IRI; it is resolved only when the base is
-   * absolute, otherwise used as it is. Each URI is loaded through the
+   * and converted from an IRI; an absolute reference is used as it is, a
+   * relative one is resolved when the base is absolute (and used as it is
+   * with a relative base). Each URI is loaded through the
    * document cache of the engine (so repeated calls return the same node);
    * a fragment identifier that selects nothing contributes no node. The
    * result is in document order without duplicates.
@@ -464,9 +465,9 @@ public final class XsltFunctions
    *        The URI references and the optional base node.
    * @return The documents (or fragment nodes), sorted and deduplicated.
    * @throws XPathException
-   *         XTDE1162 if the base node has no base URI (even when all
-   *         references are absolute); FODC0005 if a reference cannot be
-   *         resolved; FODC0002 from the engine if a document cannot be
+   *         XTDE1162 if a relative reference has no base URI to be resolved
+   *         against (XSLT 3.0 section 20.1); FODC0005 if a reference cannot
+   *         be resolved; FODC0002 from the engine if a document cannot be
    *         retrieved.
    */
   @NonNull
@@ -474,13 +475,8 @@ public final class XsltFunctions
   {
     final XsltContext aXCtx = _xslt (aCtx, "document");
     final Engine aEngine = aXCtx.getEngine ();
-    String sFixedBase = null;
-    if (aArgs.size () > 1)
-    {
-      sFixedBase = FnAccessor.getBaseUri ((IXdmNode) aArgs.get (1).get (0));
-      if (sFixedBase == null)
-        throw new XPathException ("XTDE1162", "The base node of document() has no base URI");
-    }
+    final boolean bFixedBase = aArgs.size () > 1;
+    final String sFixedBase = bFixedBase ? FnAccessor.getBaseUri ((IXdmNode) aArgs.get (1).get (0)) : null;
     final XdmSequence.Builder aResult = new XdmSequence.Builder ();
     for (final IXdmItem aItem : aArgs.get (0))
     {
@@ -488,18 +484,20 @@ public final class XsltFunctions
       final ICommonsList <String> aRefs = new CommonsArrayList <> ();
       if (aItem instanceof final IXdmNode aNode)
       {
-        sBase = sFixedBase != null ? sFixedBase : FnAccessor.getBaseUri (aNode);
+        sBase = bFixedBase ? sFixedBase : FnAccessor.getBaseUri (aNode);
         for (final IXdmItem aAtom : Atomizer.atomize (XdmSequence.of (aNode)))
           aRefs.add (Atomizer.getStringValue (aAtom));
       }
       else
       {
-        sBase = sFixedBase != null ? sFixedBase : aCtx.getStaticContext ().getBaseUri ();
+        sBase = bFixedBase ? sFixedBase : aCtx.getStaticContext ().getBaseUri ();
         aRefs.add (Atomizer.getStringValue (aItem));
       }
       for (final String sRef : aRefs)
       {
         final String sTrimmed = FnUri.iriToUri (sRef.trim ());
+        if (sBase == null && FnUri.isValidUriReference (sTrimmed) && !FnUri.isAbsoluteUri (sTrimmed))
+          throw new XPathException ("XTDE1162", "The relative URI reference '" + sTrimmed + "' in document() has no base URI");
         String sUri;
         try
         {
@@ -582,7 +580,9 @@ public final class XsltFunctions
    * @throws XPathException
    *         XTDE1370 (uri) or XTDE1380 (public ID) if the node is not in a
    *         tree rooted at a document node, and also, with one argument, if
-   *         the context item is not a node or is absent.
+   *         the context item is absent (the W3C test cases error-1370a and
+   *         error-1380a expect this code; section 20.4.2 allows XPDY0002);
+   *         XPTY0004 with one argument if the context item is not a node.
    */
   @NonNull
   private static XdmSequence _unparsedEntity (@NonNull final DynamicContext aCtx,
@@ -595,8 +595,11 @@ public final class XsltFunctions
       aNode = (IXdmNode) aArgs.get (1).get (0);
     else
     {
-      if (!(aCtx.getContextItem () instanceof final IXdmNode aCtxNode))
-        throw new XPathException (sCode, "The function requires a node as context item");
+      final IXdmItem aCtxItem = aCtx.getContextItem ();
+      if (aCtxItem == null)
+        throw new XPathException (sCode, "The function requires a context node, but the context item is absent");
+      if (!(aCtxItem instanceof final IXdmNode aCtxNode))
+        throw new XPathException ("XPTY0004", "The function requires a node as context item");
       aNode = aCtxNode;
     }
     final IXdmNode aRoot = aNode.getRoot ();
