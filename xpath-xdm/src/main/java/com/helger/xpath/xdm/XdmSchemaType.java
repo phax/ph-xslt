@@ -113,7 +113,7 @@ public final class XdmSchemaType
     // checks of the validators: xs:anySimpleType counts as a list, and a
     // complex type with list content has no known built-in item type.
     final IXdmTypeDefinition aContent = aValueType.getSimpleContentType ();
-    m_bList = aContent != null && aContent.getVariety () == EXdmSimpleVariety.LIST ||
+    m_bList = (aContent != null && aContent.getVariety () == EXdmSimpleVariety.LIST) ||
               aValueType.getAnnotationName ().equals (ANY_SIMPLE_TYPE);
     if (m_bList)
     {

@@ -246,7 +246,7 @@ public final class StreamRecordPath
         if (aTest.kind () != ENodeTestKind.NAME ||
             aTest.anyNamespace () ||
             aTest.anyLocalName () ||
-            !aTest.anyName () && aTest.name () == null)
+            (!aTest.anyName () && aTest.name () == null))
           return null;
       aTests.add (aTest);
       aPredicates.add (aStep.predicates ());

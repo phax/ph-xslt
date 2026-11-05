@@ -250,7 +250,7 @@ public final class XdmDateTimeValue
       throw aScanner.invalid ();
     if (nMinute > 59 || aSecond.compareTo (SIXTY) >= 0)
       throw aScanner.invalid ();
-    if (nHour > 24 || nHour == 24 && (nMinute != 0 || aSecond.signum () != 0))
+    if (nHour > 24 || (nHour == 24 && (nMinute != 0 || aSecond.signum () != 0)))
       throw aScanner.invalid ();
     final boolean bHasTz = aTz != null;
     final int nTz = bHasTz ? aTz.intValue () : 0;

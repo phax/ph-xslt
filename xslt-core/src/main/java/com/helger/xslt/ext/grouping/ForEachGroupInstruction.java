@@ -616,7 +616,7 @@ public final class ForEachGroupInstruction
     // without sort keys, and with group-by only as the child of xsl:fork
     // (section 19.8.4.19)
     final XslElement aParent = aEl.getParent ();
-    final boolean bStreamable = aSorts.isEmpty () && (eMode != EMode.BY || aParent != null && aParent.isXsl ("fork"));
+    final boolean bStreamable = aSorts.isEmpty () && (eMode != EMode.BY || (aParent != null && aParent.isXsl ("fork")));
     final StreamConsumer aStreamed = bStreamable ? StreamConsumer.create (aCtx, aEl, aSelect, aInstr::_createStreamed) : null;
     if (aStreamed == null)
       return new CompiledInstruction (aEl, aInstr::_execute);

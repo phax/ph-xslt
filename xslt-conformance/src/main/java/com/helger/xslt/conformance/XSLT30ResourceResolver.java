@@ -340,7 +340,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
       {
         final IXdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
         final IXdmNode aId = aCur.getAttribute ("", "id");
-        if (aXmlId != null && sID.equals (aXmlId.getValue ().trim ()) || aId != null && sID.equals (aId.getValue ().trim ()))
+        if ((aXmlId != null && sID.equals (aXmlId.getValue ().trim ())) || (aId != null && sID.equals (aId.getValue ().trim ())))
           return aCur;
       }
       for (int i = aCur.getChildCount () - 1; i >= 0; --i)

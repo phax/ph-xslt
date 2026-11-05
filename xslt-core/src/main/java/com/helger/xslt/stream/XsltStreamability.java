@@ -2129,8 +2129,8 @@ public final class XsltStreamability
   {
     for (final XslElement aEl : aAll)
     {
-      final boolean bHost = aEl.isXsl ("source-document") && XsltNames.isXsltTrue (aEl.getAttr ("streamable")) ||
-                            aEl.isXsl ("template") && aEl.hasAttr ("match");
+      final boolean bHost = (aEl.isXsl ("source-document") && XsltNames.isXsltTrue (aEl.getAttr ("streamable"))) ||
+                            (aEl.isXsl ("template") && aEl.hasAttr ("match"));
       if (bHost)
         for (final XslElement aWrapper : StreamPlanner.getWrapperCandidates (aEl))
         {

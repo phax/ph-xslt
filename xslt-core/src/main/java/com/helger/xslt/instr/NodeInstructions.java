@@ -284,7 +284,7 @@ public final class NodeInstructions
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final String sPrefix = XsltNames.trimXmlWhitespace (aName.evaluate (aRtCtx));
-      if (!sPrefix.isEmpty () && !XsltNames.isNCName (sPrefix) || "xmlns".equals (sPrefix))
+      if ((!sPrefix.isEmpty () && !XsltNames.isNCName (sPrefix)) || "xmlns".equals (sPrefix))
         throw new XPathException ("XTDE0920", "'" + sPrefix + "' is not aFnArgs valid namespace prefix");
       final String sUri = _evaluateValue (aRtCtx, aSelect, aBody, null, true);
       if (sUri.isEmpty ())

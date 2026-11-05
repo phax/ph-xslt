@@ -180,7 +180,7 @@ public final class XsdBridgeDifferentialIT
       boolean bFound = bInPlace;
       if (!bInPlace)
         for (final XsdError aError : aTextResult.errors ())
-          if (sDetail.endsWith (aError.toString ()) || sDetail.contains (aError.code () + ": ") && !aError.code ().isEmpty ())
+          if (sDetail.endsWith (aError.toString ()) || (sDetail.contains (aError.code () + ": ") && !aError.code ().isEmpty ()))
             bFound = true;
       if (bFound)
         aTally.m_aAgree.incrementAndGet ();

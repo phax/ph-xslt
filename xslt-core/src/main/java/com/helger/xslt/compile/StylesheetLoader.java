@@ -242,7 +242,7 @@ public final class StylesheetLoader
     for (int i = 0; i < n; ++i)
     {
       final IXdmNode aChild = aSrc.getChildAtIndex (i);
-      if (aChild.isElement () || aChild.isText () && !XsltNames.isWhitespaceOnly (aChild.getValue ()))
+      if (aChild.isElement () || (aChild.isText () && !XsltNames.isWhitespaceOnly (aChild.getValue ())))
         return true;
     }
     return false;
@@ -332,7 +332,7 @@ public final class StylesheetLoader
       {
         final IXdmNode aXmlId = aCur.getAttribute (XdmConstants.NS_XML, "id");
         final IXdmNode aId = aCur.getAttribute ("", "id");
-        if (aXmlId != null && sID.equals (aXmlId.getValue ().trim ()) || aId != null && sID.equals (aId.getValue ().trim ()))
+        if ((aXmlId != null && sID.equals (aXmlId.getValue ().trim ())) || (aId != null && sID.equals (aId.getValue ().trim ())))
           return aCur;
       }
       for (int i = aCur.getChildCount () - 1; i >= 0; --i)
@@ -389,7 +389,7 @@ public final class StylesheetLoader
                               aIncludeEl.isXsl ("import") ? "XTSE0210" : "XTSE0180",
                               "The stylesheet module '" + sKey + "' includes or imports itself");
     IXdmNode aDoc;
-    if (sUri.isEmpty () || sBase != null && sUri.equals (_stripFragment (sBase)))
+    if (sUri.isEmpty () || (sBase != null && sUri.equals (_stripFragment (sBase))))
       aDoc = aIncludeEl.getModule ().getSourceDocument ();
     else
     {

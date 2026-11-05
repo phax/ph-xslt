@@ -141,7 +141,7 @@ public final class SerializationChecks
       for (int i = 0; i < sPublic.length (); ++i)
       {
         final char c = sPublic.charAt (i);
-        if (!(c == ' ' || c == '\r' || c == '\n' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+        if (!(c == ' ' || c == '\r' || c == '\n' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
               "-'()+,./:=?;!*#@$_%".indexOf (c) >= 0))
           throw new XPathException ("SEPM0016", "doctype-public '" + sPublic + "' is not a valid public identifier");
       }

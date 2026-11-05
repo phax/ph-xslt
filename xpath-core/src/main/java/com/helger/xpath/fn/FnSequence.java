@@ -219,7 +219,7 @@ public final class FnSequence
   private static boolean _isNaN (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
-    return aPayload instanceof final Double aD && aD.isNaN () || aPayload instanceof final Float aF && aF.isNaN ();
+    return (aPayload instanceof final Double aD && aD.isNaN ()) || (aPayload instanceof final Float aF && aF.isNaN ());
   }
 
   @NonNull

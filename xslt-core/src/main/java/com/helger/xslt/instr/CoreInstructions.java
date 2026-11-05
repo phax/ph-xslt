@@ -415,7 +415,7 @@ public final class CoreInstructions
   {
     for (final XslNode aNode : aEl.getChildren ())
       if (aNode instanceof XslElement || !((XslText) aNode).isWhitespaceOnly () ||
-          ((XslText) aNode).isXmlSpacePreserve () && !((XslText) aNode).getValue ().isEmpty ())
+          (((XslText) aNode).isXmlSpacePreserve () && !((XslText) aNode).getValue ().isEmpty ()))
         return true;
     return false;
   }

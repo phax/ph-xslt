@@ -408,7 +408,7 @@ public final class NumberInstruction extends AbstractInstruction
       for (int j = 0; j < sPart.length (); ++j)
       {
         final char c = sPart.charAt (j);
-        final boolean bLetter = c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
+        final boolean bLetter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
         final boolean bDigit = c >= '0' && c <= '9';
         if (!bLetter && !(bDigit && (i > 0 || j > 0)))
           return false;

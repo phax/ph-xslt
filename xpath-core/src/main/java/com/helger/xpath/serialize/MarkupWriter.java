@@ -307,8 +307,8 @@ final class MarkupWriter
     // form (Serialization 3.1 section 4)
     if (!m_bXml11 && !m_bHtml && cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD)
       throw XPathException.of ("SERE0006", "The character #x" + Integer.toHexString (cp).toUpperCase (Locale.ROOT) + " cannot be serialized as XML 1.0");
-    if (m_bXml11 && (cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD || cp >= 0x7F && cp <= 0x9F) ||
-        (m_bHtml || m_bXhtml) && cp >= 0x80 && cp <= 0x9F ||
+    if ((m_bXml11 && ((cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD) || (cp >= 0x7F && cp <= 0x9F))) ||
+        ((m_bHtml || m_bXhtml) && cp >= 0x80 && cp <= 0x9F) ||
         !m_aCharset.canEncode (cp))
       _charRef (aSB, cp);
     else
@@ -430,7 +430,7 @@ final class MarkupWriter
       return false;
     final String sNS = aNode.getName ().namespaceUri ();
     if (m_bHtml)
-      return sNS.isEmpty () || m_bHtml5 && NS_XHTML.equals (sNS);
+      return sNS.isEmpty () || (m_bHtml5 && NS_XHTML.equals (sNS));
     if (m_bXhtml)
       return NS_XHTML.equals (sNS);
     return false;
@@ -599,7 +599,7 @@ final class MarkupWriter
     return aNode != null &&
            aNode.getKind () == ENodeKind.ELEMENT &&
            "head".equalsIgnoreCase (aNode.getName ().localName ()) &&
-           (m_bHtml && !aNode.getName ().hasNamespace () || NS_XHTML.equals (aNode.getName ().namespaceUri ()));
+           ((m_bHtml && !aNode.getName ().hasNamespace ()) || NS_XHTML.equals (aNode.getName ().namespaceUri ()));
   }
 
   /**
@@ -857,7 +857,7 @@ final class MarkupWriter
             m_aSB.append ("></").append (sQName).append ('>');
         }
         else
-          if (m_bXhtml && (_isHtmlElement (aElement) || m_bHtml5 && !aElement.getName ().hasNamespace ()))
+          if (m_bXhtml && (_isHtmlElement (aElement) || (m_bHtml5 && !aElement.getName ().hasNamespace ())))
           {
             if (VOID_ELEMENTS.contains (sLocalLC))
               m_aSB.append (" />");

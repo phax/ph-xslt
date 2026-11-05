@@ -310,7 +310,7 @@ final class XsdCompiler
       {
         final String sMin = XsdNodes.attr (aRef, "minOccurs");
         final String sMax = XsdNodes.attr (aRef, "maxOccurs");
-        if (sMin != null && !"1".equals (sMin) || sMax != null && !"1".equals (sMax))
+        if ((sMin != null && !"1".equals (sMin)) || (sMax != null && !"1".equals (sMax)))
           throw invalid ("src-redefine.6.1.2",
                          "the self-reference in redefined " +
                                                sKind +

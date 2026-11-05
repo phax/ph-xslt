@@ -233,8 +233,8 @@ public final class AtomicComparator
       }
       case DURATION:
         return !bOrder ||
-               eLeft == EAtomicType.YEAR_MONTH_DURATION && eRight == EAtomicType.YEAR_MONTH_DURATION ||
-               eLeft == EAtomicType.DAY_TIME_DURATION && eRight == EAtomicType.DAY_TIME_DURATION;
+               (eLeft == EAtomicType.YEAR_MONTH_DURATION && eRight == EAtomicType.YEAR_MONTH_DURATION) ||
+               (eLeft == EAtomicType.DAY_TIME_DURATION && eRight == EAtomicType.DAY_TIME_DURATION);
       case QNAME:
       case NOTATION:
         return !bOrder;
@@ -490,7 +490,7 @@ public final class AtomicComparator
     final EAtomicType eRight = aRight.getType ();
     final boolean bLU = eLeft == EAtomicType.UNTYPED_ATOMIC;
     final boolean bRU = eRight == EAtomicType.UNTYPED_ATOMIC;
-    if (eLeft.isStringFamily () || eRight.isStringFamily () || bLU && bRU)
+    if (eLeft.isStringFamily () || eRight.isStringFamily () || (bLU && bRU))
       return _applyOp (eOp, _compareStrings (aLeft.getLexical (), aRight.getLexical (), aCollation));
     if (bLU)
       return _compareAtomics (eOp, _castUntyped (aLeft, eRight, aCtx), aRight, aCollation, aCtx);
@@ -738,7 +738,7 @@ public final class AtomicComparator
   private static boolean _isNaN (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
-    return aPayload instanceof final Double aD && aD.isNaN () || aPayload instanceof final Float aF && aF.isNaN ();
+    return (aPayload instanceof final Double aD && aD.isNaN ()) || (aPayload instanceof final Float aF && aF.isNaN ());
   }
 
   /**

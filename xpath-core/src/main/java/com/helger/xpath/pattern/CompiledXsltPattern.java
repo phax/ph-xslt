@@ -122,7 +122,7 @@ public final class CompiledXsltPattern implements XsltPattern
   public boolean isPredicatePattern ()
   {
     return m_aExpr instanceof IExpr.ContextItemExpr ||
-           m_aExpr instanceof final IExpr.FilterExpr aFilter && aFilter.primary () instanceof IExpr.ContextItemExpr;
+           (m_aExpr instanceof final IExpr.FilterExpr aFilter && aFilter.primary () instanceof IExpr.ContextItemExpr);
   }
 
   /**

@@ -105,7 +105,7 @@ public class XsltException extends XPathException
   @NonNull
   public static XPathException locate (@NonNull final XPathException aEx, @Nullable final XslNode aNode)
   {
-    if (aNode == null || aEx instanceof final XsltException aXEx && aXEx.isLocated ())
+    if (aNode == null || (aEx instanceof final XsltException aXEx && aXEx.isLocated ()))
       return aEx;
     return new XsltException (aEx, aNode.getModule ().getUri (), aNode.getLine (), aNode.getColumn ());
   }

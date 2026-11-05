@@ -92,7 +92,7 @@ public final class SpaceRules
       if (aRule.matches (aElementName))
         if (aBest == null ||
             aRule.precedence () > aBest.precedence () ||
-            aRule.precedence () == aBest.precedence () && aRule.priority () >= aBest.priority ())
+            (aRule.precedence () == aBest.precedence () && aRule.priority () >= aBest.priority ()))
           aBest = aRule;
     return aBest != null && aBest.strip ();
   }

@@ -174,9 +174,9 @@ public final class ExposeChecker
             continue;
           final XdmQName aCompName = aComp.name ();
           final boolean bMatch = bAll ||
-                                 aExact != null && aExact.equals (aCompName) && (nArity < 0 || nArity == aComp.arity ()) ||
-                                 sWildUri != null && sWildUri.equals (aCompName.namespaceUri ()) ||
-                                 sWildLocal != null && sWildLocal.equals (aCompName.localName ());
+                                 (aExact != null && aExact.equals (aCompName) && (nArity < 0 || nArity == aComp.arity ())) ||
+                                 (sWildUri != null && sWildUri.equals (aCompName.namespaceUri ())) ||
+                                 (sWildLocal != null && sWildLocal.equals (aCompName.localName ()));
           if (!bMatch)
             continue;
           bFound = true;

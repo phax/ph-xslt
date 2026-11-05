@@ -92,12 +92,12 @@ public final class XsdLexical
   {
     final int nLen = s.length ();
     // Fast path: nothing to do
-    boolean bClean = nLen == 0 || !isXmlWhitespace (s.charAt (0)) && !isXmlWhitespace (s.charAt (nLen - 1));
+    boolean bClean = nLen == 0 || (!isXmlWhitespace (s.charAt (0)) && !isXmlWhitespace (s.charAt (nLen - 1)));
     if (bClean)
       for (int i = 0; i < nLen; ++i)
       {
         final char c = s.charAt (i);
-        if (c == '\t' || c == '\n' || c == '\r' || c == ' ' && i + 1 < nLen && s.charAt (i + 1) == ' ')
+        if (c == '\t' || c == '\n' || c == '\r' || (c == ' ' && i + 1 < nLen && s.charAt (i + 1) == ' '))
         {
           bClean = false;
           break;
@@ -308,7 +308,7 @@ public final class XsdLexical
       while (i < nLen)
       {
         final char c = s.charAt (i);
-        final boolean bAlpha = c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
+        final boolean bAlpha = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
         if (!bAlpha && (bFirstPart || !_isDigit (c)))
           break;
         i++;

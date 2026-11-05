@@ -289,7 +289,7 @@ final class RegexTranslator
       for (int i = 0; i < sBlock.length (); ++i)
       {
         final char c = sBlock.charAt (i);
-        if (!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-'))
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'))
           throw _error ("\\p{" + sName + "}: invalid block name");
       }
       final int [] aRanges = UnicodeBlocks.getBlockRanges (sBlock);
@@ -555,7 +555,7 @@ final class RegexTranslator
         return;
       }
     }
-    if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9')
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
       m_aSB.appendCodePoint (c);
     else
       _appendHex (m_aSB, c);

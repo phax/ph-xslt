@@ -143,7 +143,7 @@ public final class XdmDurationValue
       if (bInTime)
       {
         final int nIdx = sTimeOrder.indexOf (cDesignator, nTimePos);
-        if (nIdx < 0 || bFraction && cDesignator != 'S')
+        if (nIdx < 0 || (bFraction && cDesignator != 'S'))
           throw _invalid (eType, sLexical);
         nTimePos = nIdx + 1;
         final BigDecimal aNum = new BigDecimal (sNum);
@@ -181,7 +181,7 @@ public final class XdmDurationValue
       }
       bAnyComponent = true;
     }
-    if (!bAnyComponent || bInTime && !bAnyTimeComponent)
+    if (!bAnyComponent || (bInTime && !bAnyTimeComponent))
       throw _invalid (eType, sLexical);
     if (eType == EAtomicType.YEAR_MONTH_DURATION && bHasDT)
       throw _invalid (eType, sLexical);
@@ -210,7 +210,7 @@ public final class XdmDurationValue
   public static XdmDurationValue of (final long nMonths, @NonNull final BigDecimal aSeconds)
   {
     ValueEnforcer.notNull (aSeconds, "Seconds");
-    if (nMonths > 0 && aSeconds.signum () < 0 || nMonths < 0 && aSeconds.signum () > 0)
+    if ((nMonths > 0 && aSeconds.signum () < 0) || (nMonths < 0 && aSeconds.signum () > 0))
       throw new IllegalArgumentException ("Months and seconds must have the same sign");
     if (nMonths == 0 && aSeconds.signum () == 0)
       return ZERO;

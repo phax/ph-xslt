@@ -436,7 +436,7 @@ public final class CompileContext
         if ("param".equals (sLocal) ||
             "sort".equals (sLocal) ||
             "with-param".equals (sLocal) ||
-            "context-item".equals (sLocal) && aEl.isXsl ("template"))
+            ("context-item".equals (sLocal) && aEl.isXsl ("template")))
           continue;
       }
       aChildren.add (aNode);

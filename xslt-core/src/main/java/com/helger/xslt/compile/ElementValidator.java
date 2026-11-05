@@ -615,7 +615,7 @@ public final class ElementValidator
                                    "initial-template".equals (aName.localName ());
           if (!bInitial && (XsltNames.NS_XSL.equals (aName.namespaceUri ()) ||
                             XdmConstants.NS_XML.equals (aName.namespaceUri ()) ||
-                            "function".equals (sLocal) && XsltNames.isReservedNamespace (aName.namespaceUri ())))
+                            ("function".equals (sLocal) && XsltNames.isReservedNamespace (aName.namespaceUri ()))))
             throw XsltException.at (aEl, "XTSE0080", "'" + sName + "' uses a reserved namespace");
           if ("function".equals (sLocal) && aName.namespaceUri ().isEmpty ())
             throw XsltException.at (aEl, "XTSE0740", "A stylesheet function must have a prefixed name");

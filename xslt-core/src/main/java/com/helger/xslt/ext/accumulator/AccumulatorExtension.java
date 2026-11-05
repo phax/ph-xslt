@@ -930,7 +930,7 @@ public final class AccumulatorExtension implements IXsltExtension
   {
     final CompiledStylesheet aSheet = aEngine.getStylesheet ();
     final XdmQName aName = aEngine.getRequest ().getInitialMode ();
-    if (aName == null || !aName.hasNamespace () && "#default".equals (aName.localName ()))
+    if (aName == null || (!aName.hasNamespace () && "#default".equals (aName.localName ())))
       return aSheet.getMode (aSheet.getDefaultModeName ());
     if (!aName.hasNamespace () && "#unnamed".equals (aName.localName ()))
       return aSheet.getMode (Mode.UNNAMED);

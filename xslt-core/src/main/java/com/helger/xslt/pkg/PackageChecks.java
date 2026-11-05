@@ -835,7 +835,7 @@ public final class PackageChecks
             continue;
           final XdmQName aMode = aDecl.resolveQName (sToken, false);
           final PackageComponent aTarget = aByName.get (PackageComponent.getSymbolicName ("mode", aMode, 0));
-          if (aTarget == null || !"public".equals (aTarget.visibility ()) && !"abstract".equals (aTarget.visibility ()))
+          if (aTarget == null || (!"public".equals (aTarget.visibility ()) && !"abstract".equals (aTarget.visibility ())))
             throw XsltException.at (aDecl, "XTSE3060", "The mode '" + sToken + "' cannot be overridden: it is not public or abstract in the used package");
         }
       _checkNoApplyImports (aDecl);

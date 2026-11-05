@@ -103,7 +103,7 @@ public final class XsdCollectExplainTest
         final XsdError a = aResult.errors ().get (i - 1);
         final XsdError b = aResult.errors ().get (i);
         assertTrue ("document order: " + a + " then " + b,
-                    a.line () < b.line () || a.line () == b.line () && a.column () <= b.column ());
+                    a.line () < b.line () || (a.line () == b.line () && a.column () <= b.column ()));
       }
       final String [] aPaths = { "/doc[1]/row[1]/n[1]", "/doc[1]/row[2]", "/doc[1]/row[3]" };
       for (int i = 0; i < 3; i++)

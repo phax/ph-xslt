@@ -84,7 +84,7 @@ public final class StreamPlanner
     for (final Map.Entry <XdmQName, String> aEntry : aEl.getAllAttributes ().entrySet ())
       if (aEntry.getKey ().isSameName (XsltNames.NS_XSL, "use-attribute-sets"))
         return false;
-    return !hasAvt (aEl) || aVerdicts != null && aVerdicts.isMotionlessWrapper (aEl);
+    return !hasAvt (aEl) || (aVerdicts != null && aVerdicts.isMotionlessWrapper (aEl));
   }
 
   private static boolean _isConsumer (@NonNull final XslElement aEl)

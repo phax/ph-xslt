@@ -547,7 +547,7 @@ public final class FnJson
       // everywhere
       final boolean bAllowed = "key".equals (sAttr) ||
                                "escaped-key".equals (sAttr) ||
-                               "string".equals (sLocal) && "escaped".equals (sAttr);
+                               ("string".equals (sLocal) && "escaped".equals (sAttr));
       if (!bAllowed)
         throw _invalid ("unexpected attribute " + sAttr + " on " + sLocal);
     }
@@ -619,7 +619,7 @@ public final class FnJson
           aSB.append ("\\t");
           break;
         default:
-          if (c < 0x20 || c >= 0x7F && c <= 0x9F)
+          if (c < 0x20 || (c >= 0x7F && c <= 0x9F))
             aSB.append (String.format (Locale.ROOT, "\\u%04X", Integer.valueOf (c)));
           else
             aSB.append (c);

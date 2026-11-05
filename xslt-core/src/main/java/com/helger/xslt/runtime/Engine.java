@@ -778,7 +778,7 @@ public final class Engine
   private static void _checkTypedMode (@NonNull final Mode aMode, @NonNull final IXdmItem aItem)
   {
     final String sTyped = aMode.getTyped ();
-    if (sTyped == null || !(aItem instanceof final IXdmNode aNode) || !aNode.isElement () && !aNode.isAttribute ())
+    if (sTyped == null || !(aItem instanceof final IXdmNode aNode) || (!aNode.isElement () && !aNode.isAttribute ()))
       return;
     final XdmQName aType = aNode.getTypeAnnotation ();
     final boolean bTyped = aType != null &&

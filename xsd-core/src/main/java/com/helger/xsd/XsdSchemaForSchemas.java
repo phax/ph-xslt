@@ -728,9 +728,9 @@ final class XsdSchemaForSchemas
     if (sName != null && XsdNodes.isXSElement (aParent))
     {
       final String sParent = XsdNodes.localName (aParent);
-      if ("simpleType".equals (sElem) &&
-          ("restriction".equals (sParent) || "list".equals (sParent) || "union".equals (sParent)) ||
-          "complexType".equals (sElem) && "element".equals (sParent))
+      if (("simpleType".equals (sElem) &&
+          ("restriction".equals (sParent) || "list".equals (sParent) || "union".equals (sParent))) ||
+          ("complexType".equals (sElem) && "element".equals (sParent)))
         throw XsdCompiler.invalid ("", "an inline xs:" + sElem + " must not have a name");
     }
     switch (sElem)

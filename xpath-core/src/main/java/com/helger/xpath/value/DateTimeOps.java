@@ -370,7 +370,7 @@ public final class DateTimeOps
     {
       final EAtomicType ePL = _primitive (eL);
       if (ePL != _primitive (eR) ||
-          ePL != EAtomicType.DATE_TIME && ePL != EAtomicType.DATE && ePL != EAtomicType.TIME)
+          (ePL != EAtomicType.DATE_TIME && ePL != EAtomicType.DATE && ePL != EAtomicType.TIME))
         throw _typeError (eOp, aLeft, aRight);
       final int nTz = aCtx.getImplicitTimezoneMinutes ();
       final BigDecimal aDiff = ((XdmDateTimeValue) aLeft.getValue ()).getEpochSeconds (nTz)

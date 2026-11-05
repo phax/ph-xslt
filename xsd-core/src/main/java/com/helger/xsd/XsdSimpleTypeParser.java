@@ -371,7 +371,7 @@ final class XsdSimpleTypeParser
       if (aCmp != null)
       {
         final int c = aCmp.intValue ();
-        if (c > 0 || c == 0 && bBHiExcl && !bDHiExcl)
+        if (c > 0 || (c == 0 && bBHiExcl && !bDHiExcl))
           throw XsdCompiler.invalid ("",
                                      "upper bound " +
                                          XsdLexHelper.quote (sDHi) +
@@ -385,7 +385,7 @@ final class XsdSimpleTypeParser
       if (aCmp != null)
       {
         final int c = aCmp.intValue ();
-        if (c < 0 || c == 0 && bBLoExcl && !bDLoExcl)
+        if (c < 0 || (c == 0 && bBLoExcl && !bDLoExcl))
           throw XsdCompiler.invalid ("",
                                      "lower bound " +
                                          XsdLexHelper.quote (sDLo) +
@@ -401,7 +401,7 @@ final class XsdSimpleTypeParser
       if (aCmp != null)
       {
         final int c = aCmp.intValue ();
-        if (c < 0 || c == 0 && (bDHiExcl || bBLoExcl))
+        if (c < 0 || (c == 0 && (bDHiExcl || bBLoExcl)))
           throw XsdCompiler.invalid ("",
                                      "upper bound " +
                                          XsdLexHelper.quote (sDHi) +
@@ -415,7 +415,7 @@ final class XsdSimpleTypeParser
       if (aCmp != null)
       {
         final int c = aCmp.intValue ();
-        if (c > 0 || c == 0 && (bDLoExcl || bBHiExcl))
+        if (c > 0 || (c == 0 && (bDLoExcl || bBHiExcl)))
           throw XsdCompiler.invalid ("",
                                      "lower bound " +
                                          XsdLexHelper.quote (sDLo) +
@@ -431,7 +431,7 @@ final class XsdSimpleTypeParser
       if (bDHasHi && aBounds[0] != null)
       {
         final Integer aCmp = XsdValueCompare.compareLexical (sDHi, aBounds[0], EAtomicType.INTEGER);
-        if (aCmp != null && (aCmp.intValue () < 0 || aCmp.intValue () == 0 && bDHiExcl))
+        if (aCmp != null && (aCmp.intValue () < 0 || (aCmp.intValue () == 0 && bDHiExcl)))
           throw XsdCompiler.invalid ("",
                                      "upper bound " +
                                          XsdLexHelper.quote (sDHi) +
@@ -442,7 +442,7 @@ final class XsdSimpleTypeParser
       if (bDHasLo && aBounds[1] != null)
       {
         final Integer aCmp = XsdValueCompare.compareLexical (sDLo, aBounds[1], EAtomicType.INTEGER);
-        if (aCmp != null && (aCmp.intValue () > 0 || aCmp.intValue () == 0 && bDLoExcl))
+        if (aCmp != null && (aCmp.intValue () > 0 || (aCmp.intValue () == 0 && bDLoExcl)))
           throw XsdCompiler.invalid ("",
                                      "lower bound " +
                                          XsdLexHelper.quote (sDLo) +

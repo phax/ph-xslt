@@ -180,7 +180,7 @@ final class XsdRegexGrammar
       for (int i = 0; i < sName.length (); i++)
       {
         final char ch = sName.charAt (i);
-        if (!(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '-'))
+        if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-'))
           throw new GrammarError ("\\p{" + sBody + "}: invalid block name");
       }
       // An unknown block name is an error in XSD 1.0; 1.1 tolerates it, the

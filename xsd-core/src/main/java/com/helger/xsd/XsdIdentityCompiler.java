@@ -178,9 +178,9 @@ final class XsdIdentityCompiler
     {
       if (sExpr.charAt (i) != ':')
         continue;
-      if (i > 0 && sExpr.charAt (i - 1) == ':' || i + 1 < nLen && sExpr.charAt (i + 1) == ':')
+      if ((i > 0 && sExpr.charAt (i - 1) == ':') || (i + 1 < nLen && sExpr.charAt (i + 1) == ':'))
         continue;
-      if (i > 0 && _isXPathWS (sExpr.charAt (i - 1)) || i + 1 < nLen && _isXPathWS (sExpr.charAt (i + 1)))
+      if ((i > 0 && _isXPathWS (sExpr.charAt (i - 1))) || (i + 1 < nLen && _isXPathWS (sExpr.charAt (i + 1))))
         throw XsdCompiler.invalid ("", "invalid xpath " + XsdLexHelper.quote (sExpr) + ": whitespace inside a QName");
     }
     // No token of this grammar contains whitespace: drop it

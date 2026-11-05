@@ -248,7 +248,7 @@ final class XsdComponentChecks
       return;
     if (aRoot.m_aTerm instanceof final XsdModelGroup aRootMG && aRootMG.m_eCompositor == EXsdCompositor.ALL)
     {
-      final boolean bMaxOK = aRoot.m_nMax == 1 || !m_aC.isXsd10 () && aRoot.m_nMax == 0;
+      final boolean bMaxOK = aRoot.m_nMax == 1 || (!m_aC.isXsd10 () && aRoot.m_nMax == 0);
       if (!bMaxOK || aRoot.m_nMin > 1)
         throw XsdCompiler.invalid ("cos-all-limited.2", "an xs:all group must have minOccurs 0 or 1 and maxOccurs 1");
     }
@@ -525,7 +525,7 @@ final class XsdComponentChecks
     XsdSimpleType s = aDS;
     for (int n = 0; s != null && n < MAX_CHAIN; n++)
     {
-      if (s == aBS || !s.m_aName.isZero () && s.m_aName.equals (aBS.m_aName))
+      if (s == aBS || (!s.m_aName.isZero () && s.m_aName.equals (aBS.m_aName)))
         return true;
       s = s.m_aBase;
     }
@@ -1126,8 +1126,8 @@ final class XsdComponentChecks
           {
             final boolean bAtomicHead = aHT.m_eVariety == EXsdVariety.ATOMIC &&
                                         aHT.resolvePrim () != EAtomicType.ANY_ATOMIC_TYPE;
-            if ((aST.m_eVariety == EXsdVariety.UNION || aST.m_eVariety == EXsdVariety.LIST) && bAtomicHead ||
-                aHT.m_eVariety == EXsdVariety.LIST && aST.m_eVariety != EXsdVariety.LIST)
+            if (((aST.m_eVariety == EXsdVariety.UNION || aST.m_eVariety == EXsdVariety.LIST) && bAtomicHead) ||
+                (aHT.m_eVariety == EXsdVariety.LIST && aST.m_eVariety != EXsdVariety.LIST))
               throw XsdCompiler.invalid ("e-props-correct.4",
                                          "element " +
                                                               aMember.m_aName +

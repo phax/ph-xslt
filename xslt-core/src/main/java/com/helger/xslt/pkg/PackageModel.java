@@ -333,7 +333,7 @@ public final class PackageModel
         if (aChild.isXsl ("param"))
           continue;
         final PackageComponent aComp = PackageChecks.getComponent (aChild);
-        if (aComp == null || "mode".equals (aComp.kind ()) && aComp.name () == null)
+        if (aComp == null || ("mode".equals (aComp.kind ()) && aComp.name () == null))
           continue;
         if (!aExported.contains (aComp.getSymbolicName ()))
           ret.hidden ().add (aComp.getSymbolicName ());

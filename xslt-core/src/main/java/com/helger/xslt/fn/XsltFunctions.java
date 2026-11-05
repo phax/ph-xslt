@@ -203,7 +203,7 @@ public final class XsltFunctions
     final String sLocal = aName.localName ();
     final boolean bSchemaAware = aSC.getSchemaSet () != null;
     final boolean bRet = XsltNames.NS_XSL.equals (aName.namespaceUri ()) &&
-                         (XsltElementSpecs.isKnown (sLocal) && (bSchemaAware || !"import-schema".equals (sLocal)) ||
+                         ((XsltElementSpecs.isKnown (sLocal) && (bSchemaAware || !"import-schema".equals (sLocal))) ||
                           XsltExtensionRegistry.getInstance ().isImplemented (sLocal));
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }

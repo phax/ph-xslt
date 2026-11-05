@@ -390,7 +390,7 @@ public final class FormatDateTime
           if (cLast == 'a')
           {
             final char p = sMod.charAt (nLen - 2);
-            if (p == '#' || p >= '0' && p <= '9')
+            if (p == '#' || (p >= '0' && p <= '9'))
               sMod = sMod.substring (0, nLen - 1);
           }
     }

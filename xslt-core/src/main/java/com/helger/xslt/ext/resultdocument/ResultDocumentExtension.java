@@ -329,7 +329,7 @@ public final class ResultDocumentExtension implements IXsltExtension
         aCustomizer.customize (aSheet, aDef, aParams);
       SerializationChecks.check (aParams, aTree);
       final String sSeparator = aDef.getValue ("item-separator");
-      final boolean bSerializeRaw = aTree == null || sSeparator != null && !"#absent".equals (sSeparator);
+      final boolean bSerializeRaw = aTree == null || (sSeparator != null && !"#absent".equals (sSeparator));
       return XdmSerializer.serialize (bSerializeRaw ? aRaw : XdmSequence.of (aTree), aParams);
     }
 

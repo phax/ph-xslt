@@ -130,7 +130,7 @@ public final class ResultDrain
    */
   static boolean isNormalizationError (@NonNull final IXdmItem aItem)
   {
-    return aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE) ||
+    return (aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE)) ||
            aItem instanceof XdmMap ||
            aItem instanceof IXdmFunction;
   }

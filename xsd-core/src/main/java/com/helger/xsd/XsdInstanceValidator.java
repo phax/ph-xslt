@@ -81,11 +81,11 @@ final class XsdInstanceValidator
   private static boolean _isSpace (final char c)
   {
     return c == ' ' ||
-           c >= '\t' && c <= '\r' ||
+           (c >= '\t' && c <= '\r') ||
            c == '\u0085' ||
            c == ' ' ||
            c == ' ' ||
-           c >= ' ' && c <= ' ' ||
+           (c >= ' ' && c <= ' ') ||
            c == ' ' ||
            c == ' ' ||
            c == ' ' ||
@@ -394,7 +394,7 @@ final class XsdInstanceValidator
       // resolve under 1.0 - same gate as the schema-side resolveType
       if ("untypedAtomic".equals (sLocal) ||
           "untyped".equals (sLocal) ||
-          !aRun.isXsd11 () && XsdCompiler.isXsd11OnlyBuiltin (sLocal))
+          (!aRun.isXsd11 () && XsdCompiler.isXsd11OnlyBuiltin (sLocal)))
         throw XsdCompiler.invalid ("cvc-elt.4.2", "xsi:type " + aName + " is not a schema type");
       if ("error".equals (sLocal))
         return XsdSimpleType.ERROR;
@@ -1275,7 +1275,7 @@ final class XsdInstanceValidator
         // cvc-elt.3.2.1 demands no character children at all - under 1.1 even
         // pure whitespace nils the nil; 1.0 keeps the whitespace-tolerant
         // reading
-        if (_elementHasContent (aElement) || aRun.isXsd11 () && _elementHasAnyText (aElement))
+        if (_elementHasContent (aElement) || (aRun.isXsd11 () && _elementHasAnyText (aElement)))
           throw XsdCompiler.invalid ("cvc-elt.3.2.1", "nilled element " + aDecl.m_aName + " must be empty");
         // cvc-elt.3.2.2: a nilled element must not carry a fixed value constraint
         if (aDecl.m_bHasFixed)

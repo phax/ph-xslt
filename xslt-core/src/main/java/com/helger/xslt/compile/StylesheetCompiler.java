@@ -579,7 +579,7 @@ public final class StylesheetCompiler
     final String sResPrefix = aEl.getAttr ("result-prefix").trim ();
     final String sStyUri = aEl.lookupNamespaceUri ("#default".equals (sStyPrefix) ? "" : sStyPrefix);
     final String sResUri = aEl.lookupNamespaceUri ("#default".equals (sResPrefix) ? "" : sResPrefix);
-    if (!"#default".equals (sStyPrefix) && sStyUri == null || !"#default".equals (sResPrefix) && sResUri == null)
+    if ((!"#default".equals (sStyPrefix) && sStyUri == null) || (!"#default".equals (sResPrefix) && sResUri == null))
       throw XsltException.at (aEl, "XTSE0812", "A prefix of xsl:namespace-alias is not bound");
     final String sKey = sStyUri == null ? "" : sStyUri;
     final NamespaceAlias aAlias = new NamespaceAlias ("#default".equals (sResPrefix) ? "" : sResPrefix,

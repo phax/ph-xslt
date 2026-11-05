@@ -63,7 +63,7 @@ final class XsdDerivation
     XsdSimpleType s = aType;
     for (int n = 0; s != null && n < MAX_CHAIN; n++)
     {
-      if (s == aBase || !s.m_aName.isZero () && s.m_aName.equals (aBase.m_aName))
+      if (s == aBase || (!s.m_aName.isZero () && s.m_aName.equals (aBase.m_aName)))
         return true;
       s = s.m_aBase;
     }

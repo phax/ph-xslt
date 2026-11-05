@@ -108,8 +108,8 @@ public final class AtomicCaster
   {
     final IntRange aRange = INT_RANGES.get (eTarget);
     if (aRange != null &&
-        (aRange.lo () != null && aValue.compareTo (aRange.lo ()) < 0 ||
-         aRange.hi () != null && aValue.compareTo (aRange.hi ()) > 0))
+        ((aRange.lo () != null && aValue.compareTo (aRange.lo ()) < 0) ||
+         (aRange.hi () != null && aValue.compareTo (aRange.hi ()) > 0)))
       throw XPathException.invalidValue ("Value " + aValue + " is outside the range of " + eTarget.getQualifiedName ());
     return XdmAtomic.of (eTarget, aValue);
   }
@@ -453,8 +453,8 @@ public final class AtomicCaster
     if (eSource.isNumeric () || eSource == EAtomicType.BOOLEAN)
       return _castNumericOrBoolean (aValue, eTarget);
 
-    if (eSource.isDateTimeFamily () && eTarget.isDateTimeFamily () ||
-        eSource.isDurationFamily () && eTarget.isDurationFamily ())
+    if ((eSource.isDateTimeFamily () && eTarget.isDateTimeFamily ()) ||
+        (eSource.isDurationFamily () && eTarget.isDurationFamily ()))
       return DateTimeOps.cast (aValue, eTarget);
 
     if (eSource.isBinary () && eTarget.isBinary ())

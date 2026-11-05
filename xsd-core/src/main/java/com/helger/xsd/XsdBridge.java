@@ -162,7 +162,7 @@ final class XsdBridge implements IXdmSchemaSet
       if ("untyped".equals (sLocal) ||
           "untypedAtomic".equals (sLocal) ||
           "numeric".equals (sLocal) ||
-          !m_aSchema.isXsd11 () && ("anyAtomicType".equals (sLocal) || XsdCompiler.isXsd11OnlyBuiltin (sLocal)))
+          (!m_aSchema.isXsd11 () && ("anyAtomicType".equals (sLocal) || XsdCompiler.isXsd11OnlyBuiltin (sLocal))))
         return null;
       if ("error".equals (sLocal))
         return XsdSimpleType.ERROR;

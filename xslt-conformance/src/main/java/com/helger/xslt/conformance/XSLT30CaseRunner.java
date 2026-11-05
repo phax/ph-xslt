@@ -709,7 +709,7 @@ public final class XSLT30CaseRunner
         aParams.isEmpty () &&
         aTemplate == null &&
         aFunction == null &&
-        (aMode == null || aMode.select ().isBlank () && aMode.params ().isEmpty ()))
+        (aMode == null || (aMode.select ().isBlank () && aMode.params ().isEmpty ())))
     {
       aRequest.setGlobalContextItem (null);
       aRequest.setStreamedSourceUri (XSLT30ResourceResolver.getFileUri (aStreamablePath));
@@ -729,7 +729,7 @@ public final class XSLT30CaseRunner
     if (WRITE_TO && !aRequest.isRawDelivery ())
       _compareWriteTo (aExecutable, aRequest, aResult.principalSerialized (), null);
     return XSLT30Actual.ofResult (aResult,
-                                  aFunction != null || aOutput != null && "no".equals (aOutput.tree ()),
+                                  aFunction != null || (aOutput != null && "no".equals (aOutput.tree ())),
                                   sResultVar,
                                   aOutput != null && "yes".equals (aOutput.serialize ()));
   }

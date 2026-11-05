@@ -597,7 +597,7 @@ public final class SerializationParamsReader
       }
       for (final IXdmNode aGrandChild : aChild.getAllChildren ())
         if (aGrandChild.getKind () == ENodeKind.ELEMENT ||
-            aGrandChild.getKind () == ENodeKind.TEXT && !aGrandChild.getValue ().isBlank ())
+            (aGrandChild.getKind () == ENodeKind.TEXT && !aGrandChild.getValue ().isBlank ()))
           throw XPathException.of ("SEPM0017", "Serialization parameter " + sLocal + " must be empty");
       if (sValue == null)
         throw XPathException.of ("SEPM0017", "Serialization parameter " + sLocal + " has no value attribute");

@@ -186,9 +186,9 @@ final class JsonParser
     return cp == 0x9 ||
            cp == 0xA ||
            cp == 0xD ||
-           cp >= 0x20 && cp <= 0xD7FF ||
-           cp >= 0xE000 && cp <= 0xFFFD ||
-           cp >= 0x10000 && cp <= 0x10FFFF;
+           (cp >= 0x20 && cp <= 0xD7FF) ||
+           (cp >= 0xE000 && cp <= 0xFFFD) ||
+           (cp >= 0x10000 && cp <= 0x10FFFF);
   }
 
   private static void _appendHex (@NonNull final StringBuilder aSB, final int c)
@@ -222,7 +222,7 @@ final class JsonParser
           aSB.append ("\\t");
           return;
         default:
-          if (cp < 0x20 || cp >= 0x7F && cp <= 0x9F || !isXmlChar (cp))
+          if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F) || !isXmlChar (cp))
           {
             if (Character.isSupplementaryCodePoint (cp))
             {

@@ -139,7 +139,7 @@ public enum EAtomicType
 
   public boolean isNumeric ()
   {
-    return this == DOUBLE || this == FLOAT || isDerivedFrom (DECIMAL) && this != NUMERIC;
+    return this == DOUBLE || this == FLOAT || (isDerivedFrom (DECIMAL) && this != NUMERIC);
   }
 
   /** @return <code>true</code> for xs:integer and all its derived types. */

@@ -96,7 +96,7 @@ public final class XsdSchemaModelWalkIT
         _problem ("null particle/term");
         return;
       }
-      if (p.minOccurs () < 0 || p.maxOccurs () != XsdConstants.UNBOUNDED && p.maxOccurs () < p.minOccurs ())
+      if (p.minOccurs () < 0 || (p.maxOccurs () != XsdConstants.UNBOUNDED && p.maxOccurs () < p.minOccurs ()))
         _problem ("bad occurs " + p.minOccurs () + ".." + p.maxOccurs ());
       final IXsdTermView aTerm = p.term ();
       if (aTerm instanceof final XsdElementView aElement)

@@ -189,7 +189,7 @@ public final class XsltTransformer
           {
             final IXdmNode aChild = aOrig.getChildAtIndex (i);
             final boolean bKept = !aChild.isText () ||
-                                  nCopyIdx < aCopy.getChildCount () && aCopy.getChildAtIndex (nCopyIdx).isText ();
+                                  (nCopyIdx < aCopy.getChildCount () && aCopy.getChildAtIndex (nCopyIdx).isText ());
             if (aChild == aWanted)
             {
               if (bKept && nCopyIdx < aCopy.getChildCount ())
@@ -280,7 +280,7 @@ public final class XsltTransformer
     final XdmQName aModeName = m_aRequest.getInitialMode ();
     if (aModeName != null && !aModeName.hasNamespace () && "#unnamed".equals (aModeName.localName ()))
       return Mode.UNNAMED;
-    if (aModeName == null || !aModeName.hasNamespace () && "#default".equals (aModeName.localName ()))
+    if (aModeName == null || (!aModeName.hasNamespace () && "#default".equals (aModeName.localName ())))
       return m_aSheet.getDefaultModeName ();
     return aModeName;
   }
@@ -316,10 +316,10 @@ public final class XsltTransformer
         (m_aSheet.privateModes ().contains (aModeName) ||
          "private".equals (sVis) ||
          "abstract".equals (sVis) ||
-         sVis == null &&
+         (sVis == null &&
                          m_aSheet.isPackage () &&
                          aMode.getDeclaration () != null &&
-                         !m_aSheet.exposedModes ().contains (aModeName)))
+                         !m_aSheet.exposedModes ().contains (aModeName))))
       throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not public", null, 0, 0);
     return aMode;
   }

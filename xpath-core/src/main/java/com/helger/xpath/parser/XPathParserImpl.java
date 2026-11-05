@@ -418,7 +418,7 @@ final class XPathParserImpl
   private boolean _isKnownSchemaType (@NonNull final XdmQName aName)
   {
     if (_atomicTypeOf (aName) != null ||
-        XdmConstants.NS_XS.equals (aName.namespaceUri ()) && NON_ATOMIC_XS_TYPES.contains (aName.localName ()))
+        (XdmConstants.NS_XS.equals (aName.namespaceUri ()) && NON_ATOMIC_XS_TYPES.contains (aName.localName ())))
       return true;
     final IXdmSchemaSet aSchemaSet = m_aCtx.getSchemaSet ();
     return aSchemaSet != null && aSchemaSet.getTypeDefinition (aName) != null;

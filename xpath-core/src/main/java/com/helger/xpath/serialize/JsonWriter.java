@@ -111,7 +111,7 @@ final class JsonWriter
             aTarget.append ("\\t");
             break;
           default:
-            if (cp < 0x20 || cp >= 0x7F && cp <= 0x9F)
+            if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F))
             {
               // F&O 3.1 §17.5.4 (xml-to-json): upper-case hexadecimal
               aTarget.append ("\\u").append (String.format (Locale.ROOT, "%04X", Integer.valueOf (cp)));

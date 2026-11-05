@@ -44,12 +44,12 @@ final class XsdLexHelper
 
   private static boolean _isAlpha (final char c)
   {
-    return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
   }
 
   private static boolean _isHex (final char c)
   {
-    return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F';
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
   }
 
   /**
@@ -86,9 +86,9 @@ final class XsdLexHelper
       }
       if (c < 0x80)
       {
-        final boolean bOK = c >= 'a' && c <= 'z' ||
-                            c >= 'A' && c <= 'Z' ||
-                            c >= '0' && c <= '9' ||
+        final boolean bOK = (c >= 'a' && c <= 'z') ||
+                            (c >= 'A' && c <= 'Z') ||
+                            (c >= '0' && c <= '9') ||
                             c == '.' ||
                             c == '-' ||
                             c == '_';
@@ -133,7 +133,7 @@ final class XsdLexHelper
     for (int i = 0; i < nLen; i++)
     {
       final char c = s.charAt (i);
-      if (c >= 0x80 || _isAlpha (c) || c >= '0' && c <= '9')
+      if (c >= 0x80 || _isAlpha (c) || (c >= '0' && c <= '9'))
         continue;
       if ("-_.!~*'();/?:@&=+$,#[]<>\"".indexOf (c) >= 0)
         continue;
@@ -168,7 +168,7 @@ final class XsdLexHelper
       for (int j = 1; j < sScheme.length (); j++)
       {
         final char c = sScheme.charAt (j);
-        if (!(_isAlpha (c) || c >= '0' && c <= '9' || c == '+' || c == '-' || c == '.'))
+        if (!(_isAlpha (c) || (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.'))
           return false;
       }
       String sRest = s.substring (nColon + 1);

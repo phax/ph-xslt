@@ -114,7 +114,7 @@ final class XsdLexScan
       final char c = sValue.charAt (i);
       if (c >= 0x80)
         return XsdLexical.isNCName (sValue);
-      if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_')
+      if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_')
         continue;
       if (i > 0 && (_isDigit (c) || c == '-' || c == '.'))
         continue;
@@ -139,7 +139,7 @@ final class XsdLexScan
     for (int i = 0; i < nLen; i++)
     {
       final char c = sValue.charAt (i);
-      if (!(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'))
+      if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
         return false;
     }
     return true;
@@ -147,7 +147,7 @@ final class XsdLexScan
 
   private static boolean _isBase64Char (final char c)
   {
-    return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '+' || c == '/';
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/';
   }
 
   /**

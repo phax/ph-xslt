@@ -236,7 +236,7 @@ public final class FnNumeric
       return _one (XdmAtomic.dbl (Double.NaN));
     final XdmAtomic aAtomic = (XdmAtomic) aValue.get (0);
     final EAtomicType eType = aAtomic.getType ();
-    if (aAtomic.isNumeric () || aAtomic.isStringLike () && eType != EAtomicType.ANY_URI || eType == EAtomicType.BOOLEAN)
+    if (aAtomic.isNumeric () || (aAtomic.isStringLike () && eType != EAtomicType.ANY_URI) || eType == EAtomicType.BOOLEAN)
     {
       try
       {
@@ -451,7 +451,7 @@ public final class FnNumeric
   private static boolean _isNaN (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
-    return aPayload instanceof final Double aD && aD.isNaN () || aPayload instanceof final Float aF && aF.isNaN ();
+    return (aPayload instanceof final Double aD && aD.isNaN ()) || (aPayload instanceof final Float aF && aF.isNaN ());
   }
 
   @NonNull

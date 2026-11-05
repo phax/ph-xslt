@@ -118,7 +118,7 @@ final class XsdMessages
         for (final XsdMessage aMsg : aMessages)
         {
           final String sMsgLang = aMsg.lang ().toLowerCase (Locale.ROOT);
-          if (sMsgLang.equals (sPrimary) || !sMsgLang.isEmpty () && sMsgLang.startsWith (sPrimary + "-"))
+          if (sMsgLang.equals (sPrimary) || (!sMsgLang.isEmpty () && sMsgLang.startsWith (sPrimary + "-")))
           {
             aPick = aMsg;
             break;

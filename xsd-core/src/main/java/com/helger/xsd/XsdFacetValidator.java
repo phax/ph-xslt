@@ -383,28 +383,28 @@ final class XsdFacetValidator
     if (aFacets.m_bHasMinIncl)
     {
       final BoundOrder aOrder = _order (sValue, aValue, aFacets.m_sMinIncl, ePrim);
-      if (aOrder.incomparable () || aOrder.ok () && aOrder.c () < 0)
+      if (aOrder.incomparable () || (aOrder.ok () && aOrder.c () < 0))
         throw XsdCompiler.invalid ("cvc-minInclusive-valid",
                                    XsdLexHelper.quote (sValue) + " < minInclusive " + aFacets.m_sMinIncl);
     }
     if (aFacets.m_bHasMaxIncl)
     {
       final BoundOrder aOrder = _order (sValue, aValue, aFacets.m_sMaxIncl, ePrim);
-      if (aOrder.incomparable () || aOrder.ok () && aOrder.c () > 0)
+      if (aOrder.incomparable () || (aOrder.ok () && aOrder.c () > 0))
         throw XsdCompiler.invalid ("cvc-maxInclusive-valid",
                                    XsdLexHelper.quote (sValue) + " > maxInclusive " + aFacets.m_sMaxIncl);
     }
     if (aFacets.m_bHasMinExcl)
     {
       final BoundOrder aOrder = _order (sValue, aValue, aFacets.m_sMinExcl, ePrim);
-      if (aOrder.incomparable () || aOrder.ok () && aOrder.c () <= 0)
+      if (aOrder.incomparable () || (aOrder.ok () && aOrder.c () <= 0))
         throw XsdCompiler.invalid ("cvc-minExclusive-valid",
                                    XsdLexHelper.quote (sValue) + " <= minExclusive " + aFacets.m_sMinExcl);
     }
     if (aFacets.m_bHasMaxExcl)
     {
       final BoundOrder aOrder = _order (sValue, aValue, aFacets.m_sMaxExcl, ePrim);
-      if (aOrder.incomparable () || aOrder.ok () && aOrder.c () >= 0)
+      if (aOrder.incomparable () || (aOrder.ok () && aOrder.c () >= 0))
         throw XsdCompiler.invalid ("cvc-maxExclusive-valid",
                                    XsdLexHelper.quote (sValue) + " >= maxExclusive " + aFacets.m_sMaxExcl);
     }

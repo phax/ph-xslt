@@ -457,8 +457,8 @@ public final class FormatWords
     if (n == 1)
     {
       final String sEnding = _ordinalEnding (sVariant);
-      if (sEnding != null &&
-          (sEnding.equals ("e") || sEnding.equals ("re") || sEnding.equals ("ère") || sEnding.equals ("ere")) ||
+      if ((sEnding != null &&
+          (sEnding.equals ("e") || sEnding.equals ("re") || sEnding.equals ("ère") || sEnding.equals ("ere"))) ||
           sVariant.endsWith ("feminine"))
         return "première";
       return "premier";

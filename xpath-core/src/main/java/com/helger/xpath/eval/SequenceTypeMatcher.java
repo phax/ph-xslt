@@ -448,13 +448,13 @@ public final class SequenceTypeMatcher
           return true;
         return aA.inner () != null && _isNodeTestSubtype (aA.inner (), aB.inner ());
       case PROCESSING_INSTRUCTION:
-        return aB.name () == null || aA.name () != null && aA.name ().localName ().equals (aB.name ().localName ());
+        return aB.name () == null || (aA.name () != null && aA.name ().localName ().equals (aB.name ().localName ()));
       case ELEMENT:
       case ATTRIBUTE:
       {
         final boolean bNameOK = aB.anyName () ||
                                 aB.name () == null ||
-                                !aA.anyName () && aA.name () != null && aA.name ().equals (aB.name ());
+                                (!aA.anyName () && aA.name () != null && aA.name ().equals (aB.name ()));
         if (!bNameOK)
           return false;
         if (aB.typeName () == null)
