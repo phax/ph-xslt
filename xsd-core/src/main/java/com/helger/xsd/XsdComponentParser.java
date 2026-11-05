@@ -85,7 +85,11 @@ final class XsdComponentParser
     }
   }
 
-  /** go-xslt <code>occursOf</code>: minOccurs and maxOccurs (default 1). */
+  /**
+   * go-xslt <code>occursOf</code>: minOccurs and maxOccurs (default 1). The
+   * values are whitespace-collapsed first (both are typed as
+   * <code>xs:nonNegativeInteger</code> or <code>unbounded</code>).
+   */
   @NonNull
   private static int [] _occursOf (@NonNull final IXdmNode aNode)
   {
@@ -96,7 +100,7 @@ final class XsdComponentParser
     int nMax = 1;
     final String sMax = XsdNodes.attr (aNode, "maxOccurs");
     if (sMax != null)
-      nMax = "unbounded".equals (sMax) ? XsdConstants.UNBOUNDED : XsdLexHelper.atoiOr (sMax);
+      nMax = "unbounded".equals (XsdWhiteSpace.collapse (sMax)) ? XsdConstants.UNBOUNDED : XsdLexHelper.atoiOr (sMax);
     return new int [] { nMin, nMax };
   }
 
@@ -329,7 +333,7 @@ final class XsdComponentParser
     }
     aCT.m_aAttrUses = aUses;
     if (aAG.m_aWildcard != null)
-      aCT.m_aAttrWildcard = intersectWildcards (aCT.m_aAttrWildcard, aAG.m_aWildcard);
+      aCT.m_aAttrWildcard = intersectWildcards (aCT.m_aAttrWildcard, aAG.m_aWildcard, true);
   }
 
   /**
@@ -497,13 +501,20 @@ final class XsdComponentParser
   /**
    * go-xslt <code>parseAttributes</code>: the attribute uses and the attribute
    * wildcard that are direct children of a complexType, extension, restriction
-   * or attributeGroup.
+   * or attributeGroup. The wildcard is the complete wildcard: the intersection
+   * of the local xs:anyAttribute and the wildcards of the referenced
+   * attribute groups, with the processContents of the local one, or, without
+   * a local one, of the first group wildcard.
+   *
+   * @throws XsdInvalidException
+   *         if the intersection is not expressible (XSD 1.0)
    */
   @NonNull
   private XsdEffectiveAttributes _parseAttributes (@NonNull final IXdmNode aNode)
   {
     final ICommonsList <XsdAttributeUse> aUses = new CommonsArrayList <> ();
     XsdWildcard aWC = null;
+    XsdWildcard aLocalWC = null;
     final ICommonsSet <XsdName> aSeen = new CommonsHashSet <> ();
     for (final IXdmNode aChild : XsdNodes.children (aNode))
     {
@@ -546,12 +557,17 @@ final class XsdComponentParser
             if (!aSeen.add (aGroupUse.m_aDecl.m_aName))
               throw XsdCompiler.invalid ("ct-props-correct.4", "duplicate attribute " + aGroupUse.m_aDecl.m_aName);
           aUses.addAll (aAG.m_aUses);
-          aWC = intersectWildcards (aWC, aAG.m_aWildcard);
+          aWC = intersectWildcards (aWC, aAG.m_aWildcard, m_aC.isXsd11 ());
         }
         else
           if (XsdNodes.isXS (aChild, "anyAttribute"))
-            aWC = intersectWildcards (aWC, parseWildcard (aChild));
+            aLocalWC = parseWildcard (aChild);
     }
+    // The complete wildcard (XSD 1.1 Part 1, 3.6.2.2; 1.0 3.4.2): the local
+    // wildcard comes first, so its processContents wins; without one, that of
+    // the first group wildcard
+    if (aLocalWC != null)
+      aWC = intersectWildcards (aLocalWC, aWC, m_aC.isXsd11 ());
     return new XsdEffectiveAttributes (aUses, aWC);
   }
 
@@ -862,21 +878,37 @@ final class XsdComponentParser
    * <p>
    * A <code>null</code> operand yields the other one, and if either operand
    * is a union (has parts) <code>aA</code> is returned unchanged. Otherwise a
-   * new wildcard is built: processContents is the common value, or strict if
-   * the two differ; the notNamespace sets, the notQName names, the
-   * <code>##defined</code> flag and its names are united. The namespace
-   * constraint is the other operand's if one is <code>##any</code>; two
-   * <code>##other</code> of the same target namespace stay
-   * <code>##other</code>, of different ones become the empty list;
-   * <code>##other</code> with a list keeps the list members that are neither
-   * the <code>##other</code> target namespace nor absent; two lists keep the
-   * members of <code>aA</code> also in <code>aB</code>.
+   * new wildcard is built: processContents is that of <code>aA</code> (the
+   * caller passes the local wildcard or the first group wildcard first); the
+   * notNamespace sets, the notQName names, the <code>##defined</code> flag and
+   * its names are united. The namespace constraint is the other operand's if
+   * one is <code>##any</code>; two <code>##other</code> of the same target
+   * namespace stay <code>##other</code>; of different ones they are, under
+   * 1.1, <code>##other</code> that also excludes the second target namespace
+   * (3.10.6.4 clause 4: the union of the excluded sets); under 1.0 the one
+   * of a non-absent target namespace if the other's is absent, and not
+   * expressible if both are non-absent (1.0 3.10.6 clause 5 with Errata
+   * E1-10); <code>##other</code> with a list keeps
+   * the list members that are neither the <code>##other</code> target
+   * namespace nor absent; two lists keep the members of <code>aA</code> also
+   * in <code>aB</code>.
    *
+   * @param aA
+   *        The first operand; may be <code>null</code>.
+   * @param aB
+   *        The second operand; may be <code>null</code>.
+   * @param bXsd11
+   *        <code>true</code> for the XSD 1.1 rules.
    * @return The intersection, <code>null</code> only if both operands are
    *         <code>null</code>.
+   * @throws XsdInvalidException
+   *         under 1.0 for two <code>##other</code> of different target
+   *         namespaces
    */
   @Nullable
-  static XsdWildcard intersectWildcards (@Nullable final XsdWildcard aA, @Nullable final XsdWildcard aB)
+  static XsdWildcard intersectWildcards (@Nullable final XsdWildcard aA,
+                                         @Nullable final XsdWildcard aB,
+                                         final boolean bXsd11)
   {
     if (aA == null)
       return aB;
@@ -888,8 +920,8 @@ final class XsdComponentParser
       return aA;
     }
     final XsdWildcard ret = new XsdWildcard ();
-    // The stronger requirement wins
-    ret.m_sProcess = aA.m_sProcess.equals (aB.m_sProcess) ? aA.m_sProcess : XsdWildcard.PROCESS_STRICT;
+    // The first operand's processContents (3.6.2.2)
+    ret.m_sProcess = aA.m_sProcess;
     ret.m_sTargetNS = aA.m_sTargetNS;
     ret.m_aNotNS.addAll (aA.m_aNotNS);
     ret.m_aNotNS.addAll (aB.m_aNotNS);
@@ -917,9 +949,25 @@ final class XsdComponentParser
           ret.m_sNsMode = XsdWildcard.NS_OTHER;
           if (!aA.m_sTargetNS.equals (aB.m_sTargetNS))
           {
-            // Two different ##other constraints: fall back to the empty set
-            ret.m_sNsMode = XsdWildcard.NS_LIST;
-            ret.m_aNamespaces = new CommonsArrayList <> ();
+            // Two different negations: under 1.1 the union of the excluded
+            // namespaces. Under 1.0 (Errata E1-10) ##other always excludes
+            // absent, so the negation of absent yields the other operand;
+            // two negated namespace names are not expressible
+            if (!bXsd11)
+            {
+              if (aA.m_sTargetNS.isEmpty ())
+                ret.m_sTargetNS = aB.m_sTargetNS;
+              else
+                if (!aB.m_sTargetNS.isEmpty ())
+                  throw XsdCompiler.invalid ("",
+                                             "the intersection of the ##other wildcards of " +
+                                                 XsdLexHelper.quote (aA.m_sTargetNS) +
+                                                 " and " +
+                                                 XsdLexHelper.quote (aB.m_sTargetNS) +
+                                                 " is not expressible");
+            }
+            else
+              ret.m_aNotNS.add (aB.m_sTargetNS);
           }
         }
         else

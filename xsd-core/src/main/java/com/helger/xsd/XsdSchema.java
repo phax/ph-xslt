@@ -107,8 +107,8 @@ public final class XsdSchema
    * is the result, without an own particle the base particle. Under XSD 1.1,
    * when both are <code>xs:all</code> groups (see {@link #_allGroupOf}), the
    * result is one new all group with the base members followed by the own
-   * members, whose <code>minOccurs</code> is the larger of the two
-   * particles' <code>minOccurs</code> and whose <code>maxOccurs</code> is 1.
+   * members, whose <code>minOccurs</code> is that of the own particle (clause
+   * 4.2.3.2) and whose <code>maxOccurs</code> is 1.
    * Otherwise the result is a new <code>sequence</code> particle (1..1) of
    * the base particle followed by the own particle. Neither input is
    * modified.
@@ -135,7 +135,9 @@ public final class XsdSchema
       final XsdModelGroup aEG = _allGroupOf (aCT.m_aParticle);
       if (aBG != null && aEG != null)
       {
-        final int nMin = Math.max (aBaseParticle.m_nMin, aCT.m_aParticle.m_nMin);
+        // Clause 4.2.3.2: the min occurs of the effective content (cos-ct-extends
+        // demands the base's be equal anyway)
+        final int nMin = aCT.m_aParticle.m_nMin;
         final XsdModelGroup aMerged = new XsdModelGroup (EXsdCompositor.ALL);
         aMerged.m_aParticles.addAll (aBG.m_aParticles);
         aMerged.m_aParticles.addAll (aEG.m_aParticles);

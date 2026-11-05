@@ -426,9 +426,8 @@ final class XsdRegexGrammar
    * m) only directly after an atom and never two in a row, so
    * <code>*?</code> and the like (reluctant quantifiers) are rejected; no
    * <code>(?</code> group syntax; balanced parentheses. A <code>|</code>
-   * starts a new, possibly empty branch. Every other character counts as an
-   * atom; an unescaped <code>}</code> outside a quantifier is not flagged
-   * here.
+   * starts a new, possibly empty branch. An unescaped <code>}</code> outside
+   * a quantifier is rejected. Every other character counts as an atom.
    *
    * @param sPattern
    *        The pattern.
@@ -465,6 +464,9 @@ final class XsdRegexGrammar
           break;
         case ']':
           throw new GrammarError ("unescaped ']' outside a character class");
+        case '}':
+          // Not a NormalChar (Datatypes 1.1 G.4.2, 1.0 F.1.1)
+          throw new GrammarError ("unescaped '}' outside a quantifier");
         case '*':
         case '+':
           // piece ::= atom quantifier?: a quantifier needs a preceding atom
