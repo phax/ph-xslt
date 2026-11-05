@@ -280,6 +280,12 @@ final class XsdSchemaForSchemas
   private XsdSchemaForSchemas ()
   {}
 
+  /**
+   * @param aNames
+   *        Attribute local names.
+   * @return A new set of the names plus <code>id</code>, which every schema
+   *         element allows.
+   */
   @NonNull
   private static ICommonsSet <String> _set (@NonNull final String... aNames)
   {
@@ -288,6 +294,12 @@ final class XsdSchemaForSchemas
     return ret;
   }
 
+  /**
+   * @param aNames
+   *        Child element local names.
+   * @return A new set of the names plus <code>annotation</code>, which every
+   *         schema element allows as a child.
+   */
   @NonNull
   private static ICommonsSet <String> _cset (@NonNull final String... aNames)
   {
@@ -296,6 +308,11 @@ final class XsdSchemaForSchemas
     return ret;
   }
 
+  /**
+   * @param aNames
+   *        Derivation-control keywords.
+   * @return A new set of exactly these keywords.
+   */
   @NonNull
   private static ICommonsSet <String> _blockFinalSet (@NonNull final String... aNames)
   {
@@ -342,6 +359,26 @@ final class XsdSchemaForSchemas
     return true;
   }
 
+  /**
+   * The attribute value checks of one schema element. An attribute in the XSD
+   * namespace is rejected outright; attributes in any other namespace are
+   * ignored. Of the unqualified attributes, after whitespace collapsing:
+   * <code>id</code> must be an NCName not used before in the document, the
+   * boolean attributes must be <code>true</code>, <code>false</code>,
+   * <code>1</code> or <code>0</code>, <code>block</code>, <code>final</code>,
+   * <code>blockDefault</code> and <code>finalDefault</code> must pass
+   * {@link #_validBlockFinal}, and an attribute with an enumerated value set
+   * must take one of its values. Other attributes are not checked here.
+   *
+   * @param aElement
+   *        The schema element.
+   * @param aSeenIDs
+   *        The <code>id</code> values seen so far in the document. Modified.
+   * @param eVersion
+   *        The XSD version, which decides the allowed block/final keywords.
+   * @throws XsdInvalidException
+   *         for the first invalid value
+   */
   private static void _checkAttrValues (@NonNull final IXdmNode aElement,
                                         @NonNull final ICommonsSet <String> aSeenIDs,
                                         @NonNull final EXsdVersion eVersion)
@@ -442,6 +479,14 @@ final class XsdSchemaForSchemas
       throw XsdCompiler.invalid ("", "minOccurs (" + nMin + ") exceeds maxOccurs");
   }
 
+  /**
+   * @param aElement
+   *        A schema element.
+   * @param sLocal
+   *        A local name.
+   * @return <code>true</code> if the element has a child in the XSD namespace
+   *         with that local name.
+   */
   private static boolean _hasXSChild (@NonNull final IXdmNode aElement, @NonNull final String sLocal)
   {
     return XsdNodes.firstXSChild (aElement, sLocal) != null;

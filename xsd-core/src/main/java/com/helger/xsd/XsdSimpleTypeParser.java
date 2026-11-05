@@ -61,6 +61,11 @@ final class XsdSimpleTypeParser
    */
   private final Map <XsdSimpleType, String> m_aOpen = new IdentityHashMap <> ();
 
+  /**
+   * @param aCompiler
+   *        The compiler whose state (version, notations, final default, type
+   *        resolution, nesting bound) the parser uses.
+   */
   XsdSimpleTypeParser (@NonNull final XsdCompiler aCompiler)
   {
     m_aC = aCompiler;
@@ -488,6 +493,27 @@ final class XsdSimpleTypeParser
     }
   }
 
+  /**
+   * Recursive worker of {@link #checkNotationUsable(XsdSimpleType)}. A union is
+   * checked member by member, each union only once. An atomic type whose
+   * primitive is xs:NOTATION must have an enumeration facet on itself or on a
+   * type of its base chain (the nearest one counts), and every enumeration
+   * value must name a declared notation, compared by local name only (the
+   * part after the last colon). Lists and other atomic types pass. A
+   * <code>null</code> type and a walk deeper than {@link #MAX_CHAIN} pass as
+   * well.
+   *
+   * @param aType
+   *        The type; may be <code>null</code>.
+   * @param nDepth
+   *        The union nesting depth.
+   * @param aVisited
+   *        The unions already checked. Modified.
+   * @throws XsdInvalidException
+   *         with <code>enumeration-required-notation</code> if no enumeration
+   *         is found, or <code>enumeration-valid-notation</code> if a value
+   *         names no declared notation
+   */
   private void _checkNotationUsable (@Nullable final XsdSimpleType aType,
                                      final int nDepth,
                                      @NonNull final Set <XsdSimpleType> aVisited)
@@ -598,12 +624,31 @@ final class XsdSimpleTypeParser
     aType.m_aMembers = aMembers;
   }
 
+  /** @return A new error for a circular simple type derivation. */
   @NonNull
   private static XsdInvalidException _circular ()
   {
     return XsdCompiler.invalid ("", "circular simpleType derivation");
   }
 
+  /**
+   * Fill a simple type from its xs:restriction. The base is the type named by
+   * <code>base</code> (a type still being parsed is a circular derivation,
+   * and its {final} must allow restriction) or the inline xs:simpleType. A
+   * restriction of a non-built-in list or union takes over the variety and
+   * the item type or member list of its base (a union is then closed, see
+   * {@link #_closeUnion}); otherwise the type is atomic. Then the facets are
+   * parsed and checked for consistency with the base chain, the xs:NOTATION
+   * rule is applied, and the facet values are validated.
+   *
+   * @param aType
+   *        The type to fill.
+   * @param aRestriction
+   *        The xs:restriction element.
+   * @throws XsdInvalidException
+   *         for a circular derivation, a missing base, a forbidden derivation
+   *         or invalid facets
+   */
   private void _parseRestriction (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aRestriction)
   {
     aType.m_eVariety = EXsdVariety.ATOMIC;
@@ -648,6 +693,21 @@ final class XsdSimpleTypeParser
     XsdFacetValidator.validateFacetValues (aType, m_aC.m_eVersion);
   }
 
+  /**
+   * Fill a list type from its xs:list. The item type is the one named by
+   * <code>itemType</code> or the inline xs:simpleType. It must not be a list
+   * (cos-list-of-atomic) and, in 1.1, not an ur-type. A named item type also
+   * must not be a type still being parsed (circular derivation), must allow
+   * derivation by list in its {final}, and is subject to the xs:NOTATION rule;
+   * an unresolved name is kept as the absent type without these checks.
+   *
+   * @param aType
+   *        The type to fill.
+   * @param aList
+   *        The xs:list element.
+   * @throws XsdInvalidException
+   *         if the item type is missing, complex or not allowed
+   */
   private void _parseList (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aList)
   {
     aType.m_eVariety = EXsdVariety.LIST;
@@ -684,6 +744,22 @@ final class XsdSimpleTypeParser
     aType.m_aItem = aItem;
   }
 
+  /**
+   * Fill a union type from its xs:union: first the types named by
+   * <code>memberTypes</code> in order, then the inline xs:simpleType children.
+   * A named member with an undeclared prefix fails src-resolve; one still
+   * being parsed is a circular derivation, except for a cycle through unions
+   * only in 1.0, which {@link #_closeUnion} resolves; in 1.1 an ur-type is
+   * no valid member; and its {final} must allow derivation by union. A union
+   * without any member is invalid.
+   *
+   * @param aType
+   *        The type to fill.
+   * @param aUnion
+   *        The xs:union element.
+   * @throws XsdInvalidException
+   *         for a member that is not allowed, a cycle, or no members
+   */
   private void _parseUnion (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aUnion)
   {
     aType.m_eVariety = EXsdVariety.UNION;
@@ -763,7 +839,30 @@ final class XsdSimpleTypeParser
     _checkNotationUsable (aType, 0, Collections.newSetFromMap (new IdentityHashMap <> ()));
   }
 
-  /** go-xslt <code>parseFacets</code>. */
+  /**
+   * go-xslt <code>parseFacets</code>: read the facet children of an
+   * xs:restriction into the type's own facet set (the facets of this
+   * restriction step only). Attribute declarations, attribute groups,
+   * attribute wildcards and xs:assert of a simpleContent restriction are
+   * skipped, as are xs:annotation and the inline xs:simpleType. Every facet
+   * except pattern, enumeration and assertion may appear at most once. The
+   * patterns of the step are checked for XSD regular expression syntax and
+   * compiled as one group (their sources kept when documentation is kept);
+   * enumeration values are also stored as expanded QNames, resolved with the
+   * facet element's namespace bindings; length, minLength, maxLength and
+   * fractionDigits must be non-negative integers and totalDigits a positive
+   * one; xs:assertion is a facet in 1.1 only. A facet with
+   * <code>fixed="true"</code> (or <code>1</code>) is recorded as fixed. The
+   * consistency of the values with the base is not checked here.
+   *
+   * @param aType
+   *        The type being filled. Its facet set and assertions are modified.
+   * @param aRestriction
+   *        The xs:restriction element.
+   * @throws XsdInvalidException
+   *         for a repeated or unknown facet, an invalid pattern or an invalid
+   *         length or digits value
+   */
   void parseFacets (@NonNull final XsdSimpleType aType, @NonNull final IXdmNode aRestriction)
   {
     final ICommonsList <XsdPattern> aPatternGroup = new CommonsArrayList <> ();

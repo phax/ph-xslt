@@ -55,9 +55,24 @@ final class XsdOverride
   private XsdOverride ()
   {}
 
+  /**
+   * One pending step of the iterative copy in {@link #_cloneTree}: the source
+   * node still to be copied and the already created copy it is appended to.
+   *
+   * @param src
+   *        The source node to copy.
+   * @param dstParent
+   *        The copy that receives the copy of <code>src</code> as last child.
+   */
   private record CloneStep (@NonNull IXdmNode src, @NonNull IXdmNode dstParent)
   {}
 
+  /**
+   * @param aNode
+   *        A schema element.
+   * @return Its <code>name</code> attribute whitespace-collapsed, the empty
+   *         string if it has none.
+   */
   @NonNull
   private static String _collapsedName (@NonNull final IXdmNode aNode)
   {
@@ -65,6 +80,17 @@ final class XsdOverride
     return sName == null ? "" : XsdWhiteSpace.collapse (sName);
   }
 
+  /**
+   * Copy one node without its children: an element with its name, declared
+   * namespaces and attributes (with their locations), or a text, comment or
+   * processing instruction node with its value. The copy keeps the location
+   * of the source.
+   *
+   * @param aSrc
+   *        The node to copy.
+   * @return The new detached node, or <code>null</code> for any other node
+   *         kind (document, attribute, namespace).
+   */
   @Nullable
   private static IXdmNode _cloneShallow (@NonNull final IXdmNode aSrc)
   {
@@ -166,6 +192,15 @@ final class XsdOverride
     return null;
   }
 
+  /**
+   * Create the empty xs:override element that replaces an xs:include or a
+   * nested xs:override of the overridden document, carrying over its
+   * <code>schemaLocation</code> (if any) and its location.
+   *
+   * @param aFrom
+   *        The xs:include or xs:override being rewritten.
+   * @return The new xs:override element, without children.
+   */
   @NonNull
   private static IXdmNode _newOverride (@NonNull final IXdmNode aFrom)
   {
@@ -177,6 +212,19 @@ final class XsdOverride
     return ret;
   }
 
+  /**
+   * Append the fingerprint of a subtree for {@link #signature}: for an element
+   * its namespace, local name and its attributes (namespace, local name and
+   * value) sorted, followed by the fingerprints of its children in
+   * parentheses; for a text node its stripped value if not empty. Comments
+   * and processing instructions contribute nothing. Recurses over the depth of
+   * the subtree.
+   *
+   * @param aSB
+   *        Receives the fingerprint.
+   * @param aNode
+   *        The node.
+   */
   private static void _signatureRecursive (@NonNull final StringBuilder aSB, @NonNull final IXdmNode aNode)
   {
     switch (aNode.getKind ())

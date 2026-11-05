@@ -67,6 +67,15 @@ final class XsdAssertions
   private XsdAssertions ()
   {}
 
+  /**
+   * One pending step of the iterative copy in {@link #_assertTree}: the source
+   * node still to be copied and the already created copy it is appended to.
+   *
+   * @param src
+   *        The source node to copy.
+   * @param dstParent
+   *        The copy that receives the copy of <code>src</code> as last child.
+   */
   private record CloneStep (@NonNull IXdmNode src, @NonNull IXdmNode dstParent)
   {}
 
@@ -87,6 +96,20 @@ final class XsdAssertions
     return XdmAtomic.untyped (sValue);
   }
 
+  /**
+   * Evaluate an assertion or type alternative test and take its effective
+   * boolean value. Any dynamic error, an {@link XPathException} as well as a
+   * runtime exception of the engine, counts as <code>false</code>: the
+   * assertion is not satisfied (3.13.4.1) and the alternative is not selected
+   * (3.12.4). Nothing is reported for the error itself.
+   *
+   * @param aXPath
+   *        The compiled test.
+   * @param aCtx
+   *        The dynamic context with focus and <code>$value</code> as needed.
+   * @return <code>true</code> only if the test evaluated without error to an
+   *         effective boolean value of <code>true</code>.
+   */
   private static boolean _isTrue (@NonNull final CompiledXPath aXPath, @NonNull final DynamicContext aCtx)
   {
     try
@@ -119,6 +142,30 @@ final class XsdAssertions
       aCopy.setSchemaType (aRun.getAssertSchemaType (aType, aSrc.getStringValue (), aSrc));
   }
 
+  /**
+   * Copy one node for the assertion tree, without its children. A text node
+   * becomes a new text node with the same value. An element becomes a new
+   * element with the same name, location and declared namespaces, carrying:
+   * <ul>
+   * <li>value copies of its attributes, each annotated with the type it was
+   * validated against (see {@link #_annotate});</li>
+   * <li>the default or fixed attributes that the run recorded for the element
+   * and that the element does not carry itself, annotated with the attribute
+   * use's simple type when it has one;</li>
+   * <li>for a non-root element, the type annotation of its own simple
+   * content. The root stays unannotated, as its type is the one being
+   * validated.</li>
+   * </ul>
+   * The source node is not modified.
+   *
+   * @param aRun
+   *        The validation run that holds the types and defaults.
+   * @param aSrc
+   *        The element or text node to copy.
+   * @param bRoot
+   *        <code>true</code> for the element the assertion is evaluated on.
+   * @return The new detached node.
+   */
   @NonNull
   private static IXdmNode _cloneShallow (@NonNull final XsdValidationRun aRun,
                                          @NonNull final IXdmNode aSrc,

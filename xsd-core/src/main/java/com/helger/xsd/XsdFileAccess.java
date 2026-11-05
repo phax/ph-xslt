@@ -95,7 +95,11 @@ public final class XsdFileAccess
   /**
    * @param aPath
    *        The file.
-   * @return <code>true</code> if the file may be read (it need not exist).
+   * @return <code>true</code> if the file may be read. Without confinement
+   *         every path is allowed, whether it exists or not. A confined access
+   *         compares the real path (symbolic links resolved) with the allowed
+   *         directories, so a file that does not exist or whose real path
+   *         cannot be determined is not allowed.
    */
   public boolean isAllowed (@NonNull final Path aPath)
   {
@@ -141,7 +145,8 @@ public final class XsdFileAccess
    *
    * @param aBaseDir
    *        The directory of the referring document; <code>null</code> if it
-   *        has none (then only absolute <code>file:</code> URIs resolve).
+   *        has none (then only absolute paths and <code>file:</code> URIs
+   *        resolve).
    * @param sLocation
    *        The location as written.
    * @return The normalised path, or <code>null</code> if the location is not

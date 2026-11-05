@@ -74,12 +74,18 @@ final class XsdBridge implements IXdmSchemaSet
   /** The annotation of a node: its type and the type its value was validated against. */
   private record TypeKey (@NonNull IXsdType type, @NonNull IXsdType valueType)
   {
+    /**
+     * Two keys are equal if they hold the very same type objects: types are
+     * compared by identity, as two anonymous types may look alike but are
+     * different components.
+     */
     @Override
     public boolean equals (final Object o)
     {
       return o instanceof final TypeKey aOther && aOther.type == type && aOther.valueType == valueType;
     }
 
+    /** Consistent with the identity-based {@link #equals(Object)}. */
     @Override
     public int hashCode ()
     {
@@ -95,11 +101,26 @@ final class XsdBridge implements IXdmSchemaSet
   private final ICommonsMap <IXsdType, XdmQName> m_aAnonymousNames = new CommonsHashMap <> ();
   private final ICommonsMap <String, IXsdType> m_aAnonymousTypes = new CommonsHashMap <> ();
 
+  /**
+   * Create a bridge that is lenient about xs:ENTITY values, as an XSLT host
+   * needs it (see {@link XsdSchemaProvider#createSchemaSet(XsdSchema)}).
+   *
+   * @param aSchema
+   *        The compiled schema. It is never changed.
+   */
   XsdBridge (@NonNull final XsdSchema aSchema)
   {
     this (aSchema, true);
   }
 
+  /**
+   * @param aSchema
+   *        The compiled schema. It is never changed.
+   * @param bLenientEntities
+   *        <code>true</code> to drop the XSD 1.1 rule that an xs:ENTITY value
+   *        names an unparsed entity when a tree is validated in place (see
+   *        {@link XsdValidationRun#setLenientEntities(boolean)}).
+   */
   XsdBridge (@NonNull final XsdSchema aSchema, final boolean bLenientEntities)
   {
     m_aSchema = aSchema;
@@ -135,6 +156,16 @@ final class XsdBridge implements IXdmSchemaSet
     });
   }
 
+  /**
+   * The reverse of {@link #getAnonymousName(IXsdType)}: resolve a name handed
+   * out for an anonymous type. Only a name in no namespace whose local part
+   * starts with {@link #ANONYMOUS_PREFIX} is looked up.
+   *
+   * @param aName
+   *        The expanded name.
+   * @return The anonymous type, or <code>null</code> if the name is not one
+   *         this bridge assigned.
+   */
   @Nullable
   private IXsdType _getAnonymousType (@NonNull final XsdName aName)
   {
@@ -188,12 +219,28 @@ final class XsdBridge implements IXdmSchemaSet
     return aAnonymous != null ? aAnonymous : m_aSchema.m_aTypes.get (aName);
   }
 
+  /**
+   * Wrap a schema type as the <code>IXdmTypeDefinition</code> of the SPI, under
+   * its global name, or for an anonymous type without one. A new wrapper is
+   * created on every call; two wrappers are equal for the same type object or
+   * the same global name.
+   *
+   * @param aType
+   *        The type.
+   * @return The new type definition.
+   */
   @NonNull
   XsdTypeDefinition definitionOf (@NonNull final IXsdType aType)
   {
     return new XsdTypeDefinition (this, aType, XsdTypeDefinition.nameOf (aType));
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The name is resolved with {@link #typeByName(XsdName)}, so the names
+   * handed out for anonymous types resolve as well.
+   */
   @Nullable
   public IXdmTypeDefinition getTypeDefinition (@NonNull final XdmQName aName)
   {
@@ -201,6 +248,11 @@ final class XsdBridge implements IXdmSchemaSet
     return aType == null ? null : definitionOf (aType);
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * A new view is created on every call.
+   */
   @Nullable
   public IXdmElementDeclaration getElementDeclaration (@NonNull final XdmQName aName)
   {
@@ -208,6 +260,11 @@ final class XsdBridge implements IXdmSchemaSet
     return aDecl == null ? null : new XsdElementDeclaration (this, aDecl);
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * A new view is created on every call.
+   */
   @Nullable
   public IXdmAttributeDeclaration getAttributeDeclaration (@NonNull final XdmQName aName)
   {
@@ -286,6 +343,12 @@ final class XsdBridge implements IXdmSchemaSet
     return new Cloned (aRoot, aClones, aOriginals);
   }
 
+  /**
+   * @param sText
+   *        The text.
+   * @return <code>true</code> if the text consists only of the XML whitespace
+   *         characters space, tab, CR and LF (also when empty).
+   */
   private static boolean _isXmlWhitespace (@NonNull final String sText)
   {
     for (int i = 0; i < sText.length (); i++)
@@ -297,6 +360,12 @@ final class XsdBridge implements IXdmSchemaSet
     return true;
   }
 
+  /**
+   * @param sValue
+   *        A list value.
+   * @return <code>true</code> if splitting it at XML whitespace gives exactly
+   *         one item.
+   */
   private static boolean _isSingleToken (@NonNull final String sValue)
   {
     return XsdLexHelper.xmlFields (sValue).size () == 1;
@@ -341,6 +410,21 @@ final class XsdBridge implements IXdmSchemaSet
     return aType;
   }
 
+  /**
+   * The <code>XdmSchemaType</code> annotation for a node's type and the type
+   * its value was validated against, shared through <code>aCache</code> so
+   * that all nodes with the same pair of types get the same annotation object
+   * within one write-back.
+   *
+   * @param aCache
+   *        The cache of one write-back. Modified.
+   * @param aType
+   *        The node's type.
+   * @param aValueType
+   *        The type its value was validated against (a union member, or
+   *        <code>aType</code> itself).
+   * @return The annotation.
+   */
   @NonNull
   private XdmSchemaType _schemaTypeOf (@NonNull final ICommonsMap <TypeKey, XdmSchemaType> aCache,
                                        @NonNull final IXsdType aType,
@@ -554,6 +638,19 @@ final class XsdBridge implements IXdmSchemaSet
     return bAdded || bStripped;
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The validation runs on a detached clone (see
+   * {@link #_validateInPlace(IXdmNode, IXsdType, boolean)}). When it added
+   * default attributes or removed whitespace text nodes, the document order
+   * is assigned again from the element. The message of an error is prefixed
+   * with the element's EQName.
+   *
+   * @throws IllegalArgumentException
+   *         if <code>aType</code> is not a type definition created by this
+   *         schema processor
+   */
   public void validateElement (@NonNull final IXdmNode aElement,
                                @Nullable final IXdmTypeDefinition aType,
                                final boolean bDocumentLevel) throws XdmValidationException
@@ -578,6 +675,20 @@ final class XsdBridge implements IXdmSchemaSet
     }
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The document element is validated with
+   * {@link #_validateInPlace(IXdmNode, IXsdType, boolean)} against its global
+   * declaration, with the document-level constraints. When the structure
+   * changed, the document order of the whole document is assigned again.
+   * Only default and fixed attributes are materialised: an empty element whose
+   * declaration has a default or fixed value is validated against that value
+   * (cvc-elt.5.1), but no text node is added to the tree.
+   *
+   * @throws IllegalArgumentException
+   *         if the node is not a document node, or has no document element
+   */
   public void validateDocument (@NonNull final IXdmNode aDocument) throws XdmValidationException
   {
     if (!aDocument.isDocument ())

@@ -28,8 +28,10 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.context.EXsdVersion;
 
 /**
- * Particle Valid (Restriction), XSD 1.0 section 3.9.6 and 1.1 section 3.9.6
- * (go-xslt <code>restriction.go</code>). When a complex type derives another
+ * Particle Valid (Restriction), XSD 1.0 section 3.9.6 (cos-particle-restrict),
+ * with the XSD 1.1 language-inclusion reading of Content Type Restricts (1.1
+ * section 3.4.6.4) as additional acceptance routes (go-xslt
+ * <code>restriction.go</code>). When a complex type derives another
  * by restriction, the derived content model must be a valid restriction of the
  * base's: an order and structure preserving mapping where each derived particle
  * restricts a corresponding base particle and every unmapped base particle is
@@ -68,11 +70,24 @@ final class XsdRestrictionChecker
   private boolean m_bInMapAndSum;
   private int m_nDepth;
 
+  /**
+   * Create a checker for comparisons outside a MapAndSum mapping.
+   *
+   * @param aSchema
+   *        The schema, for its version and substitution groups.
+   */
   XsdRestrictionChecker (@NonNull final XsdSchema aSchema)
   {
     this (aSchema, false);
   }
 
+  /**
+   * @param aSchema
+   *        The schema, for its version and substitution groups.
+   * @param bInMapAndSum
+   *        <code>true</code> if the comparisons start inside a MapAndSum
+   *        mapping (see {@link #isInMapAndSum()}).
+   */
   XsdRestrictionChecker (@NonNull final XsdSchema aSchema, final boolean bInMapAndSum)
   {
     m_aSchema = aSchema;
@@ -85,6 +100,11 @@ final class XsdRestrictionChecker
     return m_aSchema;
   }
 
+  /**
+   * @return <code>true</code> while the current comparison sits inside a
+   *         MapAndSum mapping, where XSD 1.0 grants no substitution-group
+   *         equivalence.
+   */
   boolean isInMapAndSum ()
   {
     return m_bInMapAndSum;
@@ -117,9 +137,10 @@ final class XsdRestrictionChecker
 
   /**
    * go-xslt <code>flattenSeq</code>: splice a pointless sequence wrapper into
-   * its parent (XSD 1.1 section 3.9.6.3). This is exactly the shape
-   * xs:complexContent/xs:extension produces: sequence(BASE-CONTENT,
-   * EXTENSION-CONTENT) where BASE-CONTENT is itself a 1..1 sequence. A derived
+   * its parent (XSD 1.0 section 3.9.6, cos-particle-restrict clause 2.2). This
+   * is exactly the shape xs:complexContent/xs:extension produces:
+   * sequence(BASE-CONTENT, EXTENSION-CONTENT) where BASE-CONTENT is itself a
+   * 1..1 sequence. A derived
    * type that restricts such an extension writes the same content flat.
    * Language preserving by construction, so using it only as an extra acceptance
    * route cannot approve a model the clause tables would reject for any other
@@ -192,11 +213,31 @@ final class XsdRestrictionChecker
     return XsdModelLimits.mul (aR.m_nMax, nCount) <= aB.m_nMax;
   }
 
+  /**
+   * @param aParticle
+   *        The particle; <code>null</code> for empty content.
+   * @return <code>true</code> if it can match the empty sequence (Particle
+   *         Emptiable), as decided by {@link XsdUpa#upaNullable}.
+   */
   private static boolean _emptiable (@Nullable final XsdParticle aParticle)
   {
     return XsdUpa.upaNullable (aParticle);
   }
 
+  /**
+   * Recursive worker of {@link #matchesOnlyEmpty(XsdParticle)}:
+   * <code>null</code> and a particle with <code>maxOccurs=0</code> match only
+   * empty, an element or wildcard particle does not, and a model group does
+   * if every member particle does (an empty group therefore does).
+   *
+   * @param aParticle
+   *        The particle.
+   * @param nDepth
+   *        The current nesting depth.
+   * @return <code>true</code> if it matches only the empty sequence.
+   * @throws XsdUnsupportedException
+   *         beyond {@link XsdModelLimits#MAX_DEPTH}
+   */
   private static boolean _matchesOnlyEmpty (@Nullable final XsdParticle aParticle, final int nDepth)
   {
     if (aParticle == null || aParticle.m_nMax == 0)
@@ -226,6 +267,25 @@ final class XsdRestrictionChecker
     return _matchesOnlyEmpty (aParticle, 0);
   }
 
+  /**
+   * The range of the number of child elements a particle can match, the
+   * element-count basis of NSRecurseCheckCardinality. An element or wildcard
+   * particle contributes its own occurrence range. For a model group the
+   * range of one occurrence is computed first - for a choice the smallest
+   * minimum and the largest maximum of its members, for a sequence or all
+   * the sums of its members' ranges - and then multiplied by the particle's
+   * occurrence range. Additions and multiplications saturate (see
+   * {@link XsdModelLimits}).
+   *
+   * @param aParticle
+   *        The particle.
+   * @param nDepth
+   *        The current nesting depth.
+   * @return The range; the maximum is {@link XsdConstants#UNBOUNDED} if
+   *         unbounded.
+   * @throws XsdUnsupportedException
+   *         beyond {@link XsdModelLimits#MAX_DEPTH}
+   */
   @NonNull
   private static Bounds _elementBounds (@NonNull final XsdParticle aParticle, final int nDepth)
   {
@@ -357,6 +417,26 @@ final class XsdRestrictionChecker
     return true;
   }
 
+  /**
+   * Recursive worker of {@link #_leavesMatchWildcard(XsdParticle, XsdWildcard)}.
+   * An element leaf must have a name the base wildcard admits. A wildcard leaf
+   * must have a namespace constraint that is a subset of the base's
+   * ({@link #nsSubset}), a processContents at least as strong, and keep the
+   * base's notQName exclusions. A model group is checked member by member; a
+   * group seen before during this walk is not checked again.
+   *
+   * @param aParticle
+   *        The derived particle; <code>null</code> passes.
+   * @param aWC
+   *        The base wildcard.
+   * @param aSeen
+   *        The model groups already visited. Modified.
+   * @param nDepth
+   *        The current nesting depth.
+   * @return <code>true</code> if every leaf is admitted.
+   * @throws XsdUnsupportedException
+   *         beyond {@link XsdModelLimits#MAX_DEPTH}
+   */
   private static boolean _leavesMatchWildcard (@Nullable final XsdParticle aParticle,
                                                @NonNull final XsdWildcard aWC,
                                                @NonNull final Set <XsdModelGroup> aSeen,
@@ -525,6 +605,29 @@ final class XsdRestrictionChecker
     return m_aSchema.matchesElementName (aBT, aRE.m_aName);
   }
 
+  /**
+   * Recursive worker of
+   * {@link #_leavesSubstitutableFor(XsdParticle, XsdElementDecl)}. A particle
+   * that is <code>null</code> or has <code>maxOccurs=0</code> passes. An element
+   * leaf with the base element's name passes only in 1.1, and then only if its
+   * type restricts the base element's type; any other element leaf must be
+   * substitutable for the base element ({@link #_substitutableFor}) with a type
+   * that restricts the base element's type. A wildcard leaf fails. A model
+   * group is checked member by member; a group seen before during this walk is
+   * not checked again.
+   *
+   * @param aParticle
+   *        The derived particle.
+   * @param aBT
+   *        The base element declaration.
+   * @param aSeen
+   *        The model groups already visited. Modified.
+   * @param nDepth
+   *        The current nesting depth.
+   * @return <code>true</code> if every leaf qualifies.
+   * @throws XsdUnsupportedException
+   *         beyond {@link XsdModelLimits#MAX_DEPTH}
+   */
   private boolean _leavesSubstitutableFor (@Nullable final XsdParticle aParticle,
                                            @NonNull final XsdElementDecl aBT,
                                            @NonNull final Set <XsdModelGroup> aSeen,
@@ -751,6 +854,21 @@ final class XsdRestrictionChecker
     return true;
   }
 
+  /**
+   * Add the element-count range of a derived particle (see
+   * {@link #_elementBounds}) to the sum of the base particle it is mapped
+   * onto, creating the sum on first use, and mark that base particle as used.
+   *
+   * @param aSums
+   *        The sums per base particle index. Modified.
+   * @param aUsed
+   *        Per base particle index whether something was mapped onto it.
+   *        Modified.
+   * @param nTarget
+   *        The index of the base particle.
+   * @param aRP
+   *        The derived particle.
+   */
   private static void _accumulate (@NonNull final Acc [] aSums,
                                    @NonNull final boolean [] aUsed,
                                    final int nTarget,
@@ -1065,6 +1183,41 @@ final class XsdRestrictionChecker
     return bMatched;
   }
 
+  /**
+   * One pass of the restriction check on the particles exactly as given,
+   * without any normalisation; {@link #particleRestrictsOK} adds the
+   * normalising retries. By the kind of the base term:
+   * <ul>
+   * <li>no derived particle: valid if the base is absent or emptiable;</li>
+   * <li>no base particle: valid only if the derived particle matches nothing
+   * but the empty sequence;</li>
+   * <li>wildcard base: a derived group must fit with its total element-count
+   * range and have only admitted leaves (NSRecurseCheckCardinality); a derived
+   * element or wildcard must fit with its own occurrence range, be admitted,
+   * and a wildcard must not weaken processContents;</li>
+   * <li>element base: a derived element must fit the occurrence range, satisfy
+   * {@link #_elementRestrictsElement} and have the same name or be
+   * substitutable for the base element; a derived group passes only if the
+   * base element has no fixed value and no block, its element-count range
+   * fits and every leaf is substitutable (elemZ027a/b); a derived wildcard
+   * fails;</li>
+   * <li>group base: a derived group must fit the occurrence range (for a
+   * sequence restricting a choice the summed range of MapAndSum clause 2)
+   * and restrict the group per compositor, or, in 1.1 against an all or
+   * sequence base, be a non-empty 1..1 choice whose every branch restricts
+   * the base on its own; a derived element or wildcard is tried at 1..1
+   * against the group when the base repeats without bound and the occurrence
+   * ranges fit, else with its own occurrences against a base admitting at
+   * most one iteration (RecurseAsIfGroup).</li>
+   * </ul>
+   * Any other combination is accepted.
+   *
+   * @param aR
+   *        The derived particle; <code>null</code> for empty content.
+   * @param aB
+   *        The base particle; <code>null</code> for empty content.
+   * @return <code>true</code> if this pass accepts the restriction.
+   */
   private boolean _particleRestrictsOKRaw (@Nullable final XsdParticle aR, @Nullable final XsdParticle aB)
   {
     if (aR == null)

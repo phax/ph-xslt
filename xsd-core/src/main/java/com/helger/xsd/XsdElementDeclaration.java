@@ -63,6 +63,19 @@ final class XsdElementDeclaration implements IXdmElementDeclaration
     return m_aDecl.m_bAbstract;
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * This declaration itself is returned when the name equals its own name,
+   * whether it is abstract or not. Otherwise the name must be governed by the
+   * declaration through its substitution group (go-xslt
+   * <code>SubstitutesFor</code>, via {@link XsdSchema#matchesElementName}): the
+   * group is only expanded when this is the global declaration registered
+   * under its name, the member must not be abstract, and the
+   * <code>block</code> of the head as well as the derivation methods between
+   * the types must allow the substitution. The member is then wrapped in a new
+   * view. Returns <code>null</code> in every other case.
+   */
   @Nullable
   public IXdmElementDeclaration getSubstitutionMember (@NonNull final XdmQName aName)
   {

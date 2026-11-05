@@ -134,6 +134,17 @@ final class XsdCompiler
 
   private int m_nNesting;
 
+  /**
+   * Create a compiler for one schema set. The helpers for document
+   * collection, simple types, other components, component checks and
+   * identity constraints are created here and share this compiler's state.
+   *
+   * @param eVersion
+   *        The XSD version to compile as.
+   * @param aOptions
+   *        The options; whether documentation is kept and the file access
+   *        policy are taken from them.
+   */
   XsdCompiler (@NonNull final EXsdVersion eVersion, @NonNull final XsdCompileOptions aOptions)
   {
     m_eVersion = eVersion;
@@ -167,6 +178,24 @@ final class XsdCompiler
     }
   }
 
+  /**
+   * Fill the global element declaration that pass 1 registered for an
+   * xs:element child of xs:schema (a missing one is created and registered).
+   * Type, documentation, nillable, block, final, default and fixed come from
+   * {@link #fillElementCommon}, and the value constraint is checked against
+   * the type. <code>substitutionGroup</code> is a single QName in 1.0 and a
+   * whitespace-separated QName list in 1.1 (the element then joins every named
+   * group); the groups themselves are built later. Also reads
+   * <code>abstract</code>, the identity constraints and the 1.1 type
+   * alternatives.
+   *
+   * @param aNode
+   *        The xs:element node.
+   * @throws XsdUnsupportedException
+   *         if the declaration has no name
+   * @throws XsdInvalidException
+   *         if the declaration is not valid
+   */
   private void _parseGlobalElement (@NonNull final IXdmNode aNode)
   {
     final String sName = XsdNodes.declName (aNode);
@@ -202,6 +231,20 @@ final class XsdCompiler
     aDecl.m_aAlternatives = m_aComponents.parseAlternatives (aNode);
   }
 
+  /**
+   * Fill the global attribute declaration that pass 1 registered for an
+   * xs:attribute child of xs:schema (a missing one is created and registered):
+   * the simple type, documentation, messages, the 1.1
+   * <code>inheritable</code> flag and the default or fixed value, which is then
+   * checked against the type.
+   *
+   * @param aNode
+   *        The xs:attribute node.
+   * @throws XsdUnsupportedException
+   *         if the declaration has no name
+   * @throws XsdInvalidException
+   *         if the declaration is not valid
+   */
   private void _parseGlobalAttribute (@NonNull final IXdmNode aNode)
   {
     final String sName = XsdNodes.declName (aNode);
@@ -679,6 +722,38 @@ final class XsdCompiler
     return ret;
   }
 
+  /**
+   * Depth-first visit of the named simple types for the build order: every
+   * named simple type a definition depends on (see {@link #_simpleTypeDeps})
+   * is appended to <code>aOrder</code> before the definition itself. A
+   * dependency that is not a top-level simple type of the set (a built-in, or
+   * an unknown name) is marked visited and ignored here.
+   * <p>
+   * A back edge to a type still on the current path is a circular
+   * derivation. In 1.1 every such cycle sets <code>aHardCycle[0]</code>; in
+   * 1.0 only a cycle with at least one hard edge (restriction base or list
+   * item type) does, so that a cycle made only of union member edges is
+   * tolerated. The caller raises the error. Nesting is bounded by
+   * {@link #enterNesting()}.
+   *
+   * @param aName
+   *        The type to visit.
+   * @param aByName
+   *        The pending top-level simple type definitions by name.
+   * @param aVisited
+   *        Visit state per name: 1 while on the current path, 2 when done.
+   *        Modified.
+   * @param aStack
+   *        The names on the current path. Modified and restored.
+   * @param aEdgeHard
+   *        For each edge on the current path whether it is hard. Modified
+   *        and restored.
+   * @param aOrder
+   *        Receives the definitions in build order.
+   * @param aHardCycle
+   *        A one-element out-flag set to <code>true</code> on an invalid
+   *        cycle.
+   */
   private void _visitSimpleType (@NonNull final XsdName aName,
                                  @NonNull final ICommonsMap <XsdName, Work> aByName,
                                  @NonNull final ICommonsMap <XsdName, Integer> aVisited,
@@ -736,6 +811,23 @@ final class XsdCompiler
     }
   }
 
+  /**
+   * Depth-first visit of the named attribute groups for the build order:
+   * every attribute group referenced by a direct xs:attributeGroup child of a
+   * definition is appended to <code>aOrder</code> before the definition, as a
+   * group flattens the uses of the groups it references. Names that are not
+   * pending definitions are ignored, and a name already visited is skipped,
+   * which also ends a cycle.
+   *
+   * @param aName
+   *        The group to visit.
+   * @param aByName
+   *        The pending top-level attribute group definitions by name.
+   * @param aVisited
+   *        The names already visited. Modified.
+   * @param aOrder
+   *        Receives the definitions in build order.
+   */
   private void _visitAttrGroup (@NonNull final XsdName aName,
                                 @NonNull final ICommonsMap <XsdName, Work> aByName,
                                 @NonNull final ICommonsSet <XsdName> aVisited,
@@ -765,6 +857,16 @@ final class XsdCompiler
     }
   }
 
+  /**
+   * The base type a complex type definition names: the <code>base</code> of
+   * the first xs:restriction or xs:extension below xs:simpleContent, else
+   * below xs:complexContent.
+   *
+   * @param aNode
+   *        The xs:complexType node.
+   * @return The resolved base name, or <code>null</code> if the definition
+   *         names none (shorthand content, or no <code>base</code>).
+   */
   @Nullable
   private static XsdName _complexTypeBase (@NonNull final IXdmNode aNode)
   {
@@ -786,6 +888,24 @@ final class XsdCompiler
     return null;
   }
 
+  /**
+   * Append a top-level complex type definition to the build order, after the
+   * top-level complex type it derives from (recursively), because parsing a
+   * derived body reads the compiled content type of its base. A definition is
+   * emitted only once; a base that is not a pending top-level complex type is
+   * ignored. Nesting is bounded by {@link #enterNesting()}.
+   *
+   * @param nIndex
+   *        The index of the definition in <code>aComplexW</code>.
+   * @param aComplexW
+   *        The pending top-level complex type definitions.
+   * @param aIndex
+   *        Their indices by name.
+   * @param aEmitted
+   *        Per index whether it was already emitted. Modified.
+   * @param aOrder
+   *        Receives the definitions in build order.
+   */
   private void _emitComplexType (final int nIndex,
                                  @NonNull final ICommonsList <Work> aComplexW,
                                  @NonNull final ICommonsMap <XsdName, Integer> aIndex,
@@ -813,6 +933,18 @@ final class XsdCompiler
     }
   }
 
+  /**
+   * The expanded name of a top-level named component: its <code>name</code> in
+   * the target namespace of its document.
+   *
+   * @param aSD
+   *        The schema document.
+   * @param aChild
+   *        The component node.
+   * @return The name.
+   * @throws XsdInvalidException
+   *         if <code>name</code> is missing or not an NCName
+   */
   @NonNull
   private XsdName _named (@NonNull final XsdSchemaDocument aSD, @NonNull final IXdmNode aChild)
   {
@@ -854,6 +986,7 @@ final class XsdCompiler
     }
   }
 
+  /** Leave one level of component nesting entered by {@link #enterNesting()}. */
   void leaveNesting ()
   {
     m_nNesting--;

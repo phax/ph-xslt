@@ -78,6 +78,15 @@ final class XsdValidationRun
     final ICommonsList <XsdWildcard> m_aLaxWc = new CommonsArrayList <> ();
     final ICommonsList <XsdWildcard> m_aStrictWc = new CommonsArrayList <> ();
 
+    /**
+     * Create a child model with empty declaration, fixed value and wildcard
+     * tables, which the caller fills.
+     *
+     * @param aParticle
+     *        The effective content model; <code>null</code> for empty content.
+     * @param aOpenContent
+     *        The effective open content; <code>null</code> for none.
+     */
     ChildModel (@Nullable final XsdParticle aParticle, @Nullable final XsdOpenContent aOpenContent)
     {
       m_aParticle = aParticle;
@@ -140,6 +149,13 @@ final class XsdValidationRun
   private ICommonsMap <IXdmNode, XsdSimpleType> m_aAssertTypes;
   private XsdBridge m_aAssertBridge;
 
+  /**
+   * Create a run without an instance document, so no unparsed entity is
+   * known.
+   *
+   * @param aSchema
+   *        The schema validated against.
+   */
   XsdValidationRun (@NonNull final XsdSchema aSchema)
   {
     this (aSchema, null);
@@ -318,7 +334,17 @@ final class XsdValidationRun
     m_nDepth--;
   }
 
-  /** go-xslt <code>noteNodeType</code>. */
+  /**
+   * go-xslt <code>noteNodeType</code>: record the type a node was assessed
+   * with, for the write-back of an in-place validation. Does nothing unless
+   * node types are recorded (see {@link #enableNodeTypes()}), or if the node
+   * or the type is <code>null</code>.
+   *
+   * @param aNode
+   *        The element or attribute.
+   * @param aType
+   *        Its type.
+   */
   void noteNodeType (@Nullable final IXdmNode aNode, @Nullable final IXsdType aType)
   {
     if (m_aNodeTypes == null || aNode == null || aType == null)
@@ -326,7 +352,14 @@ final class XsdValidationRun
     m_aNodeTypes.put (aNode, aType);
   }
 
-  /** go-xslt <code>noteNodeNilled</code>. */
+  /**
+   * go-xslt <code>noteNodeNilled</code>: record that an element is nilled.
+   * Does nothing unless nilled elements are recorded (see
+   * {@link #enableNodeNilled()}), or if the node is <code>null</code>.
+   *
+   * @param aNode
+   *        The element.
+   */
   void noteNodeNilled (@Nullable final IXdmNode aNode)
   {
     if (m_aNodeNilled == null || aNode == null)
@@ -334,7 +367,23 @@ final class XsdValidationRun
     m_aNodeNilled.add (aNode);
   }
 
-  /** go-xslt <code>noteDefaultAttr</code>. */
+  /**
+   * go-xslt <code>noteDefaultAttr</code>: record an attribute that a default
+   * or fixed value constraint supplies on an element that omits it, for the
+   * write-back of an in-place validation and for the assertion tree. Does
+   * nothing unless defaults are recorded (see {@link #enableNodeDefaults()};
+   * a 1.1 schema with assertions records them from the start), or if the
+   * element is <code>null</code>.
+   *
+   * @param aElement
+   *        The element.
+   * @param aName
+   *        The attribute name.
+   * @param sValue
+   *        The supplied value.
+   * @param aType
+   *        The attribute's simple type; may be <code>null</code>.
+   */
   void noteDefaultAttr (@Nullable final IXdmNode aElement,
                         @NonNull final XsdName aName,
                         @NonNull final String sValue,
@@ -448,11 +497,43 @@ final class XsdValidationRun
         throw XsdCompiler.invalid ("cvc-id.1", "IDREF " + XsdLexHelper.quote (sRef) + " does not match any ID");
   }
 
+  /**
+   * @param sName
+   *        An xs:ENTITY value.
+   * @return <code>true</code> if the instance document declares an unparsed
+   *         entity of that name; always <code>false</code> without a document.
+   */
   private boolean _isUnparsedEntity (@NonNull final String sName)
   {
     return m_aDocument != null && m_aDocument.getUnparsedEntity (sName) != null;
   }
 
+  /**
+   * Recursive worker of {@link #noteIDValues}. For an atomic type whose
+   * primitive is xs:ID the collapsed value is bound to <code>aBind</code>
+   * (nothing happens without one), for xs:IDREF it is recorded for
+   * {@link #checkIDRefs()}, and for xs:ENTITY in 1.1 (unless lenient) it must
+   * name an unparsed entity of the instance document. Other atomic types are
+   * ignored without touching the value. A list is handled per item token with
+   * its item type; a union by the first member type the value validates
+   * against (without namespace context), if any.
+   *
+   * @param aType
+   *        The type; <code>null</code> is ignored.
+   * @param sValue
+   *        The value.
+   * @param aBind
+   *        The element an ID binds to; may be <code>null</code>.
+   * @param aSource
+   *        The node the value sits on.
+   * @param nDepth
+   *        The nesting depth; beyond {@link #MAX_ID_UNION_DEPTH} nothing more
+   *        is recorded.
+   * @throws XsdInvalidException
+   *         with cvc-id.2 for a duplicate ID (see {@link #_bindID}), or
+   *         cvc-datatype-valid for an xs:ENTITY value that names no unparsed
+   *         entity
+   */
   private void _noteIDValues (@Nullable final XsdSimpleType aType,
                               @NonNull final String sValue,
                               @Nullable final IXdmNode aBind,
@@ -662,6 +743,19 @@ final class XsdValidationRun
     return m_aTypeCache.get (aElement);
   }
 
+  /**
+   * Whether an element selected by an identity constraint was strictly
+   * assessed. Walking up from the element, it is not if the element or an
+   * ancestor was recorded as not assessed, or if some element on the path is
+   * not declared in its parent's content model but matches one of the
+   * parent's skip wildcards (checked before the global declaration fallback,
+   * like the child validation). A parent without a complex type does not stop
+   * the walk. A node that is not an element passes.
+   *
+   * @param aNode
+   *        The selected node.
+   * @return <code>true</code> if the node counts for the constraint.
+   */
   private boolean _icNodeVisible (@NonNull final IXdmNode aNode)
   {
     for (IXdmNode aCur = aNode; aCur != null && aCur.isElement (); aCur = aCur.getParent ())

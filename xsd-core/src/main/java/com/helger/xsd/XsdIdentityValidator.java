@@ -63,11 +63,22 @@ final class XsdIdentityValidator
   {
     private final ICommonsSet <String> m_aTuples = new CommonsHashSet <> ();
 
+    /**
+     * @param sTuple
+     *        A serialised key tuple.
+     * @return <code>true</code> if the table holds the tuple.
+     */
     boolean contains (@NonNull final String sTuple)
     {
       return m_aTuples.contains (sTuple);
     }
 
+    /**
+     * @param sTuple
+     *        A serialised key tuple.
+     * @return <code>true</code> if it was added, <code>false</code> if the
+     *         table already held it (a duplicate key).
+     */
     boolean add (@NonNull final String sTuple)
     {
       return m_aTuples.add (sTuple);
@@ -206,6 +217,14 @@ final class XsdIdentityValidator
     return XsdComponentParser.simpleContentType (aType);
   }
 
+  /**
+   * @param ePrim
+   *        A primitive type.
+   * @return <code>true</code> for the date/time primitives (xs:dateTime,
+   *         xs:dateTimeStamp, xs:date, xs:time and the five Gregorian types),
+   *         whose key identity depends on the timezone. xs:duration and its
+   *         subtypes are not included.
+   */
   private static boolean _isDateTimePrim (@NonNull final EAtomicType ePrim)
   {
     switch (ePrim)

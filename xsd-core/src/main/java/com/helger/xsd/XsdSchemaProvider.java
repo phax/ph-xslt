@@ -50,6 +50,10 @@ import com.helger.xpath.xdm.schema.XdmSchemaSource;
 @ThreadSafe
 public final class XsdSchemaProvider implements IXdmSchemaProvider
 {
+  /**
+   * Create the provider. It holds no state: every {@link #compile(List)}
+   * call is independent. Public for loading by name.
+   */
   public XsdSchemaProvider ()
   {}
 
@@ -81,6 +85,20 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
     return new XsdBridge (aSchema, bLenientEntities);
   }
 
+  /**
+   * Turn a system ID into a local path. A system ID without a URI scheme is
+   * read as a file system path, made absolute against the working directory;
+   * a <code>file:</code> URI is converted. A system ID that is not valid URI
+   * syntax (for example a plain path containing a space) is rejected even if
+   * it would be a valid path.
+   *
+   * @param sSystemID
+   *        The system ID.
+   * @return The absolute, normalised path, or <code>null</code> for any other
+   *         URI scheme.
+   * @throws XdmSchemaException
+   *         if the system ID cannot be read as a URI or path
+   */
   @Nullable
   private static Path _toPath (@NonNull final String sSystemID) throws XdmSchemaException
   {
@@ -99,6 +117,21 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
     }
   }
 
+  /**
+   * Turn a schema source of the SPI into a compiler source. Inline text is
+   * taken as is, with the base directory for its references taken from the
+   * system ID: the directory itself if the system ID ends with
+   * <code>/</code>, else its parent; none without a system ID. Otherwise the
+   * document is read from the local file the system ID names.
+   *
+   * @param aSource
+   *        The source.
+   * @return The compiler source.
+   * @throws XdmSchemaException
+   *         if the system ID is invalid, not local (another URI scheme or
+   *         missing for a source without text), not a regular file, or cannot
+   *         be read
+   */
   @NonNull
   private static XsdSchemaSource _toSource (@NonNull final XdmSchemaSource aSource) throws XdmSchemaException
   {
@@ -126,6 +159,16 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
     }
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The documents are compiled together as one XSD 1.1 schema, with
+   * referenced documents (include, import, redefine, override) read from any
+   * local file and never from the network. The result is a lenient schema set
+   * as by {@link #createSchemaSet(XsdSchema)}. An invalid schema and a schema
+   * the processor does not support are both reported as
+   * {@link XdmSchemaException}.
+   */
   @NonNull
   public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources) throws XdmSchemaException
   {

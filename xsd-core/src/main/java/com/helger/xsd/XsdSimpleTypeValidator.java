@@ -59,6 +59,20 @@ final class XsdSimpleTypeValidator
   private XsdSimpleTypeValidator ()
   {}
 
+  /**
+   * The range check of the built-in integer types for a value that fits a
+   * <code>long</code>: xs:byte, xs:short, xs:int and the unsigned types up to
+   * xs:unsignedInt by their bounds, xs:unsignedLong and
+   * xs:nonNegativeInteger from 0, xs:positiveInteger from 1,
+   * xs:nonPositiveInteger up to 0 and xs:negativeInteger up to -1. Every other
+   * type (xs:integer, xs:long) accepts any <code>long</code>.
+   *
+   * @param n
+   *        The value.
+   * @param ePrim
+   *        The built-in integer type.
+   * @return <code>true</code> if the value is in the type's range.
+   */
   private static boolean _integerInRange (final long n, @NonNull final EAtomicType ePrim)
   {
     switch (ePrim)
@@ -90,6 +104,14 @@ final class XsdSimpleTypeValidator
     }
   }
 
+  /**
+   * @param sValue
+   *        The value.
+   * @param ePrim
+   *        The built-in type it was checked against.
+   * @return A new cvc-datatype-valid error for a value outside the lexical
+   *         space or range of the type.
+   */
   @NonNull
   private static XsdInvalidException _notValid (@NonNull final String sValue, @NonNull final EAtomicType ePrim)
   {
@@ -194,6 +216,21 @@ final class XsdSimpleTypeValidator
       throw _notValid (sValue, ePrim);
   }
 
+  /**
+   * Compare two atomic lexicals in the value space of a type's primitive:
+   * both are cast to it and compared with
+   * {@link XsdValueCompare#compare(XdmAtomic, XdmAtomic)}.
+   *
+   * @param aType
+   *        The atomic type.
+   * @param sA
+   *        The first lexical.
+   * @param sB
+   *        The second lexical.
+   * @return <code>true</code> if both cast and compare as equal;
+   *         <code>false</code> if either does not cast or the values are not
+   *         comparable.
+   */
   private static boolean _atomicEqual (@NonNull final XsdSimpleType aType,
                                        @NonNull final String sA,
                                        @NonNull final String sB)
@@ -265,6 +302,11 @@ final class XsdSimpleTypeValidator
                                                        " is not bound to a namespace");
   }
 
+  /**
+   * @return A new error for a nesting of union members and list item types
+   *         beyond {@link #MAX_DEPTH}, or a base chain beyond
+   *         {@link #MAX_CHAIN}: no verdict.
+   */
   @NonNull
   private static XsdUnsupportedException _tooDeep ()
   {
@@ -273,6 +315,32 @@ final class XsdSimpleTypeValidator
                                         " levels, possibly a cyclic union");
   }
 
+  /**
+   * Check a normalised value against a list type. The value is split at XML
+   * whitespace. For every step of the base chain the length facets apply to
+   * the item count, and pattern and enumeration to the whole lexical; an
+   * enumeration miss is forgiven when the items equal an enumerated list item
+   * by item in the value space of an atomic item type. Then every item is
+   * checked against the item type. Finally, if any step carries assertions,
+   * they are all evaluated with <code>$value</code> bound to the sequence of
+   * typed items.
+   *
+   * @param aType
+   *        The list type.
+   * @param sValue
+   *        The whitespace-normalised value.
+   * @param aAt
+   *        The instance node for QName/NOTATION prefixes; may be
+   *        <code>null</code>.
+   * @param aActive
+   *        The unions being checked on the current path.
+   * @param nDepth
+   *        The current nesting depth.
+   * @throws XsdInvalidException
+   *         if the value is not valid
+   * @throws XsdUnsupportedException
+   *         if the nesting or base chain is too deep
+   */
   private static void _checkListRecursive (@NonNull final XsdSimpleType aType,
                                            @NonNull final String sValue,
                                            @Nullable final IXdmNode aAt,
@@ -321,6 +389,33 @@ final class XsdSimpleTypeValidator
     }
   }
 
+  /**
+   * Check a value against a union type. The members are tried in order, each
+   * with its own whiteSpace processing applied to the value; the first one
+   * that accepts it is the accepting member. The union's own pattern and
+   * enumeration facets must then hold for the value as given or, failing
+   * that, for the value as normalised by the accepting member. The union's
+   * own assertions are evaluated with <code>$value</code> typed by the
+   * accepting member. Only the facets and assertions declared on the union
+   * itself are applied, not those of its base chain.
+   *
+   * @param aType
+   *        The union type. It is in <code>aActive</code> while the members are
+   *        tried.
+   * @param sValue
+   *        The value.
+   * @param aAt
+   *        The instance node for QName/NOTATION prefixes; may be
+   *        <code>null</code>.
+   * @param aActive
+   *        The unions being checked on the current path. Modified and
+   *        restored.
+   * @param nDepth
+   *        The current nesting depth.
+   * @throws XsdInvalidException
+   *         if no member accepts the value, or a facet or assertion of the
+   *         union fails
+   */
   private static void _checkUnionRecursive (@NonNull final XsdSimpleType aType,
                                             @NonNull final String sValue,
                                             @Nullable final IXdmNode aAt,
@@ -383,6 +478,33 @@ final class XsdSimpleTypeValidator
     }
   }
 
+  /**
+   * Check a normalised value against an atomic type and its base chain. The
+   * chain is collected up to the first base that is not a plain atomic type
+   * (a list, a union, the absent type or xs:error); such a base is checked
+   * first as a whole. Then, from the deepest base to the type itself, each
+   * step applies its facets and its assertions (with <code>$value</code> typed
+   * by the step's primitive). The lexical space of the built-in primitive -
+   * and, for xs:QName and xs:NOTATION with a node available, that the prefix
+   * is bound - is checked at the deepest step only when the chain ends at a
+   * built-in.
+   *
+   * @param aType
+   *        The atomic type.
+   * @param sValue
+   *        The whitespace-normalised value.
+   * @param aAt
+   *        The instance node for QName/NOTATION prefixes; may be
+   *        <code>null</code>.
+   * @param aActive
+   *        The unions being checked on the current path.
+   * @param nDepth
+   *        The current nesting depth.
+   * @throws XsdInvalidException
+   *         if the value is not valid
+   * @throws XsdUnsupportedException
+   *         if the nesting or base chain is too deep
+   */
   private static void _checkAtomicRecursive (@NonNull final XsdSimpleType aType,
                                              @NonNull final String sValue,
                                              @Nullable final IXdmNode aAt,
@@ -428,6 +550,29 @@ final class XsdSimpleTypeValidator
     }
   }
 
+  /**
+   * Check an already normalised value against a simple type, dispatching on
+   * its variety. The absent type (a type reference that never resolved) and
+   * xs:error refuse every value with cvc-type. A union that is already being
+   * checked on the current path refuses the value, which bounds a cyclic
+   * member list.
+   *
+   * @param aType
+   *        The simple type.
+   * @param sValue
+   *        The whitespace-normalised value.
+   * @param aAt
+   *        The instance node for QName/NOTATION prefixes; may be
+   *        <code>null</code>.
+   * @param aActive
+   *        The unions being checked on the current path.
+   * @param nDepth
+   *        The current nesting depth.
+   * @throws XsdInvalidException
+   *         if the value is not valid
+   * @throws XsdUnsupportedException
+   *         beyond {@link #MAX_DEPTH}
+   */
   private static void _checkInRecursive (@NonNull final XsdSimpleType aType,
                                          @NonNull final String sValue,
                                          @Nullable final IXdmNode aAt,
@@ -463,6 +608,23 @@ final class XsdSimpleTypeValidator
     }
   }
 
+  /**
+   * Apply the type's effective whiteSpace facet to a raw value and check the
+   * result with {@link #_checkInRecursive}.
+   *
+   * @param aType
+   *        The simple type.
+   * @param sRaw
+   *        The raw value.
+   * @param aAt
+   *        The instance node; may be <code>null</code>.
+   * @param aActive
+   *        The unions being checked on the current path.
+   * @param nDepth
+   *        The current nesting depth.
+   * @throws XsdInvalidException
+   *         if the value is not valid
+   */
   private static void _validateInRecursive (@NonNull final XsdSimpleType aType,
                                             @NonNull final String sRaw,
                                             @Nullable final IXdmNode aAt,
@@ -472,6 +634,18 @@ final class XsdSimpleTypeValidator
     _checkInRecursive (aType, XsdWhiteSpace.apply (aType.effectiveWhiteSpace (), sRaw), aAt, aActive, nDepth);
   }
 
+  /**
+   * The first member of a union that accepts a raw value with its own
+   * whiteSpace processing, checked without a namespace context (so a prefixed
+   * QName is only checked for its shape). The union itself counts as active,
+   * so a cyclic member refuses the value.
+   *
+   * @param aType
+   *        The union type.
+   * @param sRaw
+   *        The raw value.
+   * @return The accepting member, or <code>null</code> if none accepts it.
+   */
   @Nullable
   private static XsdSimpleType _firstMember (@NonNull final XsdSimpleType aType, @NonNull final String sRaw)
   {
@@ -490,6 +664,26 @@ final class XsdSimpleTypeValidator
     return null;
   }
 
+  /**
+   * Recursive worker of {@link #fixedEqual}. For a union both sides must be
+   * accepted first by the same member and be equal in it. For a list both
+   * sides must have the same number of items, each pair equal in the item
+   * type (or lexically equal without an item type). For an atomic type both
+   * sides are normalised with the type's whiteSpace and are equal if the
+   * strings are, else if they cast to equal values.
+   *
+   * @param aType
+   *        The simple type.
+   * @param sContent
+   *        The instance value.
+   * @param sFixed
+   *        The fixed value.
+   * @param nDepth
+   *        The current nesting depth.
+   * @return <code>true</code> if equal.
+   * @throws XsdUnsupportedException
+   *         beyond {@link #MAX_DEPTH}
+   */
   private static boolean _fixedEqualRecursive (@NonNull final XsdSimpleType aType,
                                                @NonNull final String sContent,
                                                @NonNull final String sFixed,
