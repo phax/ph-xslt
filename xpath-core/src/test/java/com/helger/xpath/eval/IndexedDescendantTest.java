@@ -107,7 +107,9 @@ public final class IndexedDescendantTest
     }
     // A position, something that may be a number, another axis, a postfix step
     final String [] aNotFused = { "//x[1]", "//x[position() > 1]", "//x[last()]", "//x[@a][. = last()]", "//x[count(y)]",
-                                  "//x[string(.)]", "//@a", "//(x|y)" };
+                                  "//x[string(.)]", "//@a", "//(x|y)",
+                                  // fn:function-lookup can return fn:position
+                                  "//x[function-lookup(xs:QName('fn:position'), 0)() = 1]" };
     for (final String s : aNotFused)
     {
       final IExpr.PathExpr aPath = (IExpr.PathExpr) XPathParser.parse (s, aSC);
@@ -127,6 +129,8 @@ public final class IndexedDescendantTest
     assertEquals ("3", _eval ("count(//SubInvoiceLine | //SubInvoiceLine//SubInvoiceLine)", aDoc));
     // Not fused: the first SubInvoiceLine child of each parent
     assertEquals ("1.1 1.1.1 2.1", _eval ("//SubInvoiceLine[1]/@id", aDoc));
+    assertEquals ("1.1 1.1.1 2.1", _eval ("//SubInvoiceLine[function-lookup(xs:QName('fn:position'), 0)() = 1]/@id", aDoc));
+    assertEquals ("1 1.1 1.1.1 2 2.1", _eval ("//@id[function-lookup(xs:QName('fn:last'), 0)() = 1]", aDoc));
     // The first descendant overall, and per context node
     assertEquals ("1.1", _eval ("descendant::SubInvoiceLine[1]/@id", aDoc));
     assertEquals ("1.1 2.1", _eval ("//InvoiceLine/descendant::SubInvoiceLine[1]/@id", aDoc));
