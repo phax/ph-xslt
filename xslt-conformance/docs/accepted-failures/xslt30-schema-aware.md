@@ -47,10 +47,17 @@ additionally reads a stylesheet in an encoding the harness resource reader does 
 both as residual.
 
 ### `validation-0201`
-**Status:** Open.
-A large GEDCOM to XHTML transformation of a validated source with `xsl:strip-space elements="*"`. The output matches
-the reference except for the whitespace before `</p>` at the end of the last note paragraph (the reference keeps a
-space there). Not analysed further.
+**Status:** Accepted (the expected result contradicts Serialization 3.1; same as go-xslt).
+A GEDCOM to XHTML transformation of a validated source, serialised with `method="xhtml" indent="yes"`. After the
+harness has dropped the whitespace that indentation may add, the one remaining difference is a line break that the
+reference file `schvalid001.out` has before `</p>` after "...youngest ever President of the United States.". That
+whitespace is not in the result tree: the source `Note` ends in "States.</Note>", the `text()` template in mode `note`
+copies the text between the line breaks with `xsl:value-of`, and the literal `<p class="text">` has no other content,
+so neither whitespace stripping nor validation is involved. The reference serialiser added it, which Serialization
+3.1 section 6.1.4 does not allow ("Whitespace MUST NOT be added other than before or after an element, or adjacent to
+an existing whitespace character"; the position is inside `p`, after a text node ending in a full stop), nor would
+the XML rule of section 5.1.4 ("MAY be added adjacent to a text node only if the text node contains only whitespace
+characters"). Checked against xslt30-test `fddf1cf` (2026-06-10).
 
 ### `base-uri-052`, `collection-006`, `copy-1221`, `document-2401`, `document-2402`, `unparsed-text-2002`, `unparsed-text-2003`
 **Status:** As in `xslt30.md`.
