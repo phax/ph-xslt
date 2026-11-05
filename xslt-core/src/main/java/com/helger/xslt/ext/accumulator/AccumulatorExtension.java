@@ -41,6 +41,7 @@ import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
+import com.helger.xpath.xdm.XdmDocumentNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformRequest;
@@ -62,6 +63,8 @@ import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.runtime.XsltState;
 import com.helger.xslt.schema.ValidationRequest;
+import com.helger.xslt.stream.IStreamAccumulators;
+import com.helger.xslt.stream.StreamVerdicts;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 import com.helger.xslt.tree.XslText;
@@ -113,6 +116,11 @@ public final class AccumulatorExtension implements IXsltExtension
     private final Map <IXdmNode, XdmSequence> m_aBefore = new IdentityHashMap <> ();
     private final Map <IXdmNode, XdmSequence> m_aAfter = new IdentityHashMap <> ();
     private boolean m_bDone;
+    // Computed while the tree is read as a stream, for the live nodes only
+    private boolean m_bStreamed;
+    // The error that stopped the computation while streaming, raised by every
+    // lookup of a node that has no value
+    private XPathException m_aError;
   }
 
   /** Restrictions of the accumulators applicable to a tree. */
@@ -444,6 +452,226 @@ public final class AccumulatorExtension implements IXsltExtension
     }
   }
 
+  /**
+   * The values of the applicable accumulators of a streamed document, computed
+   * as it is read (a port of go-xslt's <code>strbAccSet</code>,
+   * <code>stream_acc.go</code>): the rule application of
+   * {@link #_computeTree(Accumulator, IXdmNode, TreeValues, XsltContext)}, at
+   * the moment each node is live.
+   */
+  private static final class StreamedValues implements IStreamAccumulators
+  {
+    private final Engine m_aEngine;
+    private final ICommonsList <Accumulator> m_aAccumulators;
+    private final ICommonsList <TreeValues> m_aValues = new CommonsArrayList <> ();
+    private final XdmSequence [] m_aCurrent;
+    private final XsltContext m_aBase;
+
+    StreamedValues (@NonNull final XsltContext aCaller,
+                    @NonNull final IXdmNode aRoot,
+                    @NonNull final ICommonsList <Accumulator> aAccumulators)
+    {
+      m_aEngine = aCaller.getEngine ();
+      m_aAccumulators = aAccumulators;
+      m_aCurrent = new XdmSequence [aAccumulators.size ()];
+      // Rules run in temporary output state: no xsl:result-document (XTDE1480)
+      m_aBase = Engine.withTemporaryOutputState (m_aEngine.createRootContext ().withState (XsltState.EMPTY));
+      final RunData aData = _getRunData (m_aEngine);
+      for (int i = 0; i < aAccumulators.size (); ++i)
+      {
+        final Accumulator aAcc = aAccumulators.get (i);
+        final TreeValues aValues = new TreeValues ();
+        aValues.m_bDone = true;
+        aValues.m_bStreamed = true;
+        try
+        {
+          m_aCurrent[i] = _coerce (aAcc, aAcc.initial ().evaluate (m_aBase.withFocus (aRoot, 1, 1)), m_aBase);
+        }
+        catch (final XPathException ex)
+        {
+          // Raised when a value is asked for, as in the buffered computation
+          aValues.m_aError = XsltException.locate (ex, aAcc.element ());
+        }
+        aData.m_aValues.computeIfAbsent (aAcc, k -> new IdentityHashMap <> ()).put (aRoot, aValues);
+        m_aValues.add (aValues);
+      }
+      // The document node is entered before anything is read
+      enter (aRoot);
+    }
+
+    private void _apply (@NonNull final IXdmNode aNode, final boolean bEnd)
+    {
+      for (int i = 0; i < m_aAccumulators.size (); ++i)
+      {
+        final TreeValues aValues = m_aValues.get (i);
+        if (aValues.m_aError != null)
+          continue;
+        m_aEngine.step ();
+        try
+        {
+          m_aCurrent[i] = _applyRule (m_aAccumulators.get (i), aNode, m_aCurrent[i], bEnd, m_aBase);
+        }
+        catch (final XPathException ex)
+        {
+          // From here on every lookup raises it
+          aValues.m_aError = ex;
+          continue;
+        }
+        (bEnd ? aValues.m_aAfter : aValues.m_aBefore).put (aNode, m_aCurrent[i]);
+      }
+    }
+
+    public void enter (@NonNull final IXdmNode aNode)
+    {
+      _apply (aNode, false);
+    }
+
+    public void exit (@NonNull final IXdmNode aNode)
+    {
+      _apply (aNode, true);
+    }
+
+    public void forget (@NonNull final IXdmNode aNode)
+    {
+      final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
+      aStack.push (aNode);
+      while (!aStack.isEmpty ())
+      {
+        final IXdmNode aCur = aStack.pop ();
+        for (final TreeValues aValues : m_aValues)
+        {
+          aValues.m_aBefore.remove (aCur);
+          aValues.m_aAfter.remove (aCur);
+        }
+        for (int i = 0; i < aCur.getChildCount (); ++i)
+          aStack.push (aCur.getChildAtIndex (i));
+      }
+    }
+  }
+
+  /**
+   * @param aNames
+   *        The applicable accumulator names, <code>null</code> for all.
+   * @return The effective accumulators among them, in declaration order.
+   */
+  @SuppressWarnings ("unchecked")
+  @NonNull
+  private static ICommonsList <Accumulator> _getApplicable (@NonNull final CompiledStylesheet aSheet,
+                                                            @Nullable final ICommonsSet <XdmQName> aNames)
+  {
+    final ICommonsList <Accumulator> ret = new CommonsArrayList <> ();
+    final ICommonsMap <XdmQName, Accumulator> aByName = (ICommonsMap <XdmQName, Accumulator>) aSheet.getExtensionData (KEY_BY_NAME);
+    if (aByName != null)
+      for (final Accumulator aAcc : AccumulatorExtension.<Accumulator> _getList (aSheet, KEY_DECLS))
+        if (aByName.get (aAcc.name ()) == aAcc && (aNames == null || aNames.contains (aAcc.name ())))
+          ret.add (aAcc);
+    return ret;
+  }
+
+  @SuppressWarnings ("unchecked")
+  @NonNull
+  private static ICommonsSet <XdmQName> _getModeAccumulators (@NonNull final CompiledStylesheet aSheet,
+                                                              @NonNull final Mode aMode)
+  {
+    final ICommonsMap <Mode, ICommonsSet <XdmQName>> aModes = (ICommonsMap <Mode, ICommonsSet <XdmQName>>) aSheet.getExtensionData (KEY_MODES);
+    final ICommonsSet <XdmQName> ret = aModes == null ? null : aModes.get (aMode);
+    return ret == null ? new CommonsHashSet <> () : ret;
+  }
+
+  private static boolean _isStreamable (@NonNull final CompiledStylesheet aSheet,
+                                        @Nullable final ICommonsSet <XdmQName> aNames)
+  {
+    final StreamVerdicts aVerdicts = aSheet.getStreamVerdicts ();
+    if (aVerdicts == null)
+      return false;
+    final ICommonsList <Accumulator> aAccs = _getApplicable (aSheet, aNames);
+    if (aAccs.isEmpty ())
+      return true;
+    // The names of a package are qualified per scope
+    if (aSheet.isMultiPackage ())
+      return false;
+    for (final Accumulator aAcc : aAccs)
+      if (!aAcc.streamable () || !aVerdicts.isAccumulatorStreamable (aAcc.name ()))
+        return false;
+    return true;
+  }
+
+  /**
+   * @param aSheet
+   *        The stylesheet.
+   * @param aUseAccumulators
+   *        The use-accumulators of an xsl:source-document, a <code>null</code>
+   *        entry for #all.
+   * @return <code>true</code> if every applicable accumulator is proven
+   *         streamable, so that the document can be read as a stream.
+   */
+  public static boolean isStreamable (@NonNull final CompiledStylesheet aSheet,
+                                      @NonNull final ICommonsList <XdmQName> aUseAccumulators)
+  {
+    return _isStreamable (aSheet, _resolveSet (aUseAccumulators));
+  }
+
+  /**
+   * @param aSheet
+   *        The stylesheet.
+   * @param aMode
+   *        The initial mode.
+   * @return <code>true</code> if every accumulator applicable to the initial
+   *         match selection is proven streamable.
+   */
+  public static boolean isStreamable (@NonNull final CompiledStylesheet aSheet, @NonNull final Mode aMode)
+  {
+    return _isStreamable (aSheet, _getModeAccumulators (aSheet, aMode));
+  }
+
+  /**
+   * Start computing the applicable accumulators of a document read as a
+   * stream. Call only after
+   * {@link #isStreamable(CompiledStylesheet, ICommonsList)} said yes.
+   *
+   * @param aCaller
+   *        Context.
+   * @param aRoot
+   *        The live document node.
+   * @param aUseAccumulators
+   *        The use-accumulators of the xsl:source-document.
+   * @return The live computation, or <code>null</code> if no accumulator
+   *         applies.
+   */
+  @Nullable
+  public static IStreamAccumulators startStreamed (@NonNull final XsltContext aCaller,
+                                                   @NonNull final IXdmNode aRoot,
+                                                   @NonNull final ICommonsList <XdmQName> aUseAccumulators)
+  {
+    final ICommonsList <Accumulator> aAccs = _getApplicable (aCaller.getEngine ().getStylesheet (),
+                                                             _resolveSet (aUseAccumulators));
+    return aAccs.isEmpty () ? null : new StreamedValues (aCaller, aRoot, aAccs);
+  }
+
+  /**
+   * Start computing the accumulators of the initial mode over the initial
+   * match selection read as a stream. Call only after
+   * {@link #isStreamable(CompiledStylesheet, Mode)} said yes.
+   *
+   * @param aCaller
+   *        Context.
+   * @param aRoot
+   *        The live document node.
+   * @param aMode
+   *        The initial mode.
+   * @return The live computation, or <code>null</code> if no accumulator
+   *         applies.
+   */
+  @Nullable
+  public static IStreamAccumulators startStreamed (@NonNull final XsltContext aCaller,
+                                                   @NonNull final IXdmNode aRoot,
+                                                   @NonNull final Mode aMode)
+  {
+    final CompiledStylesheet aSheet = aCaller.getEngine ().getStylesheet ();
+    final ICommonsList <Accumulator> aAccs = _getApplicable (aSheet, _getModeAccumulators (aSheet, aMode));
+    return aAccs.isEmpty () ? null : new StreamedValues (aCaller, aRoot, aAccs);
+  }
+
   private static boolean _hasAccumulators (@NonNull final CompiledStylesheet aSheet)
   {
     final Object aDecls = aSheet.getExtensionData (KEY_DECLS);
@@ -634,8 +862,10 @@ public final class AccumulatorExtension implements IXsltExtension
     if (aAcc == null)
       throw new XPathException ("XTDE3340", "There is no accumulator named '" + sName + "'");
     final IXdmItem aItem = aCtx.getContextItem ();
+    // XSLT 3.0 section 18.2.4; also the case of a focus saved in a function
+    // item over a streamed node, which is saved absent (section 10.3.6)
     if (aItem == null)
-      throw new XPathException ("XPDY0002",
+      throw new XPathException ("XTDE3350",
                                 "accumulator-" + (bAfter ? "after" : "before") + "() requires a context item");
     if (!(aItem instanceof final IXdmNode aNode) ||
         aNode.getKind () == ENodeKind.ATTRIBUTE ||
@@ -679,6 +909,11 @@ public final class AccumulatorExtension implements IXsltExtension
     TreeValues aValues = aTrees.get (aRoot);
     if (aValues == null)
     {
+      // A document read as a stream holds only a part of itself: only the
+      // accumulators computed while it is read have values
+      if (aRoot instanceof final XdmDocumentNode aDoc && aDoc.isStreamed ())
+        throw new XPathException ("XTDE3362",
+                                  "The accumulator " + aName.getEQName () + " is not computed for the streamed document");
       aValues = new TreeValues ();
       aTrees.put (aRoot, aValues);
       try
@@ -693,6 +928,15 @@ public final class AccumulatorExtension implements IXsltExtension
       }
     }
     final XdmSequence ret = (bAfter ? aValues.m_aAfter : aValues.m_aBefore).get (aOrigin);
+    if (ret == null && aValues.m_aError != null)
+      throw aValues.m_aError;
+    if (ret == null && aValues.m_bStreamed)
+      throw new XPathException ("XTSE3430",
+                                "The " +
+                                          (bAfter ? "post" : "pre") +
+                                          "-descent value of the accumulator " +
+                                          aName.getEQName () +
+                                          " is not available for this node of the streamed document");
     if (ret == null)
     {
       if (!aValues.m_bDone)

@@ -60,9 +60,28 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   private ICommonsList <String> m_aParsedEntityNames;
   // Built on first use. Threads that race build equal indexes, so no lock
   private volatile NameIndex m_aNameIndex;
+  // Built by XdmStreamReader: only a part of the document is attached
+  private boolean m_bStreamed;
 
   XdmDocumentNode ()
   {}
+
+  void internalSetStreamed (final boolean bStreamed)
+  {
+    m_bStreamed = bStreamed;
+    m_aNameIndex = null;
+  }
+
+  /**
+   * @return <code>true</code> if this document is read by an
+   *         {@link XdmStreamReader}: only the part of it that the reader keeps
+   *         is attached, so a question about the whole document cannot be
+   *         answered from the tree.
+   */
+  public boolean isStreamed ()
+  {
+    return m_bStreamed;
+  }
 
   @NonNull
   private NameIndex _buildNameIndex (final long nTree)
@@ -100,14 +119,15 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
    * @param aName
    *        The element name (namespace URI and local name).
    * @return The elements in document order as a read-only list, or
-   *         <code>null</code> if the tree is not numbered.
+   *         <code>null</code> if the tree is not numbered or is
+   *         {@link #isStreamed() streamed}.
    */
   @Nullable
   public List <IXdmNode> getElementsByName (@NonNull final XdmQName aName)
   {
     ValueEnforcer.notNull (aName, "Name");
     final long nTree = internalGetTree ();
-    if (nTree == 0)
+    if (nTree == 0 || m_bStreamed)
       return null;
     NameIndex aIndex = m_aNameIndex;
     if (aIndex == null || aIndex.m_nTree != nTree)

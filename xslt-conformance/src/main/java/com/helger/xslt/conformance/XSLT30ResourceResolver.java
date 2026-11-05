@@ -23,10 +23,12 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.annotation.style.ReturnsMutableCopy;
@@ -39,6 +41,10 @@ import com.helger.xpath.conformance.QT3ResourceResolver;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
+import com.helger.xpath.xdm.XdmParseException;
+import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmStreamReader;
 
 /**
  * Resolves what a stylesheet reads at run time (<code>document()</code>,
@@ -233,6 +239,23 @@ public final class XSLT30ResourceResolver implements IResourceResolver
       return null;
     final IXdmNode aPrepared = m_aPrepared.get (aPath);
     return aPrepared != null ? aPrepared : m_aDocs.getDocument (aPath);
+  }
+
+  @Override
+  @Nullable
+  public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+                                             @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
+  {
+    final Path aPath = _getPath (sAbsoluteUri);
+    // A prepared (validated) document is used as it is
+    if (aPath == null || m_aPrepared.containsKey (aPath))
+      return null;
+    // The settings of the document cache: external entities are read, so a
+    // document with an external DTD subset is read in full
+    return XdmStreamReader.open (new InputSource (getFileUri (aPath)),
+                                 true,
+                                 XdmParser.DEFAULT_MAX_ELEMENT_DEPTH,
+                                 aStripWhitespace);
   }
 
   @Nullable

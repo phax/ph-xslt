@@ -50,7 +50,11 @@ import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
+import com.helger.xpath.xdm.XdmDocumentNode;
+import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmStreamReader;
+import com.helger.xpath.xdm.XdmStreamUnsupportedException;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
@@ -103,6 +107,7 @@ public final class Engine
   private final DynamicContext m_aRootDyn;
   private final DynamicContext m_aPatternDyn;
   private IXdmItem m_aGlobalContextItem;
+  private boolean m_bGlobalVariablesWithoutFocus;
   private final ICommonsMap <XdmQName, XdmSequence> m_aGlobalValues = new CommonsHashMap <> ();
   private final ICommonsSet <XdmQName> m_aGlobalsInProgress = new CommonsHashSet <> ();
   private final ICommonsMap <VariableDef, XdmSequence> m_aOriginalValues = new CommonsHashMap <> ();
@@ -271,6 +276,20 @@ public final class Engine
   }
 
   /**
+   * Evaluate global variables (not parameters) without context item: the
+   * principal source is declared streamed and the initial mode is streamable,
+   * so a global variable cannot navigate the streamed document (go-xslt
+   * <code>streamedVarsNoFocus</code>, <code>streamable-116</code>).
+   *
+   * @param bWithoutFocus
+   *        <code>true</code> to evaluate them without focus.
+   */
+  public void setGlobalVariablesWithoutFocus (final boolean bWithoutFocus)
+  {
+    m_bGlobalVariablesWithoutFocus = bWithoutFocus;
+  }
+
+  /**
    * Per-run data of instruction families (accumulator values, ...).
    *
    * @param aKey
@@ -297,7 +316,9 @@ public final class Engine
       throw XsltException.at (aDef.getElement (), "XTDE3052", "The abstract variable $" + aName.getEQName () + " was not overridden");
     XsltContext aCtx = createRootContext ().withState (XsltState.EMPTY);
     // A global of a used library package has no global context item
-    if (m_aGlobalContextItem != null && (!m_aSheet.isMultiPackage () || m_aSheet.getPackages ().isInPrincipal (aDef.getElement ())))
+    if (m_aGlobalContextItem != null &&
+        (!m_aSheet.isMultiPackage () || m_aSheet.getPackages ().isInPrincipal (aDef.getElement ())) &&
+        !(m_bGlobalVariablesWithoutFocus && aDef.getKind () != VariableDef.EKind.GLOBAL_PARAM))
     {
       // The global context item is the focus, but there is no current item
       aCtx = new XsltContext (this, aCtx.withFocus (m_aGlobalContextItem, 1, 1).getDynamicContext ().withCurrentItem (null));
@@ -803,27 +824,54 @@ public final class Engine
   {
     final int nSize = aItems.size ();
     for (int i = 0; i < nSize; ++i)
+      applyTemplates (aCaller, aItems.get (i), i + 1, nSize, aMode, aParams, aOut);
+  }
+
+  /**
+   * Apply templates to one item of a selection (xsl:apply-templates over the
+   * records of a streamed document).
+   *
+   * @param aCaller
+   *        Context of the instruction.
+   * @param aItem
+   *        The item.
+   * @param nPosition
+   *        Its position in the selection.
+   * @param nSize
+   *        The size of the selection.
+   * @param aMode
+   *        Mode.
+   * @param aParams
+   *        Evaluated xsl:with-param values.
+   * @param aOut
+   *        Output.
+   */
+  public void applyTemplates (@NonNull final XsltContext aCaller,
+                              @NonNull final IXdmItem aItem,
+                              final int nPosition,
+                              final int nSize,
+                              @NonNull final Mode aMode,
+                              @NonNull final List <ParamValue> aParams,
+                              @NonNull final IXsltOutput aOut)
+  {
+    _checkTypedMode (aMode, aItem);
+    final TemplateRule aRule = findRule (aMode, aItem, aCaller);
+    if (aRule != null)
+      _invokeRule (aRule, aMode, aCaller, aItem, nPosition, nSize, aParams, aOut);
+    else
     {
-      final IXdmItem aItem = aItems.get (i);
-      _checkTypedMode (aMode, aItem);
-      final TemplateRule aRule = findRule (aMode, aItem, aCaller);
-      if (aRule != null)
-        _invokeRule (aRule, aMode, aCaller, aItem, i + 1, nSize, aParams, aOut);
-      else
+      // The built-in rule runs with the focus on the item and keeps the mode
+      final XsltContext aCtx = aCaller.withoutFocusAndVariables ()
+                                      .withFocus (aItem, nPosition, nSize)
+                                      .withState (aCaller.getState ().withCurrentRule (null, aMode));
+      enterDepth ();
+      try
       {
-        // The built-in rule runs with the focus on the item and keeps the mode
-        final XsltContext aCtx = aCaller.withoutFocusAndVariables ()
-                                        .withFocus (aItem, i + 1, nSize)
-                                        .withState (aCaller.getState ().withCurrentRule (null, aMode));
-        enterDepth ();
-        try
-        {
-          applyBuiltIn (aMode, aItem, aCtx, aParams, aOut);
-        }
-        finally
-        {
-          leaveDepth ();
-        }
+        applyBuiltIn (aMode, aItem, aCtx, aParams, aOut);
+      }
+      finally
+      {
+        leaveDepth ();
       }
     }
   }
@@ -1081,6 +1129,11 @@ public final class Engine
     if (aDefs == null)
       throw new XPathException ("XTDE1260", "There is no key named " + aName.getEQName ());
     final IXdmNode aRoot = aTop.getRoot ();
+    // Building the index would read the whole document, of which a streamed
+    // one holds only a part (go-xslt raises the same run-time error)
+    if (aRoot instanceof final XdmDocumentNode aDoc && aDoc.isStreamed ())
+      throw new XPathException ("XTSE3430",
+                                "The key " + aName.getEQName () + " cannot be used over a document that is read as a stream");
     final KeyIndexId aId = new KeyIndexId (aName, aRoot, aUnit);
     ICommonsMap <Object, ICommonsList <IXdmNode>> aIndex = m_aKeyIndexes.get (aId);
     if (aIndex == null)
@@ -1226,6 +1279,39 @@ public final class Engine
         aStack.push (aCur.getChildAtIndex (i));
     }
     return null;
+  }
+
+  /**
+   * Open a document for streamed processing with the resolver of the request,
+   * applying xsl:strip-space while it is read.
+   *
+   * @param sAbsoluteUri
+   *        Absolute URI.
+   * @return The open reader, or <code>null</code> if the document is to be
+   *         read in full (no resolver that streams it, a fragment identifier,
+   *         or a document the reader does not stream).
+   * @throws XPathException
+   *         FODC0002 if the document cannot be read
+   */
+  @Nullable
+  public XdmStreamReader openStreamedDocument (@NonNull final String sAbsoluteUri)
+  {
+    final IResourceResolver aResolver = m_aRequest.getResolver ();
+    if (aResolver == null || sAbsoluteUri.indexOf ('#') >= 0)
+      return null;
+    final SpaceRules aRules = m_aSheet.getSpaceRules ();
+    try
+    {
+      return aResolver.openDocumentStream (sAbsoluteUri, aRules.isNoStripping () ? null : aRules::isStripped);
+    }
+    catch (final XdmStreamUnsupportedException ex)
+    {
+      return null;
+    }
+    catch (final XdmParseException ex)
+    {
+      throw new XPathException ("FODC0002", "The document '" + sAbsoluteUri + "' cannot be retrieved: " + ex.getMessage ());
+    }
   }
 
   /**

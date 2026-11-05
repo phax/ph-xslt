@@ -53,6 +53,8 @@ import com.helger.xslt.runtime.ParamValue;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.runtime.XsltState;
+import com.helger.xslt.stream.StreamConsumer;
+import com.helger.xslt.stream.StreamedGroupScope;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -132,11 +134,18 @@ public final class ControlInstructions
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
+    // Over the records of a streamed document, if it is the consumer
+    final StreamConsumer aStreamed = aSorts.isEmpty () ? StreamConsumer.create (aCtx, aEl, aSelect) : null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final XsltContext aBase = aRtCtx.withState (aRtCtx.getState ().withCurrentRule (null, aRtCtx.getState ().getCurrentMode ()));
+      // The size is not known while streaming; fn:last is not streamable
+      // there (XSLT 3.0 section 19.8.9.14)
+      if (aStreamed != null &&
+          aStreamed.drive (aRtCtx, (aRecord, nPosition) -> aBody.execute (aBase.withFocus (aRecord, nPosition, nPosition), aRtOut)))
+        return;
       XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
         aItems = SortKeyDef.sort (aSorts, aItems, aRtCtx);
-      final XsltContext aBase = aRtCtx.withState (aRtCtx.getState ().withCurrentRule (null, aRtCtx.getState ().getCurrentMode ()));
       final int nSize = aItems.size ();
       for (int i = 0; i < nSize; ++i)
         aBody.execute (aBase.withFocus (aItems.get (i), i + 1, nSize), aRtOut);
@@ -195,14 +204,36 @@ public final class ControlInstructions
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
     final boolean bDefaultSelect = !aEl.hasAttr ("select");
+    // Over the records of a streamed document, if it is the consumer
+    final StreamConsumer aStreamed = aSorts.isEmpty () && aParams.isEmpty () ? StreamConsumer.create (aCtx, aEl, aSelect)
+                                                                             : null;
+    final StreamedGroupScope aGroupScope = StreamedGroupScope.create (aCtx, aEl);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final XsltContext aInvokeCtx = aGroupScope != null ? aGroupScope.apply (aRtCtx) : aRtCtx;
       if (bDefaultSelect && aRtCtx.getContextItem () != null && !(aRtCtx.getContextItem () instanceof IXdmNode))
         throw new XPathException ("XTTE0510", "xsl:apply-templates without select needs a node as context item");
+      if (aStreamed != null)
+      {
+        final Mode aRealMode = aMode != null ? aMode : getCurrentMode (aRtCtx);
+        final ICommonsList <ParamValue> aNoParams = new CommonsArrayList <> ();
+        // The size is not known while streaming; fn:last is not streamable
+        // there (XSLT 3.0 section 19.8.9.14)
+        if (aStreamed.drive (aRtCtx,
+                             (aRecord, nPosition) -> aRtCtx.getEngine ()
+                                                           .applyTemplates (aInvokeCtx,
+                                                                            aRecord,
+                                                                            nPosition,
+                                                                            nPosition,
+                                                                            aRealMode,
+                                                                            aNoParams,
+                                                                            aRtOut)))
+          return;
+      }
       XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
         aItems = SortKeyDef.sort (aSorts, aItems, aRtCtx);
       final ICommonsList <ParamValue> aValues = ParamValue.evaluate (aParams, aRtCtx);
-      aRtCtx.getEngine ().applyTemplates (aRtCtx, aItems, aMode != null ? aMode : getCurrentMode (aRtCtx), aValues, aRtOut);
+      aRtCtx.getEngine ().applyTemplates (aInvokeCtx, aItems, aMode != null ? aMode : getCurrentMode (aRtCtx), aValues, aRtOut);
     });
   }
 
@@ -216,12 +247,14 @@ public final class ControlInstructions
       if (!aParam.isTunnel ())
         aNonTunnel.add (aParam.getName ());
     aCtx.getCompiler ().registerCallTemplate (aEl, aName, aNonTunnel);
+    final StreamedGroupScope aGroupScope = StreamedGroupScope.create (aCtx, aEl);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final Engine aEngine = aRtCtx.getEngine ();
       final Template aTemplate = aEngine.getStylesheet ().getNamedTemplate (aName);
       if (aTemplate == null)
         throw new XPathException ("XTSE0650", "No template named " + aName.getEQName ());
-      aEngine.callTemplate (aRtCtx, aTemplate, ParamValue.evaluate (aParams, aRtCtx), aRtOut);
+      final ICommonsList <ParamValue> aValues = ParamValue.evaluate (aParams, aRtCtx);
+      aEngine.callTemplate (aGroupScope != null ? aGroupScope.apply (aRtCtx) : aRtCtx, aTemplate, aValues, aRtOut);
     });
   }
 
@@ -231,8 +264,11 @@ public final class ControlInstructions
                                                  final boolean bImports)
   {
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
-    return new CompiledInstruction (aEl,
-                                    (aRtCtx, aRtOut) -> aRtCtx.getEngine ().applyNextMatch (aRtCtx, bImports, ParamValue.evaluate (aParams, aRtCtx), aRtOut));
+    final StreamedGroupScope aGroupScope = StreamedGroupScope.create (aCtx, aEl);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      final ICommonsList <ParamValue> aValues = ParamValue.evaluate (aParams, aRtCtx);
+      aRtCtx.getEngine ().applyNextMatch (aGroupScope != null ? aGroupScope.apply (aRtCtx) : aRtCtx, bImports, aValues, aRtOut);
+    });
   }
 
   @NonNull

@@ -36,18 +36,26 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmStreamReader;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
 import com.helger.xslt.compile.IOutputCustomizer;
 import com.helger.xslt.compile.XsltExtensionRegistry;
+import com.helger.xslt.ext.accumulator.AccumulatorExtension;
 import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.Mode;
 import com.helger.xslt.model.OutputDefinition;
 import com.helger.xslt.model.Template;
+import com.helger.xslt.model.TemplateRule;
 import com.helger.xslt.model.UserFunction;
 import com.helger.xslt.pkg.PackageComponent;
+import com.helger.xslt.stream.StreamConsumer;
+import com.helger.xslt.stream.StreamPlanner;
+import com.helger.xslt.stream.StreamedRun;
+import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
 /**
@@ -216,13 +224,14 @@ public final class XsltTransformer
    *         XTDE3086, XTTE0590, or an error of a global parameter
    */
   @Nullable
-  public static IXdmItem initGlobalContextItem (@NonNull final Engine aEngine,
-                                                @NonNull final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots)
+  private static IXdmItem _initGlobalContextItem (@NonNull final Engine aEngine,
+                                                  @NonNull final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots,
+                                                  @Nullable final IXdmItem aSuppliedItem)
   {
     // Whitespace stripping applies to the trees of the global context item
     // and of the initial match selection; a node that is stripped itself is
     // gone (strip-space-023, mode-1802)
-    IXdmItem aGlobalItem = aEngine.getRequest ().getGlobalContextItem ();
+    IXdmItem aGlobalItem = aSuppliedItem;
     if (aGlobalItem instanceof final IXdmNode aNode)
       aGlobalItem = _toStripped (aEngine, aStrippedRoots, aNode);
     final CompiledStylesheet.GlobalContextItem aGCI = aEngine.getStylesheet ().getGlobalContextItem ();
@@ -242,12 +251,205 @@ public final class XsltTransformer
     return aGlobalItem;
   }
 
+  @Nullable
+  public static IXdmItem initGlobalContextItem (@NonNull final Engine aEngine,
+                                                @NonNull final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots)
+  {
+    return _initGlobalContextItem (aEngine, aStrippedRoots, aEngine.getRequest ().getGlobalContextItem ());
+  }
+
+  /** @return The name of the initial mode of the request. */
+  @NonNull
+  private XdmQName _getInitialModeName ()
+  {
+    final XdmQName aModeName = m_aRequest.getInitialMode ();
+    if (aModeName != null && !aModeName.hasNamespace () && "#unnamed".equals (aModeName.localName ()))
+      return Mode.UNNAMED;
+    if (aModeName == null || !aModeName.hasNamespace () && "#default".equals (aModeName.localName ()))
+      return m_aSheet.getDefaultModeName ();
+    return aModeName;
+  }
+
+  /**
+   * @return The initial mode of the request.
+   * @throws XsltException
+   *         XTDE0045 if it does not exist or is not eligible
+   */
+  @NonNull
+  private Mode _resolveInitialMode ()
+  {
+    final XdmQName aModeName = _getInitialModeName ();
+    final XdmQName aRequested = m_aRequest.getInitialMode ();
+    final boolean bExplicitMode = aRequested != null &&
+                                  !(!aRequested.hasNamespace () && "#default".equals (aRequested.localName ()));
+    final Mode aMode = m_aSheet.getMode (aModeName);
+    if (aMode == null)
+      throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " does not exist", null, 0, 0);
+    // A named initial mode must be declared, by xsl:mode or by the mode
+    // attribute of a template rule (not mode="#all", WG bug 3690); a
+    // reference from xsl:apply-templates only does not count
+    if (bExplicitMode &&
+        !aMode.isUnnamed () &&
+        !aModeName.equals (m_aSheet.getDefaultModeName ()) &&
+        aMode.getDeclaration () == null &&
+        aMode.rules ().containsNone (x -> !x.getTemplate ().isAllModes ()))
+      throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not declared", null, 0, 0);
+    final String sVis = aMode.getVisibility ();
+    if (bExplicitMode &&
+        !aMode.isUnnamed () &&
+        !aModeName.equals (m_aSheet.getDefaultModeName ()) &&
+        (m_aSheet.privateModes ().contains (aModeName) ||
+         "private".equals (sVis) ||
+         "abstract".equals (sVis) ||
+         sVis == null &&
+                         m_aSheet.isPackage () &&
+                         aMode.getDeclaration () != null &&
+                         !m_aSheet.exposedModes ().contains (aModeName)))
+      throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not public", null, 0, 0);
+    return aMode;
+  }
+
+  /** @return The document read in full; stripped, as for fn:doc. */
+  @NonNull
+  private static IXdmNode _readSource (@NonNull final Engine aEngine, @NonNull final String sUri)
+  {
+    final IXdmNode ret = aEngine.getDocument (aEngine.createRootContext (), sUri);
+    if (ret == null)
+      throw new XPathException ("FODC0002", "The source '" + sUri + "' identifies no node");
+    return ret;
+  }
+
+  @NonNull
+  private static IXdmNode _readAll (@NonNull final XdmStreamReader aReader)
+  {
+    try
+    {
+      return aReader.readAll ();
+    }
+    catch (final XdmParseException ex)
+    {
+      throw new XPathException ("FODC0002", "The source cannot be read: " + ex.getMessage ());
+    }
+    finally
+    {
+      _close (aReader);
+    }
+  }
+
+  private static void _close (@NonNull final XdmStreamReader aReader)
+  {
+    try
+    {
+      aReader.close ();
+    }
+    catch (final XdmParseException ex)
+    {
+      // Everything needed was read
+    }
+  }
+
+  /**
+   * @return The run if the template rule for the document node has the shape
+   *         the dispatcher runs, else <code>null</code> (the reader is still
+   *         open and nothing was read).
+   */
+  @Nullable
+  private StreamedRun _planStreamedRun (@NonNull final Engine aEngine,
+                                        @NonNull final Mode aMode,
+                                        @NonNull final XdmStreamReader aReader)
+  {
+    final XsltContext aCtx = aEngine.createRootContext ();
+    final TemplateRule aRule = aEngine.findRule (aMode,
+                                                 aReader.getDocument (),
+                                                 aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)));
+    if (aRule == null)
+      return null;
+    final XslElement aConsumer = StreamPlanner.findConsumer (aRule.getTemplate ().getElement ());
+    if (aConsumer == null || !StreamConsumer.isConsumer (m_aSheet, aConsumer))
+      return null;
+    return new StreamedRun (aReader, aConsumer);
+  }
+
+  private void _applyStreamed (@NonNull final Engine aEngine,
+                               @NonNull final StreamedRun aRun,
+                               @NonNull final XsltContext aCtx,
+                               @NonNull final Mode aMode,
+                               @NonNull final IXsltOutput aOut)
+  {
+    aRun.push (aEngine);
+    try
+    {
+      aRun.setAccumulators (AccumulatorExtension.startStreamed (aCtx, aRun.getReader ().getDocument (), aMode));
+      aEngine.applyTemplates (aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)),
+                              XdmSequence.of (aRun.getReader ().getDocument ()),
+                              aMode,
+                              _getTemplateParams (m_aRequest),
+                              aOut);
+      if (!aRun.isDriven ())
+        throw new IllegalStateException ("The consumer of the streamed source was not executed");
+    }
+    finally
+    {
+      aRun.pop (aEngine);
+      _close (aRun.getReader ());
+    }
+  }
+
   @NonNull
   private XsltTransformResult _run ()
   {
     final Engine aEngine = new Engine (m_aSheet, m_aRequest);
     final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots = new CommonsHashMap <> ();
-    final IXdmItem aGlobalItem = initGlobalContextItem (aEngine, aStrippedRoots);
+    // A principal source to read as a stream: the initial match selection
+    final String sStreamedUri = m_aRequest.getStreamedSourceUri ();
+    final boolean bInitialMode = m_aRequest.getInitialFunction () == null && m_aRequest.getInitialTemplate () == null;
+    Mode aStreamableMode = null;
+    if (sStreamedUri != null && bInitialMode && m_aSheet.getStreamVerdicts () != null)
+    {
+      final Mode aMode = _resolveInitialMode ();
+      if (m_aSheet.getStreamVerdicts ().isModeStreamable (aMode.getName ()) &&
+          AccumulatorExtension.isStreamable (m_aSheet, aMode))
+        aStreamableMode = aMode;
+    }
+    // A principal source declared streamed for a streamable initial mode gives
+    // global variables no context item
+    if (bInitialMode && m_aSheet.getStreamVerdicts () != null && (m_aRequest.isSourceStreamed () || sStreamedUri != null))
+    {
+      final Mode aMode = m_aSheet.getMode (_getInitialModeName ());
+      if (aMode != null && aMode.isStreamable ())
+        aEngine.setGlobalVariablesWithoutFocus (true);
+    }
+    IXdmNode aStreamedSource = null;
+    final IXdmItem aGlobalItem;
+    if (sStreamedUri != null && aStreamableMode == null)
+    {
+      // Read in full, and the global context item unless one is supplied
+      aStreamedSource = _readSource (aEngine, sStreamedUri);
+      final IXdmItem aSupplied = m_aRequest.getGlobalContextItem ();
+      aGlobalItem = _initGlobalContextItem (aEngine, aStrippedRoots, aSupplied != null ? aSupplied : aStreamedSource);
+    }
+    else
+      aGlobalItem = initGlobalContextItem (aEngine, aStrippedRoots);
+    StreamedRun aStreamedRun = null;
+    if (aStreamableMode != null)
+    {
+      final XdmStreamReader aReader = aEngine.openStreamedDocument (sStreamedUri);
+      if (aReader == null)
+        aStreamedSource = _readSource (aEngine, sStreamedUri);
+      else
+      {
+        try
+        {
+          aStreamedRun = _planStreamedRun (aEngine, aStreamableMode, aReader);
+        }
+        catch (final RuntimeException ex)
+        {
+          _close (aReader);
+          throw ex;
+        }
+        aStreamedSource = aStreamedRun != null ? aReader.getDocument () : _readAll (aReader);
+      }
+    }
     XdmSequence aMatchSelection = m_aRequest.getInitialMatchSelection ();
     if (aMatchSelection != null)
     {
@@ -260,6 +462,8 @@ public final class XsltTransformer
       }
       aMatchSelection = aNew.build ();
     }
+    if (aMatchSelection == null && aStreamedSource != null)
+      aMatchSelection = XdmSequence.of (aStreamedSource);
 
     XsltContext aCtx = aEngine.createRootContext ();
     if (aGlobalItem != null)
@@ -317,45 +521,15 @@ public final class XsltTransformer
         }
         else
         {
-          XdmQName aModeName = m_aRequest.getInitialMode ();
-          boolean bExplicitMode = aModeName != null;
-          if (aModeName != null && !aModeName.hasNamespace () && "#unnamed".equals (aModeName.localName ()))
-            aModeName = Mode.UNNAMED;
+          final Mode aMode = _resolveInitialMode ();
+          if (aStreamedRun != null)
+            _applyStreamed (aEngine, aStreamedRun, aCtx, aMode, aBuffer);
           else
-            if (aModeName == null || !aModeName.hasNamespace () && "#default".equals (aModeName.localName ()))
-            {
-              aModeName = m_aSheet.getDefaultModeName ();
-              bExplicitMode = false;
-            }
-          final Mode aMode = m_aSheet.getMode (aModeName);
-          if (aMode == null)
-            throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " does not exist", null, 0, 0);
-          // A named initial mode must be declared, by xsl:mode or by the mode
-          // attribute of a template rule (not mode="#all", WG bug 3690); a
-          // reference from xsl:apply-templates only does not count
-          if (bExplicitMode &&
-              !aMode.isUnnamed () &&
-              !aModeName.equals (m_aSheet.getDefaultModeName ()) &&
-              aMode.getDeclaration () == null &&
-              aMode.rules ().containsNone (x -> !x.getTemplate ().isAllModes ()))
-            throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not declared", null, 0, 0);
-          final String sVis = aMode.getVisibility ();
-          if (bExplicitMode &&
-              !aMode.isUnnamed () &&
-              !aModeName.equals (m_aSheet.getDefaultModeName ()) &&
-              (m_aSheet.privateModes ().contains (aModeName) ||
-               "private".equals (sVis) ||
-               "abstract".equals (sVis) ||
-               sVis == null &&
-                               m_aSheet.isPackage () &&
-                               aMode.getDeclaration () != null &&
-                               !m_aSheet.exposedModes ().contains (aModeName)))
-            throw new XsltException ("XTDE0045", "The initial mode " + aModeName.getEQName () + " is not public", null, 0, 0);
-          aEngine.applyTemplates (aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)),
-                                  aMatchSelection,
-                                  aMode,
-                                  _getTemplateParams (m_aRequest),
-                                  aBuffer);
+            aEngine.applyTemplates (aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)),
+                                    aMatchSelection,
+                                    aMode,
+                                    _getTemplateParams (m_aRequest),
+                                    aBuffer);
         }
       }
 

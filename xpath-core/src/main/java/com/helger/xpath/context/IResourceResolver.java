@@ -16,6 +16,8 @@
  */
 package com.helger.xpath.context;
 
+import java.util.function.Predicate;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -23,6 +25,9 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmParseException;
+import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmStreamReader;
 
 /**
  * Host hook that gives the XPath functions access to external resources
@@ -44,6 +49,33 @@ public interface IResourceResolver
    */
   @Nullable
   IXdmNode resolveDocument (@NonNull String sAbsoluteUri);
+
+  /**
+   * Open a document for streamed processing (XSLT 3.0 section 19), with the
+   * parser settings {@link #resolveDocument(String)} would use. The default
+   * implementation streams nothing, and the document is then read in full by
+   * {@link #resolveDocument(String)}.
+   *
+   * @param sAbsoluteUri
+   *        Absolute URI without fragment identifier.
+   * @param aStripWhitespace
+   *        The element names whose whitespace-only text children are to be
+   *        removed while reading (xsl:strip-space), or <code>null</code>. Pass
+   *        it to
+   *        {@link XdmStreamReader#open(org.xml.sax.InputSource, boolean, int, Predicate)}.
+   * @return The open reader (the caller closes it), or <code>null</code> if
+   *         the document is not streamed by this resolver.
+   * @throws XdmParseException
+   *         if the document cannot be read; an
+   *         {@link com.helger.xpath.xdm.XdmStreamUnsupportedException} means
+   *         it is to be read in full instead
+   */
+  @Nullable
+  default XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+                                              @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
+  {
+    return null;
+  }
 
   /**
    * @param sAbsoluteUri

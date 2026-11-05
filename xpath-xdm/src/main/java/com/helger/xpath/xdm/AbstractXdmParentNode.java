@@ -79,6 +79,39 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
     aRealChild.internalSetParent (null);
   }
 
+  /**
+   * Append a child to a tree that is numbered while it is built
+   * ({@link XdmStreamReader}): the numbering stays.
+   */
+  final void internalAppendNumbered (@NonNull final AbstractXdmNode aChild)
+  {
+    aChild.internalSetParent (this);
+    if (m_aChildren == null)
+      m_aChildren = new CommonsArrayList <> ();
+    m_aChildren.add (aChild);
+  }
+
+  /**
+   * Detach a child from a tree that is numbered while it is built
+   * ({@link XdmStreamReader}): the numbering of the remaining nodes stays. The
+   * child is searched from the end, where a streamed child normally is.
+   *
+   * @return <code>true</code> if it was a child.
+   */
+  final boolean internalDetachNumbered (@NonNull final AbstractXdmNode aChild)
+  {
+    if (m_aChildren == null)
+      return false;
+    for (int i = m_aChildren.size () - 1; i >= 0; --i)
+      if (m_aChildren.get (i) == aChild)
+      {
+        m_aChildren.remove (i);
+        aChild.internalSetParent (null);
+        return true;
+      }
+    return false;
+  }
+
   final void internalSetEndOrder (@Nonnegative final int nEndOrder)
   {
     m_nEndOrder = nEndOrder;

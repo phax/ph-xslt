@@ -43,6 +43,7 @@ import com.helger.xslt.compile.StaticContexts;
 import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.runtime.XsltTransformer;
+import com.helger.xslt.stream.StreamVerdicts;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 
@@ -99,6 +100,7 @@ public final class CompiledStylesheet implements XsltExecutable
   private final ICommonsMap <VariableDef, VariableDef> m_aOriginalVariables = new CommonsHashMap <> ();
   private final ICommonsMap <PackageUnit, ICommonsMap <XdmQName, VariableDef>> m_aPackageGlobals = new CommonsHashMap <> ();
   private HostScope m_aHostScope;
+  private StreamVerdicts m_aStreamVerdicts;
 
   public CompiledStylesheet (@NonNull final FunctionLibrary aFunctions, @NonNull final XslModule aPrincipalModule)
   {
@@ -146,6 +148,22 @@ public final class CompiledStylesheet implements XsltExecutable
   public void setSchemaSet (@Nullable final IXdmSchemaSet aSchemaSet)
   {
     m_aSchemaSet = aSchemaSet;
+  }
+
+  /**
+   * @return What the streamability analysis proved guaranteed streamable, or
+   *         <code>null</code> if nothing is executed streamed (streaming is not
+   *         claimed, {@link com.helger.xslt.XsltCompileOptions#isStreamingClaim()}).
+   */
+  @Nullable
+  public StreamVerdicts getStreamVerdicts ()
+  {
+    return m_aStreamVerdicts;
+  }
+
+  public void setStreamVerdicts (@Nullable final StreamVerdicts aStreamVerdicts)
+  {
+    m_aStreamVerdicts = aStreamVerdicts;
   }
 
   /**

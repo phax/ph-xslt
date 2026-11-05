@@ -40,6 +40,7 @@ import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.schema.ValidationRequest;
+import com.helger.xslt.stream.StreamConsumer;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 import com.helger.xslt.tree.XslText;
@@ -412,7 +413,16 @@ public final class NodeInstructions
     // Schema-aware: copies keep their annotations (and schema ID properties)
     // until the request is applied; strip keeps the ID properties
     final boolean bKeepAnnotations = aValidation != null;
+    // Over the records of a streamed document, if it is the consumer
+    final StreamConsumer aStreamed = aValidation == null ? StreamConsumer.create (aCtx, aEl, aSelect) : null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      if (aStreamed != null && aStreamed.drive (aRtCtx, (aRecord, nPosition) -> {
+        final IXdmNode aCopy = NodeCopier.copyDeep (aRecord, bCopyNamespaces, false);
+        if (aCopy.isElement () && aCopy.getBaseUri () == null)
+          aCopy.setBaseUri (sStaticBase);
+        aRtOut.appendNew (aCopy);
+      }))
+        return;
       for (final IXdmItem aItem : aSelect.evaluate (aRtCtx))
         if (aItem instanceof final IXdmNode aNode)
         {

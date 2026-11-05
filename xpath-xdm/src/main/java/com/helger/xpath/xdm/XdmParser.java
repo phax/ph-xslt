@@ -82,7 +82,7 @@ public class XdmParser
    * blow-up, parameter entities) on every supported JDK. The attributes per
    * element are limited the same way (JDK 25 allows 200, JDK 21 10,000).
    */
-  private static final String [] [] ENTITY_LIMITS = { { "entityExpansionLimit", "64000" },
+  static final String [] [] ENTITY_LIMITS = { { "entityExpansionLimit", "64000" },
                                                       { "totalEntitySizeLimit", "50000000" },
                                                       { "maxGeneralEntitySizeLimit", "0" },
                                                       { "maxParameterEntitySizeLimit", "1000000" },

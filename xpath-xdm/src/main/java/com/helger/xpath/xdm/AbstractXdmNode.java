@@ -93,6 +93,22 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return m_nTree;
   }
 
+  /** @return A new tree number, for a tree that is numbered while it is built. */
+  static long internalNewTree ()
+  {
+    return TREE_COUNTER.incrementAndGet ();
+  }
+
+  /**
+   * Number a node as it is created, in the order {@link #assignDocumentOrder()}
+   * would give it in the finished tree (used by {@link XdmStreamReader}).
+   */
+  final void internalStamp (final long nTree, @Nonnegative final int nOrder)
+  {
+    m_nTree = nTree;
+    m_nOrder = nOrder;
+  }
+
   /**
    * Remove the numbering of the whole tree after a structural change, so that
    * it is assigned again on demand. A no-op for an unnumbered tree, so the

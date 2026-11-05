@@ -1,10 +1,12 @@
 # XSLT 3.0 (`xslt30-test`): failing cases of the streaming run
 
 Processor claiming streaming (`-Dxslt30.streaming=true`; no schema-awareness or backwards compatibility claimed):
-11,224 of 11,291 applicable cases pass, 67 fail. Measured offline, on JDK 21 and 25, after stage S3 of the streaming
+11,230 of 11,291 applicable cases pass, 61 fail. Measured offline, on JDK 21 and 25, after stage S4 of the streaming
 plan (`docs/PLAN.md`): the streamability analysis (`com.helger.xslt.stream.XsltStreamability`) makes
-`streamable="yes"` binding, but there is no streamed execution yet, so every construct that passes the analysis runs
-with the whole document in memory. The default run (basic processor) and its failures are in `xslt30.md`.
+`streamable="yes"` binding, and a construct it proves guaranteed streamable whose sequence constructor has the shape the
+dispatcher runs (`com.helger.xslt.stream.StreamPlanner`) reads its document as a stream
+(`com.helger.xpath.xdm.XdmStreamReader`, `com.helger.xslt.stream.StreamedRun`); everything else runs with the whole
+document in memory. The default run (basic processor) and its failures are in `xslt30.md`.
 
 The run claims streaming in both directions: the cases that need it run, and the one case written for a processor
 without it (`system-property-013`) is skipped. `streaming-fallback` stays unsupported: it names a processor configured
@@ -12,7 +14,9 @@ to fall back to non-streamed execution, and this run configures the opposite (`s
 `XsltCompileOptions.setEnforceStreamability`); `streaming-fallback-005/006` run the stylesheets for which `merge-094/095`
 expect XTSE3430. Stylesheets are compiled with the streaming claim, so `system-property('xsl:supports-streaming')` is
 "yes", and a principal source with `streaming="true"` in the catalogue is declared streamed
-(`XsltTransformRequest.setSourceStreamed`).
+(`XsltTransformRequest.setSourceStreamed`). When such a source is only the initial match selection of the initial mode
+(no context item select, no parameters), the harness passes its file with `XsltTransformRequest.setStreamedSourceUri`,
+so that a streamable initial mode reads it as a stream.
 
 Every failing case is named here in backticks under a heading with its status and reason. `XSLT30IT` run with
 `-Dxslt30.streaming=true` fails on any failing case that is not named here. Remove an entry when its case passes.
@@ -53,26 +57,6 @@ for the category, so the function is guaranteed streamable under the Recommendat
 `[$extraItem, //ITEM]?*/PRICE` in a streamable `xsl:source-document`: a crawling and a grounded member, so the
 expression is not streamable. The verdict comes from the general rules, not from a rule the analysis reports as
 definite for an `xsl:source-document`, so the body runs buffered instead of raising XTSE3430.
-
-### `accumulator-061`
-**Status:** Open (stage S4).
-A dynamic call to `accumulator-after` through a function item captured over a node of a streamed source must fail with
-XTDE3350: XSLT 3.0 section 10.3.6 saves an absent focus in a function item when the context item is a streamed node.
-The source is declared streamed (`XsltTransformRequest.isSourceStreamed`), but the XPath evaluator does not yet record
-that a call came through a captured function item (go-xslt: `Context.ViaFunctionItem`, `checkCapturedFocus`).
-
-### `si-fork-113`, `si-fork-114`, `si-fork-115`
-**Status:** Open (stage S4).
-Inside a construct declared streamable, a template called from `xsl:for-each-group` sees the current group and current
-grouping key as absent (go-xslt follows XSLT 3.0 sections 14.2.1/14.2.2 with a flag set while the body of a
-streamable `xsl:source-document` runs). The engine keeps them in the called template. Needs the run-time notion of
-"inside a declared-streamable construct" that S4 introduces.
-
-### `merge-079`, `merge-097s`
-**Status:** Open (stage S4).
-An `xsl:merge-source` with `streamable="yes"` delivers the merged items as snapshots: `merge-079` expects that the
-ancestors of a merged node have no other children (`ancestor::record[1]//temp` is empty), `merge-097s` that a snapshot
-is taken of each node. The buffered execution hands out the original nodes.
 
 ### Schema-awareness needed but not declared (45 cases)
 **Status:** Accepted (catalogue).
