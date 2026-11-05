@@ -52,6 +52,27 @@ public final class MapExtensionTest
   }
 
   @Test
+  public void testSelectWithFallback ()
+  {
+    assertEquals ("a",
+                  XsltTestHelper.text ("<xsl:template name='xsl:initial-template'><xsl:variable name='m' as='map(*)'>" +
+                                       "<xsl:map-entry key='1' select=\"'a'\"><xsl:fallback/></xsl:map-entry>" +
+                                       "</xsl:variable><xsl:value-of select='$m(1)'/></xsl:template>",
+                                       null));
+  }
+
+  @Test
+  public void testUntypedAtomicKey ()
+  {
+    assertEquals ("true",
+                  XsltTestHelper.text ("<xsl:template name='xsl:initial-template'><xsl:variable name='m' as='map(*)'>" +
+                                       "<xsl:map-entry key=\"xs:untypedAtomic('k')\" select='1'/>" +
+                                       "</xsl:variable><xsl:value-of select='map:keys($m) instance of xs:string'" +
+                                       " xmlns:map='http://www.w3.org/2005/xpath-functions/map'/></xsl:template>",
+                                       null));
+  }
+
+  @Test
   public void testErrors ()
   {
     assertEquals ("XTDE3365",

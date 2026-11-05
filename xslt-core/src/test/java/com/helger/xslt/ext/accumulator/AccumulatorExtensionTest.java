@@ -75,6 +75,31 @@ public final class AccumulatorExtensionTest
   }
 
   @Test
+  public void testUseAccumulatorsSyntax ()
+  {
+    assertEquals ("XTSE3300",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + ACC + "<xsl:mode name='m' use-accumulators='n n'/>" + XsltTestHelper.END, "<a/>"));
+    assertEquals ("XTSE3300",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + ACC + "<xsl:mode name='m' use-accumulators='#all n'/>" + XsltTestHelper.END, "<a/>"));
+    assertEquals ("XTSE3300",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET +
+                                            ACC +
+                                            "<xsl:template match='/'><xsl:source-document href='x.xml' use-accumulators='1n'/></xsl:template>" +
+                                            XsltTestHelper.END,
+                                            "<a/>"));
+  }
+
+  @Test
+  public void testRuleSelectAndContent ()
+  {
+    assertEquals ("XTSE0010",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET +
+                                            "<xsl:accumulator name='c' initial-value='0'><xsl:accumulator-rule match='b' select='1'>2</xsl:accumulator-rule></xsl:accumulator>" +
+                                            XsltTestHelper.END,
+                                            "<a/>"));
+  }
+
+  @Test
   public void testNotApplicable ()
   {
     // The initial mode does not list the accumulator for the principal source

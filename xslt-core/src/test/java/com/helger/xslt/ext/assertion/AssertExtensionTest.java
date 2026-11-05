@@ -44,6 +44,25 @@ public final class AssertExtensionTest
   }
 
   @Test
+  public void testDynamicErrorInTest ()
+  {
+    assertEquals ("XTMM9001",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:assert test='1 idiv 0'/></xsl:template>" + XsltTestHelper.END,
+                                            null));
+  }
+
+  @Test
+  public void testInvalidErrorCode ()
+  {
+    assertEquals ("XTMM9001",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:assert test='false()' error-code='not a name'/></xsl:template>" + XsltTestHelper.END,
+                                            null));
+    assertEquals ("XTMM9001",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:assert test='false()' error-code='undeclared:X'/></xsl:template>" + XsltTestHelper.END,
+                                            null));
+  }
+
+  @Test
   public void testCaught ()
   {
     assertEquals ("msg",

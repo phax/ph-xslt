@@ -58,6 +58,15 @@ public final class EvaluateExtensionTest
     assertEquals ("XTTE3210",
                   XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:evaluate xpath=\"'.'\" context-item='1, 2'/></xsl:template>" + XsltTestHelper.END,
                                             null));
+    assertEquals ("XTTE3165",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:evaluate xpath=\"'1'\" with-params='1'/></xsl:template>" + XsltTestHelper.END,
+                                            null));
+    assertEquals ("XTTE3165",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:evaluate xpath=\"'1'\" with-params='map{\"x\": 1}'/></xsl:template>" + XsltTestHelper.END,
+                                            null));
+    assertEquals ("XPTY0004",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:evaluate xpath=\"'2 + 2'\" as='xs:string'/></xsl:template>" + XsltTestHelper.END,
+                                            null));
     assertEquals ("XPDY0002",
                   XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'><xsl:evaluate xpath=\"'position()'\"/></xsl:template>" + XsltTestHelper.END, null));
   }

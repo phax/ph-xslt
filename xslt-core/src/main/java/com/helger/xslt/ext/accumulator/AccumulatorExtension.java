@@ -218,8 +218,10 @@ public final class AccumulatorExtension implements IXsltExtension
    *        The xsl:accumulator-rule element.
    * @return The compiled rule.
    * @throws XsltException
-   *         XTSE0020 if phase is neither start nor end; XTSE3300 if both a
-   *         select attribute and non-whitespace content are present.
+   *         XTSE0020 if phase is neither start nor end; XTSE0010 if both a
+   *         select attribute and non-whitespace content are present (the
+   *         content of the element is then not the permitted one, section
+   *         18.2.1).
    */
   @NonNull
   private static Rule _compileRule (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
@@ -239,7 +241,7 @@ public final class AccumulatorExtension implements IXsltExtension
     final CompileContext aRuleCtx = aCtx.withVariable (VAR_VALUE);
     final XPathExpr aSelect = aRuleCtx.compileOptionalExpression (aEl, "select");
     if (aSelect != null && _hasContent (aEl))
-      throw XsltException.at (aEl, "XTSE3300", "xsl:accumulator-rule has both a select attribute and content");
+      throw XsltException.at (aEl, "XTSE0010", "xsl:accumulator-rule has both a select attribute and content");
     final SequenceConstructor aBody = aSelect == null ? aRuleCtx.compileContent (aEl) : null;
     return new Rule (aMatch, bEnd, aSelect, aBody);
   }
@@ -323,8 +325,10 @@ public final class AccumulatorExtension implements IXsltExtension
    * no entry, which means no accumulator applies to the initial match
    * selection in that mode (section 18.2.2).</li>
    * </ol>
-   * Neither duplicates in a use-accumulators list nor the streamable="yes"
-   * requirement of section 18.2.2 are checked here.
+   * The streamable="yes" requirement of section 18.2.2 for the named
+   * accumulators is not checked: the W3C test suite uses non-streamable
+   * accumulators in use-accumulators of unstreamed modes and documents and
+   * expects them to apply.
    *
    * @param aCtx
    *        Compile context.
@@ -353,12 +357,12 @@ public final class AccumulatorExtension implements IXsltExtension
     }
     aSheet.putExtensionData (KEY_BY_NAME, aByName);
     // Modes
-    final ICommonsMap <Mode, ICommonsSet <XdmQName>> aModes = new CommonsHashMap <> ();
+    final ICommonsMap <Mode, ICommonsList <XdmQName>> aModeNames = new CommonsHashMap <> ();
     for (final Mode aMode : aSheet.modes ().values ())
     {
       final XslElement aDecl = aMode.getDeclaration ();
       if (aDecl != null && aDecl.hasAttr ("use-accumulators"))
-        registerUseAccumulators (aCtx, aDecl);
+        aModeNames.put (aMode, registerUseAccumulators (aCtx, aDecl));
     }
     for (final UseRef aRef : AccumulatorExtension.<UseRef> _getList (aSheet, KEY_REFS))
       for (final XdmQName aName : aRef.names ())
@@ -366,14 +370,11 @@ public final class AccumulatorExtension implements IXsltExtension
           throw XsltException.at (aRef.element (),
                                   "XTSE3300",
                                   "use-accumulators names the unknown accumulator " + aName.getEQName ());
-    for (final Mode aMode : aSheet.modes ().values ())
+    final ICommonsMap <Mode, ICommonsSet <XdmQName>> aModes = new CommonsHashMap <> ();
+    for (final Map.Entry <Mode, ICommonsList <XdmQName>> aEntry : aModeNames.entrySet ())
     {
-      final XslElement aDecl = aMode.getDeclaration ();
-      if (aDecl != null && aDecl.hasAttr ("use-accumulators"))
-      {
-        final ICommonsSet <XdmQName> aSet = _resolveSet (parseUseAccumulators (aCtx, aDecl));
-        aModes.put (aMode, aSet == null ? new CommonsHashSet <> (aByName.keySet ()) : aSet);
-      }
+      final ICommonsSet <XdmQName> aSet = _resolveSet (aEntry.getValue ());
+      aModes.put (aEntry.getKey (), aSet == null ? new CommonsHashSet <> (aByName.keySet ()) : aSet);
     }
     aSheet.putExtensionData (KEY_MODES, aModes);
   }
@@ -389,7 +390,9 @@ public final class AccumulatorExtension implements IXsltExtension
    *        The element (xsl:mode, xsl:source-document, xsl:merge-source).
    * @return The names; a <code>null</code> entry stands for #all.
    * @throws XsltException
-   *         XTSE0020 if #all is combined with other tokens.
+   *         XTSE3300 if a token is no EQName, if #all is combined with other
+   *         tokens or if a name occurs more than once (XSLT 3.0 section
+   *         18.2.2); XTSE0280 for an unbound prefix.
    */
   @NonNull
   public static ICommonsList <XdmQName> parseUseAccumulators (@NonNull final CompileContext aCtx,
@@ -404,11 +407,20 @@ public final class AccumulatorExtension implements IXsltExtension
         if ("#all".equals (sToken))
         {
           if (aTokens.length > 1)
-            throw XsltException.at (aEl, "XTSE0020", "#all must be used alone in use-accumulators");
+            throw XsltException.at (aEl, "XTSE3300", "#all must be used alone in use-accumulators");
           ret.add (null);
         }
         else
-          ret.add (PackageModel.qualify (aEl, aCtx.resolveQName (aEl, sToken, false)));
+        {
+          if (!XsltNames.isEQName (sToken))
+            throw XsltException.at (aEl, "XTSE3300", "'" + sToken + "' in use-accumulators is not an EQName");
+          final XdmQName aName = PackageModel.qualify (aEl, aCtx.resolveQName (aEl, sToken, false));
+          if (ret.contains (aName))
+            throw XsltException.at (aEl,
+                                    "XTSE3300",
+                                    "use-accumulators names the accumulator " + aName.getEQName () + " more than once");
+          ret.add (aName);
+        }
     }
     return ret;
   }

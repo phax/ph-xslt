@@ -131,6 +131,74 @@ public final class SchemaAwareTest
   }
 
   @Test
+  public void testTwoInlineSchemasWithDifferentFormDefaults ()
+  {
+    // Merged into one document: the local declarations of the second schema
+    // keep their unqualified form
+    final String sSchemas = "<xsl:import-schema><xs:schema targetNamespace='urn:m' elementFormDefault='qualified'>" +
+                            "<xs:element name='a'><xs:complexType><xs:sequence><xs:element name='c'/></xs:sequence></xs:complexType></xs:element>" +
+                            "</xs:schema></xsl:import-schema>" +
+                            "<xsl:import-schema><xs:schema targetNamespace='urn:m'>" +
+                            "<xs:element name='b'><xs:complexType><xs:sequence><xs:element name='d'/></xs:sequence></xs:complexType></xs:element>" +
+                            "</xs:schema></xsl:import-schema>";
+    assertEquals ("2 ok",
+                  _run (sSchemas +
+                        _template ("<xsl:variable name='v' as='element()+'>" +
+                                   "<m:a xmlns:m='urn:m' xsl:validation='strict'><m:c/></m:a>" +
+                                   "<m:b xmlns:m='urn:m' xsl:validation='strict'><d/></m:b>" +
+                                   "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>"),
+                        true));
+    assertEquals ("XTTE1510",
+                  _errorCode (sSchemas +
+                              _template ("<xsl:variable name='v' as='element()+'>" +
+                                         "<m:a xmlns:m='urn:m' xsl:validation='strict'><c/></m:a>" +
+                                         "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>")));
+    assertEquals ("XTTE1510",
+                  _errorCode (sSchemas +
+                              _template ("<xsl:variable name='v' as='element()+'>" +
+                                         "<m:b xmlns:m='urn:m' xsl:validation='strict'><m:d/></m:b>" +
+                                         "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>")));
+  }
+
+  @Test
+  public void testMergedSchemaImportsFirst ()
+  {
+    // The xs:import of the second inline schema must precede the
+    // declarations of the first one in the merged document
+    final String sSchemas = "<xsl:import-schema><xs:schema targetNamespace='urn:o'><xs:element name='x'/></xs:schema></xsl:import-schema>" +
+                            "<xsl:import-schema><xs:schema targetNamespace='urn:m'><xs:element name='a'/></xs:schema></xsl:import-schema>" +
+                            "<xsl:import-schema><xs:schema targetNamespace='urn:m' xmlns:o='urn:o'><xs:import namespace='urn:o'/>" +
+                            "<xs:element name='b'><xs:complexType><xs:sequence><xs:element ref='o:x'/></xs:sequence></xs:complexType></xs:element>" +
+                            "</xs:schema></xsl:import-schema>";
+    assertEquals ("1 ok",
+                  _run (sSchemas +
+                        _template ("<xsl:variable name='v' as='element()'>" +
+                                   "<m:b xmlns:m='urn:m' xsl:validation='strict'><o:x xmlns:o='urn:o'/></m:b>" +
+                                   "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>"),
+                        true));
+  }
+
+  @Test
+  public void testLaxWithoutDeclaration ()
+  {
+    // The element itself is not known (xs:anyType), its declared children and
+    // attributes are validated
+    final String sSchema = "<xsl:import-schema><xs:schema targetNamespace='urn:l'>" +
+                           "<xs:element name='n' type='xs:integer'/><xs:attribute name='at' type='xs:integer'/>" +
+                           "</xs:schema></xsl:import-schema>";
+    assertEquals ("false true true true",
+                  _run (sSchema +
+                        _template ("<xsl:variable name='v' as='element()'><w xmlns:l='urn:l' l:at='3' xsl:validation='lax'><u><l:n>5</l:n></u></w></xsl:variable>" +
+                                   "<xsl:value-of select=\"$v instance of element(*, xs:untyped), $v/u instance of element(*, xs:anyType), " +
+                                   "data($v/u/*) instance of xs:integer, data($v/@*) instance of xs:integer\"/>"),
+                        true));
+    assertEquals ("XTTE1515",
+                  _errorCode (sSchema +
+                              _template ("<xsl:variable name='v' as='element()'><w xmlns:l='urn:l' xsl:validation='lax'><l:n>x</l:n></w></xsl:variable>" +
+                                         "<xsl:value-of select='count($v)'/>")));
+  }
+
+  @Test
   public void testCasts ()
   {
     assertEquals ("true false 2",

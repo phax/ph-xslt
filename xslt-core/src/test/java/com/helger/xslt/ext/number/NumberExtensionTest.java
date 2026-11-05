@@ -72,6 +72,43 @@ public final class NumberExtensionTest
   public void testStartAt ()
   {
     assertEquals ("0.10.11", _text ("<xsl:number value='1 to 3' start-at='0 9'/>"));
+    assertEquals ("-1", _text ("<xsl:number value='1' start-at='-1' format='1'/>"));
+  }
+
+  @Test
+  public void testNegativeRoundsToZero ()
+  {
+    assertEquals ("0", _text ("<xsl:number value='-0.3'/>"));
+    assertEquals ("0", _text ("<xsl:number value='-0.5'/>"));
+    assertEquals ("0", _text ("<xsl:number value='xs:double(\"-0.4\")'/>"));
+    assertEquals ("3", _text ("<xsl:number value='xs:double(\"2.5\")'/>"));
+  }
+
+  @Test
+  public void testGroupingSize ()
+  {
+    assertEquals ("1234567", _text ("<xsl:number value='1234567' grouping-separator=',' grouping-size='0'/>"));
+    assertEquals ("1234567", _text ("<xsl:number value='1234567' grouping-separator=',' grouping-size='-2'/>"));
+    assertEquals ("1,23,45,67", _text ("<xsl:number value='1234567' grouping-separator=',' grouping-size='+2'/>"));
+  }
+
+  private static String _error (final String sBody)
+  {
+    return XsltTestHelper.errorCode (XsltTestHelper.SHEET + "<xsl:template name='xsl:initial-template'>" + sBody + "</xsl:template>" + XsltTestHelper.END,
+                                     null);
+  }
+
+  @Test
+  public void testInvalidAttributes ()
+  {
+    assertEquals ("XTDE0980", _error ("<xsl:number value='-0.6'/>"));
+    assertEquals ("XTSE0020", _error ("<xsl:number value='1' start-at='+3'/>"));
+    assertEquals ("XTSE0020", _error ("<xsl:number value='1' start-at='+-3'/>"));
+    assertEquals ("XTSE0020", _error ("<xsl:number value='1' start-at=''/>"));
+    assertEquals ("XTSE0020", _error ("<xsl:number value='1' start-at='1..2'/>"));
+    assertEquals ("XTDE0030", _error ("<xsl:number value='1' start-at=\"{'+3'}\"/>"));
+    assertEquals ("XTSE0020", _error ("<xsl:number value='1' grouping-separator=',' grouping-size='x'/>"));
+    assertEquals ("XTDE0030", _error ("<xsl:number value='1' grouping-separator=',' grouping-size=\"{'2.5'}\"/>"));
   }
 
   @Test

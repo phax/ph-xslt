@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -52,6 +53,7 @@ import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.stream.StreamabilityIndex;
 import com.helger.xslt.tree.XslElement;
+import com.helger.xslt.tree.XsltNames;
 
 /**
  * xsl:number (XSLT 3.0 section 12): either formats the integers of the value
@@ -104,6 +106,11 @@ public final class NumberInstruction extends AbstractInstruction
                                                                    { "current-grouping-key", "XTSE1070" },
                                                                    { "current-merge-group", "XTSE3470" },
                                                                    { "current-merge-key", "XTSE3500" } };
+
+  /** The start-at syntax of XSLT 3.0 section 12.1 (XML whitespace). */
+  private static final Pattern START_AT = Pattern.compile ("-?[0-9]+([ \\t\\n\\r]+-?[0-9]+)*");
+  /** The lexical space of xs:integer, for grouping-size. */
+  private static final Pattern INTEGER = Pattern.compile ("[+-]?[0-9]+");
 
   private final XPathExpr m_aValue;
   private final XPathExpr m_aSelect;
@@ -381,14 +388,23 @@ public final class NumberInstruction extends AbstractInstruction
     return nCount;
   }
 
-  /** Round a non-negative number half up to an integer. */
+  /**
+   * Round a number like fn:round: to the nearest integer, a half rounded
+   * towards positive infinity (so -0.5 gives 0).
+   */
   @NonNull
   private static BigInteger _round (@NonNull final BigDecimal aValue)
   {
-    return aValue.setScale (0, RoundingMode.HALF_UP).toBigInteger ();
+    return aValue.add (BigDecimal.valueOf (5, 1)).setScale (0, RoundingMode.FLOOR).toBigInteger ();
   }
 
-  /** The integers of the value attribute. */
+  /**
+   * The integers of the value attribute (XSLT 3.0 section 12.2): each atomized
+   * value is converted like <code>xs:integer(round(number($V)))</code>
+   * (integers are kept exactly, decimals are rounded without going through
+   * xs:double) and XTDE0980 is raised if that is not possible (NaN or
+   * infinity) or if the rounded integer is negative. So -0.3 gives 0.
+   */
   @NonNull
   private ICommonsList <BigInteger> _computeValue (@NonNull final XsltContext aCtx)
   {
@@ -409,18 +425,20 @@ public final class NumberInstruction extends AbstractInstruction
       if (eType.isDerivedFrom (EAtomicType.DECIMAL))
       {
         final BigDecimal aDec = aAtomic.getBigDecimal ();
-        if (aDec.signum () < 0)
+        final BigInteger aRounded = _round (aDec);
+        if (aRounded.signum () < 0)
           throw new XPathException ("XTDE0980", "The value " + aDec.toPlainString () + " of xsl:number is negative");
-        ret.add (_round (aDec));
+        ret.add (aRounded);
         continue;
       }
       final double d = AtomicComparator.toNumber (aAtomic);
       if (Double.isNaN (d) || Double.isInfinite (d))
         throw new XPathException ("XTDE0980",
                                   "The value '" + aAtomic.getLexical () + "' of xsl:number is not convertible to an integer");
-      if (d < 0)
+      final BigInteger aRounded = _round (new BigDecimal (d));
+      if (aRounded.signum () < 0)
         throw new XPathException ("XTDE0980", "The value " + aAtomic.getLexical () + " of xsl:number is negative");
-      ret.add (_round (new BigDecimal (d)));
+      ret.add (aRounded);
     }
     return ret;
   }
@@ -497,36 +515,47 @@ public final class NumberInstruction extends AbstractInstruction
 
   /**
    * Parse the effective value of start-at (XSLT 3.0 section 12.1) into its
-   * whitespace-separated integers. More lenient than the spec's
-   * <code>-?[0-9]+(\s+-?[0-9]+)*</code>: a leading plus sign is accepted, and
-   * an empty or all-whitespace value means 1.
+   * whitespace-separated integers. After trimming leading and trailing XML
+   * whitespace the value must match <code>-?[0-9]+(\s+-?[0-9]+)*</code>: no
+   * plus sign, no empty value.
    *
    * @param s
    *        The effective start-at value.
-   * @return The integers, never empty.
-   * @throws XPathException
-   *         XTDE0030 if a part is no integer.
+   * @return The integers, never empty, or <code>null</code> if the value does
+   *         not have that syntax.
    */
-  @NonNull
+  @Nullable
   private static ICommonsList <BigInteger> _parseStartAt (@NonNull final String s)
   {
+    final String sTrimmed = XsltNames.trimXmlWhitespace (s);
+    if (!START_AT.matcher (sTrimmed).matches ())
+      return null;
     final ICommonsList <BigInteger> ret = new CommonsArrayList <> ();
-    final String sTrimmed = s.strip ();
-    if (!sTrimmed.isEmpty ())
-      for (final String sPart : sTrimmed.split ("\\s+"))
-      {
-        try
-        {
-          ret.add (new BigInteger (sPart.startsWith ("+") ? sPart.substring (1) : sPart));
-        }
-        catch (final NumberFormatException ex)
-        {
-          throw new XPathException ("XTDE0030", "The start-at value '" + s + "' of xsl:number is not a list of integers");
-        }
-      }
-    if (ret.isEmpty ())
-      ret.add (BigInteger.ONE);
+    for (final String sPart : sTrimmed.split ("[ \\t\\n\\r]+"))
+      ret.add (new BigInteger (sPart));
     return ret;
+  }
+
+  /**
+   * Parse the effective value of grouping-size (XSLT 3.0 section 12.4): after
+   * trimming leading and trailing XML whitespace it must be in the lexical
+   * space of xs:integer. Zero or a negative value means no grouping; a value
+   * beyond the int range is capped to {@link Integer#MAX_VALUE}.
+   *
+   * @param s
+   *        The effective grouping-size value.
+   * @return The group size (0 for no grouping), or -1 if the value is not an
+   *         xs:integer.
+   */
+  private static int _parseGroupingSize (@NonNull final String s)
+  {
+    final String sTrimmed = XsltNames.trimXmlWhitespace (s);
+    if (!INTEGER.matcher (sTrimmed).matches ())
+      return -1;
+    final BigInteger aSize = new BigInteger (sTrimmed);
+    if (aSize.signum () <= 0)
+      return 0;
+    return aSize.bitLength () < Integer.SIZE ? aSize.intValue () : Integer.MAX_VALUE;
   }
 
   /**
@@ -534,16 +563,16 @@ public final class NumberInstruction extends AbstractInstruction
    * by start-at (only evaluated for a non-empty place marker; the last
    * start-at value applies to the surplus numbers), evaluate the conversion
    * attributes of section 12.4 and format with {@link NumberFormatter}. A
-   * grouping-size that is no integer disables grouping silently. The result
-   * is written as one text node, nothing for an empty string.
+   * grouping-size of zero or less disables grouping. The result is written
+   * as one text node, nothing for an empty string.
    *
    * @param aCtx
    *        The run-time context.
    * @param aOut
    *        The output that receives the text node.
    * @throws XPathException
-   *         XTDE0030 for an invalid start-at or a lang value that is no
-   *         language tag, plus the errors of the place marker computation
+   *         XTDE0030 for an invalid start-at, a grouping-size that is no
+   *         xs:integer or a lang value that is no language tag, plus the errors of the place marker computation
    *         (XTDE0980, XTTE0990, XTTE1000).
    */
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
@@ -553,7 +582,10 @@ public final class NumberInstruction extends AbstractInstruction
     {
       // Each number is shifted by its start-at value minus one; the last
       // start-at value is repeated for surplus numbers
-      final ICommonsList <BigInteger> aStarts = _parseStartAt (m_aStartAt.evaluate (aCtx));
+      final String sStartAt = m_aStartAt.evaluate (aCtx);
+      final ICommonsList <BigInteger> aStarts = _parseStartAt (sStartAt);
+      if (aStarts == null)
+        throw new XPathException ("XTDE0030", "The start-at value '" + sStartAt + "' of xsl:number is not a list of integers");
       for (int i = 0; i < aNums.size (); ++i)
       {
         final BigInteger aDelta = aStarts.get (Math.min (i, aStarts.size () - 1)).subtract (BigInteger.ONE);
@@ -566,14 +598,10 @@ public final class NumberInstruction extends AbstractInstruction
     int nGroupSize = 0;
     if (m_aGroupSize != null)
     {
-      try
-      {
-        nGroupSize = Integer.parseInt (m_aGroupSize.evaluate (aCtx).strip ());
-      }
-      catch (final NumberFormatException ex)
-      {
-        nGroupSize = 0;
-      }
+      final String sGroupSize = m_aGroupSize.evaluate (aCtx);
+      nGroupSize = _parseGroupingSize (sGroupSize);
+      if (nGroupSize < 0)
+        throw new XPathException ("XTDE0030", "The grouping-size value '" + sGroupSize + "' of xsl:number is not an integer");
     }
     String sLang = null;
     if (m_aLang != null)
@@ -670,9 +698,17 @@ public final class NumberInstruction extends AbstractInstruction
     final Avt aFormat = aCtx.compileAvt (aEl, sFormat == null ? "1" : sFormat);
     final Avt aGroupSep = aCtx.compileOptionalAvt (aEl, "grouping-separator");
     final Avt aGroupSize = aCtx.compileOptionalAvt (aEl, "grouping-size");
+    if (aGroupSize != null && aGroupSize.isConstant () && _parseGroupingSize (aGroupSize.getConstantValue ()) < 0)
+      throw XsltException.at (aEl,
+                              "XTSE0020",
+                              "The grouping-size value '" + aGroupSize.getConstantValue () + "' of xsl:number is not an integer");
     final Avt aOrdinal = aCtx.compileOptionalAvt (aEl, "ordinal");
     final String sStartAt = aEl.getAttr ("start-at");
     final Avt aStartAt = aCtx.compileAvt (aEl, sStartAt == null ? "1" : sStartAt);
+    if (aStartAt.isConstant () && _parseStartAt (aStartAt.getConstantValue ()) == null)
+      throw XsltException.at (aEl,
+                              "XTSE0020",
+                              "The start-at value '" + aStartAt.getConstantValue () + "' of xsl:number is not a list of integers");
     final Avt aLang = aCtx.compileOptionalAvt (aEl, "lang");
     // letter-value is accepted; traditional numbering falls back to alphabetic
     aCtx.compileOptionalAvt (aEl, "letter-value");

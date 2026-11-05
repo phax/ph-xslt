@@ -205,7 +205,7 @@ public final class EvaluateExtension implements IXsltExtension
    * XTDE0030;</li>
    * <li>the variables are the xsl:with-param values, overridden by the
    * entries of the with-params map; a with-params value that is not a single
-   * map, or a key that is not an <code>xs:QName</code>, raises XPTY0004;</li>
+   * map, or a key that is not an <code>xs:QName</code>, raises XTTE3165;</li>
    * <li>namespace-context must select exactly one node, otherwise
    * XTTE3170;</li>
    * <li>base-uri is resolved against the static base URI of the
@@ -218,8 +218,8 @@ public final class EvaluateExtension implements IXsltExtension
    * result or no attribute leaves the focus absent;</li>
    * <li>the expression is evaluated with only that focus, no current item
    * and only the supplied variables;
-   * the result is converted to the as type, a failure being reported as
-   * XTTE3165, and appended to the output.</li>
+   * the result is converted to the as type by the function conversion rules,
+   * a failure being reported as XPTY0004, and appended to the output.</li>
    * </ol>
    *
    * @param aCtx
@@ -259,12 +259,12 @@ public final class EvaluateExtension implements IXsltExtension
       {
         final XdmSequence aMapSeq = aWithParams.evaluate (aRtCtx);
         if (aMapSeq.size () != 1 || !(aMapSeq.get (0) instanceof final XdmMap aMap))
-          throw new XPathException ("XPTY0004", "The with-params attribute of xsl:evaluate must be a map");
+          throw new XPathException ("XTTE3165", "The with-params attribute of xsl:evaluate must be a map");
         for (final XdmMap.Entry aEntry : aMap.entries ())
         {
           final XdmAtomic aKey = aEntry.key ();
           if (aKey.getType () != EAtomicType.QNAME)
-            throw new XPathException ("XPTY0004", "The keys of the with-params map of xsl:evaluate must be xs:QName values");
+            throw new XPathException ("XTTE3165", "The keys of the with-params map of xsl:evaluate must be xs:QName values");
           aVars.put ((XdmQName) aKey.getValue (), aEntry.value ());
         }
       }
@@ -320,7 +320,7 @@ public final class EvaluateExtension implements IXsltExtension
         aDyn = aDyn.withVariable (aEntry.getKey (), aEntry.getValue ());
       XdmSequence aResult = XPathEvaluator.evaluate (aExpr, aDyn);
       if (aAs != null)
-        aResult = SequenceTypeMatcher.convert (aResult, aAs, aDyn, "XTTE3165");
+        aResult = SequenceTypeMatcher.convert (aResult, aAs, aDyn, "XPTY0004");
       aRtOut.appendAll (aResult);
     });
   }
