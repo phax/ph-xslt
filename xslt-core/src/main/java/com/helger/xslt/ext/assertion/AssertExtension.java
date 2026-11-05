@@ -107,9 +107,10 @@ public final class AssertExtension implements IXsltExtension
    * "xsl:assert failed" when it is empty). The error code is XTMM9001 unless
    * error-code is given: its value is whitespace-trimmed and resolved as an
    * EQName against the in-scope namespaces of the instruction; a value that
-   * is not a valid EQName or uses an undeclared prefix raises XTDE0030. A
-   * dynamic error while evaluating the test propagates unchanged; it is not
-   * turned into XTMM9001.
+   * is not a valid EQName or uses an undeclared prefix falls back to
+   * XTMM9001, like xsl:message falls back to its default code (XSLT 3.0
+   * section 23.1). A dynamic error while evaluating the test makes the
+   * assertion fail exactly like a false test (section 23.2).
    *
    * @param aCtx
    *        Compile context.
@@ -125,7 +126,17 @@ public final class AssertExtension implements IXsltExtension
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final Avt aErrorCode = aCtx.compileOptionalAvt (aEl, "error-code");
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-      if (aTest.evaluateBoolean (aRtCtx))
+      boolean bPassed;
+      try
+      {
+        bPassed = aTest.evaluateBoolean (aRtCtx);
+      }
+      catch (final XPathException ex)
+      {
+        // A dynamic error in the test is an assertion failure
+        bPassed = false;
+      }
+      if (bPassed)
         return;
       final BufferedOutput aContent = new BufferedOutput ();
       if (aSelect != null)
@@ -139,9 +150,8 @@ public final class AssertExtension implements IXsltExtension
       {
         final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (aRtCtx));
         final XdmQName aResolved = XsltNames.isEQName (s) ? aEl.resolveQName (s, false) : null;
-        if (aResolved == null)
-          throw new XPathException ("XTDE0030", "error-code='" + s + "' is not a valid EQName");
-        aCode = aResolved;
+        if (aResolved != null)
+          aCode = aResolved;
       }
       throw new XPathException (aCode, sMessage.isEmpty () ? "xsl:assert failed" : sMessage, aValue);
     });
