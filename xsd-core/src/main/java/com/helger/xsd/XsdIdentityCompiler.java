@@ -61,6 +61,17 @@ final class XsdIdentityCompiler
   }
 
   /**
+   * @param c
+   *        A character.
+   * @return <code>true</code> if it can end or start a name test or the
+   *         <code>.</code> step (a name character or <code>*</code>).
+   */
+  private static boolean _isNameTestChar (final char c)
+  {
+    return c == '*' || c == '_' || c == '-' || c == '.' || Character.isLetterOrDigit (c) || c > 0x7f;
+  }
+
+  /**
    * @param s
    *        The string to check.
    * @return <code>true</code> if it contains a space, tab, CR or LF.
@@ -181,7 +192,8 @@ final class XsdIdentityCompiler
    * 3.11.6.2 Selector Value OK and 3.11.6.3 Fields Value OK).
    * <p>
    * First a single <code>:</code> with whitespace on either side is rejected
-   * (a QName cannot be split; <code>::</code> is exempt). Then all whitespace
+   * (a QName cannot be split; <code>::</code> is exempt), and so is whitespace
+   * between two name tests or steps (<code>a b</code>). Then all whitespace
    * is removed and the expression is split at <code>|</code>; every
    * alternative must be a path of the form <code>(.//)? Step ('/' Step)*</code>
    * where a step is <code>.</code>, a name test (<code>*</code>,
@@ -214,6 +226,18 @@ final class XsdIdentityCompiler
       if ((i > 0 && _isXPathWS (sExpr.charAt (i - 1))) || (i + 1 < nLen && _isXPathWS (sExpr.charAt (i + 1))))
         throw XsdCompiler.invalid ("", "invalid xpath " + XsdLexHelper.quote (sExpr) + ": whitespace inside a QName");
     }
+    // Whitespace between two name tests (or steps) separates tokens that no
+    // production of the subset puts side by side: "a b" is no path
+    int nPrev = -1;
+    for (int i = 0; i < nLen; i++)
+    {
+      final char c = sExpr.charAt (i);
+      if (_isXPathWS (c))
+        continue;
+      if (nPrev >= 0 && nPrev < i - 1 && _isNameTestChar (sExpr.charAt (nPrev)) && _isNameTestChar (c))
+        throw XsdCompiler.invalid ("", "invalid xpath " + XsdLexHelper.quote (sExpr) + ": two adjacent name tests");
+      nPrev = i;
+    }
     // No token of this grammar contains whitespace: drop it
     final String sCollapsed = String.join ("", XsdLexHelper.xmlFields (sExpr));
     for (final String sPath : sCollapsed.split ("\\|", -1))
@@ -223,18 +247,17 @@ final class XsdIdentityCompiler
   }
 
   /**
-   * go-xslt <code>resolveXPathDefaultNS</code>: the effective
-   * xpathDefaultNamespace of an XPath-carrying schema element (the nearest
-   * attribute on the element or an ancestor up to xs:schema).
+   * go-xslt <code>resolveXPathDefaultNS</code>: the {default namespace} of the
+   * XPath expression of a host element (XSD 1.1 Structures 3.13.2): the
+   * <code>xpathDefaultNamespace</code> attribute of the host element, or else
+   * that of its xs:schema ancestor.
    * <p>
    * <code>##local</code> and no attribute at all give the empty string (no
    * namespace), <code>##targetNamespace</code> the target namespace of the
    * schema document being compiled, <code>##defaultNamespace</code> the
-   * default namespace in scope at the element that carries the attribute
-   * (empty if none), any other value its whitespace-stripped self. Note that
-   * XSD 1.1 Structures 3.13.2 takes the in-scope default namespace of the
-   * host element instead of the carrier; the two differ only if the host
-   * element redeclares the default namespace.
+   * default namespace in scope at the host element (empty if none), any
+   * other value its whitespace-stripped self. go-xslt takes the default
+   * namespace in scope at the element carrying the attribute instead.
    *
    * @param aNode
    *        The host element (xs:selector, xs:field, xs:assert, ...).
@@ -244,21 +267,15 @@ final class XsdIdentityCompiler
   @NonNull
   String resolveXPathDefaultNamespace (@NonNull final IXdmNode aNode)
   {
-    String sRaw = null;
-    IXdmNode aCarrier = null;
-    for (IXdmNode n = aNode; n != null && n.isElement (); n = n.getParent ())
-    {
-      final String v = XsdNodes.attr (n, "xpathDefaultNamespace");
-      if (v != null)
-      {
-        sRaw = v;
-        aCarrier = n;
-        break;
-      }
-      if (XsdNodes.isXS (n, "schema"))
-        break;
-    }
-    if (aCarrier == null)
+    String sRaw = XsdNodes.attr (aNode, "xpathDefaultNamespace");
+    if (sRaw == null)
+      for (IXdmNode n = aNode.getParent (); n != null && n.isElement (); n = n.getParent ())
+        if (XsdNodes.isXS (n, "schema"))
+        {
+          sRaw = XsdNodes.attr (n, "xpathDefaultNamespace");
+          break;
+        }
+    if (sRaw == null)
       return "";
     switch (sRaw.strip ())
     {
@@ -268,7 +285,7 @@ final class XsdIdentityCompiler
         return m_aC.m_sTNS;
       case "##defaultNamespace":
       {
-        final String sNS = XsdNodes.lookupPrefix (aCarrier, "");
+        final String sNS = XsdNodes.lookupPrefix (aNode, "");
         return sNS == null ? "" : sNS;
       }
       default:
@@ -384,13 +401,15 @@ final class XsdIdentityCompiler
    * XSD 1.1 @ref uses resolve, a keyref's @refer names a key or unique with as
    * many fields.
    * <p>
-   * Runs once after all schema documents are parsed. A second constraint of
-   * the same name is c-props-correct.1. A pending <code>@ref</code> that
-   * names no constraint is src-resolve, one naming a constraint of another
-   * kind is c-props-correct; otherwise the referenced definition is copied
-   * into it. A keyref whose <code>@refer</code> names no constraint or a
-   * keyref, or a key/unique with a different number of fields, is
-   * c-props-correct.2.
+   * Runs once after all schema documents are parsed, over every identity
+   * constraint of the schema (the only check of their name uniqueness). A
+   * second constraint of the same name is sch-props-correct.2. A pending
+   * <code>@ref</code> that names no constraint is src-resolve, one naming a
+   * constraint of another kind is c-props-correct; otherwise the referenced
+   * definition is copied into it. A keyref whose <code>@refer</code> names no
+   * constraint is src-resolve, one naming a keyref c-props-correct.1 (the
+   * {referenced key} is a key or unique), and one naming a key/unique with a
+   * different number of fields c-props-correct.2.
    *
    * @throws XsdInvalidException
    *         as listed above
@@ -402,7 +421,7 @@ final class XsdIdentityCompiler
     {
       final XsdIdentityConstraint aPrev = aByName.get (aIC.m_aName);
       if (aPrev != null && aPrev != aIC)
-        throw XsdCompiler.invalid ("c-props-correct.1", "duplicate identity constraint " + aIC.m_aName);
+        throw XsdCompiler.invalid ("sch-props-correct.2", "duplicate identity constraint " + aIC.m_aName);
       aByName.put (aIC.m_aName, aIC);
     }
     // Resolve 1.1 @ref uses: the referenced definition is copied in
@@ -423,8 +442,10 @@ final class XsdIdentityCompiler
       if (!"keyref".equals (aIC.m_sKind) || aIC.m_aRefer.isZero ())
         continue;
       final XsdIdentityConstraint aRef = aByName.get (aIC.m_aRefer);
-      if (aRef == null || "keyref".equals (aRef.m_sKind))
-        throw XsdCompiler.invalid ("c-props-correct.2",
+      if (aRef == null)
+        throw XsdCompiler.invalid ("src-resolve", "keyref " + aIC.m_aName + " refers to " + aIC.m_aRefer + ", which does not resolve");
+      if ("keyref".equals (aRef.m_sKind))
+        throw XsdCompiler.invalid ("c-props-correct.1",
                                    "keyref " + aIC.m_aName + " refers to " + aIC.m_aRefer + ", which is not a key or unique");
       if (aRef.m_aFields.size () != aIC.m_aFields.size ())
         throw XsdCompiler.invalid ("c-props-correct.2",

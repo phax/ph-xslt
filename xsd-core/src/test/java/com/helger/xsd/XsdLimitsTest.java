@@ -19,6 +19,7 @@ package com.helger.xsd;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,6 +32,8 @@ import org.junit.rules.TemporaryFolder;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.context.EXsdVersion;
+import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmQName;
 import com.helger.xsd.XsdTestSupport.Compiled;
 import com.helger.xsd.XsdTestSupport.EVerdict;
 
@@ -176,5 +179,29 @@ public final class XsdLimitsTest
     aFiles.add (aDir.resolve ("a.xsd"));
     final XsdSchema aSchema = XsdSchema.compileFiles (aFiles, EXsdVersion.V10, null);
     assertEquals (2, aSchema.getView ().getAllGlobalElements ().size ());
+  }
+
+  @Test
+  public void testDeepOverrideSignature ()
+  {
+    // The dedup key of an xs:override walks its children's subtrees, which
+    // xs:appinfo content can nest arbitrarily deep
+    final IXdmNode aOverride = IXdmNode.createElement (new XdmQName (XsdConstants.NS_XS, "override"));
+    IXdmNode aCur = aOverride;
+    for (int i = 0; i < 100_000; i++)
+    {
+      final IXdmNode aChild = IXdmNode.createElement (new XdmQName ("urn:x", "n"));
+      aCur.appendChild (aChild);
+      aCur = aChild;
+    }
+    try
+    {
+      XsdOverride.signature (aOverride);
+      fail ("expected XsdUnsupportedException");
+    }
+    catch (final XsdUnsupportedException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().contains ("nested deeper"));
+    }
   }
 }

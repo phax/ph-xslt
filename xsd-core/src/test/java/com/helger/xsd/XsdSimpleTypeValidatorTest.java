@@ -139,6 +139,25 @@ public final class XsdSimpleTypeValidatorTest
   }
 
   @Test
+  public void testUnionRestrictionChain ()
+  {
+    // A restriction of a restricted union keeps the facets of every step of
+    // its base chain
+    for (final EXsdVersion eVersion : EXsdVersion.values ())
+    {
+      final XsdSimpleType aType = _type ("<xs:simpleType name='u0'><xs:union memberTypes='xs:int xs:boolean'/></xs:simpleType>" +
+                                         "<xs:simpleType name='u1'><xs:restriction base='u0'><xs:pattern value='[0-9]+'/></xs:restriction></xs:simpleType>" +
+                                         "<xs:simpleType name='t'><xs:restriction base='u1'>" +
+                                         "<xs:enumeration value='true'/><xs:enumeration value='12'/>" +
+                                         "</xs:restriction></xs:simpleType>",
+                                         eVersion);
+      assertTrue (_valid (aType, "12"));
+      assertFalse (_valid (aType, "true"));
+      assertFalse (_valid (aType, "13"));
+    }
+  }
+
+  @Test
   public void testCyclicUnion ()
   {
     // XSD 1.0 tolerates a pure-union cycle (stE110); the member walks end

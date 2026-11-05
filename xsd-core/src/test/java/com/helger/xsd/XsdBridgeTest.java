@@ -460,6 +460,11 @@ public final class XsdBridgeTest
                                                                                                   null));
     final XsdSchemaProvider aProvider = new XsdSchemaProvider ();
     assertNotNull (aProvider.compile (aSources).getElementDeclaration (_qn (NS, "head")));
+    // A plain path with a space is a path, not a malformed URI
+    final Path aSpaced = m_aTempDir.newFolder ("with space").toPath ().resolve ("t.xsd");
+    Files.writeString (aSpaced, SCHEMA);
+    assertNotNull (aProvider.compile (new CommonsArrayList <> (new XdmSchemaSource (aSpaced.toString (), null)))
+                            .getElementDeclaration (_qn (NS, "head")));
     assertNotNull (aProvider.compile (new CommonsArrayList <> (new XdmSchemaSource (null, SCHEMA)))
                             .getElementDeclaration (_qn (NS, "head")));
     assertNotNull (aProvider.compile (new CommonsArrayList <> ()).getTypeDefinition (_qn (XdmConstants.NS_XS, "int")));
@@ -589,5 +594,66 @@ public final class XsdBridgeTest
     assertEquals ("a a", aEl.getAttribute ("", "refs").getValue ());
     assertEquals (EIDKind.ID, aEl.getChildAtIndex (0).getIDKind ());
     assertEquals (EIDKind.IDREF, aEl.getChildAtIndex (1).getIDKind ());
+  }
+
+  @Test
+  public void testValidateNestingWithoutVerdict ()
+  {
+    // Anonymous unions nested deeper than the token walk follows: no verdict
+    // is reported as an XdmValidationException, never as a runtime exception
+    final StringBuilder aSB = new StringBuilder ("<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' targetNamespace='urn:c'>" +
+                                                 "<xs:simpleType name='Deep'>");
+    final int nDepth = 100;
+    for (int i = 0; i < nDepth; i++)
+      aSB.append ("<xs:union><xs:simpleType>");
+    aSB.append ("<xs:restriction base='xs:int'/>");
+    for (int i = 0; i < nDepth; i++)
+      aSB.append ("</xs:simpleType></xs:union>");
+    aSB.append ("</xs:simpleType></xs:schema>");
+    final IXdmTypeDefinition aDeep = _type (_compile (aSB.toString ()), "urn:c", "Deep");
+    try
+    {
+      aDeep.validate ("5", null);
+      fail ("expected XdmValidationException");
+    }
+    catch (final XdmValidationException ex)
+    {
+      assertTrue (ex.getCause () instanceof XsdUnsupportedException);
+    }
+  }
+
+  @Test
+  public void testDefaultElementContent () throws XdmParseException, XdmValidationException
+  {
+    // XDM 3.1 6.2.4: an element of a simple type or with simple content that
+    // takes its default or fixed value gets a text node with the schema
+    // normalized value (none if that is empty)
+    final IXdmSchemaSet aSet = _compile ("""
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="doc"><xs:complexType><xs:sequence>
+            <xs:element name="a" type="xs:int" default="5" maxOccurs="2"/>
+            <xs:element name="b" type="xs:token" fixed=" x  y "/>
+            <xs:element name="c" type="xs:string" default=""/>
+            <xs:element name="d" default="7"><xs:complexType><xs:simpleContent>
+              <xs:extension base="xs:int"><xs:attribute name="at"/></xs:extension>
+            </xs:simpleContent></xs:complexType></xs:element>
+          </xs:sequence></xs:complexType></xs:element>
+        </xs:schema>""");
+    final IXdmNode aDoc = new XdmParser ().parse ("<doc><a/><a><!--c--></a><b/><c/><d at='1'/></doc>");
+    aSet.validateDocument (aDoc);
+    final ICommonsList <IXdmNode> aKids = new CommonsArrayList <> ();
+    for (final IXdmNode aChild : XsdNodes.rootElement (aDoc).getAllChildren ())
+      if (aChild.isElement ())
+        aKids.add (aChild);
+    assertEquals ("5", aKids.get (0).getStringValue ());
+    assertEquals (1, aKids.get (0).getChildCount ());
+    assertEquals ("5", aKids.get (1).getStringValue ());
+    assertEquals (2, aKids.get (1).getChildCount ());
+    assertEquals ("x y", aKids.get (2).getStringValue ());
+    assertEquals (0, aKids.get (3).getChildCount ());
+    assertEquals ("7", aKids.get (4).getStringValue ());
+    // The new text nodes are in document order
+    assertTrue (aKids.get (0).getChildAtIndex (0).getOrder () > aKids.get (0).getOrder ());
+    assertTrue (aKids.get (1).getOrder () > aKids.get (0).getChildAtIndex (0).getOrder ());
   }
 }

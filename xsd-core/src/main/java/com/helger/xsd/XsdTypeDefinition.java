@@ -470,9 +470,10 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
 
   /**
    * The first member of a union that accepts the value, followed to an atomic
-   * or list member.
+   * or list member, through at most {@link #MAX_DEPTH} nested unions.
    *
-   * @return <code>null</code> if no member accepts the value.
+   * @return <code>null</code> if no member accepts the value, or if the
+   *         accepting member is a union nested deeper than {@link #MAX_DEPTH}.
    */
   @Nullable
   static XsdSimpleType acceptingMember (@NonNull final XsdSimpleType aUnion,
@@ -523,8 +524,8 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
    * Split a valid value into the typed tokens of {@link #validate}: a list
    * contributes one token per whitespace-separated item, typed by the item
    * type (none without an item type); a union contributes the tokens of the
-   * first member that accepts the value (none if no member does); an atomic
-   * type contributes one token with the value after its whiteSpace
+   * first member that accepts the value (the value is valid, so one does);
+   * an atomic type contributes one token with the value after its whiteSpace
    * processing, typed by the built-in of its primitive.
    *
    * @param aType
@@ -539,7 +540,8 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
    * @param nDepth
    *        The nesting depth.
    * @throws XsdUnsupportedException
-   *         beyond {@link #MAX_DEPTH}
+   *         beyond {@link #MAX_DEPTH}, or if the accepting member is a union
+   *         nested deeper than that
    */
   private void _collectTokensRecursive (@NonNull final XsdSimpleType aType,
                                         @NonNull final String sRaw,
@@ -564,8 +566,11 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
       {
         final String sNormalised = XsdWhiteSpace.apply (aType.effectiveWhiteSpace (), sRaw);
         final XsdSimpleType aMember = acceptingMember (aType, sNormalised, aAt);
-        if (aMember != null)
-          _collectTokensRecursive (aMember, sNormalised, aAt, aTokens, nDepth + 1);
+        // The value was found valid, so a member accepts it: no member here
+        // means the unions are nested too deeply to follow
+        if (aMember == null)
+          throw new XsdUnsupportedException ("union members nested deeper than " + MAX_DEPTH + " levels");
+        _collectTokensRecursive (aMember, sNormalised, aAt, aTokens, nDepth + 1);
         break;
       }
       default:
@@ -586,10 +591,9 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
    * xs:untypedAtomic token.
    *
    * @throws XdmValidationException
-   *         also if the type has no simple content
-   * @throws XsdUnsupportedException
-   *         if the simple types are nested too deeply for a verdict; this is
-   *         not converted
+   *         also if the type has no simple content, or if the simple types are
+   *         nested too deeply for a verdict (the value is then not accepted:
+   *         callers of the SPI only handle this exception)
    */
   @NonNull
   public ICommonsList <XdmTypedToken> validate (@NonNull final String sLexical,
@@ -619,6 +623,16 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
                                         _describe () +
                                         ": " +
                                         ex.getError ().message (),
+                                        ex);
+    }
+    catch (final XsdUnsupportedException ex)
+    {
+      throw new XdmValidationException ("'" +
+                                        sLexical +
+                                        "' cannot be checked against type " +
+                                        _describe () +
+                                        ": " +
+                                        ex.getMessage (),
                                         ex);
     }
     return ret;

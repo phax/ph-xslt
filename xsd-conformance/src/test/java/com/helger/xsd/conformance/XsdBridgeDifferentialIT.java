@@ -164,13 +164,14 @@ public final class XsdBridgeDifferentialIT
     }
     catch (final XdmValidationException ex)
     {
+      if (ex.getCause () instanceof XsdUnsupportedException)
+      {
+        // The bridge reports "no verdict" as not valid
+        aTally.m_aNoVerdict.incrementAndGet ();
+        return;
+      }
       bInPlace = false;
       sDetail = ex.getMessage ();
-    }
-    catch (final XsdUnsupportedException ex)
-    {
-      aTally.m_aNoVerdict.incrementAndGet ();
-      return;
     }
     if (bText == bInPlace)
     {

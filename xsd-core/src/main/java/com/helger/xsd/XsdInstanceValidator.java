@@ -213,10 +213,9 @@ final class XsdInstanceValidator
   /**
    * Whether the element has content in the sense of the value constraint and
    * nil rules: an element child, or a text child that is not whitespace only.
-   * Whitespace-only text alone counts as no content. Used for the default or
-   * fixed value of an empty element (cvc-elt.5.1), the emptiness of a nilled
-   * element (cvc-elt.3.2.1, together with {@link #_elementHasAnyText} under
-   * 1.1) and whether a fixed value is compared at all.
+   * Whitespace-only text alone counts as no content. Used for the emptiness
+   * of a nilled element (cvc-elt.3.2.1, together with
+   * {@link #_elementHasAnyText} under 1.1).
    *
    * @return <code>true</code> if there is such content.
    */
@@ -243,7 +242,11 @@ final class XsdInstanceValidator
   private static boolean _isNilled (@NonNull final IXdmNode aElement)
   {
     final String s = XsdNodes.attrNS (aElement, XsdConstants.NS_XSI, "nil");
-    return s != null && ("true".equals (s) || "1".equals (s));
+    if (s == null)
+      return false;
+    // xsi:nil is an xs:boolean: its value is whitespace-collapsed
+    final String sValue = XsdWhiteSpace.collapse (s);
+    return "true".equals (sValue) || "1".equals (sValue);
   }
 
   /**
@@ -494,20 +497,46 @@ final class XsdInstanceValidator
   }
 
   /**
+   * Whether the value constraint of an element declaration is replaced by the
+   * element's own content (cvc-elt.5.2): the element has element children or
+   * character children, whitespace-only text included. Otherwise the value
+   * constraint supplies the value (cvc-elt.5.1).
+   *
+   * @return <code>true</code> if the element has element or character
+   *         children.
+   */
+  private static boolean _hasValueConstraintContent (@NonNull final IXdmNode aElement)
+  {
+    return _hasChildElements (aElement) || _elementHasAnyText (aElement);
+  }
+
+  /**
    * go-xslt <code>effectiveSimpleText</code>: the value to validate as an
-   * element's simple content. cvc-elt.5.1: an element with no character or
-   * element content but a default or fixed value constraint on its declaration
-   * takes the constraint value as its schema-normalised value.
+   * element's simple content. cvc-elt.5.1: an element with neither character
+   * (whitespace included) nor element children but a default or fixed value
+   * constraint on its declaration takes the constraint value as its
+   * schema-normalised value. The supplied value is recorded in the run for
+   * the in-place write-back.
    */
   @NonNull
-  private static String _effectiveSimpleText (@Nullable final XsdElementDecl aDecl, @NonNull final IXdmNode aElement)
+  private static String _effectiveSimpleText (@NonNull final XsdValidationRun aRun,
+                                              @Nullable final XsdElementDecl aDecl,
+                                              @NonNull final IXdmNode aElement,
+                                              @NonNull final XsdSimpleType aType)
   {
-    if (aDecl != null && !_elementHasContent (aElement))
+    if (aDecl != null && !_hasValueConstraintContent (aElement))
     {
+      String sSupplied = null;
       if (aDecl.m_bHasFixed)
-        return aDecl.m_sFixed;
-      if (aDecl.m_bHasDefault)
-        return aDecl.m_sDefault;
+        sSupplied = aDecl.m_sFixed;
+      else
+        if (aDecl.m_bHasDefault)
+          sSupplied = aDecl.m_sDefault;
+      if (sSupplied != null)
+      {
+        aRun.noteDefaultContent (aElement, sSupplied, aType);
+        return sSupplied;
+      }
     }
     return elementText (aElement);
   }
@@ -639,7 +668,19 @@ final class XsdInstanceValidator
     return _wildcardParseExists (aRun, aModel.m_aParticle, aOC, aKids, nIndex);
   }
 
-  /** go-xslt <code>substMatchesAnyDecl</code>. */
+  /**
+   * go-xslt <code>substMatchesAnyDecl</code>: whether a child name is
+   * governed by one of the element declarations of a content model, directly
+   * or as a member of the substitution group of one of them.
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aModel
+   *        The child model of the parent's type.
+   * @param aName
+   *        The expanded name of the child.
+   * @return <code>true</code> if a declaration of the model matches the name.
+   */
   private static boolean _substMatchesAnyDecl (@NonNull final XsdValidationRun aRun,
                                                @NonNull final ChildModel aModel,
                                                @NonNull final XsdName aName)
@@ -1103,7 +1144,33 @@ final class XsdInstanceValidator
   }
 
   /**
-   * go-xslt <code>validateComplex</code>.
+   * go-xslt <code>validateComplex</code>: validate an element against a
+   * complex type. An abstract type is cvc-type.2. The attributes are
+   * validated first (an error is recorded, the content is still checked).
+   * Then, by content kind: empty content admits no children and no
+   * non-whitespace text (under 1.1 no text at all), unless open content lets
+   * wildcard children in; simple content admits no child elements, and the
+   * text (or the declaration's default or fixed value for an element without
+   * character or element children) is validated against the simple type;
+   * element-only content admits no non-whitespace text and the children are
+   * validated against the content model; mixed content validates the
+   * children only. Last, the type's assertions are evaluated (after a
+   * recorded content-model mismatch only if every child could still be
+   * assigned a declaration).
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aType
+   *        The governing complex type.
+   * @param aElement
+   *        The element.
+   * @param aScopes
+   *        The key/unique tables in scope for the children.
+   * @param aDecl
+   *        The governing declaration, for its value constraint; may be
+   *        <code>null</code>.
+   * @throws XsdInvalidException
+   *         if the element is not valid
    */
   private static void _validateComplex (@NonNull final XsdValidationRun aRun,
                                         @NonNull final XsdComplexType aType,
@@ -1148,7 +1215,7 @@ final class XsdInstanceValidator
           throw XsdCompiler.invalid ("cvc-complex-type.2.2", "simple content must not contain child elements");
         if (aType.m_aSimpleType != null)
         {
-          final String sText = _effectiveSimpleText (aDecl, aElement);
+          final String sText = _effectiveSimpleText (aRun, aDecl, aElement, aType.m_aSimpleType);
           yearZeroOK (aRun, aType.m_aSimpleType, sText);
           XsdSimpleTypeValidator.validateIn (aType.m_aSimpleType, sText, aElement);
           aRun.annotateAssertType (aElement, aType.m_aSimpleType);
@@ -1190,7 +1257,30 @@ final class XsdInstanceValidator
   }
 
   /**
-   * go-xslt <code>validateAgainstType</code>.
+   * go-xslt <code>validateAgainstType</code>: validate an element against its
+   * governing type (xsi:type, conditional type assignment and substitution
+   * already resolved) and record that type as the element's annotation. For
+   * a simple type, attributes other than xsi: and xml: ones are cvc-type.3.1.1
+   * and child elements cvc-type.3.1.2; the text (or the declaration's default
+   * or fixed value for an element without character or element children) is
+   * validated against the type and its ID values are noted. A complex type is
+   * validated with {@link #_validateComplex}.
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aType
+   *        The governing type; <code>null</code> gives no verdict.
+   * @param aElement
+   *        The element.
+   * @param aScopes
+   *        The key/unique tables in scope for the children.
+   * @param aDecl
+   *        The governing declaration, for its value constraint; may be
+   *        <code>null</code>.
+   * @throws XsdInvalidException
+   *         if the element is not valid
+   * @throws XsdUnsupportedException
+   *         if there is no type to assess the element against
    */
   private static void _validateAgainstType (@NonNull final XsdValidationRun aRun,
                                             @Nullable final IXsdType aType,
@@ -1217,7 +1307,7 @@ final class XsdInstanceValidator
       }
       if (_hasChildElements (aElement))
         throw XsdCompiler.invalid ("cvc-type.3.1.2", "simple-typed element must not have child elements");
-      final String sText = _effectiveSimpleText (aDecl, aElement);
+      final String sText = _effectiveSimpleText (aRun, aDecl, aElement, aST);
       yearZeroOK (aRun, aST, sText);
       XsdSimpleTypeValidator.validateIn (aST, sText, aElement);
       aRun.annotateAssertType (aElement, aST);
@@ -1286,10 +1376,10 @@ final class XsdInstanceValidator
    * deeper in the run's depth count.</li>
    * <li>Fixed value: a mixed-content element with a fixed value must have no
    * element children (cvc-elt.5.2.2.1); an element without element children
-   * but with non-whitespace text must equal the fixed value in the value
-   * space of its simple content type, or that of one of
-   * <code>aExtraFixed</code> (cvc-elt.5.2.2.2). Content that is absent or
-   * whitespace only is not compared here.</li>
+   * but with character children (whitespace only included) must equal the
+   * fixed value in the value space of its simple content type, or that of one
+   * of <code>aExtraFixed</code> (cvc-elt.5.2.2.2). Absent content is not
+   * compared here.</li>
    * <li>The declaration's keyrefs are checked against the tables whose scope
    * is this element.</li>
    * </ol>
@@ -1415,7 +1505,7 @@ final class XsdInstanceValidator
       if (aType instanceof final XsdComplexType aCT && aCT.m_eKind == EXsdContentKind.MIXED)
         throw XsdCompiler.invalid ("cvc-elt.5.2.2.1",
                                    "element " + aDecl.m_aName.local () + " has a fixed value and must have no element children");
-    if (aDecl.m_bHasFixed && !_hasChildElements (aElement) && _elementHasContent (aElement))
+    if (aDecl.m_bHasFixed && !_hasChildElements (aElement) && _elementHasAnyText (aElement))
     {
       final String sContent = elementText (aElement);
       final XsdSimpleType aST = XsdComponentParser.simpleContentType (aType);

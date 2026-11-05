@@ -21,6 +21,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -50,6 +51,12 @@ import com.helger.xpath.xdm.schema.XdmSchemaSource;
 @ThreadSafe
 public final class XsdSchemaProvider implements IXdmSchemaProvider
 {
+  /**
+   * A URI scheme followed by a colon (RFC 3986). At least two characters, so
+   * that a Windows drive letter is not taken as a scheme.
+   */
+  private static final Pattern URI_SCHEME = Pattern.compile ("^[A-Za-z][A-Za-z0-9+.\\-]+:");
+
   /**
    * Create the provider. It holds no state: every {@link #compile(List)}
    * call is independent. Public for loading by name.
@@ -87,10 +94,9 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
 
   /**
    * Turn a system ID into a local path. A system ID without a URI scheme is
-   * read as a file system path, made absolute against the working directory;
-   * a <code>file:</code> URI is converted. A system ID that is not valid URI
-   * syntax (for example a plain path containing a space) is rejected even if
-   * it would be a valid path.
+   * read as a file system path (a space or a Windows drive letter is fine),
+   * made absolute against the working directory; a <code>file:</code> URI is
+   * converted.
    *
    * @param sSystemID
    *        The system ID.
@@ -104,9 +110,9 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
   {
     try
     {
-      final URI aURI = URI.create (sSystemID);
-      if (aURI.getScheme () == null)
+      if (!URI_SCHEME.matcher (sSystemID).find ())
         return Path.of (sSystemID).toAbsolutePath ().normalize ();
+      final URI aURI = URI.create (sSystemID);
       if (!"file".equalsIgnoreCase (aURI.getScheme ()))
         return null;
       return Path.of (aURI).toAbsolutePath ().normalize ();

@@ -149,5 +149,15 @@ public final class XsdIdentityCompilerTest
                                                       null,
                                                       EXsdVersion.V10);
     assertSame (EVerdict.INVALID, aRefForm.verdict ());
+    // Identity-constraint names are unique across the schema
+    // (sch-props-correct.2), also in a declaration no global element reaches
+    final Compiled aDup = XsdTestSupport.compile (sSchema.replace ("</xs:schema>",
+                                                                   "<xs:complexType name=\"unused\"><xs:sequence><xs:element name=\"x\">" +
+                                                                                   "<xs:unique name=\"k\"><xs:selector xpath=\".\"/><xs:field xpath=\"@id\"/>" +
+                                                                                   "</xs:unique></xs:element></xs:sequence></xs:complexType></xs:schema>"),
+                                                  null,
+                                                  EXsdVersion.V10);
+    assertSame (EVerdict.INVALID, aDup.verdict ());
+    assertTrue (aDup.message (), aDup.message ().contains ("sch-props-correct.2"));
   }
 }

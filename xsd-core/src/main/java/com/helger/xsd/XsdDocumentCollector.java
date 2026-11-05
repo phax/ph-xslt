@@ -18,7 +18,6 @@ package com.helger.xsd;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Locale;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -71,33 +70,20 @@ final class XsdDocumentCollector
   }
 
   /**
-   * A vc version number as go-xslt reads it (<code>strconv.ParseFloat</code>,
-   * minus exponents, hexadecimal and '+').
+   * A vc version number: <code>vc:minVersion</code> and
+   * <code>vc:maxVersion</code> are typed as xs:decimal (XSD 1.1 Part 1,
+   * 4.2.2), so only the decimal lexical form (optional sign, digits with an
+   * optional fraction) is a number; INF, NaN, exponents and hexadecimal are
+   * not (go-xslt also accepts INF and NaN).
    *
-   * @return The value or <code>null</code> if it is no number.
+   * @return The value or <code>null</code> if it is no xs:decimal.
    */
   @Nullable
   private static Double _parseVcNumber (@NonNull final String s)
   {
-    for (final char c : "eExX+".toCharArray ())
-      if (s.indexOf (c) >= 0)
-        return null;
-    if (s.matches ("-?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)"))
+    if (s.matches ("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)"))
       return Double.valueOf (Double.parseDouble (s));
-    switch (s.toLowerCase (Locale.ROOT))
-    {
-      case "inf":
-      case "infinity":
-        return Double.valueOf (Double.POSITIVE_INFINITY);
-      case "-inf":
-      case "-infinity":
-        return Double.valueOf (Double.NEGATIVE_INFINITY);
-      case "nan":
-      case "-nan":
-        return Double.valueOf (Double.NaN);
-      default:
-        return null;
-    }
+    return null;
   }
 
   /**
@@ -194,7 +180,7 @@ final class XsdDocumentCollector
     {
       _vcQNames (aState, aNode, v, "facetAvailable");
       for (final String sFacet : XsdLexHelper.xmlFields (v))
-        if (!vcFacetSupported (sFacet, aState.m_eVersion))
+        if (!vcFacetSupported (aNode, sFacet, aState.m_eVersion))
           return false;
     }
     v = XsdNodes.attrNS (aNode, XsdConstants.NS_VC, "facetUnavailable");
@@ -204,7 +190,7 @@ final class XsdDocumentCollector
       // Retained iff at least one named facet is unsupported
       boolean bAll = true;
       for (final String sFacet : XsdLexHelper.xmlFields (v))
-        if (!vcFacetSupported (sFacet, aState.m_eVersion))
+        if (!vcFacetSupported (aNode, sFacet, aState.m_eVersion))
         {
           bAll = false;
           break;
@@ -217,7 +203,7 @@ final class XsdDocumentCollector
     {
       _vcQNames (aState, aNode, v, "typeAvailable");
       for (final String sType : XsdLexHelper.xmlFields (v))
-        if (!vcTypeAvailable (sType, aState.m_eVersion))
+        if (!vcTypeAvailable (aNode, sType, aState.m_eVersion))
           return false;
     }
     v = XsdNodes.attrNS (aNode, XsdConstants.NS_VC, "typeUnavailable");
@@ -227,7 +213,7 @@ final class XsdDocumentCollector
       // Retained iff at least one named type is unavailable
       boolean bAll = true;
       for (final String sType : XsdLexHelper.xmlFields (v))
-        if (!vcTypeAvailable (sType, aState.m_eVersion))
+        if (!vcTypeAvailable (aNode, sType, aState.m_eVersion))
         {
           bAll = false;
           break;
@@ -410,8 +396,9 @@ final class XsdDocumentCollector
    * Then each directive child is handled in order:
    * <ul>
    * <li>xs:import: no <code>namespace</code> without a target namespace
-   * (src-import.1.2), an empty <code>namespace</code> and the document's own
-   * target namespace (src-import.1.1) are schema errors.</li>
+   * (src-import.1.2), an empty <code>namespace</code> (no clause of its own,
+   * reported without a code) and the document's own target namespace
+   * (src-import.1.1) are schema errors.</li>
    * <li>A missing <code>schemaLocation</code> is an error except for an
    * import; an import without location, any directive while the base
    * directory is unknown, and a location that is no local file are
@@ -510,9 +497,9 @@ final class XsdDocumentCollector
         // src-import: an import without namespace needs a target namespace
         final String sNs = XsdNodes.attr (aChild, "namespace");
         if (sNs == null && aSD.m_sTNS.isEmpty ())
-          throw XsdCompiler.invalid ("", "import without a namespace requires a targetNamespace");
+          throw XsdCompiler.invalid ("src-import.1.2", "import without a namespace requires a targetNamespace");
         if (sNs != null && sNs.isEmpty ())
-          throw XsdCompiler.invalid ("src-import.1.2", "xs:import namespace must not be the empty string");
+          throw XsdCompiler.invalid ("", "xs:import namespace must not be the empty string");
         if (sNs != null && sNs.equals (aSD.m_sTNS))
           throw XsdCompiler.invalid ("src-import.1.1",
                                      "a schema may not import its own target namespace " + XsdLexHelper.quote (sNs));
@@ -613,15 +600,49 @@ final class XsdDocumentCollector
   }
 
   /**
-   * go-xslt <code>vcFacetSupported</code>: whether this processor supports the
-   * named constraining facet at the version. Only the local part after the
-   * last colon is compared; the prefix and its namespace are ignored. The
-   * twelve XSD 1.0 facets are supported at both versions, assertion and
-   * explicitTimezone only at 1.1, any other name at neither.
+   * The local name of a QName token of a vc attribute if it is in the XML
+   * Schema namespace: the prefix (or, without one, the default namespace) is
+   * resolved in scope of the element carrying the attribute.
+   *
+   * @param aNode
+   *        The element carrying the attribute.
+   * @param sQName
+   *        The QName token.
+   * @return The local name, or <code>null</code> if the name is not in the XML
+   *         Schema namespace or its prefix is not declared.
    */
-  static boolean vcFacetSupported (@NonNull final String sQName, @NonNull final EXsdVersion eVersion)
+  @Nullable
+  private static String _xsLocalName (@NonNull final IXdmNode aNode, @NonNull final String sQName)
   {
-    final String sLocal = sQName.substring (sQName.lastIndexOf (':') + 1);
+    final int i = sQName.indexOf (':');
+    final String sNS = XsdNodes.lookupPrefix (aNode, i < 0 ? "" : sQName.substring (0, i));
+    if (!XsdConstants.NS_XS.equals (sNS))
+      return null;
+    return sQName.substring (i + 1);
+  }
+
+  /**
+   * go-xslt <code>vcFacetSupported</code>: whether this processor supports the
+   * facet with the expanded name (XSD 1.1 Part 1, 4.2.2: the expanded name of
+   * the element applying the facet). The name must be in the XML Schema
+   * namespace. The twelve XSD 1.0 facets are supported at both versions,
+   * assertion and explicitTimezone only at 1.1, any other name at neither.
+   *
+   * @param aNode
+   *        The element carrying the attribute, for the prefix lookup.
+   * @param sQName
+   *        The QName token.
+   * @param eVersion
+   *        The processor version.
+   * @return <code>true</code> if the facet is supported.
+   */
+  static boolean vcFacetSupported (@NonNull final IXdmNode aNode,
+                                   @NonNull final String sQName,
+                                   @NonNull final EXsdVersion eVersion)
+  {
+    final String sLocal = _xsLocalName (aNode, sQName);
+    if (sLocal == null)
+      return false;
     switch (sLocal)
     {
       case "length":
@@ -646,19 +667,36 @@ final class XsdDocumentCollector
   }
 
   /**
-   * go-xslt <code>vcTypeAvailable</code>: whether the named built-in type exists
-   * at the version. Only the local part after the last colon is compared; the
-   * prefix and its namespace are ignored. The XSD 1.1-only built-ins exist
-   * only at 1.1; NMTOKENS, IDREFS, ENTITIES and every name known as an
+   * go-xslt <code>vcTypeAvailable</code>: whether the type with the expanded
+   * name is automatically known at the version (XSD 1.1 Part 1, 4.2.2). Only
+   * built-in types in the XML Schema namespace are known. The XSD 1.1-only
+   * built-ins and xs:anyAtomicType exist only at 1.1; xs:anyType,
+   * xs:anySimpleType, NMTOKENS, IDREFS, ENTITIES and every name known as an
    * atomic type exist at both versions.
+   *
+   * @param aNode
+   *        The element carrying the attribute, for the prefix lookup.
+   * @param sQName
+   *        The QName token.
+   * @param eVersion
+   *        The processor version.
+   * @return <code>true</code> if the type is available.
    */
-  static boolean vcTypeAvailable (@NonNull final String sQName, @NonNull final EXsdVersion eVersion)
+  static boolean vcTypeAvailable (@NonNull final IXdmNode aNode,
+                                  @NonNull final String sQName,
+                                  @NonNull final EXsdVersion eVersion)
   {
-    final String sLocal = sQName.substring (sQName.lastIndexOf (':') + 1);
+    final String sLocal = _xsLocalName (aNode, sQName);
+    if (sLocal == null)
+      return false;
     if (XsdCompiler.isXsd11OnlyBuiltin (sLocal))
       return eVersion == EXsdVersion.V11;
     switch (sLocal)
     {
+      case "anyAtomicType":
+        return eVersion == EXsdVersion.V11;
+      case "anyType":
+      case "anySimpleType":
       case "NMTOKENS":
       case "IDREFS":
       case "ENTITIES":
