@@ -26,6 +26,7 @@ import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.xdm.IXdmNode;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Tests of xsl:include, xsl:import and import precedence.
@@ -107,5 +108,76 @@ public final class XsltModulesTest
     {
       assertEquals ("XTSE0180", ex.getCode ());
     }
+  }
+
+  @Nullable
+  private static String _compileError (final String sMain, final Map <String, String> aModules)
+  {
+    final XsltCompileOptions aOptions = new XsltCompileOptions ().setBaseUri ("http://example.org/main.xsl")
+                                                                 .setResolver (new MapResolver (aModules));
+    try
+    {
+      XsltCompiler.compile (sMain, aOptions);
+      return null;
+    }
+    catch (final XsltException ex)
+    {
+      return ex.getCode ();
+    }
+  }
+
+  @Test
+  public void testDuplicatesOverriddenByHigherPrecedence ()
+  {
+    // Two declarations with the same name at the same import precedence are no
+    // error if a declaration with a higher import precedence exists
+    final String sImported = "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'" +
+                             " xmlns:f='urn:f' xmlns:a='urn:a' xmlns:b='urn:b' xmlns:c='urn:c'>" +
+                             "<xsl:variable name='v' select='1'/><xsl:variable name='v' select='2'/>" +
+                             "<xsl:function name='f:a'><xsl:sequence select='1'/></xsl:function>" +
+                             "<xsl:function name='f:a'><xsl:sequence select='2'/></xsl:function>" +
+                             "<xsl:template name='t'>1</xsl:template><xsl:template name='t'>2</xsl:template>" +
+                             "<xsl:namespace-alias stylesheet-prefix='a' result-prefix='b'/>" +
+                             "<xsl:namespace-alias stylesheet-prefix='a' result-prefix='c'/>" +
+                             XsltTestHelper.END;
+    final Map <String, String> aModules = Map.of ("http://example.org/imp.xsl", sImported);
+    final String sMain = "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'" +
+                         " xmlns:f='urn:f' xmlns:a='urn:a' xmlns:c='urn:c' exclude-result-prefixes='f'>" +
+                         "<xsl:import href='imp.xsl'/><xsl:output method='xml' omit-xml-declaration='yes'/>" +
+                         "<xsl:variable name='v' select='3'/>" +
+                         "<xsl:function name='f:a'><xsl:sequence select='3'/></xsl:function>" +
+                         "<xsl:template name='t'>3</xsl:template>" +
+                         "<xsl:namespace-alias stylesheet-prefix='a' result-prefix='c'/>" +
+                         "<xsl:template name='xsl:initial-template'><a:x v='{$v}{f:a()}'><xsl:call-template name='t'/></a:x></xsl:template>" +
+                         XsltTestHelper.END;
+    assertEquals ("<c:x xmlns:c=\"urn:c\" v=\"33\">3</c:x>", _run (sMain, aModules, null));
+
+    // Without the overriding declaration each pair is an error
+    final String sHead = "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'" +
+                         " xmlns:f='urn:f' xmlns:a='urn:a' xmlns:b='urn:b' xmlns:c='urn:c'><xsl:import href='imp.xsl'/>";
+    final Map <String, String> aEmpty = Map.of ("http://example.org/imp.xsl", XsltTestHelper.SHEET + XsltTestHelper.END);
+    final String sStart = "<xsl:template name='xsl:initial-template'/>";
+    assertEquals ("XTSE0630",
+                  _compileError (sHead + "<xsl:variable name='v' select='1'/><xsl:variable name='v' select='2'/>" + sStart + XsltTestHelper.END,
+                                 aEmpty));
+    assertEquals ("XTSE0770",
+                  _compileError (sHead +
+                                 "<xsl:function name='f:a'><xsl:sequence select='1'/></xsl:function>" +
+                                 "<xsl:function name='f:a'><xsl:sequence select='2'/></xsl:function>" +
+                                 sStart +
+                                 XsltTestHelper.END,
+                                 aEmpty));
+    assertEquals ("XTSE0660",
+                  _compileError (sHead + "<xsl:template name='t'>1</xsl:template><xsl:template name='t'>2</xsl:template>" + sStart + XsltTestHelper.END,
+                                 aEmpty));
+    assertEquals ("XTSE0810",
+                  _compileError (sHead +
+                                 "<xsl:namespace-alias stylesheet-prefix='a' result-prefix='b'/>" +
+                                 "<xsl:namespace-alias stylesheet-prefix='a' result-prefix='c'/>" +
+                                 sStart +
+                                 XsltTestHelper.END,
+                                 aEmpty));
+    // The duplicates of the imported module alone, with nothing overriding them
+    assertNotNull (_compileError (sHead + sStart + XsltTestHelper.END, aModules));
   }
 }

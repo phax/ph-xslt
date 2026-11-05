@@ -27,9 +27,11 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
+import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.CommonsLinkedHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsOrderedSet;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.XPathException;
@@ -113,6 +115,67 @@ public final class StylesheetCompiler
   private record FunctionEntry (@NonNull UserFunction function, int precedence)
   {}
 
+  /** The key of an xsl:namespace-alias: its package and literal namespace URI. */
+  private record AliasKey (@NonNull PackageUnit unit, @NonNull String literalUri)
+  {}
+
+  /**
+   * Declarations that clash with another one of the same name (or key) and the
+   * same import precedence. Such a clash is only an error if no declaration
+   * with the same name and a higher import precedence exists (XSLT 3.0
+   * XTSE0630, XTSE0660, XTSE0770, XTSE0810), so the error is raised only by
+   * {@link #check(String)} once all declarations are known.
+   */
+  private static final class DuplicateTracker
+  {
+    private final ICommonsMap <Object, Integer> m_aHighest = new CommonsHashMap <> ();
+    private final ICommonsOrderedMap <Object, Object []> m_aDuplicates = new CommonsLinkedHashMap <> ();
+
+    /**
+     * Note a declaration.
+     *
+     * @param aKey
+     *        The name or key of the declaration.
+     * @param aEl
+     *        The declaration.
+     * @param sDuplicateMessage
+     *        The error message if the declaration clashes with an earlier one
+     *        of the same import precedence, <code>null</code> if it does not.
+     */
+    void add (@NonNull final Object aKey, @NonNull final XslElement aEl, @Nullable final String sDuplicateMessage)
+    {
+      final int nPrecedence = aEl.getPrecedence ();
+      final Integer aHighest = m_aHighest.get (aKey);
+      if (aHighest == null || aHighest.intValue () < nPrecedence)
+        m_aHighest.put (aKey, Integer.valueOf (nPrecedence));
+      if (sDuplicateMessage != null)
+      {
+        final Object [] aPrev = m_aDuplicates.get (aKey);
+        if (aPrev == null || ((XslElement) aPrev[0]).getPrecedence () < nPrecedence)
+          m_aDuplicates.put (aKey, new Object [] { aEl, sDuplicateMessage });
+      }
+    }
+
+    /**
+     * Raise the error for the first clash (in the order noted) for which no
+     * declaration with a higher import precedence was noted.
+     *
+     * @param sCode
+     *        The error code.
+     * @throws XsltException
+     *         With the code, at the clashing declaration
+     */
+    void check (@NonNull final String sCode)
+    {
+      for (final Map.Entry <Object, Object []> aEntry : m_aDuplicates.entrySet ())
+      {
+        final XslElement aEl = (XslElement) aEntry.getValue ()[0];
+        if (aEl.getPrecedence () == m_aHighest.get (aEntry.getKey ()).intValue ())
+          throw XsltException.at (aEl, sCode, (String) aEntry.getValue ()[1]);
+      }
+    }
+  }
+
   /**
    * The declared signature of a stylesheet function: the parameter types and
    * the return type, each <code>item()*</code> where no <code>as</code>
@@ -140,6 +203,10 @@ public final class StylesheetCompiler
   private final ICommonsList <CallTemplateRef> m_aCallTemplateRefs = new CommonsArrayList <> ();
   private final ICommonsList <AttributeSetRef> m_aAttributeSetRefs = new CommonsArrayList <> ();
   private final ICommonsMap <XdmQName, Integer> m_aNamedTemplatePrecedence = new CommonsHashMap <> ();
+  private final DuplicateTracker m_aDuplicateGlobals = new DuplicateTracker ();
+  private final DuplicateTracker m_aDuplicateFunctions = new DuplicateTracker ();
+  private final DuplicateTracker m_aDuplicateTemplates = new DuplicateTracker ();
+  private final DuplicateTracker m_aDuplicateAliases = new DuplicateTracker ();
   private int m_nOrder;
   private final ICommonsSet <XslModule> m_aGlobalContextItemModules = new CommonsHashSet <> ();
   private final ICommonsList <XslElement> m_aExposes = new CommonsArrayList <> ();
@@ -679,18 +746,17 @@ public final class StylesheetCompiler
    * section 11.1.4), keyed by the literal namespace URI (empty for
    * <code>#default</code> without a default namespace). The declaration with
    * the higher import precedence wins; at equal precedence the later one
-   * wins, which also takes its result prefix.
-   * <p>
-   * Declarations are processed lowest import precedence first, so two
-   * conflicting declarations at a lower precedence raise XTSE0810 even if a
-   * declaration with a higher precedence follows, which the spec allows.
+   * wins, which also takes its result prefix. A declaration that maps the
+   * same URI to a different result URI than an earlier one with the same
+   * precedence is noted in {@link #m_aDuplicateAliases}: XTSE0810 is raised
+   * once all declarations are known, unless one with a higher precedence
+   * exists.
    *
    * @param aEl
    *        The xsl:namespace-alias element.
    * @throws XsltException
    *         XTSE0812 if a prefix other than <code>#default</code> is not
-   *         bound; XTSE0810 if an earlier declaration with the same
-   *         precedence maps the same URI to a different result URI
+   *         bound
    */
   private void _prepareNamespaceAlias (@NonNull final XslElement aEl)
   {
@@ -706,8 +772,12 @@ public final class StylesheetCompiler
                                                       aEl.getPrecedence ());
     final ICommonsMap <String, NamespaceAlias> aAliases = m_aAliases.computeIfAbsent (m_aPackages.getUnit (aEl), k -> new CommonsHashMap <> ());
     final NamespaceAlias aPrev = aAliases.get (sKey);
-    if (aPrev != null && aPrev.precedence () == aAlias.precedence () && !aPrev.resultUri ().equals (aAlias.resultUri ()))
-      throw XsltException.at (aEl, "XTSE0810", "Conflicting xsl:namespace-alias declarations for '" + sStyPrefix + "'");
+    final boolean bConflict = aPrev != null &&
+                              aPrev.precedence () == aAlias.precedence () &&
+                              !aPrev.resultUri ().equals (aAlias.resultUri ());
+    m_aDuplicateAliases.add (new AliasKey (m_aPackages.getUnit (aEl), sKey),
+                             aEl,
+                             bConflict ? "Conflicting xsl:namespace-alias declarations for '" + sStyPrefix + "'" : null);
     if (aPrev == null || aPrev.precedence () <= aAlias.precedence ())
       aAliases.put (sKey, aAlias);
   }
@@ -844,21 +914,17 @@ public final class StylesheetCompiler
    * homonym from another package is only kept for the scope of its own
    * package. Otherwise the function is registered in the stylesheet-wide
    * library if no function with this name and arity, or only one with a lower
-   * import precedence, is registered yet.
-   * <p>
-   * Declarations are processed lowest import precedence first, so two
-   * functions with the same name and arity at a lower precedence raise
-   * XTSE0770 even if a function with a higher precedence follows, which the
-   * spec allows.
+   * import precedence, is registered yet. A second function with the same
+   * name, arity and import precedence is noted in
+   * {@link #m_aDuplicateFunctions}: XTSE0770 is raised once all functions are
+   * known, unless one with a higher precedence exists.
    *
    * @param aEl
    *        The xsl:function element.
    * @throws XsltException
    *         XTSE0770 if a schema-aware stylesheet declares a one-argument
    *         function named like an imported simple type outside the XML
-   *         Schema namespace (it would clash with the constructor function),
-   *         or if a function with the same name, arity and import precedence
-   *         was declared before
+   *         Schema namespace (it would clash with the constructor function)
    */
   private void _prepareFunction (@NonNull final XslElement aEl)
   {
@@ -893,8 +959,8 @@ public final class StylesheetCompiler
                               "The function " + aName.getEQName () + "#1 clashes with the constructor function of a schema type");
     final String sKey = aName.getEQName () + "#" + aParams.size ();
     final FunctionEntry aPrev = m_aFunctionsByKey.get (sKey);
-    if (aPrev != null && aPrev.precedence () == aEl.getPrecedence ())
-      throw XsltException.at (aEl, "XTSE0770", "Duplicate function " + aName.getEQName () + "#" + aParams.size ());
+    final boolean bDuplicate = aPrev != null && aPrev.precedence () == aEl.getPrecedence ();
+    m_aDuplicateFunctions.add (sKey, aEl, bDuplicate ? "Duplicate function " + sKey : null);
     aFunc.setMemoize (XsltNames.isXsltTrue (aEl.getAttr ("cache")) || "no".equals (aEl.getAttr ("new-each-time")));
     m_aFunctionsByElement.put (aEl, aFunc);
     final SeqType aReturnType = aAs != null ? aAs : aCtx.compileSequenceType (aEl, "item()*");
@@ -925,24 +991,20 @@ public final class StylesheetCompiler
    * Make the name of a global xsl:variable or xsl:param known before any
    * expression is compiled, and track the highest import precedence it is
    * declared with, which decides the winning declaration in
-   * {@link #_compileGlobal(XslElement, boolean)} (XSLT 3.0 section 9.5).
-   * <p>
-   * Declarations are processed lowest import precedence first, so two
-   * bindings with the same name at a lower precedence raise XTSE0630 even if a
-   * binding with a higher precedence follows, which the spec allows.
+   * {@link #_compileGlobal(XslElement, boolean)} (XSLT 3.0 section 9.5). A
+   * second binding with the same name and import precedence is noted in
+   * {@link #m_aDuplicateGlobals}: XTSE0630 is raised once all bindings are
+   * known, unless one with a higher precedence exists.
    *
    * @param aEl
    *        The global xsl:variable or xsl:param element.
-   * @throws XsltException
-   *         XTSE0630 if a binding with the same name and import precedence was
-   *         seen before
    */
   private void _prepareGlobal (@NonNull final XslElement aEl)
   {
     final XdmQName aName = createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false);
     final Integer aPrev = m_aGlobalPrecedences.get (aName);
-    if (aPrev != null && aPrev.intValue () == aEl.getPrecedence ())
-      throw XsltException.at (aEl, "XTSE0630", "Duplicate global variable $" + aName.getEQName ());
+    final boolean bDuplicate = aPrev != null && aPrev.intValue () == aEl.getPrecedence ();
+    m_aDuplicateGlobals.add (aName, aEl, bDuplicate ? "Duplicate global variable $" + aName.getEQName () : null);
     if (aPrev == null || aPrev.intValue () < aEl.getPrecedence ())
       m_aGlobalPrecedences.put (aName, Integer.valueOf (aEl.getPrecedence ()));
     m_aGlobalNames.add (aName);
@@ -1038,11 +1100,10 @@ public final class StylesheetCompiler
    * wins if any of the modes is strict). An overriding named template keeps
    * the overridden one reachable under a fresh xsl:original name. The
    * template is added to the stylesheet; a named template is also registered
-   * by name if it has the highest import precedence so far.
-   * <p>
-   * Declarations are processed lowest import precedence first, so two named
-   * templates with the same name at a lower precedence raise XTSE0660 even if
-   * a template with a higher precedence follows, which the spec allows.
+   * by name if it has the highest import precedence so far. A second named
+   * template with the same name and import precedence is noted in
+   * {@link #m_aDuplicateTemplates}: XTSE0660 is raised once all templates are
+   * compiled, unless one with a higher precedence exists.
    *
    * @param aEl
    *        The xsl:template element.
@@ -1051,10 +1112,8 @@ public final class StylesheetCompiler
    *         XTSE0010 for more than one xsl:context-item or one that is not
    *         the first child; XTSE0020 for an invalid <code>use</code> or
    *         <code>use="absent"</code> on a template without a name; XTSE3088
-   *         for <code>use="absent"</code> together with <code>as</code>;
-   *         XTSE0660 for a second named template with the same name and
-   *         import precedence; the error of the typed-mode rewrite at the
-   *         element
+   *         for <code>use="absent"</code> together with <code>as</code>; the
+   *         error of the typed-mode rewrite at the element
    */
   private void _compileTemplate (@NonNull final XslElement aEl)
   {
@@ -1170,8 +1229,8 @@ public final class StylesheetCompiler
     if (aName != null)
     {
       final Integer aPrev = m_aNamedTemplatePrecedence.get (aName);
-      if (aPrev != null && aPrev.intValue () == aEl.getPrecedence ())
-        throw XsltException.at (aEl, "XTSE0660", "Duplicate named template " + aName.getEQName ());
+      final boolean bDuplicate = aPrev != null && aPrev.intValue () == aEl.getPrecedence ();
+      m_aDuplicateTemplates.add (aName, aEl, bDuplicate ? "Duplicate named template " + aName.getEQName () : null);
       if (aPrev == null || aPrev.intValue () < aEl.getPrecedence ())
       {
         m_aNamedTemplatePrecedence.put (aName, Integer.valueOf (aEl.getPrecedence ()));
@@ -2112,6 +2171,8 @@ public final class StylesheetCompiler
             // later
           }
         }
+    m_aDuplicateAliases.check ("XTSE0810");
+    m_aDuplicateGlobals.check ("XTSE0630");
     if (m_aPackages.isMultiPackage ())
     {
       for (final PackageUnit aUnit : m_aPackages.getUnits ())
@@ -2133,6 +2194,7 @@ public final class StylesheetCompiler
       else
         if (aEl.isXsl ("mode"))
           _prepareMode (aEl, aModeAttrs);
+    m_aDuplicateFunctions.check ("XTSE0770");
     for (final Map.Entry <Mode, ICommonsMap <String, Object []>> aEntry : aModeAttrs.entrySet ())
       for (final Map.Entry <String, Object []> aAttr : aEntry.getValue ().entrySet ())
         if (aAttr.getValue ()[2] != null)
@@ -2145,6 +2207,7 @@ public final class StylesheetCompiler
       _findLocalAttributeSets (aAll);
     for (final XslElement aEl : aAll)
       _compileDeclaration (aEl);
+    m_aDuplicateTemplates.check ("XTSE0660");
 
     if (m_aStylesheet.getNamedTemplate (INITIAL_TEMPLATE) == null)
     {
