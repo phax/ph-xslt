@@ -46,8 +46,11 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.fn.FnBoolean;
+import com.helger.xpath.fn.FnSequence;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
+import com.helger.xpath.fn.IXPathFunction;
 import com.helger.xpath.ops.AtomicArithmetic;
 import com.helger.xpath.ops.AtomicCaster;
 import com.helger.xpath.ops.AtomicComparator;
@@ -186,6 +189,55 @@ public final class XPathEvaluator
   }
 
   /**
+   * Evaluate a predicate for one item: a single number is compared with the context position,
+   * anything else gives its effective boolean value. A predicate that can only be a node
+   * sequence is evaluated with early exit ({@link #_tryEarlyEbv(IExpr, DynamicContext, boolean)}).
+   */
+  private static boolean _isPredicateTrue (@NonNull final IExpr aPredicate,
+                                           @NonNull final IXdmItem aItem,
+                                           final int nPosition,
+                                           final int nSize,
+                                           @NonNull final DynamicContext aCtx)
+  {
+    final DynamicContext aFocus = aCtx.withFocus (aItem, nPosition, nSize);
+    final Boolean aEarly = _tryEarlyEbv (aPredicate, aFocus, true);
+    if (aEarly != null)
+      return aEarly.booleanValue ();
+    final XdmSequence aValue = evaluateInternal (aPredicate, aFocus);
+    if (aValue.isSingleton () && aValue.get (0) instanceof final XdmAtomic aAtomic && aAtomic.isNumeric ())
+      return _isPosition (aAtomic, nPosition);
+    return _ebv (aValue);
+  }
+
+  /**
+   * Find the first item of a sequence (in its current order) for which a predicate is true, with
+   * the context positions and size of the whole sequence.
+   *
+   * @param nFrom
+   *        The 0-based index to start the search at.
+   * @return The 0-based index of the item, or -1 if no item from <code>nFrom</code> on passes.
+   */
+  private static int _findPassing (@NonNull final XdmSequence aSeq,
+                                   @NonNull final IExpr aPredicate,
+                                   final int nFrom,
+                                   @NonNull final DynamicContext aCtx)
+  {
+    final int nSize = aSeq.size ();
+    if (aPredicate instanceof final IExpr.LiteralExpr aLiteral && aLiteral.value ().isNumeric ())
+    {
+      final int nPos = _getLiteralPosition (aLiteral.value ());
+      return nPos > nFrom && nPos <= nSize ? nPos - 1 : -1;
+    }
+    for (int i = nFrom; i < nSize; ++i)
+    {
+      aCtx.checkInterrupt ();
+      if (_isPredicateTrue (aPredicate, aSeq.get (i), i + 1, nSize, aCtx))
+        return i;
+    }
+    return -1;
+  }
+
+  /**
    * Apply one predicate to a sequence in its current order (axis order for an axis step).
    */
   @NonNull
@@ -207,13 +259,7 @@ public final class XPathEvaluator
     {
       aCtx.checkInterrupt ();
       final IXdmItem aItem = aSeq.get (i);
-      final XdmSequence aValue = evaluateInternal (aPredicate, aCtx.withFocus (aItem, i + 1, nSize));
-      final boolean bKeep;
-      if (aValue.isSingleton () && aValue.get (0) instanceof final XdmAtomic aAtomic && aAtomic.isNumeric ())
-        bKeep = _isPosition (aAtomic, i + 1);
-      else
-        bKeep = _ebv (aValue);
-      if (bKeep)
+      if (_isPredicateTrue (aPredicate, aItem, i + 1, nSize, aCtx))
         aBuilder.add (aItem);
     }
     return aBuilder.build ();
@@ -228,6 +274,35 @@ public final class XPathEvaluator
     for (final IExpr aPredicate : aPredicates)
       ret = _applyPredicate (ret, aPredicate, aCtx);
     return ret;
+  }
+
+  /**
+   * Apply all predicates but the last one completely (the positions of a predicate depend on the
+   * full result of the one before).
+   */
+  @NonNull
+  private static XdmSequence _applyPredicatesButLast (@NonNull final XdmSequence aSeq,
+                                                      @NonNull final List <IExpr> aPredicates,
+                                                      @NonNull final DynamicContext aCtx)
+  {
+    XdmSequence ret = aSeq;
+    for (int i = 0; i < aPredicates.size () - 1; ++i)
+      ret = _applyPredicate (ret, aPredicates.get (i), aCtx);
+    return ret;
+  }
+
+  /**
+   * Early exit: would the predicates keep at least one item? The last predicate stops at the first
+   * item that passes.
+   */
+  private static boolean _hasPassingItem (@NonNull final XdmSequence aSeq,
+                                          @NonNull final List <IExpr> aPredicates,
+                                          @NonNull final DynamicContext aCtx)
+  {
+    if (aPredicates.isEmpty ())
+      return !aSeq.isEmpty ();
+    final XdmSequence aCandidates = _applyPredicatesButLast (aSeq, aPredicates, aCtx);
+    return _findPassing (aCandidates, aPredicates.get (aPredicates.size () - 1), 0, aCtx) >= 0;
   }
 
   /**
@@ -252,14 +327,12 @@ public final class XPathEvaluator
   }
 
   /**
-   * One axis step from one context node.
+   * The nodes of the axis of an axis step from one context node that pass its node test.
    *
-   * @return The selected nodes in document order.
+   * @return The nodes in axis order (reverse document order for a reverse axis).
    */
   @NonNull
-  private static XdmSequence _evalAxisStep (final IExpr.@NonNull StepExpr aStep,
-                                            @NonNull final IXdmNode aNode,
-                                            @NonNull final DynamicContext aCtx)
+  private static XdmSequence _collectAxisCandidates (final IExpr.@NonNull StepExpr aStep, @NonNull final IXdmNode aNode)
   {
     final EAxis eAxis = aStep.axis ();
     final NodeTest aTest = aStep.test ();
@@ -271,8 +344,21 @@ public final class XPathEvaluator
                              aNode,
                              aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
                              aNodes);
-    XdmSequence ret = _applyPredicates (XdmSequence.of (aNodes), aStep.predicates (), aCtx);
-    if (eAxis.isReverse () && ret.size () > 1)
+    return XdmSequence.of (aNodes);
+  }
+
+  /**
+   * One axis step from one context node.
+   *
+   * @return The selected nodes in document order.
+   */
+  @NonNull
+  private static XdmSequence _evalAxisStep (final IExpr.@NonNull StepExpr aStep,
+                                            @NonNull final IXdmNode aNode,
+                                            @NonNull final DynamicContext aCtx)
+  {
+    XdmSequence ret = _applyPredicates (_collectAxisCandidates (aStep, aNode), aStep.predicates (), aCtx);
+    if (aStep.axis ().isReverse () && ret.size () > 1)
     {
       // Positions were counted in reverse document order; the step result is
       // in document order
@@ -309,18 +395,19 @@ public final class XPathEvaluator
   }
 
   /**
-   * A descendant step with an exact name test from many context nodes at once,
-   * through the name index of their document. Only for predicates that select
-   * the same nodes whatever the context position is, since the positions count
-   * among all selected nodes and not per context node.
+   * The candidates of a descendant step with an exact name test from many
+   * context nodes at once, through the name index of their document. Only for
+   * predicates that select the same nodes whatever the context position is,
+   * since the positions count among all selected nodes and not per context
+   * node.
    *
-   * @return The selected nodes in document order, or <code>null</code> if the
-   *         index cannot be used.
+   * @return The candidates in document order, before the predicates, or
+   *         <code>null</code> if the index cannot be used.
    */
   @Nullable
-  private static XdmSequence _applyIndexedStep (final IExpr.@NonNull StepExpr aStep,
-                                                @NonNull final XdmSequence aCurrent,
-                                                @NonNull final DynamicContext aCtx)
+  private static XdmSequence _getIndexedCandidates (final IExpr.@NonNull StepExpr aStep,
+                                                    @NonNull final XdmSequence aCurrent,
+                                                    @NonNull final DynamicContext aCtx)
   {
     final XdmQName aIndexName = _getIndexableName (aStep);
     if (aIndexName == null)
@@ -339,7 +426,7 @@ public final class XPathEvaluator
     final List <IXdmNode> aNodes = new ArrayList <> ();
     if (!AxisNavigator.collectNamedDescendants (aStep.axis (), aContextNodes, aIndexName, aNodes))
       return null;
-    return _applyPredicates (XdmSequence.of (aNodes), aStep.predicates (), aCtx);
+    return XdmSequence.of (aNodes);
   }
 
   /** Apply a step (not the first of a relative path) to every item of the previous step. */
@@ -356,9 +443,9 @@ public final class XPathEvaluator
     {
       if (nSize == 1)
         return _evalAxisStep (aStep, _getStepContextNode (aCurrent.get (0), "XPTY0019"), aCtx);
-      final XdmSequence aIndexed = _applyIndexedStep (aStep, aCurrent, aCtx);
+      final XdmSequence aIndexed = _getIndexedCandidates (aStep, aCurrent, aCtx);
       if (aIndexed != null)
-        return aIndexed;
+        return _applyPredicates (aIndexed, aStep.predicates (), aCtx);
       final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
       for (final IXdmItem aItem : aCurrent)
       {
@@ -383,8 +470,19 @@ public final class XPathEvaluator
     return ret;
   }
 
+  /**
+   * Evaluate a path up to a step.
+   *
+   * @param nEnd
+   *        The index of the first step not evaluated; the number of steps for the whole path. A
+   *        fused pair of steps (<code>//name</code>) must not be split.
+   * @return The result of the steps before <code>nEnd</code>; for a relative path without a start
+   *         expression and <code>nEnd</code> 0 the context item.
+   */
   @NonNull
-  private static XdmSequence _evalPath (final IExpr.@NonNull PathExpr aExpr, @NonNull final DynamicContext aCtx)
+  private static XdmSequence _evalPathPrefix (final IExpr.@NonNull PathExpr aExpr,
+                                              @NonNull final DynamicContext aCtx,
+                                              final int nEnd)
   {
     final List <IExpr.StepExpr> aSteps = aExpr.steps ();
     final int nSteps = aSteps.size ();
@@ -406,7 +504,7 @@ public final class XPathEvaluator
       }
       else
       {
-        if (nSteps == 0)
+        if (nSteps == 0 || nEnd == 0)
           return XdmSequence.of (_getContextItem (aCtx));
         final IExpr.StepExpr aFirst = aSteps.get (0);
         if (aFirst.postfix () != null)
@@ -423,7 +521,7 @@ public final class XPathEvaluator
         }
         nFirst = 1;
       }
-    for (int i = nFirst; i < nSteps; ++i)
+    for (int i = nFirst; i < nEnd; ++i)
     {
       IExpr.StepExpr aStep = aSteps.get (i);
       if (aStep.fused () != null)
@@ -436,6 +534,168 @@ public final class XPathEvaluator
       aCurrent = _applyStep (aStep, aCurrent, aCtx, i == nSteps - 1);
     }
     return aCurrent;
+  }
+
+  @NonNull
+  private static XdmSequence _evalPath (final IExpr.@NonNull PathExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    return _evalPathPrefix (aExpr, aCtx, aExpr.steps ().size ());
+  }
+
+  /**
+   * Early exit: does an axis step select at least one node from the context items? Every context
+   * item is checked to be a node first, as in the full evaluation; then the context nodes are
+   * tried one by one until one of them selects a node. Document order and duplicates do not
+   * matter for the answer.
+   *
+   * @param sCode
+   *        The error code for a context item that is not a node.
+   */
+  private static boolean _existsInStep (final IExpr.@NonNull StepExpr aStep,
+                                        @NonNull final XdmSequence aCurrent,
+                                        @NonNull final DynamicContext aCtx,
+                                        @NonNull final String sCode)
+  {
+    final int nSize = aCurrent.size ();
+    if (nSize == 0)
+      return false;
+    for (final IXdmItem aItem : aCurrent)
+      _getStepContextNode (aItem, sCode);
+    if (nSize > 1)
+    {
+      final XdmSequence aIndexed = _getIndexedCandidates (aStep, aCurrent, aCtx);
+      if (aIndexed != null)
+        return _hasPassingItem (aIndexed, aStep.predicates (), aCtx);
+    }
+    for (final IXdmItem aItem : aCurrent)
+    {
+      aCtx.checkInterrupt ();
+      if (_hasPassingItem (_collectAxisCandidates (aStep, (IXdmNode) aItem), aStep.predicates (), aCtx))
+        return true;
+    }
+    return false;
+  }
+
+  /**
+   * Early exit for a path whose last step is an axis step: its value is a node sequence, so its
+   * effective boolean value and its existence are the same question. All steps before the last one
+   * are evaluated completely.
+   *
+   * @return <code>null</code> if the last step is not an axis step (the caller then evaluates the
+   *         path completely).
+   */
+  @Nullable
+  private static Boolean _existsInPath (final IExpr.@NonNull PathExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    final List <IExpr.StepExpr> aSteps = aExpr.steps ();
+    final int nSteps = aSteps.size ();
+    if (nSteps == 0)
+      return null;
+    IExpr.StepExpr aLast = aSteps.get (nSteps - 1);
+    int nPrefix = nSteps - 1;
+    if (nSteps >= 2 && aSteps.get (nSteps - 2).fused () != null)
+    {
+      // The fused "//name" step replaces the last two steps
+      aLast = aSteps.get (nSteps - 2).fused ();
+      nPrefix = nSteps - 2;
+    }
+    if (aLast.postfix () != null)
+      return null;
+    final XdmSequence aCurrent = _evalPathPrefix (aExpr, aCtx, nPrefix);
+    final boolean bFromContextItem = aExpr.start () == null && !aExpr.absolute () && nPrefix == 0;
+    return Boolean.valueOf (_existsInStep (aLast, aCurrent, aCtx, bFromContextItem ? "XPTY0020" : "XPTY0019"));
+  }
+
+  /**
+   * Early exit for the effective boolean value of a filter expression: the last predicate stops at
+   * the first item that passes if that is a node; after an atomic value or a function a second
+   * passing item is looked for, which makes the value undefined (FORG0006).
+   */
+  private static boolean _getFilterEbv (final IExpr.@NonNull FilterExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    final List <IExpr> aPredicates = aExpr.predicates ();
+    final XdmSequence aPrimary = evaluateInternal (aExpr.primary (), aCtx);
+    if (aPredicates.isEmpty ())
+      return _ebv (aPrimary);
+    final XdmSequence aCandidates = _applyPredicatesButLast (aPrimary, aPredicates, aCtx);
+    final IExpr aLast = aPredicates.get (aPredicates.size () - 1);
+    final int nFirst = _findPassing (aCandidates, aLast, 0, aCtx);
+    if (nFirst < 0)
+      return false;
+    final IXdmItem aFirst = aCandidates.get (nFirst);
+    if (aFirst instanceof IXdmNode)
+      return true;
+    final int nSecond = _findPassing (aCandidates, aLast, nFirst + 1, aCtx);
+    if (nSecond < 0)
+      return _ebv (XdmSequence.of (aFirst));
+    return _ebv (XdmSequence.of (aFirst, aCandidates.get (nSecond)));
+  }
+
+  /**
+   * The effective boolean value of the shapes that can stop at the first decisive item (XPath 3.1
+   * section 2.3.4 allows to skip the evaluation of parts that do not change the result): a path
+   * whose last step is an axis step and, outside predicates, a filter expression; a
+   * parenthesised expression of these.
+   *
+   * @param bPredicate
+   *        <code>true</code> if the expression is a predicate. Then only shapes whose value can
+   *        never be a number are handled, since a number would be compared with the position.
+   * @return <code>null</code> for any other shape: the caller evaluates it completely.
+   */
+  @Nullable
+  private static Boolean _tryEarlyEbv (@NonNull final IExpr aExpr,
+                                       @NonNull final DynamicContext aCtx,
+                                       final boolean bPredicate)
+  {
+    return switch (aExpr)
+    {
+      case final IExpr.PathExpr e -> _existsInPath (e, aCtx);
+      case final IExpr.FilterExpr e -> bPredicate ? null : Boolean.valueOf (_getFilterEbv (e, aCtx));
+      case final IExpr.SequenceExpr e -> e.items ().size () == 1 ? _tryEarlyEbv (e.items ().get (0), aCtx, bPredicate)
+                                                                 : null;
+      default -> null;
+    };
+  }
+
+  /**
+   * The effective boolean value of an expression, stopping at the first decisive item where the
+   * shape allows it, and evaluating it completely otherwise.
+   */
+  private static boolean _getEbv (@NonNull final IExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    final Boolean aEarly = _tryEarlyEbv (aExpr, aCtx, false);
+    if (aEarly != null)
+      return aEarly.booleanValue ();
+    return _ebv (evaluateInternal (aExpr, aCtx));
+  }
+
+  /**
+   * Is the value of an expression non-empty? Paths whose last step is an axis step and filter
+   * expressions stop at the first item; other shapes are evaluated completely.
+   */
+  private static boolean _exists (@NonNull final IExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    switch (aExpr)
+    {
+      case final IExpr.PathExpr e ->
+      {
+        final Boolean aEarly = _existsInPath (e, aCtx);
+        if (aEarly != null)
+          return aEarly.booleanValue ();
+      }
+      case final IExpr.FilterExpr e ->
+      {
+        return _hasPassingItem (evaluateInternal (e.primary (), aCtx), e.predicates (), aCtx);
+      }
+      case final IExpr.SequenceExpr e ->
+      {
+        if (e.items ().size () == 1)
+          return _exists (e.items ().get (0), aCtx);
+      }
+      default ->
+      {}
+    }
+    return !evaluateInternal (aExpr, aCtx).isEmpty ();
   }
 
   @NonNull
@@ -546,6 +806,31 @@ public final class XPathEvaluator
     return ret;
   }
 
+  /**
+   * A static call of fn:exists, fn:empty, fn:boolean or fn:not (recognised by the implementation
+   * the name resolves to): only the existence or the effective boolean value of the argument
+   * matters, so it is evaluated with early exit. The parameter type <code>item()*</code> needs no
+   * conversion.
+   *
+   * @return <code>null</code> for any other function.
+   */
+  @Nullable
+  private static XdmSequence _tryExistenceCall (@NonNull final FunctionDef aDef,
+                                                @NonNull final IExpr aArg,
+                                                @NonNull final DynamicContext aCtx)
+  {
+    final IXPathFunction aImpl = aDef.getImpl ();
+    if (aImpl == FnSequence.EXISTS)
+      return _bool (_exists (aArg, aCtx));
+    if (aImpl == FnSequence.EMPTY)
+      return _bool (!_exists (aArg, aCtx));
+    if (aImpl == FnBoolean.BOOLEAN)
+      return _bool (_getEbv (aArg, aCtx));
+    if (aImpl == FnBoolean.NOT)
+      return _bool (!_getEbv (aArg, aCtx));
+    return null;
+  }
+
   @NonNull
   private static XdmSequence _evalFunctionCall (final IExpr.@NonNull FunctionCallExpr aExpr,
                                                 @NonNull final DynamicContext aCtx)
@@ -554,6 +839,12 @@ public final class XPathEvaluator
     final FunctionDef aDef = _getFunctionDef (aCtx, aExpr.name (), aArgExprs.size ());
     if (_hasPlaceholder (aArgExprs))
       return _partialApply (new BuiltInFunctionItem (aDef, aCtx), aArgExprs, aCtx);
+    if (aArgExprs.size () == 1)
+    {
+      final XdmSequence aEarly = _tryExistenceCall (aDef, aArgExprs.get (0), aCtx);
+      if (aEarly != null)
+        return aEarly;
+    }
 
     final List <SeqType> aParamTypes = aDef.getParamTypes ();
     final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> (aArgExprs.size ());
@@ -954,9 +1245,9 @@ public final class XPathEvaluator
   {
     final EBinaryOp eOp = aExpr.op ();
     if (eOp == EBinaryOp.AND)
-      return _bool (_ebv (evaluateInternal (aExpr.left (), aCtx)) && _ebv (evaluateInternal (aExpr.right (), aCtx)));
+      return _bool (_getEbv (aExpr.left (), aCtx) && _getEbv (aExpr.right (), aCtx));
     if (eOp == EBinaryOp.OR)
-      return _bool (_ebv (evaluateInternal (aExpr.left (), aCtx)) || _ebv (evaluateInternal (aExpr.right (), aCtx)));
+      return _bool (_getEbv (aExpr.left (), aCtx) || _getEbv (aExpr.right (), aCtx));
 
     final XdmSequence aLeftSeq = evaluateInternal (aExpr.left (), aCtx);
     final XdmSequence aRightSeq = evaluateInternal (aExpr.right (), aCtx);
@@ -1113,7 +1404,7 @@ public final class XPathEvaluator
   {
     final List <IExpr.Binding> aBindings = aExpr.bindings ();
     if (nIndex == aBindings.size ())
-      return _ebv (evaluateInternal (aExpr.satisfies (), aCtx));
+      return _getEbv (aExpr.satisfies (), aCtx);
     final IExpr.Binding aBinding = aBindings.get (nIndex);
     final boolean bEvery = aExpr.every ();
     for (final IXdmItem aItem : evaluateInternal (aBinding.expr (), aCtx))
@@ -1448,10 +1739,8 @@ public final class XPathEvaluator
       case final IExpr.SetExpr e -> _evalSet (e, aCtx);
       case final IExpr.RangeExpr e -> _evalRange (e, aCtx);
       case final IExpr.StringConcatExpr e -> _evalStringConcat (e, aCtx);
-      case final IExpr.IfExpr e -> _ebv (evaluateInternal (e.condition (), aCtx)) ? evaluateInternal (e.thenExpr (),
-                                                                                                      aCtx)
-                                                                                  : evaluateInternal (e.elseExpr (),
-                                                                                                      aCtx);
+      case final IExpr.IfExpr e -> _getEbv (e.condition (), aCtx) ? evaluateInternal (e.thenExpr (), aCtx)
+                                                                  : evaluateInternal (e.elseExpr (), aCtx);
       case final IExpr.ForExpr e -> _evalForExpr (e, aCtx);
       case final IExpr.LetExpr e -> _evalLet (e, aCtx);
       case final IExpr.QuantifiedExpr e -> _bool (_evalQuantified (e, 0, aCtx));
@@ -1484,6 +1773,32 @@ public final class XPathEvaluator
     try
     {
       return evaluateInternal (aExpr, aCtx);
+    }
+    catch (final StackOverflowError ex)
+    {
+      throw new XPathException ("XPDY0130", "The evaluation is nested too deeply", ex);
+    }
+  }
+
+  /**
+   * The effective boolean value of an expression (XPath 3.1 section 2.4.3), for hosts that need
+   * one (<code>xsl:if</code>, <code>xsl:when</code>, assertions). Paths and filter expressions stop
+   * at the first decisive item (section 2.3.4), so a dynamic error in a part that does not change
+   * the result is not raised; other expressions are evaluated completely.
+   *
+   * @param aExpr
+   *        Parsed expression.
+   * @param aCtx
+   *        Dynamic context.
+   * @return The effective boolean value.
+   * @throws com.helger.xpath.XPathException
+   *         for dynamic and type errors, FORG0006 if the effective boolean value is not defined.
+   */
+  public static boolean evaluateEffectiveBooleanValue (@NonNull final IExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    try
+    {
+      return _getEbv (aExpr, aCtx);
     }
     catch (final StackOverflowError ex)
     {

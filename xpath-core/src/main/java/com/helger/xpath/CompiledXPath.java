@@ -87,4 +87,20 @@ public final class CompiledXPath
     final DynamicContext aRealCtx = aCtx.getStaticContext () == m_aStaticCtx ? aCtx : aCtx.withStaticContext (m_aStaticCtx);
     return XPathEvaluator.evaluate (m_aExpr, aRealCtx);
   }
+
+  /**
+   * The effective boolean value of the expression, with the static context as
+   * in {@link #evaluate(DynamicContext)}. Paths and filter expressions stop at
+   * the first decisive item
+   * ({@link XPathEvaluator#evaluateEffectiveBooleanValue(IExpr, DynamicContext)}).
+   *
+   * @param aCtx
+   *        The dynamic context with focus, variables and the run-wide state.
+   * @return The effective boolean value.
+   */
+  public boolean evaluateEffectiveBooleanValue (@NonNull final DynamicContext aCtx)
+  {
+    final DynamicContext aRealCtx = aCtx.getStaticContext () == m_aStaticCtx ? aCtx : aCtx.withStaticContext (m_aStaticCtx);
+    return XPathEvaluator.evaluateEffectiveBooleanValue (m_aExpr, aRealCtx);
+  }
 }

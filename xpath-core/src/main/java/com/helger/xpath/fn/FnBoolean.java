@@ -36,6 +36,24 @@ public final class FnBoolean
   private static final XdmSequence TRUE_SEQ = XdmSequence.of (XdmAtomic.TRUE);
   private static final XdmSequence FALSE_SEQ = XdmSequence.of (XdmAtomic.FALSE);
 
+  /**
+   * The implementation of <code>fn:boolean</code>. The evaluator recognises it
+   * in a static call and evaluates the argument only as far as its effective
+   * boolean value needs.
+   */
+  public static final IXPathFunction BOOLEAN = (aCtx,
+                                                aArgs) -> Atomizer.getEffectiveBooleanValue (aArgs.get (0)) ? TRUE_SEQ
+                                                                                                            : FALSE_SEQ;
+
+  /**
+   * The implementation of <code>fn:not</code>. The evaluator recognises it in
+   * a static call and evaluates the argument only as far as its effective
+   * boolean value needs.
+   */
+  public static final IXPathFunction NOT = (aCtx,
+                                            aArgs) -> Atomizer.getEffectiveBooleanValue (aArgs.get (0)) ? FALSE_SEQ
+                                                                                                        : TRUE_SEQ;
+
   @PresentForCodeCoverage
   private static final FnBoolean INSTANCE = new FnBoolean ();
 
@@ -47,13 +65,7 @@ public final class FnBoolean
     final String sNS = XdmConstants.NS_FN;
     aLib.register (sNS, "true", "() as xs:boolean", (aCtx, aArgs) -> TRUE_SEQ);
     aLib.register (sNS, "false", "() as xs:boolean", (aCtx, aArgs) -> FALSE_SEQ);
-    aLib.register (sNS,
-                   "boolean",
-                   "(item()*) as xs:boolean",
-                   (aCtx, aArgs) -> Atomizer.getEffectiveBooleanValue (aArgs.get (0)) ? TRUE_SEQ : FALSE_SEQ);
-    aLib.register (sNS,
-                   "not",
-                   "(item()*) as xs:boolean",
-                   (aCtx, aArgs) -> Atomizer.getEffectiveBooleanValue (aArgs.get (0)) ? FALSE_SEQ : TRUE_SEQ);
+    aLib.register (sNS, "boolean", "(item()*) as xs:boolean", BOOLEAN);
+    aLib.register (sNS, "not", "(item()*) as xs:boolean", NOT);
   }
 }
