@@ -245,7 +245,9 @@ final class XsdFacetValidator
   /**
    * Compare the value with a bound. Datatypes D.2.1 (timeOnTimeline): with
    * exactly one side timezoned, the other is compared with both extreme
-   * offsets imputed; if that changes the result, the pair is incomparable.
+   * offsets imputed; if that changes the result, the pair is incomparable. A
+   * numeric NaN and two durations without an order (Datatypes 3.3.6.1) are
+   * incomparable as well.
    */
   @NonNull
   private static BoundOrder _order (@NonNull final String sValue,
@@ -285,8 +287,9 @@ final class XsdFacetValidator
     final Integer aC = XsdValueCompare.compare (aValue, aBound);
     if (aC == null)
     {
-      // Only NaN leaves two numeric values unordered
-      if (ePrim.isNumeric ())
+      // NaN leaves two numeric values unordered, and durations are only
+      // partially ordered (P1M and P30D): an incomparable value fails a bound
+      if (ePrim.isNumeric () || ePrim.isDurationFamily ())
         return new BoundOrder (0, false, true);
       return new BoundOrder (0, false, false);
     }
@@ -391,8 +394,8 @@ final class XsdFacetValidator
    * Check the four bounding facets (Datatypes 4.3.7 to 4.3.10): the value is
    * cast to the primitive and ordered against each bound that is set with
    * {@link #_order}. A pair that is incomparable (a date/time with and one
-   * without a timezone whose order depends on the imputed offset, or a numeric
-   * NaN) fails the bound; a bound that cannot be cast or ordered otherwise
+   * without a timezone whose order depends on the imputed offset, a numeric
+   * NaN, or two durations such as P1M and P30D) fails the bound; a bound that cannot be cast or ordered otherwise
    * passes. A no-op if no bound is set.
    *
    * @throws XsdInvalidException

@@ -16,6 +16,10 @@
  */
 package com.helger.xsd;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -42,8 +46,19 @@ import com.helger.xpath.value.XdmDurationValue;
 @Immutable
 final class XsdValueCompare
 {
-  /** Seconds per month in go-xslt's folded duration ordering. */
-  private static final double SECONDS_PER_MONTH = 2629746;
+  /**
+   * The four reference dateTimes (all at 00:00:00Z) of the duration order
+   * (Datatypes 1.1 3.3.6.1, 1.0 3.2.6.2).
+   */
+  private static final LocalDate [] DURATION_REFERENCES = { LocalDate.of (1696, 9, 1),
+                                                            LocalDate.of (1697, 2, 1),
+                                                            LocalDate.of (1903, 3, 1),
+                                                            LocalDate.of (1903, 7, 1) };
+  /** Months of a Gregorian 400-year cycle. */
+  private static final long CYCLE_MONTHS = 4800;
+  /** Seconds of a Gregorian 400-year cycle (146097 days). */
+  private static final BigDecimal CYCLE_SECONDS = BigDecimal.valueOf (146097L * 86400L);
+  private static final BigDecimal SECONDS_PER_DAY = BigDecimal.valueOf (86400L);
 
   @PresentForCodeCoverage
   private static final XsdValueCompare INSTANCE = new XsdValueCompare ();
@@ -103,8 +118,62 @@ final class XsdValueCompare
   }
 
   /**
+   * The seconds from a reference date to the reference date plus a duration
+   * (Datatypes Appendix E: the months first, then the seconds). Whole
+   * 400-year cycles of the months are counted as 146097 days each, so no
+   * duration overflows the date arithmetic. The reference dates are first days
+   * of a month, so no day is pinned.
+   *
+   * @param aRef
+   *        The reference date (00:00:00Z).
+   * @param aDuration
+   *        The duration to add.
+   * @return The difference in seconds.
+   */
+  @NonNull
+  private static BigDecimal _secondsAfter (@NonNull final LocalDate aRef, @NonNull final XdmDurationValue aDuration)
+  {
+    final long nCycles = Math.floorDiv (aDuration.getMonths (), CYCLE_MONTHS);
+    final long nRest = Math.floorMod (aDuration.getMonths (), CYCLE_MONTHS);
+    final long nDays = ChronoUnit.DAYS.between (aRef, aRef.plusMonths (nRest));
+    return CYCLE_SECONDS.multiply (BigDecimal.valueOf (nCycles))
+                        .add (SECONDS_PER_DAY.multiply (BigDecimal.valueOf (nDays)))
+                        .add (aDuration.getSeconds ());
+  }
+
+  /**
+   * Order two durations by the partial order of Datatypes 1.1 3.3.6.1 (1.0
+   * 3.2.6.2): both are added to each of the four reference dateTimes; if all
+   * four pairs are ordered the same way, so are the durations, otherwise they
+   * are incomparable (e.g. P1M and P30D).
+   *
+   * @param aA
+   *        Left duration.
+   * @param aB
+   *        Right duration.
+   * @return negative, 0 or positive; <code>null</code> if incomparable.
+   */
+  @Nullable
+  private static Integer _compareDurations (@NonNull final XdmDurationValue aA, @NonNull final XdmDurationValue aB)
+  {
+    Integer ret = null;
+    for (final LocalDate aRef : DURATION_REFERENCES)
+    {
+      final int c = _secondsAfter (aRef, aA).compareTo (_secondsAfter (aRef, aB));
+      if (ret == null)
+        ret = Integer.valueOf (Integer.signum (c));
+      else
+        if (ret.intValue () != Integer.signum (c))
+          return null;
+    }
+    return ret;
+  }
+
+  /**
    * Order two atomic values (go-xslt <code>CompareAtomic</code>): durations
-   * fold months to seconds; NaN and incomparable values have no order.
+   * follow the partial order of the XSD datatypes (go-xslt folds months to
+   * seconds, a total order the specification does not have); NaN and
+   * incomparable values have no order.
    *
    * @param aA
    *        Left value.
@@ -116,15 +185,7 @@ final class XsdValueCompare
   static Integer compare (@NonNull final XdmAtomic aA, @NonNull final XdmAtomic aB)
   {
     if (aA.getValue () instanceof final XdmDurationValue aDA && aB.getValue () instanceof final XdmDurationValue aDB)
-    {
-      final double dA = aDA.getMonths () * SECONDS_PER_MONTH + aDA.getSeconds ().doubleValue ();
-      final double dB = aDB.getMonths () * SECONDS_PER_MONTH + aDB.getSeconds ().doubleValue ();
-      if (dA != dB)
-        return Integer.valueOf (dA < dB ? -1 : 1);
-      if (aDA.getMonths () != aDB.getMonths ())
-        return Integer.valueOf (aDA.getMonths () < aDB.getMonths () ? -1 : 1);
-      return Integer.valueOf (Integer.signum (aDA.getSeconds ().compareTo (aDB.getSeconds ())));
-    }
+      return _compareDurations (aDA, aDB);
     // The g* types have no order in XPath; XSD orders them on their reference
     // dates (go-xslt compares the time line value of every date/time type)
     if (aA.getType () == aB.getType () &&
