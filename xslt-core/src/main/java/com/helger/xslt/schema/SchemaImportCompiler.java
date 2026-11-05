@@ -20,6 +20,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.IdentityHashMap;
 import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
@@ -40,6 +42,7 @@ import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.XdmQName;
 import com.helger.xpath.xdm.schema.IXdmSchemaSet;
 import com.helger.xpath.xdm.schema.XdmSchemaException;
 import com.helger.xpath.xdm.schema.XdmSchemaSource;
@@ -47,6 +50,7 @@ import com.helger.xpath.xdm.schema.XdmSchemaSupport;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.pkg.PackageModel;
+import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
@@ -85,6 +89,9 @@ public final class SchemaImportCompiler
 
   private record Decl (@NonNull XdmSchemaSource source, int precedence)
   {}
+
+  /** The top-level children of xs:schema that must precede all others. */
+  private static final String [] COMPOSITION_ELEMENTS = { "include", "import", "redefine", "override" };
 
   @PresentForCodeCoverage
   private static final SchemaImportCompiler INSTANCE = new SchemaImportCompiler ();
@@ -310,6 +317,113 @@ public final class SchemaImportCompiler
   }
 
   /**
+   * @param aNode
+   *        A node.
+   * @return <code>true</code> if it is an xs:include, xs:import, xs:redefine
+   *         or xs:override element.
+   */
+  private static boolean _isComposition (@NonNull final IXdmNode aNode)
+  {
+    for (final String sLocalName : COMPOSITION_ELEMENTS)
+      if (aNode.getName ().isSameName (XdmConstants.NS_XS, sLocalName))
+        return true;
+    return false;
+  }
+
+  /**
+   * @param aRoot
+   *        An xs:schema element.
+   * @param sAttr
+   *        "elementFormDefault" or "attributeFormDefault".
+   * @return The trimmed value of the attribute, "unqualified" if it is absent.
+   */
+  @NonNull
+  private static String _getFormDefault (@NonNull final IXdmNode aRoot, @NonNull final String sAttr)
+  {
+    final IXdmNode aAttr = aRoot.getAttribute ("", sAttr);
+    return aAttr == null ? "unqualified" : aAttr.getValue ().trim ();
+  }
+
+  /**
+   * Give every local element (or attribute) declaration below a top-level
+   * child of a schema document that has neither a <code>ref</code> nor a
+   * <code>form</code> attribute an explicit <code>form</code>, so that it
+   * keeps the form default of its own schema document when it is moved into
+   * a document with another default. A declaration is local unless its
+   * parent is xs:schema, xs:redefine or xs:override. The walk is iterative.
+   *
+   * @param aTopLevel
+   *        A copied top-level child of xs:schema; modified in place.
+   * @param sLocalName
+   *        "element" or "attribute".
+   * @param sForm
+   *        The form to set: "qualified" or "unqualified".
+   */
+  private static void _setLocalForms (@NonNull final IXdmNode aTopLevel,
+                                      @NonNull final String sLocalName,
+                                      @NonNull final String sForm)
+  {
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
+    for (final IXdmNode aChild : aTopLevel.getAllChildren ())
+      if (aChild.isElement ())
+        aStack.push (aChild);
+    while (!aStack.isEmpty ())
+    {
+      final IXdmNode aNode = aStack.pop ();
+      if (aNode.getName ().isSameName (XdmConstants.NS_XS, sLocalName) &&
+          aNode.getAttribute ("", "ref") == null &&
+          aNode.getAttribute ("", "form") == null)
+        aNode.addAttribute (NodeCopier.createAttribute (new XdmQName ("form"), sForm));
+      for (final IXdmNode aChild : aNode.getAllChildren ())
+        if (aChild.isElement ())
+          aStack.push (aChild);
+    }
+  }
+
+  /**
+   * Copy a top-level child of a schema document for the merged document. If
+   * the element or attribute form default of its schema document differs
+   * from that of the merged document, the local declarations below it get
+   * an explicit <code>form</code> (see {@link #_setLocalForms}). Top-level
+   * xs:redefine and xs:override hold top-level declarations, so their
+   * children are treated like top-level children.
+   *
+   * @param aChild
+   *        The top-level child.
+   * @param aRoot
+   *        Its xs:schema element.
+   * @param aMerged
+   *        The root of the merged document.
+   * @return The copy.
+   */
+  @NonNull
+  private static IXdmNode _copyTopLevel (@NonNull final IXdmNode aChild,
+                                         @NonNull final IXdmNode aRoot,
+                                         @NonNull final IXdmNode aMerged)
+  {
+    final IXdmNode aCopy = NodeCopier.copyDeep (aChild, true);
+    final boolean bContainer = aCopy.getName ().isSameName (XdmConstants.NS_XS, "redefine") ||
+                               aCopy.getName ().isSameName (XdmConstants.NS_XS, "override");
+    for (final String sKind : new String [] { "element", "attribute" })
+    {
+      final String sAttr = sKind + "FormDefault";
+      final String sForm = _getFormDefault (aRoot, sAttr);
+      if (!sForm.equals (_getFormDefault (aMerged, sAttr)))
+      {
+        if (bContainer)
+        {
+          for (final IXdmNode aGrandChild : aCopy.getAllChildren ())
+            if (aGrandChild.isElement ())
+              _setLocalForms (aGrandChild, sKind, sForm);
+        }
+        else
+          _setLocalForms (aCopy, sKind, sForm);
+      }
+    }
+    return aCopy;
+  }
+
+  /**
    * Of several schema documents for the same target namespace a schema
    * processor reads only the first (the namespace is then known). Inline
    * schemas of the same target namespace (e.g. no-namespace schemas of
@@ -317,9 +431,16 @@ public final class SchemaImportCompiler
    * <p>
    * The merged document is a shallow copy of the first schema's root with its
    * namespaces and attributes; the namespaces of the following roots are
-   * declared on it where the prefix is still free, and the element children
-   * of all roots are appended in order. Attributes of the following roots
-   * (e.g. <code>elementFormDefault</code>) are not taken over. The merged
+   * declared on it where the prefix is still free. The xs:include,
+   * xs:import, xs:redefine and xs:override children of all roots come first
+   * (XML Schema requires them before the declarations), followed by the
+   * other element children of all roots, each group in order. A local
+   * declaration of a following root whose <code>elementFormDefault</code> or
+   * <code>attributeFormDefault</code> differs from the first root's gets an
+   * explicit <code>form</code> (see {@link #_copyTopLevel}). Other attributes
+   * of the following roots (<code>blockDefault</code>,
+   * <code>finalDefault</code>, <code>defaultAttributes</code>,
+   * <code>xpathDefaultNamespace</code>) are not taken over. The merged
    * source replaces the group in the list at the position of its first
    * member and keeps that member's system ID. Sources read from a location
    * are never merged; a parse error leaves the list as it is for the
@@ -343,6 +464,8 @@ public final class SchemaImportCompiler
         try
         {
           IXdmNode aMerged = null;
+          final ICommonsList <IXdmNode> aCompositions = new CommonsArrayList <> ();
+          final ICommonsList <IXdmNode> aOthers = new CommonsArrayList <> ();
           for (final XdmSchemaSource aSource : aGroup)
           {
             IXdmNode aRoot = null;
@@ -364,8 +487,12 @@ public final class SchemaImportCompiler
                   aMerged.declareNamespace (aNs.getKey (), aNs.getValue ());
             for (final IXdmNode aChild : aRoot.getAllChildren ())
               if (aChild.isElement ())
-                aMerged.appendChild (NodeCopier.copyDeep (aChild, true));
+                (_isComposition (aChild) ? aCompositions : aOthers).add (_copyTopLevel (aChild, aRoot, aMerged));
           }
+          for (final IXdmNode aChild : aCompositions)
+            aMerged.appendChild (aChild);
+          for (final IXdmNode aChild : aOthers)
+            aMerged.appendChild (aChild);
           final SerializationParams aParams = new SerializationParams ();
           aParams.setOmitXmlDeclaration (true);
           final XdmSchemaSource aNew = new XdmSchemaSource (aGroup.getFirstOrNull ().systemId (),
@@ -382,8 +509,9 @@ public final class SchemaImportCompiler
 
   /**
    * Compile the schema of a schema-aware stylesheet. The declarations are
-   * grouped by package and imported namespace; within a group only those
-   * with the highest import precedence are used (XSLT 3.0 section 3.15), and
+   * grouped by package (by identity) and imported namespace; within a group
+   * only those with the highest import precedence are used (XSLT 3.0 section
+   * 3.15), and
    * the same document (same inline text or same system ID) contributes only
    * once. Inline schemas of one target namespace are merged before the
    * whole set is compiled together.
@@ -410,7 +538,9 @@ public final class SchemaImportCompiler
   {
     // Section 3.15: of several declarations for the same namespace only those
     // with the highest import precedence are used (per package)
-    final ICommonsOrderedMap <String, ICommonsList <Decl>> aByNamespace = new CommonsLinkedHashMap <> ();
+    // Grouped by package unit (by identity), then by imported namespace
+    final Map <PackageUnit, ICommonsOrderedMap <String, ICommonsList <Decl>>> aByUnit = new IdentityHashMap <> ();
+    final ICommonsList <ICommonsList <Decl>> aGroups = new CommonsArrayList <> ();
     XslElement aFirst = null;
     for (final XslElement aEl : aDeclarations)
     {
@@ -424,12 +554,17 @@ public final class SchemaImportCompiler
       XslElement aInline = null;
       for (final XslElement aChild : aEl.getElementChildren ())
         aInline = aChild;
-      final String sKey = System.identityHashCode (aPackages.getUnit (aEl)) + "\u0000" + _getImportedNamespace (aEl, aInline);
-      aByNamespace.computeIfAbsent (sKey, k -> new CommonsArrayList <> ()).add (new Decl (aSource, aEl.getPrecedence ()));
+      final ICommonsOrderedMap <String, ICommonsList <Decl>> aByNamespace = aByUnit.computeIfAbsent (aPackages.getUnit (aEl),
+                                                                                                      k -> new CommonsLinkedHashMap <> ());
+      aByNamespace.computeIfAbsent (_getImportedNamespace (aEl, aInline), k -> {
+        final ICommonsList <Decl> aGroup = new CommonsArrayList <> ();
+        aGroups.add (aGroup);
+        return aGroup;
+      }).add (new Decl (aSource, aEl.getPrecedence ()));
     }
     final ICommonsList <XdmSchemaSource> aSources = new CommonsArrayList <> ();
     final ICommonsSet <String> aSeen = new CommonsHashSet <> ();
-    for (final ICommonsList <Decl> aDecls : aByNamespace.values ())
+    for (final ICommonsList <Decl> aDecls : aGroups)
     {
       int nTop = Integer.MIN_VALUE;
       for (final Decl aDecl : aDecls)

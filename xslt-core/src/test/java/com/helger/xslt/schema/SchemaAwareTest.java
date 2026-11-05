@@ -131,6 +131,54 @@ public final class SchemaAwareTest
   }
 
   @Test
+  public void testTwoInlineSchemasWithDifferentFormDefaults ()
+  {
+    // Merged into one document: the local declarations of the second schema
+    // keep their unqualified form
+    final String sSchemas = "<xsl:import-schema><xs:schema targetNamespace='urn:m' elementFormDefault='qualified'>" +
+                            "<xs:element name='a'><xs:complexType><xs:sequence><xs:element name='c'/></xs:sequence></xs:complexType></xs:element>" +
+                            "</xs:schema></xsl:import-schema>" +
+                            "<xsl:import-schema><xs:schema targetNamespace='urn:m'>" +
+                            "<xs:element name='b'><xs:complexType><xs:sequence><xs:element name='d'/></xs:sequence></xs:complexType></xs:element>" +
+                            "</xs:schema></xsl:import-schema>";
+    assertEquals ("2 ok",
+                  _run (sSchemas +
+                        _template ("<xsl:variable name='v' as='element()+'>" +
+                                   "<m:a xmlns:m='urn:m' xsl:validation='strict'><m:c/></m:a>" +
+                                   "<m:b xmlns:m='urn:m' xsl:validation='strict'><d/></m:b>" +
+                                   "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>"),
+                        true));
+    assertEquals ("XTTE1510",
+                  _errorCode (sSchemas +
+                              _template ("<xsl:variable name='v' as='element()+'>" +
+                                         "<m:a xmlns:m='urn:m' xsl:validation='strict'><c/></m:a>" +
+                                         "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>")));
+    assertEquals ("XTTE1510",
+                  _errorCode (sSchemas +
+                              _template ("<xsl:variable name='v' as='element()+'>" +
+                                         "<m:b xmlns:m='urn:m' xsl:validation='strict'><m:d/></m:b>" +
+                                         "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>")));
+  }
+
+  @Test
+  public void testMergedSchemaImportsFirst ()
+  {
+    // The xs:import of the second inline schema must precede the
+    // declarations of the first one in the merged document
+    final String sSchemas = "<xsl:import-schema><xs:schema targetNamespace='urn:o'><xs:element name='x'/></xs:schema></xsl:import-schema>" +
+                            "<xsl:import-schema><xs:schema targetNamespace='urn:m'><xs:element name='a'/></xs:schema></xsl:import-schema>" +
+                            "<xsl:import-schema><xs:schema targetNamespace='urn:m' xmlns:o='urn:o'><xs:import namespace='urn:o'/>" +
+                            "<xs:element name='b'><xs:complexType><xs:sequence><xs:element ref='o:x'/></xs:sequence></xs:complexType></xs:element>" +
+                            "</xs:schema></xsl:import-schema>";
+    assertEquals ("1 ok",
+                  _run (sSchemas +
+                        _template ("<xsl:variable name='v' as='element()'>" +
+                                   "<m:b xmlns:m='urn:m' xsl:validation='strict'><o:x xmlns:o='urn:o'/></m:b>" +
+                                   "</xsl:variable><xsl:value-of select=\"count($v), 'ok'\"/>"),
+                        true));
+  }
+
+  @Test
   public void testCasts ()
   {
     assertEquals ("true false 2",
