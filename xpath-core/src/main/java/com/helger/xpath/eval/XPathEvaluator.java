@@ -20,11 +20,9 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
@@ -43,19 +41,13 @@ import com.helger.xpath.ast.ExprWalker;
 import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.ast.SeqType;
-import com.helger.xpath.collation.CollationRegistry;
-import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.fn.FnBoolean;
 import com.helger.xpath.fn.FnSequence;
-import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.fn.IXPathFunction;
-import com.helger.xpath.ops.AtomicArithmetic;
 import com.helger.xpath.ops.AtomicCaster;
-import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.ops.Atomizer;
-import com.helger.xpath.ops.SchemaTypeOps;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.IXdmFunction;
 import com.helger.xpath.value.XdmArray;
@@ -65,9 +57,7 @@ import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
-import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
-import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * Tree-walking evaluator for {@link IExpr} (a port of go-xslt's <code>eval.go</code> and
@@ -113,44 +103,10 @@ public final class XPathEvaluator
     return ret;
   }
 
-  /** Atomise, without calling the atomiser for sequences that are atomic already. */
-  @NonNull
-  private static XdmSequence _atomize (@NonNull final XdmSequence aSeq)
-  {
-    for (final IXdmItem aItem : aSeq)
-      if (!(aItem instanceof XdmAtomic))
-        return Atomizer.atomize (aSeq);
-    return aSeq;
-  }
-
-  /**
-   * Atomise an operand that must be empty or one atomic value.
-   *
-   * @return <code>null</code> for the empty sequence.
-   */
-  @Nullable
-  private static XdmAtomic _atomizeOptional (@NonNull final XdmSequence aSeq, @NonNull final String sWhat)
-  {
-    final XdmSequence aAtoms = _atomize (aSeq);
-    if (aAtoms.isEmpty ())
-      return null;
-    if (aAtoms.size () > 1)
-      throw XPathException.type ("The " + sWhat + " is a sequence of " + aAtoms.size () + " items");
-    return (XdmAtomic) aAtoms.get (0);
-  }
-
   @NonNull
   private static String _getStringValue (@NonNull final XdmAtomic aValue)
   {
     return aValue.isStringLike () ? aValue.getString () : aValue.getLexical ();
-  }
-
-  @NonNull
-  private static XdmAtomic _untypedToDouble (@NonNull final XdmAtomic aValue, @NonNull final DynamicContext aCtx)
-  {
-    if (aValue.getType () == EAtomicType.UNTYPED_ATOMIC)
-      return AtomicCaster.castFromString (aValue.getString (), EAtomicType.DOUBLE, aCtx.getStaticContext ());
-    return aValue;
   }
 
   /**
@@ -715,67 +671,6 @@ public final class XPathEvaluator
     return false;
   }
 
-  @NonNull
-  private static String _functionDisplayName (@Nullable final XdmQName aName)
-  {
-    if (aName == null)
-      return "function item";
-    final String sNs = aName.namespaceUri ();
-    if (XdmConstants.NS_FN.equals (sNs))
-      return "fn:" + aName.localName ();
-    if (FunctionLibrary.NS_MATH.equals (sNs))
-      return "math:" + aName.localName ();
-    if (FunctionLibrary.NS_MAP.equals (sNs))
-      return "map:" + aName.localName ();
-    if (FunctionLibrary.NS_ARRAY.equals (sNs))
-      return "array:" + aName.localName ();
-    return aName.getEQName ();
-  }
-
-  /**
-   * Apply the function conversion rules to one argument; a failure names the function and the argument position.
-   */
-  @NonNull
-  private static XdmSequence _convertArgument (@NonNull final XdmSequence aValue,
-                                               @NonNull final SeqType aType,
-                                               @NonNull final DynamicContext aCtx,
-                                               @Nullable final XdmQName aFunctionName,
-                                               final int nArgIndex)
-  {
-    try
-    {
-      return SequenceTypeMatcher.convert (aValue, aType, aCtx, "XPTY0004");
-    }
-    catch (final XPathException ex)
-    {
-      if (ex.getClass () != XPathException.class || !XPathException.ERR_NAMESPACE.equals (ex.getCodeName ().namespaceUri ()))
-        throw ex;
-      throw new XPathException (ex.getCode (),
-                                _functionDisplayName (aFunctionName) +
-                                                ", argument " +
-                                                (nArgIndex + 1) +
-                                                ": " +
-                                                ex.getDescription (),
-                                ex);
-    }
-  }
-
-  @NonNull
-  private static XdmSequence _invokeBuiltIn (@NonNull final FunctionDef aDef,
-                                             @NonNull final DynamicContext aCtx,
-                                             @NonNull final List <XdmSequence> aArgs)
-  {
-    aCtx.enterCall ();
-    try
-    {
-      return aDef.getImpl ().call (aCtx, aArgs);
-    }
-    finally
-    {
-      aCtx.leaveCall ();
-    }
-  }
-
   /**
    * Partial application: evaluate and convert the bound arguments now.
    */
@@ -790,20 +685,13 @@ public final class XPathEvaluator
     {
       final IExpr aArg = aArgs.get (i);
       if (!(aArg instanceof IExpr.PlaceholderExpr))
-        aBound[i] = _convertArgument (evaluateInternal (aArg, aCtx), aParamTypes.get (i), aCtx, aFunc.getName (), i);
+        aBound[i] = XPathOperators.convertArgument (evaluateInternal (aArg, aCtx),
+                                                    aParamTypes.get (i),
+                                                    aCtx,
+                                                    aFunc.getName (),
+                                                    i);
     }
     return XdmSequence.of (new PartialFunctionItem (aFunc, aBound));
-  }
-
-  @NonNull
-  private static FunctionDef _getFunctionDef (@NonNull final DynamicContext aCtx,
-                                              @NonNull final XdmQName aName,
-                                              final int nArity)
-  {
-    final FunctionDef ret = aCtx.getStaticContext ().getFunctionLibrary ().getFunction (aName, nArity);
-    if (ret == null)
-      throw XPathException.of ("XPST0017", "Unknown function " + aName.getEQName () + "#" + nArity);
-    return ret;
   }
 
   /**
@@ -836,7 +724,7 @@ public final class XPathEvaluator
                                                 @NonNull final DynamicContext aCtx)
   {
     final List <IExpr> aArgExprs = aExpr.args ();
-    final FunctionDef aDef = _getFunctionDef (aCtx, aExpr.name (), aArgExprs.size ());
+    final FunctionDef aDef = XPathOperators.getFunctionDef (aCtx, aExpr.name (), aArgExprs.size ());
     if (_hasPlaceholder (aArgExprs))
       return _partialApply (new BuiltInFunctionItem (aDef, aCtx), aArgExprs, aCtx);
     if (aArgExprs.size () == 1)
@@ -852,9 +740,9 @@ public final class XPathEvaluator
     {
       // XPath 1.0 compatibility rules are applied inside convert
       final XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
-      aArgs.add (_convertArgument (aValue, aParamTypes.get (i), aCtx, aDef.getName (), i));
+      aArgs.add (XPathOperators.convertArgument (aValue, aParamTypes.get (i), aCtx, aDef.getName (), i));
     }
-    return _invokeBuiltIn (aDef, aCtx, aArgs);
+    return XPathOperators.invokeBuiltIn (aDef, aCtx, aArgs);
   }
 
   @NonNull
@@ -886,21 +774,10 @@ public final class XPathEvaluator
     return callFunction (aCtx, aFuncItem, aArgs);
   }
 
-  /**
-   * @return The default collation of the static context, <code>null</code> for the codepoint
-   *         collation.
-   */
-  @Nullable
-  private static ICollation _getDefaultCollation (@NonNull final DynamicContext aCtx)
-  {
-    final String sUri = aCtx.getStaticContext ().getDefaultCollation ();
-    return CollationRegistry.CODEPOINT_URI.equals (sUri) ? null : CollationRegistry.getCollationOrThrow (sUri);
-  }
-
   @Nullable
   private static BigInteger _getRangeOperand (@NonNull final XdmSequence aSeq, @NonNull final DynamicContext aCtx)
   {
-    XdmAtomic aValue = _atomizeOptional (aSeq, "operand of 'to'");
+    XdmAtomic aValue = XPathOperators.atomizeOptional (aSeq, "operand of 'to'");
     if (aValue == null)
       return null;
     if (aValue.getType () == EAtomicType.UNTYPED_ATOMIC)
@@ -1006,7 +883,7 @@ public final class XPathEvaluator
         aValues.add (aAtomic);
       else
         if (aAtomic.getType () == EAtomicType.UNTYPED_ATOMIC)
-          aValues.add (_untypedToDouble (aAtomic, aCtx));
+          aValues.add (XPathOperators.untypedToDouble (aAtomic, aCtx));
         else
           return null;
     }
@@ -1028,119 +905,6 @@ public final class XPathEvaluator
     return FALSE_SEQ;
   }
 
-  /** Marks a sequence for which no equality index can be built. */
-  private static final Object NO_INDEX = new Object ();
-  private static final String RUN_CACHE_EQ_INDEX = "xpath:eq-index";
-
-  /**
-   * Build (or get from the run cache) a hash index of a long sequence for general equality: kind 0
-   * = numbers as doubles (untypedAtomic cast to xs:double), 1 = integers exactly, 2 = strings by
-   * codepoints.
-   *
-   * @return The set of keys or <code>null</code> if no index is possible.
-   */
-  @Nullable
-  @SuppressWarnings ("unchecked")
-  private static Set <Object> _getEqualityIndex (@NonNull final XdmSequence aSeq,
-                                                 final int nKind,
-                                                 @NonNull final DynamicContext aCtx)
-  {
-    final Map <String, Object> aCache = aCtx.getRunCache ();
-    IdentityHashMap <XdmSequence, Object []> aIndexes = (IdentityHashMap <XdmSequence, Object []>) aCache.get (RUN_CACHE_EQ_INDEX);
-    if (aIndexes == null)
-    {
-      aIndexes = new IdentityHashMap <> ();
-      aCache.put (RUN_CACHE_EQ_INDEX, aIndexes);
-    }
-    final Object [] aSlots = aIndexes.computeIfAbsent (aSeq, k -> new Object [3]);
-    if (aSlots[nKind] == null)
-    {
-      final Set <Object> aSet = new HashSet <> ();
-      Object aResult = aSet;
-      for (final IXdmItem aItem : _atomize (aSeq))
-      {
-        final XdmAtomic aAtom = (XdmAtomic) aItem;
-        final EAtomicType eType = aAtom.getType ();
-        if (nKind == 0 && eType == EAtomicType.UNTYPED_ATOMIC)
-        {
-          try
-          {
-            final double d = AtomicCaster.castFromString (aAtom.getString (),
-                                                          EAtomicType.DOUBLE,
-                                                          aCtx.getStaticContext ()).getAsDouble ();
-            // NaN equals nothing; +0 and -0 are equal
-            if (!Double.isNaN (d))
-              aSet.add (Double.valueOf (d == 0 ? 0d : d));
-          }
-          catch (final XPathException ex)
-          {
-            aResult = NO_INDEX;
-            break;
-          }
-        }
-        else
-          if (nKind == 1 && eType.isIntegerFamily ())
-            aSet.add (aAtom.getBigInteger ());
-          else
-            if (nKind == 2 && aAtom.isStringLike ())
-              aSet.add (aAtom.getString ());
-            else
-            {
-              aResult = NO_INDEX;
-              break;
-            }
-      }
-      aSlots[nKind] = aResult;
-    }
-    return aSlots[nKind] == NO_INDEX ? null : (Set <Object>) aSlots[nKind];
-  }
-
-  /**
-   * General equality of one atomic value against a long sequence via a hash index (the same long
-   * sequence is typically compared many times, e.g. in a predicate).
-   *
-   * @return The result or <code>null</code> if the fast path does not apply.
-   */
-  @Nullable
-  private static XdmSequence _evalIndexedEquality (@NonNull final XdmSequence aLeft,
-                                                   @NonNull final XdmSequence aRight,
-                                                   @NonNull final DynamicContext aCtx)
-  {
-    final boolean bLeftBig = aLeft.size () >= 64;
-    final XdmSequence aBig = bLeftBig ? aLeft : aRight;
-    final XdmSequence aOne = bLeftBig ? aRight : aLeft;
-    if (aBig.size () < 64 || aOne.size () != 1 || !(aOne.get (0) instanceof final XdmAtomic aProbe))
-      return null;
-    if (_getDefaultCollation (aCtx) != null)
-      return null;
-    final EAtomicType eType = aProbe.getType ();
-    if (eType == EAtomicType.UNTYPED_ATOMIC)
-      return null;
-    if (eType.isIntegerFamily ())
-    {
-      final Set <Object> aInts = _getEqualityIndex (aBig, 1, aCtx);
-      if (aInts != null)
-        return _bool (aInts.contains (aProbe.getBigInteger ()));
-    }
-    if (eType.isNumeric ())
-    {
-      final Set <Object> aDoubles = _getEqualityIndex (aBig, 0, aCtx);
-      if (aDoubles != null)
-      {
-        final double d = aProbe.getAsDouble ();
-        return _bool (!Double.isNaN (d) && aDoubles.contains (Double.valueOf (d == 0 ? 0d : d)));
-      }
-      return null;
-    }
-    if (aProbe.isStringLike ())
-    {
-      final Set <Object> aStrings = _getEqualityIndex (aBig, 2, aCtx);
-      if (aStrings != null)
-        return _bool (aStrings.contains (aProbe.getString ()));
-    }
-    return null;
-  }
-
   @NonNull
   private static XdmSequence _evalComparison (final IExpr.@NonNull ComparisonExpr aExpr,
                                               @NonNull final DynamicContext aCtx)
@@ -1150,94 +914,30 @@ public final class XPathEvaluator
     {
       if (aExpr.right () instanceof final IExpr.RangeExpr aRange)
       {
-        final XdmSequence aLeft = _atomize (evaluateInternal (aExpr.left (), aCtx));
+        final XdmSequence aLeft = XPathOperators.atomize (evaluateInternal (aExpr.left (), aCtx));
         final XdmSequence aFast = _evalRangeComparison (aExpr.op (), aRange, aLeft, aCtx);
         if (aFast != null)
           return aFast;
-        return _bool (AtomicComparator.generalCompare (aExpr.op (),
-                                                       aLeft,
-                                                       _atomize (evaluateInternal (aRange, aCtx)),
-                                                       _getDefaultCollation (aCtx),
-                                                       aCtx));
+        return _bool (XPathOperators.generalCompareAtoms (aExpr.op (),
+                                                          aLeft,
+                                                          XPathOperators.atomize (evaluateInternal (aRange, aCtx)),
+                                                          aCtx));
       }
       if (aExpr.left () instanceof final IExpr.RangeExpr aRange)
       {
-        final XdmSequence aRight = _atomize (evaluateInternal (aExpr.right (), aCtx));
+        final XdmSequence aRight = XPathOperators.atomize (evaluateInternal (aExpr.right (), aCtx));
         final XdmSequence aFast = _evalRangeComparison (_swapGeneralOp (aExpr.op ()), aRange, aRight, aCtx);
         if (aFast != null)
           return aFast;
-        return _bool (AtomicComparator.generalCompare (aExpr.op (),
-                                                       _atomize (evaluateInternal (aRange, aCtx)),
-                                                       aRight,
-                                                       _getDefaultCollation (aCtx),
-                                                       aCtx));
+        return _bool (XPathOperators.generalCompareAtoms (aExpr.op (),
+                                                          XPathOperators.atomize (evaluateInternal (aRange, aCtx)),
+                                                          aRight,
+                                                          aCtx));
       }
     }
     final XdmSequence aLeft = evaluateInternal (aExpr.left (), aCtx);
     final XdmSequence aRight = evaluateInternal (aExpr.right (), aCtx);
-    if (aExpr.op () == EComparisonOp.GENERAL_EQ && !aCtx.getStaticContext ().isXPath10Compatibility ())
-    {
-      final XdmSequence aFast = _evalIndexedEquality (aLeft, aRight, aCtx);
-      if (aFast != null)
-        return aFast;
-    }
-    if (aExpr.op ().isGeneral ())
-      return _bool (AtomicComparator.generalCompare (aExpr.op (),
-                                                     _atomize (aLeft),
-                                                     _atomize (aRight),
-                                                     _getDefaultCollation (aCtx),
-                                                     aCtx));
-
-    if (aExpr.op ().isValue ())
-    {
-      XdmAtomic aL = _atomizeOptional (aLeft, "left operand of a value comparison");
-      if (aL == null)
-        return XdmSequence.EMPTY;
-      XdmAtomic aR = _atomizeOptional (aRight, "right operand of a value comparison");
-      if (aR == null)
-        return XdmSequence.EMPTY;
-      if (aL.getType () == EAtomicType.UNTYPED_ATOMIC)
-        aL = XdmAtomic.string (aL.getString ());
-      if (aR.getType () == EAtomicType.UNTYPED_ATOMIC)
-        aR = XdmAtomic.string (aR.getString ());
-      return _bool (AtomicComparator.valueCompare (aExpr.op (), aL, aR, _getDefaultCollation (aCtx), aCtx));
-    }
-
-    // Node comparison
-    if (aLeft.isEmpty () || aRight.isEmpty ())
-      return XdmSequence.EMPTY;
-    if (!aLeft.isSingleton () ||
-        !aRight.isSingleton () ||
-        !(aLeft.get (0) instanceof final IXdmNode aL) ||
-        !(aRight.get (0) instanceof final IXdmNode aR))
-      throw XPathException.type ("The operands of a node comparison must be single nodes");
-    return switch (aExpr.op ())
-    {
-      case NODE_IS -> _bool (aL == aR);
-      case NODE_PRECEDES -> _bool (IXdmNode.compareDocumentOrder (aL, aR) < 0);
-      default -> _bool (IXdmNode.compareDocumentOrder (aL, aR) > 0);
-    };
-  }
-
-  /**
-   * An arithmetic operand in XPath 1.0 compatibility mode (XPath 3.1 section 3.5): only the first
-   * atomised item counts, an empty operand is NaN, and booleans, strings, untyped and numeric
-   * values are converted with fn:number.
-   */
-  @NonNull
-  private static XdmAtomic _arithmeticOperand10 (@NonNull final XdmSequence aSeq)
-  {
-    final XdmSequence aAtoms = _atomize (aSeq);
-    if (aAtoms.isEmpty ())
-      return XdmAtomic.dbl (Double.NaN);
-    final XdmAtomic aValue = (XdmAtomic) aAtoms.get (0);
-    final EAtomicType eType = aValue.getType ();
-    if (aValue.isNumeric () ||
-        eType == EAtomicType.BOOLEAN ||
-        eType.isStringFamily () ||
-        eType == EAtomicType.UNTYPED_ATOMIC)
-      return XdmAtomic.dbl (AtomicComparator.toNumber (aValue));
-    return aValue;
+    return XPathOperators.compare (aExpr.op (), aLeft, aRight, aCtx);
   }
 
   @NonNull
@@ -1249,45 +949,15 @@ public final class XPathEvaluator
     if (eOp == EBinaryOp.OR)
       return _bool (_getEbv (aExpr.left (), aCtx) || _getEbv (aExpr.right (), aCtx));
 
-    final XdmSequence aLeftSeq = evaluateInternal (aExpr.left (), aCtx);
-    final XdmSequence aRightSeq = evaluateInternal (aExpr.right (), aCtx);
-    if (aCtx.getStaticContext ().isXPath10Compatibility ())
-      return XdmSequence.of (AtomicArithmetic.arithmetic (eOp,
-                                                          _arithmeticOperand10 (aLeftSeq),
-                                                          _arithmeticOperand10 (aRightSeq),
-                                                          aCtx));
-    final XdmAtomic aLeft = _atomizeOptional (aLeftSeq, "left operand of an arithmetic expression");
-    if (aLeft == null)
-      return XdmSequence.EMPTY;
-    final XdmAtomic aRight = _atomizeOptional (aRightSeq, "right operand of an arithmetic expression");
-    if (aRight == null)
-      return XdmSequence.EMPTY;
-    return XdmSequence.of (AtomicArithmetic.arithmetic (eOp,
-                                                        _untypedToDouble (aLeft, aCtx),
-                                                        _untypedToDouble (aRight, aCtx),
-                                                        aCtx));
+    final XdmSequence aLeft = evaluateInternal (aExpr.left (), aCtx);
+    final XdmSequence aRight = evaluateInternal (aExpr.right (), aCtx);
+    return XPathOperators.arithmetic (eOp, aLeft, aRight, aCtx);
   }
 
   @NonNull
   private static XdmSequence _evalUnary (final IExpr.@NonNull UnaryExpr aExpr, @NonNull final DynamicContext aCtx)
   {
-    final XdmSequence aOperand = evaluateInternal (aExpr.operand (), aCtx);
-    final XdmAtomic aNum;
-    if (aCtx.getStaticContext ().isXPath10Compatibility ())
-      aNum = _arithmeticOperand10 (aOperand);
-    else
-    {
-      final XdmAtomic aValue = _atomizeOptional (aOperand, "operand of a unary operator");
-      if (aValue == null)
-        return XdmSequence.EMPTY;
-      aNum = _untypedToDouble (aValue, aCtx);
-    }
-    if (aExpr.negate ())
-      return XdmSequence.of (AtomicArithmetic.negate (aNum));
-    if (!aNum.isNumeric ())
-      throw XPathException.type ("The operand of unary plus must be numeric, not " +
-                                 aNum.getType ().getQualifiedName ());
-    return XdmSequence.of (aNum);
+    return XPathOperators.unaryArithmetic (aExpr.negate (), evaluateInternal (aExpr.operand (), aCtx), aCtx);
   }
 
   @NonNull
@@ -1297,7 +967,7 @@ public final class XPathEvaluator
     final StringBuilder aSB = new StringBuilder ();
     for (final IExpr aPart : aExpr.parts ())
     {
-      final XdmAtomic aValue = _atomizeOptional (evaluateInternal (aPart, aCtx), "operand of '||'");
+      final XdmAtomic aValue = XPathOperators.atomizeOptional (evaluateInternal (aPart, aCtx), "operand of '||'");
       if (aValue != null)
         aSB.append (_getStringValue (aValue));
     }
@@ -1452,131 +1122,12 @@ public final class XPathEvaluator
   }
 
   @NonNull
-  private static XdmSequence _castToList (@NonNull final XdmAtomic aValue,
-                                          @NonNull final EAtomicType eItemType,
-                                          @NonNull final DynamicContext aCtx)
-  {
-    if (!aValue.getType ().isStringFamily () && aValue.getType () != EAtomicType.UNTYPED_ATOMIC)
-      throw XPathException.type ("Only strings can be cast to a list type, not " +
-                                 aValue.getType ().getQualifiedName ());
-    final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
-    for (final String sToken : aValue.getString ().split ("[ \\t\\r\\n]+"))
-      if (!sToken.isEmpty ())
-        aBuilder.add (AtomicCaster.castFromString (sToken, eItemType, aCtx.getStaticContext ()));
-    if (aBuilder.size () == 0)
-      throw XPathException.invalidValue ("A value of a list type must have at least one item");
-    return aBuilder.build ();
-  }
-
-  @NonNull
-  private static XdmAtomic _castAtomic (@NonNull final XdmAtomic aValue,
-                                        @NonNull final EAtomicType eTarget,
-                                        @NonNull final DynamicContext aCtx)
-  {
-    if (eTarget == EAtomicType.NUMERIC)
-    {
-      // Casting to the union xs:numeric tries its members in order
-      if (aValue.isNumeric ())
-        return aValue;
-      return AtomicCaster.cast (aValue, EAtomicType.DOUBLE, aCtx.getStaticContext ());
-    }
-    return AtomicCaster.cast (aValue, eTarget, aCtx.getStaticContext ());
-  }
-
-  private static boolean _isCastable (@NonNull final XdmAtomic aValue,
-                                      @NonNull final EAtomicType eTarget,
-                                      @NonNull final DynamicContext aCtx)
-  {
-    if (eTarget == EAtomicType.NUMERIC)
-      return aValue.isNumeric () || AtomicCaster.isCastable (aValue, EAtomicType.DOUBLE, aCtx.getStaticContext ());
-    return AtomicCaster.isCastable (aValue, eTarget, aCtx.getStaticContext ());
-  }
-
-  /**
-   * Cast or castable to a user-defined simple type of the in-scope schema definitions.
-   */
-  @NonNull
-  private static XdmSequence _evalSchemaCast (final IExpr.@NonNull CastExpr aExpr,
-                                              @NonNull final IXdmTypeDefinition aTarget,
-                                              @NonNull final DynamicContext aCtx)
-  {
-    final SeqType aType = aExpr.type ();
-    final boolean bCastable = aExpr.castable ();
-    final XdmSequence aAtoms = _atomize (evaluateInternal (aExpr.operand (), aCtx));
-    if (aAtoms.isEmpty ())
-    {
-      final boolean bAllowEmpty = aType.occurrence ().allowsEmpty ();
-      if (bCastable)
-        return _bool (bAllowEmpty);
-      if (bAllowEmpty)
-        return XdmSequence.EMPTY;
-      throw XPathException.type ("An empty sequence cannot be cast to a user-defined type");
-    }
-    if (aAtoms.size () > 1)
-    {
-      if (bCastable)
-        return FALSE_SEQ;
-      throw XPathException.type ("A sequence of " + aAtoms.size () + " items cannot be cast");
-    }
-    final XdmAtomic aValue = (XdmAtomic) aAtoms.get (0);
-    if (!bCastable)
-      return SchemaTypeOps.cast (aValue, aTarget, aCtx.getStaticContext ());
-    try
-    {
-      SchemaTypeOps.cast (aValue, aTarget, aCtx.getStaticContext ());
-      return TRUE_SEQ;
-    }
-    catch (final XPathException ex)
-    {
-      return FALSE_SEQ;
-    }
-  }
-
-  @NonNull
   private static XdmSequence _evalCast (final IExpr.@NonNull CastExpr aExpr, @NonNull final DynamicContext aCtx)
   {
-    final SeqType aType = aExpr.type ();
-    final IXdmTypeDefinition aSchemaTarget = aType.itemType ().schemaType ();
-    if (aSchemaTarget != null)
-      return _evalSchemaCast (aExpr, aSchemaTarget, aCtx);
-    final EAtomicType eTarget = aType.itemType ().atomicType ();
-    if (eTarget == EAtomicType.ANY_ATOMIC_TYPE || eTarget == EAtomicType.NOTATION)
-      throw XPathException.of ("XPST0080", eTarget.getQualifiedName () + " is not a valid cast target");
-    final boolean bCastable = aExpr.castable ();
-    final XdmSequence aAtoms = _atomize (evaluateInternal (aExpr.operand (), aCtx));
-    if (aAtoms.isEmpty ())
-    {
-      final boolean bAllowEmpty = aType.occurrence ().allowsEmpty ();
-      if (bCastable)
-        return _bool (bAllowEmpty);
-      if (bAllowEmpty)
-        return XdmSequence.EMPTY;
-      throw XPathException.type ("An empty sequence cannot be cast to " + eTarget.getQualifiedName ());
-    }
-    if (aAtoms.size () > 1)
-    {
-      if (bCastable)
-        return FALSE_SEQ;
-      throw XPathException.type ("A sequence of " + aAtoms.size () + " items cannot be cast");
-    }
-    final XdmAtomic aValue = (XdmAtomic) aAtoms.get (0);
-    if (aType.listCast ())
-    {
-      if (!bCastable)
-        return _castToList (aValue, eTarget, aCtx);
-      try
-      {
-        _castToList (aValue, eTarget, aCtx);
-        return TRUE_SEQ;
-      }
-      catch (final XPathException ex)
-      {
-        return FALSE_SEQ;
-      }
-    }
-    if (bCastable)
-      return _bool (_isCastable (aValue, eTarget, aCtx));
-    return XdmSequence.of (_castAtomic (aValue, eTarget, aCtx));
+    final XdmSequence aValue = evaluateInternal (aExpr.operand (), aCtx);
+    if (aExpr.castable ())
+      return _bool (XPathOperators.castable (aValue, aExpr.type (), aCtx));
+    return XPathOperators.cast (aValue, aExpr.type (), aCtx);
   }
 
   @NonNull
@@ -1588,7 +1139,7 @@ public final class XPathEvaluator
     final XdmMap.Builder aMap = new XdmMap.Builder (aKeys.size ());
     for (int i = 0; i < aKeys.size (); ++i)
     {
-      final XdmSequence aKeySeq = _atomize (evaluateInternal (aKeys.get (i), aCtx));
+      final XdmSequence aKeySeq = XPathOperators.atomize (evaluateInternal (aKeys.get (i), aCtx));
       if (!aKeySeq.isSingleton ())
         throw XPathException.type ("A map key must be a single atomic value, but it has " + aKeySeq.size () + " items");
       final XdmAtomic aKey = (XdmAtomic) aKeySeq.get (0);
@@ -1640,7 +1191,8 @@ public final class XPathEvaluator
   {
     final XdmSequence aBase = aExpr.base () == null ? XdmSequence.of (_getContextItem (aCtx))
                                                     : evaluateInternal (aExpr.base (), aCtx);
-    final XdmSequence aKeys = aExpr.key () == null ? null : _atomize (evaluateInternal (aExpr.key (), aCtx));
+    final XdmSequence aKeys = aExpr.key () == null ? null
+                                                   : XPathOperators.atomize (evaluateInternal (aExpr.key (), aCtx));
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     for (final IXdmItem aItem : aBase)
     {
@@ -1711,7 +1263,7 @@ public final class XPathEvaluator
   private static XdmSequence _evalNamedFunctionRef (final IExpr.@NonNull NamedFunctionRefExpr aExpr,
                                                     @NonNull final DynamicContext aCtx)
   {
-    final FunctionDef aDef = _getFunctionDef (aCtx, aExpr.name (), aExpr.arity ());
+    final FunctionDef aDef = XPathOperators.getFunctionDef (aCtx, aExpr.name (), aExpr.arity ());
     return XdmSequence.of (new BuiltInFunctionItem (aDef, aDef.isFocusDependent () ? aCtx : null));
   }
 
@@ -1888,7 +1440,7 @@ public final class XPathEvaluator
     final List <SeqType> aParamTypes = aFunc.getParamTypes ();
     final ICommonsList <XdmSequence> aConverted = new CommonsArrayList <> (nArity);
     for (int i = 0; i < nArity; ++i)
-      aConverted.add (_convertArgument (aArgs.get (i), aParamTypes.get (i), aCtx, aFunc.getName (), i));
+      aConverted.add (XPathOperators.convertArgument (aArgs.get (i), aParamTypes.get (i), aCtx, aFunc.getName (), i));
     aCtx.checkInterrupt ();
     final XdmSequence aResult;
     aCtx.enterCall ();

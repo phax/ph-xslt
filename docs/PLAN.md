@@ -231,6 +231,34 @@ Result (`XPathEvaluator`):
   noise), `count(//Line[ID = '10'])` 8.3-8.6 -> 8.1 ms.
 * Tests: `EarlyExitTest` (xpath-core), including the MLS case. QT3, XSLT30 and xsdtests fail lists unchanged by name.
 
+## Public operator API
+
+Status: done (2026-11-05; S3 of ph-sch2java's `docs/SUGGESTIONS-sch2java.md`).
+
+ph-sch2java generates Java for the structure of Schematron expressions (navigation, loops, `and`/`or`, quantifiers),
+but the helpers with the evaluator's semantics for comparisons, arithmetic, casts and function argument conversion
+were private in `XPathEvaluator`. The generated code therefore built a small AST over operand variables per operator
+(`XRt.delegate`/`XRt.op`) and evaluated it in a new `DynamicContext` each time.
+
+Result: `com.helger.xpath.eval.XPathOperators`, next to `XPathEvaluator` (it needs `SequenceTypeMatcher` and the
+package-private parts of the evaluator; the `ops` package stays at the level of single atomic values). The code was
+moved there from `XPathEvaluator`, which now calls the same methods, so there is one implementation:
+
+* `generalCompare (EComparisonOp, XdmSequence, XdmSequence, DynamicContext)` returns `boolean`: atomisation, default
+  collation, the XPath 1.0 comparison rules in compatibility mode, and for `=` the hash index of a long sequence in the
+  run cache (the evaluator's general-equality index). The range fast path (`$x = (1 to 100000)`) needs the
+  unevaluated range and stays in the evaluator.
+* `valueCompare` and `nodeCompare` return the empty sequence or a boolean, `compare` dispatches by the operator.
+* `arithmetic (EBinaryOp, ...)` and `unaryArithmetic (boolean, ...)`, both with the XPath 1.0 compatibility rules.
+* `cast (XdmSequence, SeqType, DynamicContext)` and `castable` (atomic, list and schema target types).
+* `getFunctionDef (DynamicContext, XdmQName, int)` (XPST0017) and `callFunction (FunctionDef, DynamicContext, List)`:
+  the function conversion rules per argument (errors name the function and the argument), then the static
+  implementation within `enterCall`/`leaveCall`. The evaluator converts each argument right after evaluating it, as
+  before, through the same conversion method.
+* Not covered: the node step with the name index (S2 of the suggestions, `AxisNavigator`), set operators, ranges,
+  `||`, `instance of` and `treat as`; generated code keeps the delegated AST for those.
+* Tests: `XPathOperatorsTest` (xpath-core). QT3, XSLT30 and xsdtests fail lists unchanged by name.
+
 ## Streaming
 
 Status: in progress (started 2026-11-04). After streaming, performance and memory optimisation start (focused on the
