@@ -403,4 +403,20 @@ public final class XsltInstructionsTest
     // A value that cannot be cast to xs:double is NaN, which sorts first
     assertEquals ("2001 1", text (IT + "<xsl:value-of separator=' '><xsl:perform-sort select='(1, xs:gYear(\"2001\"))'><xsl:sort select='.' data-type='number'/></xsl:perform-sort></xsl:value-of>" + TE, null));
   }
+
+  @Test
+  public void testBuiltInRulesForFunctionsAndArrays ()
+  {
+    // XSLT 3.0 section 6.7: function items and arrays are copied with
+    // deep-copy and shallow-copy, function items are dropped otherwise, the
+    // members of an array are processed with text-only-copy and shallow-skip
+    final String sApply = "<xsl:variable name='r' as='item()*'><xsl:apply-templates select='(true#0, [1,2], map{})'/></xsl:variable>" +
+                          "<xsl:value-of select='for $i in $r return if ($i instance of array(*)) then \"A\" else if ($i instance of map(*)) then \"M\" else if ($i instance of function(*)) then \"F\" else string($i)'/>";
+    for (final String sMode : new String [] { "deep-copy", "shallow-copy" })
+      assertEquals (sMode, "F A M", text ("<xsl:mode on-no-match='" + sMode + "'/>" + IT + sApply + TE, null));
+    assertEquals ("1 2", text ("<xsl:mode on-no-match='text-only-copy'/>" + IT + sApply + TE, null));
+    assertEquals ("", text ("<xsl:mode on-no-match='shallow-skip'/>" + IT + sApply + TE, null));
+    assertEquals ("", text ("<xsl:mode on-no-match='deep-skip'/>" + IT + sApply + TE, null));
+    assertEquals ("XTDE0555", errorCode (SHEET + "<xsl:mode on-no-match='fail'/>" + IT + "<xsl:apply-templates select='true#0'/>" + TE + END, null));
+  }
 }

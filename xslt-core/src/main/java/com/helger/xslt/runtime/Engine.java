@@ -41,7 +41,6 @@ import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.fn.FnAccessor;
 import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.ops.Atomizer;
-import com.helger.xpath.value.IXdmFunction;
 import com.helger.xpath.value.XdmArray;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
@@ -792,13 +791,14 @@ public final class Engine
   }
 
   /**
-   * Apply the built-in template rule of a mode (XSLT 3.0 section 6.7). A
-   * function item always raises XTDE0555, as does any item in a mode with
-   * on-no-match="fail". An array is ignored with deep-skip; under every other
-   * on-no-match value templates are applied to its flattened members. Atomic
-   * values and maps produce their lexical form as text (text-only-copy, only
-   * for atomic values), are copied unchanged (shallow-copy, deep-copy) or are
-   * dropped (the skip variants). For nodes:
+   * Apply the built-in template rule of a mode (XSLT 3.0 section 6.7). Any
+   * item in a mode with on-no-match="fail" raises XTDE0555. An array is copied
+   * unchanged with shallow-copy and deep-copy, ignored with deep-skip, and
+   * with text-only-copy and shallow-skip templates are applied to its
+   * flattened members. Atomic values, maps and other function items are copied
+   * unchanged (shallow-copy, deep-copy) or dropped (the skip variants and
+   * text-only-copy); with text-only-copy an atomic value produces its lexical
+   * form as text. For nodes:
    * <ul>
    * <li>deep-skip: templates are applied to the children of a document node;
    * every other node produces nothing.</li>
@@ -827,7 +827,7 @@ public final class Engine
    * @param aOut
    *        Output.
    * @throws XPathException
-   *         XTDE0555 for a function item or with on-no-match="fail"
+   *         XTDE0555 with on-no-match="fail"
    */
   public void applyBuiltIn (@NonNull final Mode aMode,
                             @NonNull final IXdmItem aItem,
@@ -836,14 +836,11 @@ public final class Engine
                             @NonNull final IXsltOutput aOut)
   {
     final EOnNoMatch eOnNoMatch = aMode.getOnNoMatch ();
-    if (aItem instanceof IXdmFunction)
-      throw new XPathException ("XTDE0555", "No template rule matches a function item, and there is no built-in rule for it");
     if (eOnNoMatch == EOnNoMatch.FAIL)
       throw new XPathException ("XTDE0555", "No template rule matches the item and the mode " + aMode + " has on-no-match='fail'");
-    if (aItem instanceof final XdmArray aArray)
+    if (aItem instanceof final XdmArray aArray &&
+        (eOnNoMatch == EOnNoMatch.TEXT_ONLY_COPY || eOnNoMatch == EOnNoMatch.SHALLOW_SKIP))
     {
-      if (eOnNoMatch == EOnNoMatch.DEEP_SKIP)
-        return;
       final XdmSequence.Builder aMembers = new XdmSequence.Builder ();
       for (final XdmSequence aMember : aArray.members ())
         aMembers.addAll (aMember);
@@ -852,7 +849,7 @@ public final class Engine
     }
     if (!(aItem instanceof final IXdmNode aNode))
     {
-      // Atomic values and maps
+      // Atomic values and function items, including maps and arrays
       switch (eOnNoMatch)
       {
         case TEXT_ONLY_COPY:
