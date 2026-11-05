@@ -57,6 +57,14 @@ final class XercesSchemaSet extends AbstractJaxpSchemaSet
     m_aModel = aModel;
   }
 
+  /**
+   * The Xerces-J validator reports its own type definitions, which implement
+   * both {@link TypeInfo} and {@link XSTypeDefinition}, so they are wrapped
+   * directly.
+   *
+   * @throws IllegalStateException
+   *         if the type is not a Xerces-J type definition
+   */
   @NonNull
   @Override
   protected IXdmTypeDefinition getDefinition (@NonNull final TypeInfo aTypeInfo)
@@ -66,6 +74,12 @@ final class XercesSchemaSet extends AbstractJaxpSchemaSet
     throw new IllegalStateException ("Not a Xerces-J type: " + aTypeInfo);
   }
 
+  /**
+   * The declared type comes from the attribute PSVI of the Xerces-J
+   * validator; <code>null</code> for a validator that is no
+   * {@link PSVIProvider}. The function gives <code>null</code> for an
+   * attribute without PSVI or type definition.
+   */
   @Nullable
   @Override
   protected IntFunction <TypeInfo> getDeclaredAttributeTypes (@NonNull final ValidatorHandler aValidator)
@@ -78,6 +92,10 @@ final class XercesSchemaSet extends AbstractJaxpSchemaSet
     };
   }
 
+  /**
+   * @return The namespace URI of the name as Xerces-J expects it:
+   *         <code>null</code> for no namespace.
+   */
   @Nullable
   private static String _ns (@NonNull final XdmQName aName)
   {

@@ -34,8 +34,18 @@ public interface IXdmElementDeclaration
   @NonNull
   IXdmTypeDefinition getTypeDefinition ();
 
+  /**
+   * @return <code>true</code> if the declaration has
+   *         <code>nillable="true"</code>, so that an instance may carry
+   *         <code>xsi:nil="true"</code>.
+   */
   boolean isNillable ();
 
+  /**
+   * @return <code>true</code> if the declaration has
+   *         <code>abstract="true"</code>, so that only members of its
+   *         substitution group may appear in an instance.
+   */
   boolean isAbstract ();
 
   /**

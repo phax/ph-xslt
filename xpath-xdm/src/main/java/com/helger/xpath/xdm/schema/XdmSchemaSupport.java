@@ -63,6 +63,15 @@ public final class XdmSchemaSupport
   private XdmSchemaSupport ()
   {}
 
+  /**
+   * Instantiate the native provider by name through its public no-argument
+   * constructor.
+   *
+   * @param aLoader
+   *        The class loader to load it with.
+   * @return The provider, or <code>null</code> if it is not on the class path
+   *         or cannot be created.
+   */
   @Nullable
   private static IXdmSchemaProvider _loadNativeProvider (@NonNull final ClassLoader aLoader)
   {
@@ -78,6 +87,17 @@ public final class XdmSchemaSupport
     }
   }
 
+  /**
+   * Choose the provider once, at class initialisation, from the system
+   * property {@link #SYSTEM_PROPERTY_PROVIDER}: unless it is
+   * <code>xerces</code> the native provider is tried first, and with
+   * <code>native</code> its absence is final. Otherwise the Xerces-J bridge
+   * is created, but only if the Xerces-J marker class can be found (without
+   * initialising it). Any other value of the property behaves like no value.
+   *
+   * @return The provider, or <code>null</code> if schema processing is not
+   *         available.
+   */
   @Nullable
   private static IXdmSchemaProvider _loadProvider ()
   {
@@ -117,6 +137,11 @@ public final class XdmSchemaSupport
     return PROVIDER != null;
   }
 
+  /**
+   * @return The provider in use.
+   * @throws IllegalStateException
+   *         if schema processing is not available
+   */
   @NonNull
   private static IXdmSchemaProvider _getProvider ()
   {

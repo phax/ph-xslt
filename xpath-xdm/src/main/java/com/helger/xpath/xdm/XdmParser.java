@@ -162,6 +162,15 @@ public class XdmParser
     return this;
   }
 
+  /**
+   * Probe the JDK parser (namespace aware, no other settings) with a small
+   * document.
+   *
+   * @param sXml
+   *        The complete document to parse.
+   * @return <code>true</code> if it is read without error, <code>false</code>
+   *         on any parse or configuration error.
+   */
   private static boolean _parsesWithJdk (@NonNull final String sXml)
   {
     try
@@ -198,6 +207,18 @@ public class XdmParser
     return !aAccepted.booleanValue ();
   }
 
+  /**
+   * Get the source text again to explain a parse error, without
+   * consuming a stream: only a <code>file:</code> system ID of a source
+   * without byte or character stream is read, as UTF-8.
+   *
+   * @param aSource
+   *        The source that failed to parse.
+   * @param sText
+   *        The text the source was made from, if known.
+   * @return <code>sText</code> if not <code>null</code>, otherwise the file
+   *         content, or <code>null</code> if it cannot be read.
+   */
   @Nullable
   private static String _readSourceText (@NonNull final InputSource aSource, @Nullable final String sText)
   {
@@ -302,6 +323,28 @@ public class XdmParser
            ", which XML 1.0 (5th edition) allows in names, but the JDK XML parser applies the name rules of the 4th edition to XML 1.0 documents";
   }
 
+  /**
+   * Read a source with the JDK SAX parser into a tree built by
+   * {@link XdmTreeBuilder}: namespace aware, not DTD validating, secure
+   * processing on, external entities and the external DTD subset only with
+   * {@link #setLoadExternalEntities(boolean)}, the {@link #ENTITY_LIMITS} and
+   * the {@link #getMaxElementDepth() maximum element depth} set explicitly.
+   * With a schema set the finished document is validated afterwards. A parse
+   * error that comes from a name the JDK parser rejects against the 5th
+   * edition rules gets an explanation appended to the message, which is also
+   * logged.
+   *
+   * @param aSource
+   *        The source to read.
+   * @param sText
+   *        The source text, if the source was made from a string; used only
+   *        to explain a parse error.
+   * @return The document node.
+   * @throws XdmValidationException
+   *         if a schema set is set and the document is not valid against it
+   * @throws XdmParseException
+   *         on any other parser, configuration or I/O error
+   */
   @NonNull
   private IXdmNode _parse (@NonNull final InputSource aSource, @Nullable final String sText) throws XdmParseException
   {
@@ -371,6 +414,16 @@ public class XdmParser
     return _parse (aSource, null);
   }
 
+  /**
+   * @param sXml
+   *        The XML text to read. May not be <code>null</code>. The document
+   *        has no system ID, so relative references cannot be resolved.
+   * @return The document node.
+   * @throws XdmValidationException
+   *         if a schema is set and the document is not valid against it
+   * @throws XdmParseException
+   *         if the document cannot be read
+   */
   @NonNull
   public IXdmNode parse (@NonNull final String sXml) throws XdmParseException
   {
@@ -378,6 +431,16 @@ public class XdmParser
     return _parse (new InputSource (new NonBlockingStringReader (sXml)), sXml);
   }
 
+  /**
+   * @param aPath
+   *        The file to read. May not be <code>null</code>. Its URI becomes
+   *        the system ID of the source.
+   * @return The document node.
+   * @throws XdmValidationException
+   *         if a schema is set and the document is not valid against it
+   * @throws XdmParseException
+   *         if the document cannot be read
+   */
   @NonNull
   public IXdmNode parse (@NonNull final Path aPath) throws XdmParseException
   {

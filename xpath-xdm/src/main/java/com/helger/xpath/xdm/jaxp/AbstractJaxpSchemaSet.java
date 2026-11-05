@@ -115,6 +115,12 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     return null;
   }
 
+  /**
+   * @param aRoot
+   *        The node to start from; included if it is an element.
+   * @return All elements of the subtree in document order, collected
+   *         iteratively.
+   */
   @NonNull
   private static ICommonsList <IXdmNode> _getElementsInOrder (@NonNull final IXdmNode aRoot)
   {
@@ -159,6 +165,9 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     return new XdmQName (sUri, aName.localName (), sPrefix);
   }
 
+  /**
+   * @return <code>true</code> if the element has at least one text or element child.
+   */
   private static boolean _hasTextOrElementChild (@NonNull final IXdmNode aElement)
   {
     for (final IXdmNode aChild : aElement.getAllChildren ())
@@ -258,6 +267,9 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     return bChanged;
   }
 
+  /**
+   * Set a feature on the validator, ignoring a validator that does not know or support it.
+   */
   private static void _setFeatureIfSupported (@NonNull final ValidatorHandler aValidator,
                                               @NonNull final String sName,
                                               final boolean bValue)
@@ -272,6 +284,9 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     }
   }
 
+  /**
+   * Set a property on the validator, ignoring a validator that does not know or support it.
+   */
   private static void _setPropertyIfSupported (@NonNull final ValidatorHandler aValidator,
                                                @NonNull final String sName,
                                                @NonNull final Object aValue)
@@ -328,12 +343,21 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     return aTyped;
   }
 
+  /**
+   * @return The message of the exception, or its string form if it has none.
+   */
   @NonNull
   private static String _getMessage (@NonNull final SAXException ex)
   {
     return ex.getMessage () == null ? ex.toString () : ex.getMessage ();
   }
 
+  /**
+   * An <code>xs:ENTITY</code> value may also name a parsed entity of the DTD. If the outcome added
+   * or removed nodes, the tree of the element is numbered again. A violation is reported as a
+   * {@link XdmValidationException#isDocumentConstraint() document constraint} if the validator
+   * message starts with <code>cvc-id.</code>.
+   */
   public void validateElement (@NonNull final IXdmNode aElement,
                                @Nullable final IXdmTypeDefinition aType,
                                final boolean bDocumentLevel) throws XdmValidationException
@@ -355,6 +379,15 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
     }
   }
 
+  /**
+   * The last element child of the document is validated as the document element against the
+   * declaration of its name, with the document-level constraints; an <code>xs:ENTITY</code> value
+   * may only name an unparsed entity. If the outcome added or removed nodes, the document is
+   * numbered again.
+   *
+   * @throws IllegalArgumentException
+   *         if the node is no document node or has no element child
+   */
   public void validateDocument (@NonNull final IXdmNode aDocument) throws XdmValidationException
   {
     ValueEnforcer.isTrue (aDocument.isDocument (), "Not a document node");

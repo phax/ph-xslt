@@ -21,10 +21,11 @@ import java.util.List;
 import org.jspecify.annotations.NonNull;
 
 /**
- * A schema processor. The one behind {@link XdmSchemaSupport} is the Apache
- * Xerces-J bridge, which is loaded by name and only if Xerces-J is on the
- * class path; {@link com.helger.xpath.xdm.jaxp.JdkSchemaProvider} is a
- * limited one on the JDK's own validator.
+ * A schema processor. The one behind {@link XdmSchemaSupport} is the native
+ * validator of the module <code>xsd-core</code> or the Apache Xerces-J bridge,
+ * each loaded by name and only if it is on the class path;
+ * {@link com.helger.xpath.xdm.jaxp.JdkSchemaProvider} is a limited one on the
+ * JDK's own validator.
  *
  * @author Philip Helger
  */

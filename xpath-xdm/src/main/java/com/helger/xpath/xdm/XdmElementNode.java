@@ -93,6 +93,15 @@ public final class XdmElementNode extends AbstractXdmParentNode
     m_aSchemaType = aSchemaType;
   }
 
+  /**
+   * Append a parentless attribute node as the last attribute of this element.
+   * There is no check for an attribute of the same name. If the tree was
+   * numbered, the numbering of the whole tree and the name indexes of its
+   * document are removed and assigned again on demand.
+   *
+   * @throws IllegalArgumentException
+   *         if the node is no attribute node or already has a parent
+   */
   @Override
   public void addAttribute (@NonNull final IXdmNode aAttribute)
   {
@@ -108,6 +117,11 @@ public final class XdmElementNode extends AbstractXdmParentNode
     internalInvalidateOrder ();
   }
 
+  /**
+   * Record the declaration and drop the namespace nodes built so far for this
+   * element, so that {@link #getNamespaceNodes()} builds them again. The
+   * namespace nodes of descendant elements are not dropped.
+   */
   @Override
   public void declareNamespace (@NonNull final String sPrefix, @NonNull final String sNamespaceUri)
   {
@@ -141,6 +155,10 @@ public final class XdmElementNode extends AbstractXdmParentNode
     return m_aAttributes == null ? new CommonsArrayList <> () : new CommonsArrayList <> (m_aAttributes);
   }
 
+  /**
+   * Linear search through the attributes in order; the first attribute with
+   * the expanded name wins.
+   */
   @Override
   @Nullable
   public IXdmNode getAttribute (@Nullable final String sNamespaceUri, @NonNull final String sLocalName)
@@ -155,6 +173,14 @@ public final class XdmElementNode extends AbstractXdmParentNode
   @Override
   @NonNull
   @ReturnsMutableCopy
+  /**
+   * Built on the first call from {@link #getInScopeNamespaces()}, one
+   * {@link XdmNamespaceNode} per prefix with this element as parent and its
+   * position as namespace index, and then kept until the next
+   * {@link #declareNamespace(String, String)} on this element. Creation is
+   * guarded by a lock shared by all elements, so concurrent readers of a
+   * finished tree get the identical nodes.
+   */
   public ICommonsList <IXdmNode> getNamespaceNodes ()
   {
     final ICommonsList <IXdmNode> aExisting = NAMESPACE_NODES_LOCK.readLockedGet ( () -> m_aNamespaceNodes);

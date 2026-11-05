@@ -46,12 +46,21 @@ import com.helger.collection.commons.ICommonsOrderedMap;
  */
 public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
 {
+  /**
+   * @return A new, empty document node.
+   */
   @NonNull
   static IXdmNode createDocument ()
   {
     return new XdmDocumentNode ();
   }
 
+  /**
+   * @param aName
+   *        The element name. May not be <code>null</code>.
+   * @return A new parentless element node without attributes, namespace
+   *         declarations or children.
+   */
   @NonNull
   static IXdmNode createElement (@NonNull final XdmQName aName)
   {
@@ -59,6 +68,14 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
     return new XdmElementNode (aName);
   }
 
+  /**
+   * @param aName
+   *        The attribute name. May not be <code>null</code>.
+   * @param sValue
+   *        The attribute value. May not be <code>null</code>.
+   * @return A new parentless attribute node with ID kind
+   *         {@link EIDKind#NONE}.
+   */
   @NonNull
   static IXdmNode createAttribute (@NonNull final XdmQName aName, @NonNull final String sValue)
   {
@@ -67,6 +84,12 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
     return new XdmAttributeNode (aName, sValue);
   }
 
+  /**
+   * @param sValue
+   *        The text. May not be <code>null</code>; an empty text is not
+   *        rejected.
+   * @return A new parentless text node.
+   */
   @NonNull
   static IXdmNode createText (@NonNull final String sValue)
   {
@@ -74,6 +97,11 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
     return new XdmTextNode (sValue);
   }
 
+  /**
+   * @param sValue
+   *        The comment text. May not be <code>null</code>.
+   * @return A new parentless comment node.
+   */
   @NonNull
   static IXdmNode createComment (@NonNull final String sValue)
   {
@@ -172,14 +200,30 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   @Nullable
   String getValue ();
 
+  /**
+   * Replace the raw value.
+   *
+   * @param sValue
+   *        The new value. May not be <code>null</code>.
+   * @throws IllegalStateException
+   *         for documents and elements, which have no raw value
+   */
   void setValue (@NonNull String sValue);
 
   @Nullable
   IXdmNode getParent ();
 
+  /**
+   * @return The line of the node in its source as the parser reported it, 0
+   *         if no location was set.
+   */
   @Nonnegative
   int getLine ();
 
+  /**
+   * @return The column of the node in its source as the parser reported it,
+   *         0 if no location was set.
+   */
   @Nonnegative
   int getColumn ();
 
@@ -315,17 +359,45 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   @ReturnsMutableCopy
   ICommonsList <String> getAllUnparsedEntityNames ();
 
+  /**
+   * Append a parentless node as the last child of this document or element.
+   * In a numbered tree this removes the numbering of the whole tree, which is
+   * then assigned again on demand.
+   *
+   * @param aChild
+   *        The child to append. May not be <code>null</code>.
+   * @throws IllegalArgumentException
+   *         if the node already has a parent or is an attribute, namespace or
+   *         document node
+   * @throws IllegalStateException
+   *         if this node cannot have children
+   */
   void appendChild (@NonNull IXdmNode aChild);
 
   /**
-   * Remove a child node. The document order must be assigned again afterwards
-   * if the tree was numbered.
+   * Remove a child node, which becomes a parentless root of its own. In a
+   * numbered tree this removes the numbering of the whole tree (the removed
+   * subtree included), which is then assigned again on demand.
    *
    * @param aChild
    *        The child to remove. May not be <code>null</code>.
+   * @throws IllegalArgumentException
+   *         if the node is not a child of this node
    */
   void removeChild (@NonNull IXdmNode aChild);
 
+  /**
+   * Append a parentless attribute node to this element. In a numbered tree
+   * this removes the numbering of the whole tree, which is then assigned
+   * again on demand.
+   *
+   * @param aAttribute
+   *        The attribute to add. May not be <code>null</code>.
+   * @throws IllegalArgumentException
+   *         if the node is no attribute node or already has a parent
+   * @throws IllegalStateException
+   *         if this node is no element
+   */
   void addAttribute (@NonNull IXdmNode aAttribute);
 
   /**

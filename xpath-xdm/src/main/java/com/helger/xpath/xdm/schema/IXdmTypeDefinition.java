@@ -128,8 +128,8 @@ public interface IXdmTypeDefinition
 
   /**
    * The schema derivation check: is this type the given type, or derived from
-   * it by restriction or extension (for a simple type also as a member of a
-   * union is not counted)?
+   * it by restriction or extension? Union membership and list item types are
+   * not derivation steps here.
    *
    * @param aBase
    *        The candidate base type.

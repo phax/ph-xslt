@@ -106,6 +106,10 @@ final class JaxpTypeAnnotator implements ContentHandler
     m_aDefinitions = aDefinitions;
   }
 
+  /**
+   * @return The schema type for a pair of reported types, created once per
+   *         pair (by identity) and shared by all nodes of this run.
+   */
   @NonNull
   private XdmSchemaType _getSchemaType (@NonNull final TypeInfo aTypeInfo, @NonNull final TypeInfo aValueTypeInfo)
   {
@@ -114,6 +118,10 @@ final class JaxpTypeAnnotator implements ContentHandler
                                                                   m_aDefinitions.apply (k.valueTypeInfo ())));
   }
 
+  /**
+   * @return <code>true</code> if the value, trimmed, is not empty and has no
+   *         XML whitespace inside.
+   */
   private static boolean _isSingleToken (@NonNull final String sValue)
   {
     final String s = sValue.trim ();
@@ -150,6 +158,11 @@ final class JaxpTypeAnnotator implements ContentHandler
     }
   }
 
+  /**
+   * @return <code>true</code> if the value, trimmed, is the
+   *         <code>xs:boolean</code> true value (<code>true</code> or
+   *         <code>1</code>).
+   */
   private static boolean _isXsiNilTrue (@NonNull final String sValue)
   {
     final String s = sValue.trim ();
@@ -205,6 +218,15 @@ final class JaxpTypeAnnotator implements ContentHandler
     m_aBuilder.endPrefixMapping (sPrefix);
   }
 
+  /**
+   * Remember the element type the validator reports at the start tag, let
+   * the builder create the element, then annotate each attribute the builder
+   * kept: the schema type is the declared type (if known) with the reported
+   * type as value type; an ID kind from the validator or from the typed value
+   * replaces the builder's and normalises the value. An
+   * <code>xsi:nil</code> attribute with the value true sets the element
+   * nilled.
+   */
   public void startElement (final String sUri,
                             final String sLocalName,
                             final String sQName,
@@ -242,6 +264,15 @@ final class JaxpTypeAnnotator implements ContentHandler
     }
   }
 
+  /**
+   * Let the builder close the element, then annotate it. Without a type
+   * reported at the start or at the end tag the element was not assessed and
+   * gets <code>xs:anyType</code> as type annotation. Otherwise the type
+   * reported at the start is the annotation and the one at the end the value
+   * type (each standing in for the other if missing); whitespace of
+   * element-only content is dropped, and an element with an atomic base type
+   * that is not nilled gets the ID kind of its string value.
+   */
   public void endElement (final String sUri, final String sLocalName, final String sQName) throws SAXException
   {
     // At the end tag the validator reports the member type of a union

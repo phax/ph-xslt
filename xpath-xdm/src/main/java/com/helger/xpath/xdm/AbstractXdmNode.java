@@ -73,6 +73,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   AbstractXdmNode ()
   {}
 
+  /**
+   * @return The {@link Details} of this node, created on the first call. Only
+   *         called to store a value; reading goes through the field directly,
+   *         so that a node that only ever has default values stays without
+   *         details.
+   */
   @NonNull
   private Details _details ()
   {
@@ -81,6 +87,11 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return m_aDetails;
   }
 
+  /**
+   * @return The namespace declarations of this node itself (prefix to URI, in
+   *         declaration order), or <code>null</code> if it has none. The
+   *         internal map, not a copy.
+   */
   @Nullable
   private ICommonsOrderedMap <String, String> _getNamespaces ()
   {
@@ -139,6 +150,17 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     m_aParent = aParent;
   }
 
+  /**
+   * Record a namespace declaration on this node, without any check. A second
+   * declaration of the same prefix replaces the URI but keeps the position of
+   * the first one. Cached namespace nodes are not dropped; that is up to the
+   * caller ({@link XdmElementNode#declareNamespace(String, String)}).
+   *
+   * @param sPrefix
+   *        The prefix, the empty string for the default namespace.
+   * @param sNamespaceUri
+   *        The namespace URI; the empty string undeclares the prefix.
+   */
   final void internalDeclareNamespace (@NonNull final String sPrefix, @NonNull final String sNamespaceUri)
   {
     final Details aDetails = _details ();
@@ -159,6 +181,13 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return null;
   }
 
+  /**
+   * Default for the kinds without a raw value (documents and elements): always
+   * fails.
+   *
+   * @throws IllegalStateException
+   *         always, after the <code>null</code> check
+   */
   public void setValue (@NonNull final String sValue)
   {
     ValueEnforcer.notNull (sValue, "Value");
@@ -195,6 +224,13 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return EIDKind.NONE;
   }
 
+  /**
+   * Default for the kinds without an ID kind: {@link EIDKind#NONE} is accepted
+   * and ignored, any other value fails.
+   *
+   * @throws IllegalStateException
+   *         for a value other than {@link EIDKind#NONE}
+   */
   public void setIDKind (@NonNull final EIDKind eIDKind)
   {
     ValueEnforcer.notNull (eIDKind, "IDKind");
@@ -202,6 +238,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
       throw new IllegalStateException ("A " + getKind () + " node has no ID kind");
   }
 
+  /**
+   * @return The name of the {@link #getSchemaType() schema type} if there is
+   *         one, otherwise the built-in annotation stored with
+   *         {@link #setTypeAnnotation(XdmQName)}, <code>null</code> if none
+   *         was stored.
+   */
   @Nullable
   public final XdmQName getTypeAnnotation ()
   {
@@ -223,6 +265,13 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return null;
   }
 
+  /**
+   * Default for the kinds without a schema type: <code>null</code> is
+   * accepted and ignored, any other value fails.
+   *
+   * @throws IllegalStateException
+   *         for a value other than <code>null</code>
+   */
   public void setSchemaType (@Nullable final XdmSchemaType aSchemaType)
   {
     if (aSchemaType != null)
@@ -275,6 +324,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
       _details ().m_bDisableOutputEscaping = bDisableOutputEscaping;
   }
 
+  /**
+   * Default for all kinds but the document: always fails.
+   *
+   * @throws IllegalStateException
+   *         always, after the <code>null</code> checks
+   */
   public void addUnparsedEntity (@NonNull final String sName,
                                  @NonNull final String sSystemId,
                                  @Nullable final String sPublicId)
@@ -290,6 +345,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return null;
   }
 
+  /**
+   * Default for all kinds but the document: always fails.
+   *
+   * @throws IllegalStateException
+   *         always, after the <code>null</code> check
+   */
   public void addParsedEntityName (@NonNull final String sName)
   {
     ValueEnforcer.notNull (sName, "Name");
@@ -310,24 +371,49 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return new CommonsArrayList <> ();
   }
 
+  /**
+   * Default for the kinds without children: always fails.
+   *
+   * @throws IllegalStateException
+   *         always, after the <code>null</code> check
+   */
   public void appendChild (@NonNull final IXdmNode aChild)
   {
     ValueEnforcer.notNull (aChild, "Child");
     throw new IllegalStateException ("A " + getKind () + " node cannot have children");
   }
 
+  /**
+   * Default for the kinds without children: nothing can be a child, so this
+   * always fails.
+   *
+   * @throws IllegalArgumentException
+   *         always, after the <code>null</code> check
+   */
   public void removeChild (@NonNull final IXdmNode aChild)
   {
     ValueEnforcer.notNull (aChild, "Child");
     throw new IllegalArgumentException ("Not a child of this node");
   }
 
+  /**
+   * Default for all kinds but the element: always fails.
+   *
+   * @throws IllegalStateException
+   *         always, after the <code>null</code> check
+   */
   public void addAttribute (@NonNull final IXdmNode aAttribute)
   {
     ValueEnforcer.notNull (aAttribute, "Attribute");
     throw new IllegalStateException ("Only an element can have attributes");
   }
 
+  /**
+   * Default for all kinds but the element: always fails.
+   *
+   * @throws IllegalStateException
+   *         always, after the <code>null</code> checks
+   */
   public void declareNamespace (@NonNull final String sPrefix, @NonNull final String sNamespaceUri)
   {
     ValueEnforcer.notNull (sPrefix, "Prefix");
@@ -387,6 +473,13 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return aNamespaces == null ? new CommonsLinkedHashMap <> () : aNamespaces.getClone ();
   }
 
+  /**
+   * The <code>xml</code> prefix resolves to {@link XdmConstants#NS_XML}
+   * without looking at the tree. Otherwise the declarations of this node and
+   * then of each ancestor are searched; the closest declaration of the prefix
+   * decides, and an empty URI there (an undeclaration) yields
+   * <code>null</code> without searching further up.
+   */
   @Nullable
   public final String lookupNamespaceUri (@NonNull final String sPrefix)
   {
@@ -406,6 +499,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return null;
   }
 
+  /**
+   * Starts with the <code>xml</code> prefix and applies the declarations of
+   * the root first and of this node last, so that a closer declaration
+   * overwrites a farther one and an empty URI removes the prefix again. The
+   * result keeps the order in which the prefixes were first added.
+   */
   @NonNull
   @ReturnsMutableCopy
   public final ICommonsOrderedMap <String, String> getInScopeNamespaces ()
@@ -458,6 +557,15 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return aRoot.isDocument () ? aRoot : null;
   }
 
+  /**
+   * Numbers the whole tree under a new tree number, iteratively in pre-order
+   * from the root: each node gets the next number, then its attributes, then
+   * its children in order. When a node is reached, every open parent node
+   * that is not its parent is finished and receives the last number given so
+   * far as its {@link #getEndOrder() end order}. Namespace nodes are not
+   * numbered. The name indexes of a {@link XdmDocumentNode} belong to the
+   * previous numbering and are rebuilt on their next use.
+   */
   public final void assignDocumentOrder ()
   {
     final AbstractXdmNode aRoot = getRoot ();
@@ -492,6 +600,21 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
       aOpen.pop ().internalSetEndOrder (nOrder - 1);
   }
 
+  /**
+   * Implementation of {@link IXdmNode#compareDocumentOrder(IXdmNode, IXdmNode)}.
+   * A namespace node with a parent is compared through its parent element and
+   * sorts directly after it, before the attributes, in the order of its
+   * {@link XdmNamespaceNode#getNamespaceIndex() namespace index}. A tree that
+   * is not numbered is numbered first ({@link #assignDocumentOrder()}), so the
+   * call may number either tree. Nodes of different trees compare by tree
+   * number, i.e. by the order in which the trees were numbered.
+   *
+   * @param aLeft
+   *        First node. May not be <code>null</code>.
+   * @param aRight
+   *        Second node. May not be <code>null</code>.
+   * @return negative, 0 or positive like {@link Comparable#compareTo(Object)}.
+   */
   static int compareDocumentOrder (@NonNull final AbstractXdmNode aLeft, @NonNull final AbstractXdmNode aRight)
   {
     if (aLeft == aRight)

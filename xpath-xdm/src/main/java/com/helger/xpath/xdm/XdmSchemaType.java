@@ -102,6 +102,20 @@ public final class XdmSchemaType
   private final boolean m_bList;
   private final XdmQName m_aAtomicBase;
 
+  /**
+   * Derive everything XPath asks for once. The name and the simple flag come
+   * from the node type, the rest from the value type: it is a list if its
+   * simple content type has list variety or if it is
+   * <code>xs:anySimpleType</code>. For a list the atomic base is the built-in
+   * type of the item type, and none for a complex type with list content; for
+   * anything else it is the most specific built-in atomic type the value type
+   * derives from ({@link #findBuiltinAtomicType(Predicate)}).
+   *
+   * @param aType
+   *        The type definition of the node.
+   * @param aValueType
+   *        The type the value was validated against.
+   */
   private XdmSchemaType (@NonNull final IXdmTypeDefinition aType, @NonNull final IXdmTypeDefinition aValueType)
   {
     m_aType = aType;
@@ -234,7 +248,8 @@ public final class XdmSchemaType
 
   /**
    * @return <code>true</code> if the typed value is a list: a list type or a
-   *         complex type whose simple content is a list type.
+   *         complex type whose simple content is a list type. A value type of
+   *         <code>xs:anySimpleType</code> counts as a list as well.
    */
   public boolean isList ()
   {

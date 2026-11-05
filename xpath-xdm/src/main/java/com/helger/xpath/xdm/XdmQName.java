@@ -56,6 +56,15 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
     this ("", sLocalName, "");
   }
 
+  /**
+   * Create a name without prefix.
+   *
+   * @param sNamespaceUri
+   *        The namespace URI, the empty string for no namespace. May not be
+   *        <code>null</code>.
+   * @param sLocalName
+   *        The local part. May neither be <code>null</code> nor empty.
+   */
   public XdmQName (@NonNull final String sNamespaceUri, @NonNull final String sLocalName)
   {
     this (sNamespaceUri, sLocalName, "");
@@ -92,6 +101,16 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
     return namespaceUri.isEmpty () ? localName : "Q{" + namespaceUri + "}" + localName;
   }
 
+  /**
+   * Compare the expanded name, ignoring the prefix.
+   *
+   * @param sNamespaceUri
+   *        The namespace URI; <code>null</code> is the same as the empty
+   *        string, no namespace.
+   * @param sLocalName
+   *        The local part. <code>null</code> never matches.
+   * @return <code>true</code> if namespace URI and local part are equal.
+   */
   public boolean isSameName (@Nullable final String sNamespaceUri, @Nullable final String sLocalName)
   {
     return namespaceUri.equals (sNamespaceUri == null ? "" : sNamespaceUri) && localName.equals (sLocalName);

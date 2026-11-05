@@ -44,6 +44,10 @@ public final class XdmTextNode extends AbstractXdmValueNode
     super (sValue);
   }
 
+  /**
+   * Move the text appended with {@link #appendValue(String)} into the value,
+   * under the lock shared by all text nodes. A no-op without pending text.
+   */
   private void _joinPendingText ()
   {
     if (m_aPendingText != null)
@@ -76,6 +80,10 @@ public final class XdmTextNode extends AbstractXdmValueNode
       aPending.append (sText);
   }
 
+  /**
+   * Joins pending appended text into the value first, so the result is the
+   * complete text.
+   */
   @Override
   @NonNull
   public String getValue ()
@@ -84,6 +92,9 @@ public final class XdmTextNode extends AbstractXdmValueNode
     return super.getValue ();
   }
 
+  /**
+   * Replace the value; text appended but not yet joined is discarded.
+   */
   @Override
   public void setValue (@NonNull final String sValue)
   {
