@@ -55,6 +55,16 @@ final class XsdContentMatcher
   private static final int MAX_NFA_CHILDREN = 600;
   private static final int STEP_BUDGET = 120_000;
 
+  /**
+   * The memo key of {@link Matcher#particle}: a particle (by identity of the
+   * record component, as particles do not override <code>equals</code>) and a
+   * start position.
+   *
+   * @param particle
+   *        The particle matched.
+   * @param start
+   *        The index of the first child it may consume.
+   */
   private record MKey (XsdParticle particle, int start)
   {}
 
@@ -85,6 +95,21 @@ final class XsdContentMatcher
     private final BitSet m_aForceOpen;
     private final BitSet m_aForceModel;
 
+    /**
+     * @param aSchema
+     *        The schema, for substitution groups.
+     * @param aNames
+     *        The expanded names of the children to match, in order.
+     * @param aOpen
+     *        The interleave open-content wildcard, or <code>null</code> when
+     *        none applies.
+     * @param aForceOpen
+     *        Child indices pinned to the open content: no element or
+     *        wildcard particle of the model may consume them. Not modified.
+     * @param aForceModel
+     *        Child indices pinned to the model: the open-content closure may
+     *        not skip them. Not modified.
+     */
     Matcher (@NonNull final XsdSchema aSchema,
              @NonNull final XsdName [] aNames,
              @Nullable final XsdWildcard aOpen,
@@ -98,6 +123,10 @@ final class XsdContentMatcher
       m_aForceModel = aForceModel;
     }
 
+    /**
+     * @return <code>true</code> if the step budget or the depth bound ran out
+     *         during this run, so a negative verdict is undetermined.
+     */
     boolean isExhausted ()
     {
       return m_bExhausted;
@@ -121,6 +150,14 @@ final class XsdContentMatcher
       return ret;
     }
 
+    /**
+     * {@link #_clo(int)} applied to every position of a set.
+     *
+     * @param aPositions
+     *        The positions. Returned as is when no interleave wildcard is
+     *        active.
+     * @return The union of their closures.
+     */
     @NonNull
     private BitSet _cloSet (@NonNull final BitSet aPositions)
     {
@@ -132,6 +169,16 @@ final class XsdContentMatcher
       return ret;
     }
 
+    /**
+     * @param aParticle
+     *        The particle.
+     * @param aSeen
+     *        The model groups on the current path, to break cycles.
+     * @param nDepth
+     *        The current nesting depth.
+     * @return <code>true</code> if the particle can match zero children: its
+     *         minimum is 0, or its term is a nullable model group.
+     */
     private boolean _partNullable (@NonNull final XsdParticle aParticle,
                                    @NonNull final Set <XsdModelGroup> aSeen,
                                    final int nDepth)
@@ -143,6 +190,22 @@ final class XsdContentMatcher
       return false;
     }
 
+    /**
+     * Whether a model group can match zero children: a choice if any member
+     * particle is nullable (an empty choice therefore is not), a sequence or
+     * all if every member particle is. A group already on the current path (a
+     * cyclic group reference) counts as not nullable. Beyond
+     * {@link XsdModelLimits#MAX_DEPTH} the run is marked exhausted and
+     * <code>false</code> is returned.
+     *
+     * @param aMG
+     *        The model group.
+     * @param aSeen
+     *        The model groups on the current path. Modified and restored.
+     * @param nDepth
+     *        The current nesting depth.
+     * @return <code>true</code> if the group is nullable.
+     */
     private boolean _groupNullable (@NonNull final XsdModelGroup aMG,
                                     @NonNull final Set <XsdModelGroup> aSeen,
                                     final int nDepth)
@@ -189,6 +252,23 @@ final class XsdContentMatcher
       return false;
     }
 
+    /**
+     * Recursive worker of {@link #_allMembers(XsdModelGroup)}: append the
+     * member particles of an xs:all to <code>aOut</code>, replacing every 1..1
+     * particle whose term is another xs:all by that group's members. A group
+     * already on the current path is skipped; beyond
+     * {@link XsdModelLimits#MAX_DEPTH} the run is marked exhausted and nothing
+     * more is added.
+     *
+     * @param aMG
+     *        The xs:all group.
+     * @param aSeen
+     *        The groups on the current path. Modified and restored.
+     * @param aOut
+     *        Receives the member particles.
+     * @param nDepth
+     *        The current nesting depth.
+     */
     private void _allMembers (@NonNull final XsdModelGroup aMG,
                               @NonNull final Set <XsdModelGroup> aSeen,
                               @NonNull final ICommonsList <XsdParticle> aOut,
@@ -262,6 +342,13 @@ final class XsdContentMatcher
       return -1;
     }
 
+    /**
+     * @param aMember
+     *        An xs:all member particle.
+     * @param nCount
+     *        How many children it consumed so far.
+     * @return <code>true</code> if it may consume one more.
+     */
     private static boolean _room (@NonNull final XsdParticle aMember, final int nCount)
     {
       return aMember.m_nMax == XsdConstants.UNBOUNDED || nCount < aMember.m_nMax;
@@ -305,6 +392,21 @@ final class XsdContentMatcher
       return ret;
     }
 
+    /**
+     * The end positions of one occurrence of a model group started at a
+     * position: for a choice the union over its member particles, for an
+     * xs:all the result of {@link #_all}, and for a sequence the member
+     * particles applied one after the other to the whole set of positions
+     * reached so far (stopping early with the empty set when no position
+     * remains).
+     *
+     * @param aMG
+     *        The model group.
+     * @param nPos
+     *        The start position.
+     * @return The reachable end positions; empty if the group cannot match
+     *         there.
+     */
     @NonNull
     private BitSet _group (@NonNull final XsdModelGroup aMG, final int nPos)
     {
@@ -337,6 +439,20 @@ final class XsdContentMatcher
       }
     }
 
+    /**
+     * The end positions of exactly one occurrence of a term at a position. An
+     * element declaration consumes the child at that position when its name is
+     * governed by the declaration (directly or through the substitution group)
+     * and the child is not pinned to the open content; a wildcard does the same
+     * for a name it allows. A model group is delegated to {@link #_group}.
+     *
+     * @param aTerm
+     *        The term.
+     * @param nPos
+     *        The position.
+     * @return The reachable end positions; empty if the term cannot match
+     *         there.
+     */
     @NonNull
     private BitSet _termOnce (@NonNull final IXsdTerm aTerm, final int nPos)
     {
@@ -555,6 +671,25 @@ final class XsdContentMatcher
     return new XsdMatchResult (false, !aMatcher.isExhausted ());
   }
 
+  /**
+   * One trial parse of {@link #greedyOpenAttribution}: whether the whole child
+   * list matches the model with the interleave wildcard and the given pins.
+   *
+   * @param aSchema
+   *        The schema.
+   * @param aParticle
+   *        The effective content model.
+   * @param aNames
+   *        The child names.
+   * @param aOpen
+   *        The interleave open-content wildcard.
+   * @param aForceOpen
+   *        The children pinned to the open content.
+   * @param aForceModel
+   *        The children pinned to the model.
+   * @return <code>true</code> if a complete parse exists. An exhausted run
+   *         counts as no parse.
+   */
   private static boolean _try (@NonNull final XsdSchema aSchema,
                                @NonNull final XsdParticle aParticle,
                                @NonNull final XsdName [] aNames,

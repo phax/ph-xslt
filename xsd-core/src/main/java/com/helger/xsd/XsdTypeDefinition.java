@@ -54,6 +54,16 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
   /** The name of the type, {@link XsdName#NONE} for an anonymous one. */
   private final XsdName m_aName;
 
+  /**
+   * @param aBridge
+   *        The bridge the type belongs to, for anonymous names, type lookup and
+   *        wrapping related types.
+   * @param aType
+   *        The compiled type.
+   * @param aName
+   *        Its name, {@link XsdName#NONE} for an anonymous type (see
+   *        {@link #nameOf(IXsdType)}).
+   */
   XsdTypeDefinition (@NonNull final XsdBridge aBridge, @NonNull final IXsdType aType, @NonNull final XsdName aName)
   {
     m_aBridge = aBridge;
@@ -111,6 +121,13 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return m_aName.isZero () ? null : new XdmQName (m_aName.space (), m_aName.local ());
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * An anonymous type gets the name the bridge assigns to it (see
+   * {@link XsdBridge#getAnonymousName(IXsdType)}), stable per type and schema
+   * set.
+   */
   @NonNull
   public XdmQName getAnnotationName ()
   {
@@ -122,6 +139,11 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return m_aType instanceof XsdComplexType;
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The content kind of a complex type is mapped one to one.
+   */
   @NonNull
   public EXdmContentType getContentType ()
   {
@@ -136,6 +158,11 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return EXdmContentType.SIMPLE;
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The content simple type of a complex type is wrapped anew on every call.
+   */
   @Nullable
   public IXdmTypeDefinition getSimpleContentType ()
   {
@@ -147,6 +174,11 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return m_aBridge.definitionOf (aCT.m_aSimpleType);
   }
 
+  /**
+   * @return The simple type values of this type are validated against: the
+   *         type itself for a simple type, the content simple type of a
+   *         complex type with simple content, <code>null</code> otherwise.
+   */
   @Nullable
   private XsdSimpleType _getSimple ()
   {
@@ -159,6 +191,11 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return m_aType instanceof final XsdSimpleType aST && aST != XsdSimpleType.ABSENT && XsdSimpleType.isURType (aST);
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The absent type (an unresolved type reference) has no variety either.
+   */
   @Nullable
   public EXdmSimpleVariety getVariety ()
   {
@@ -206,6 +243,13 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return new CommonsArrayList <> ();
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * For a restriction of a list the item type is taken from the nearest
+   * type on the base chain that declares one (see
+   * {@link #listItemOf(XsdSimpleType)}).
+   */
   @Nullable
   public IXdmTypeDefinition getItemType ()
   {
@@ -218,6 +262,13 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return null;
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The direct members are returned in declaration order (a member that is
+   * itself a union is not expanded); for a restriction of a union they come
+   * from the nearest type on the base chain that has members.
+   */
   @NonNull
   public ICommonsList <IXdmTypeDefinition> getMemberTypes ()
   {
@@ -228,6 +279,14 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return ret;
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The type is the one the primitive resolution of the compiled type gives,
+   * with the prefix <code>xs</code>. An atomic type that resolves to
+   * xs:anyAtomicType, the absent type and every non-atomic type give
+   * <code>null</code>.
+   */
   @Nullable
   public XdmQName getBuiltinAtomicType ()
   {
@@ -241,6 +300,17 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return new XdmQName (XdmConstants.NS_XS, ePrim.getLocalName (), "xs");
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * A complex type without an explicit base derives from xs:anyType. For
+   * simple types: xs:anySimpleType derives from xs:anyType; a type with a
+   * base link (a restriction of a user-defined type) has that base; a list
+   * or union without one has xs:anySimpleType; a named restriction of a
+   * built-in has that built-in; and a built-in has its parent in the built-in
+   * hierarchy, or xs:anySimpleType below xs:anyAtomicType. The absent type
+   * has no base.
+   */
   @Nullable
   public IXdmTypeDefinition getBaseType ()
   {
@@ -288,6 +358,14 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return XsdDerivation.derivesFromMode (m_aType, aBase, false);
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * A definition of another schema processor is never a base. Two types are
+   * the same if they are the same object or share a global name, so that
+   * types of different schema sets describing the same component compare
+   * equal; otherwise derivation is decided by {@link #_derivesFrom}.
+   */
   public boolean isDerivedFrom (@NonNull final IXdmTypeDefinition aBase)
   {
     if (!(aBase instanceof final XsdTypeDefinition aOther))
@@ -301,6 +379,14 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return _derivesFrom (aOther.m_aType);
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The name is first compared with this type's own name, then resolved with
+   * {@link XsdBridge#typeByName(XsdName)} (built-ins included, subject to the
+   * version rules of <code>xsi:type</code>); an unknown name gives
+   * <code>false</code>.
+   */
   public boolean isDerivedFrom (@NonNull final XdmQName aBase)
   {
     final XsdName aName = XsdName.of (aBase);
@@ -310,6 +396,19 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return aType != null && _derivesFrom (aType);
   }
 
+  /**
+   * Recursive worker of {@link #isNamespaceSensitive()}: an atomic type whose
+   * primitive is xs:QName or xs:NOTATION is sensitive, a list if its item type
+   * is, a union if any member is.
+   *
+   * @param aType
+   *        The type; <code>null</code> and the absent type are not
+   *        sensitive.
+   * @param nDepth
+   *        The nesting depth; beyond {@link #MAX_DEPTH} the answer is
+   *        <code>false</code>.
+   * @return <code>true</code> if namespace sensitive.
+   */
   private static boolean _isNamespaceSensitive (@Nullable final XsdSimpleType aType, final int nDepth)
   {
     if (aType == null || nDepth > MAX_DEPTH || aType == XsdSimpleType.ABSENT)
@@ -331,6 +430,12 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     }
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * For a complex type the content simple type decides; a complex type
+   * without simple content is not namespace sensitive.
+   */
   public boolean isNamespaceSensitive ()
   {
     return _isNamespaceSensitive (_getSimple (), 0);
@@ -398,6 +503,13 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return null;
   }
 
+  /**
+   * @param aAtomic
+   *        An atomic type.
+   * @return The built-in type of its primitive, with the prefix
+   *         <code>xs</code>; xs:untypedAtomic when the primitive resolves to
+   *         xs:anyAtomicType.
+   */
   @NonNull
   private XdmQName _builtinOf (@NonNull final XsdSimpleType aAtomic)
   {
@@ -407,6 +519,28 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
                          "xs");
   }
 
+  /**
+   * Split a valid value into the typed tokens of {@link #validate}: a list
+   * contributes one token per whitespace-separated item, typed by the item
+   * type (none without an item type); a union contributes the tokens of the
+   * first member that accepts the value (none if no member does); an atomic
+   * type contributes one token with the value after its whiteSpace
+   * processing, typed by the built-in of its primitive.
+   *
+   * @param aType
+   *        The simple type.
+   * @param sRaw
+   *        The value.
+   * @param aAt
+   *        The namespace context for QName/NOTATION values; may be
+   *        <code>null</code>.
+   * @param aTokens
+   *        Receives the tokens.
+   * @param nDepth
+   *        The nesting depth.
+   * @throws XsdUnsupportedException
+   *         beyond {@link #MAX_DEPTH}
+   */
   private void _collectTokensRecursive (@NonNull final XsdSimpleType aType,
                                         @NonNull final String sRaw,
                                         @Nullable final IXdmNode aAt,
@@ -442,6 +576,21 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     }
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The namespace resolver is only consulted for the default namespace and
+   * the prefixes the value uses, which are declared on a detached element
+   * that serves as the namespace context. A value of the absent type (an
+   * unresolved type reference) is not checked and yields one
+   * xs:untypedAtomic token.
+   *
+   * @throws XdmValidationException
+   *         also if the type has no simple content
+   * @throws XsdUnsupportedException
+   *         if the simple types are nested too deeply for a verdict; this is
+   *         not converted
+   */
   @NonNull
   public ICommonsList <XdmTypedToken> validate (@NonNull final String sLexical,
                                                 @Nullable final UnaryOperator <String> aNamespaceResolver) throws XdmValidationException
@@ -475,12 +624,20 @@ final class XsdTypeDefinition implements IXdmTypeDefinition
     return ret;
   }
 
+  /**
+   * @return The EQName of the type for messages, <code>(anonymous)</code> for
+   *         an anonymous type.
+   */
   @NonNull
   private String _describe ()
   {
     return m_aName.isZero () ? "(anonymous)" : getName ().getEQName ();
   }
 
+  /**
+   * Two definitions are equal if they wrap the same type object, or if both
+   * carry the same global name.
+   */
   @Override
   public boolean equals (final Object o)
   {

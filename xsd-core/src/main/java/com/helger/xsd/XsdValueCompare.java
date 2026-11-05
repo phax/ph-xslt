@@ -51,12 +51,23 @@ final class XsdValueCompare
   private XsdValueCompare ()
   {}
 
+  /**
+   * @param aValue
+   *        An atomic value.
+   * @return <code>true</code> if it is an xs:double or xs:float NaN.
+   */
   private static boolean _isNaN (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
     return (aPayload instanceof final Double aD && aD.isNaN ()) || (aPayload instanceof final Float aF && aF.isNaN ());
   }
 
+  /**
+   * @param eType
+   *        An atomic type.
+   * @return <code>true</code> for the five Gregorian types xs:gYear,
+   *         xs:gYearMonth, xs:gMonth, xs:gMonthDay and xs:gDay.
+   */
   private static boolean _isGType (@NonNull final EAtomicType eType)
   {
     return eType == EAtomicType.G_YEAR ||

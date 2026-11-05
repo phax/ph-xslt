@@ -19,7 +19,8 @@ package com.helger.xsd;
 import org.jspecify.annotations.NonNull;
 
 /**
- * The variety of a simple type.
+ * The {variety} of a simple type definition (XSD 1.1 Part 2 section 4.1.1):
+ * atomic, list of an item type, or union of member types.
  *
  * @author Philip Helger
  */

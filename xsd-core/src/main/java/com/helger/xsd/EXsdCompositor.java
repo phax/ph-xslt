@@ -19,7 +19,9 @@ package com.helger.xsd;
 import org.jspecify.annotations.NonNull;
 
 /**
- * The compositor of a model group.
+ * The {compositor} of a model group (XSD 1.1 Part 1 section 3.8.1): the
+ * members of a sequence match in order, of a choice exactly one, and of an all
+ * in any order.
  *
  * @author Philip Helger
  */

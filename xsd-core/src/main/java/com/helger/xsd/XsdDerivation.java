@@ -53,6 +53,33 @@ final class XsdDerivation
   private XsdDerivation ()
   {}
 
+  /**
+   * Worker of {@link #simpleDerivesFromMode}, after cos-st-derived-ok (XSD 1.1
+   * Part 1 section 3.16.6.3) without the blocking keywords:
+   * <ol>
+   * <li>the type or a type on its base chain (at most {@link #MAX_CHAIN}
+   * steps) is the base, by identity or by equal non-empty name;</li>
+   * <li>else, if the base is a union without facets of its own, the type
+   * derives from one of its member types, followed recursively through
+   * nested facet-less unions (clause 2.2.4) - only when
+   * <code>bUnionSubst</code> is set, otherwise the answer is
+   * <code>false</code>;</li>
+   * <li>else, if the base is an unnamed built-in reference, the atomic
+   * hierarchy decides: xs:anyAtomicType admits every type, any other built-in
+   * primitive only an atomic type whose primitive derives from it.</li>
+   * </ol>
+   *
+   * @param aType
+   *        The derived candidate.
+   * @param aBase
+   *        The base.
+   * @param bUnionSubst
+   *        Whether a union's member type counts as derived from the union.
+   * @param nDepth
+   *        The union nesting depth; beyond {@link #MAX_UNION_DEPTH} the answer
+   *        is <code>false</code>.
+   * @return <code>true</code> if the type derives from the base.
+   */
   private static boolean _simpleDerivesFromMode (@NonNull final XsdSimpleType aType,
                                                  @NonNull final XsdSimpleType aBase,
                                                  final boolean bUnionSubst,
@@ -181,7 +208,17 @@ final class XsdDerivation
     return _simpleDerivesFromMode (aType, aBase, bUnionSubst, 0);
   }
 
-  /** go-xslt <code>simpleDerivesFrom</code>. */
+  /**
+   * go-xslt <code>simpleDerivesFrom</code>: {@link #simpleDerivesFromMode}
+   * with a union's member types counting as derived from the union.
+   *
+   * @param aType
+   *        The derived candidate.
+   * @param aBase
+   *        The base.
+   * @return <code>true</code> if the type is or restricts the base, or derives
+   *         from a member of a base union without facets of its own.
+   */
   static boolean simpleDerivesFrom (@NonNull final XsdSimpleType aType, @NonNull final XsdSimpleType aBase)
   {
     return simpleDerivesFromMode (aType, aBase, true);
