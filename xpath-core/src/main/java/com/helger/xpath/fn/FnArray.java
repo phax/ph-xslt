@@ -29,7 +29,6 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
-import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.eval.XPathEvaluator;
@@ -400,9 +399,8 @@ public final class FnArray
    * section 17.3.17). The key of every member is the member itself or the
    * result of the key function, prepared by {@link #_getSortKey(XdmSequence)}.
    * Without a collation argument, or with an empty one, the default collation
-   * of the static context is used; a default collation the registry does not
-   * know falls back to the codepoint collation without an error. The sort is
-   * stable.
+   * of the static context is used; an explicit collation URI is resolved
+   * against the static base URI. The sort is stable.
    *
    * @param aCtx
    *        The dynamic context of the call.
@@ -410,27 +408,18 @@ public final class FnArray
    *        The arguments.
    * @return The sorted array.
    * @throws XPathException
-   *         FOCH0002 for an unknown explicit collation, XPTY0004 for
-   *         incomparable keys.
+   *         FOCH0002 for an unknown collation, XPTY0004 for incomparable
+   *         keys.
    */
   @NonNull
   private static XdmSequence _sort (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
     final XdmArray aArray = _array (aArgs, 0);
-    ICollation aCollation = null;
+    final ICollation aCollation;
     if (aArgs.size () >= 2 && !aArgs.get (1).isEmpty ())
-    {
-      final String sUri = ((XdmAtomic) aArgs.get (1).get (0)).getString ();
-      aCollation = CollationRegistry.getCollation (sUri);
-      if (aCollation == null)
-        throw XPathException.of ("FOCH0002", "Unsupported collation '" + sUri + "'");
-    }
+      aCollation = FnSequence.getCollation (aCtx, aArgs.get (1));
     else
-    {
-      final String sDefault = aCtx.getStaticContext ().getDefaultCollation ();
-      if (sDefault != null && !sDefault.equals (CollationRegistry.CODEPOINT_URI))
-        aCollation = CollationRegistry.getCollation (sDefault);
-    }
+      aCollation = FnSequence.getDefaultCollation (aCtx);
     final IXdmItem aKeyFunc = aArgs.size () >= 3 ? aArgs.get (2).get (0) : null;
     final ICommonsList <SortEntry> aEntries = new CommonsArrayList <> (aArray.size ());
     for (final XdmSequence aMember : aArray.members ())
@@ -440,9 +429,8 @@ public final class FnArray
                                                 : aMember;
       aEntries.add (new SortEntry (aMember, _getSortKey (aKey)));
     }
-    final ICollation aFinalCollation = aCollation;
     // List.sort is a stable merge sort
-    aEntries.sort ( (a, b) -> _compareKeys (a.key (), b.key (), aFinalCollation, aCtx));
+    aEntries.sort ( (a, b) -> _compareKeys (a.key (), b.key (), aCollation, aCtx));
     final XdmArray.Builder aBuilder = new XdmArray.Builder (aEntries.size ());
     for (final SortEntry aEntry : aEntries)
       aBuilder.add (aEntry.member ());

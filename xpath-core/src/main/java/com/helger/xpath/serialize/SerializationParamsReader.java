@@ -434,20 +434,27 @@ public final class SerializationParamsReader
    * Resolve a QName of the element form: an EQName
    * <code>Q{uri}local</code> is taken as it is (the local part is not
    * checked), a prefixed name is resolved against the in-scope namespaces of
-   * the context element, and an unprefixed name is in no namespace (the
-   * default namespace is not applied).
+   * the context element, and an unprefixed name is in the default namespace
+   * of the context element if requested, otherwise in no namespace.
    *
    * @param sLexical
    *        The name.
    * @param aContext
    *        The parameter element, for the prefix bindings.
+   * @param bUseDefaultNamespace
+   *        <code>true</code> for a value of type <code>xs:QName</code> (the
+   *        element names of cdata-section-elements and suppress-indentation,
+   *        Serialization 3.1 section 3.1), <code>false</code> for a method
+   *        name.
    * @return The resolved name.
    * @throws XPathException
    *         SEPM0017 for an EQName without closing brace, an empty local part,
    *         more than one colon or an unbound prefix
    */
   @NonNull
-  private static XdmQName _resolveQName (@NonNull final String sLexical, @NonNull final IXdmNode aContext)
+  private static XdmQName _resolveQName (@NonNull final String sLexical,
+                                         @NonNull final IXdmNode aContext,
+                                         final boolean bUseDefaultNamespace)
   {
     String sPrefix = "";
     String sLocal = sLexical;
@@ -467,7 +474,10 @@ public final class SerializationParamsReader
     if (sLocal.isEmpty () || sLocal.indexOf (':') >= 0)
       throw XPathException.of ("SEPM0017", "Invalid QName '" + sLexical + "'");
     if (sPrefix.isEmpty ())
-      return new XdmQName (sLocal);
+    {
+      final String sDefaultUri = bUseDefaultNamespace ? aContext.lookupNamespaceUri ("") : null;
+      return sDefaultUri == null ? new XdmQName (sLocal) : new XdmQName (sDefaultUri, sLocal);
+    }
     final String sUri = aContext.lookupNamespaceUri (sPrefix);
     if (sUri == null)
       throw XPathException.of ("SEPM0017", "Unbound prefix '" + sPrefix + "' in '" + sLexical + "'");
@@ -599,7 +609,7 @@ public final class SerializationParamsReader
         for (final String sToken : sValue.split ("\\s+"))
           if (!sToken.isEmpty ())
           {
-            final XdmQName aQName = _resolveQName (sToken, aElement);
+            final XdmQName aQName = _resolveQName (sToken, aElement, true);
             if ("cdata-section-elements".equals (sName))
               aParams.addCdataSectionElement (aQName);
             else
@@ -619,7 +629,7 @@ public final class SerializationParamsReader
       case "method":
       case "json-node-output-method":
       {
-        final XdmQName aQName = _resolveQName (sValue, aElement);
+        final XdmQName aQName = _resolveQName (sValue, aElement, false);
         if (aQName.hasNamespace ())
           throw XPathException.of ("SEPM0016", "Unsupported serialization method " + aQName.getEQName ());
         final String sMethod = _checkMethod (aQName.localName (), "SEPM0017");

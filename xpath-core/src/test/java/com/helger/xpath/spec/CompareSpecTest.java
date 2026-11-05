@@ -124,6 +124,24 @@ public final class CompareSpecTest
   }
 
   /**
+   * Checks that fn:sort and array:sort without a collation argument, or with
+   * an empty one, use the default collation (F&amp;O 3.1 §16.2.6 and
+   * §17.3.17).
+   */
+  @Test
+  public void caSortDefaultCollation ()
+  {
+    run (env ().staticSetup (x -> x.setDefaultCollation (CollationRegistry.HTML_ASCII_CASE_INSENSITIVE_URI)),
+         ok ("string-join(sort(('b', 'A', 'a', 'B')), ',')", "A,a,b,B"),
+         ok ("string-join(sort(('b', 'A', 'a', 'B'), ()), ',')", "A,a,b,B"),
+         ok ("string-join(sort(('b', 'A', 'a', 'B'), 'http://www.w3.org/2005/xpath-functions/collation/codepoint'), ',')",
+             "A,B,a,b"),
+         ok ("string-join(array:sort(['b', 'A', 'a', 'B'])?*, ',')", "A,a,b,B"),
+         ok ("string-join(array:sort(['b', 'A', 'a', 'B'], ())?*, ',')", "A,a,b,B")
+    );
+  }
+
+  /**
    * Checks XPath 3.1 §3.7.3: existential semantics and
    * the untypedAtomic conversion rules.
    */

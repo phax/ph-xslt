@@ -300,8 +300,10 @@ public final class ExprWalker
   /**
    * A predicate passing this test selects the same nodes whatever the context
    * position and size are, and is never read as a position: it can only be a
-   * boolean or a node sequence and does not call <code>fn:position</code> or
-   * <code>fn:last</code> anywhere inside.
+   * boolean or a node sequence and does not call or reference
+   * <code>fn:position</code>, <code>fn:last</code> or
+   * <code>fn:function-lookup</code> (which can return either) anywhere
+   * inside.
    *
    * @param aPredicate
    *        The predicate expression.
@@ -309,6 +311,10 @@ public final class ExprWalker
    */
   public static boolean isFocusFreeBoolean (@NonNull final IExpr aPredicate)
   {
-    return _isBooleanOrNodes (aPredicate) && !containsFunction (aPredicate, ExprWalker::isPositionOrLast);
+    return _isBooleanOrNodes (aPredicate) &&
+           !containsFunction (aPredicate,
+                              aName -> isPositionOrLast (aName) ||
+                                       (XdmConstants.NS_FN.equals (aName.namespaceUri ()) &&
+                                        aName.localName ().equals ("function-lookup")));
   }
 }

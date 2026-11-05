@@ -132,8 +132,10 @@ public final class XPathEvaluator
   }
 
   /**
-   * @return The position a numeric literal predicate selects, or -1 if it selects none (fractional,
-   *         NaN, out of range).
+   * @return The position a numeric literal predicate selects, or a value below 1 if it selects
+   *         none: -1 for a fractional value, NaN, or a value above the int range (or, for
+   *         xs:double and xs:float, below 1); an xs:integer or xs:decimal literal of 0 or below is
+   *         returned as it is.
    */
   private static int _getLiteralPosition (@NonNull final XdmAtomic aValue)
   {

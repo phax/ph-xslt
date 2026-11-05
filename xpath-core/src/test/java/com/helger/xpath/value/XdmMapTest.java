@@ -37,6 +37,7 @@ import org.junit.Test;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.xpath.ops.AtomicComparator;
 
 /**
  * Test class for classes {@link XdmMap} and {@link XdmArray}.
@@ -63,6 +64,38 @@ public final class XdmMapTest
     assertEquals ("a", ((XdmAtomic) aMap.get (XdmAtomic.dbl (1)).get (0)).getString ());
     assertNull (aMap.get (XdmAtomic.string ("1")));
     assertSame (XdmMap.EMPTY, new XdmMap.Builder ().build ());
+  }
+
+  @Test
+  public void testCollisionListAndHashPrefix ()
+  {
+    // "Aa" and "BB" have the same hash code and end up in a collision list
+    final int nHash = AtomicComparator.getMapKey (XdmAtomic.string ("Aa")).hashCode ();
+    assertEquals (nHash, AtomicComparator.getMapKey (XdmAtomic.string ("BB")).hashCode ());
+    // Keys that only share the lowest ten bits of the hash with them
+    final ICommonsList <String> aKeys = new CommonsArrayList <> ("Aa", "BB");
+    for (int i = 0; aKeys.size () < 100; ++i)
+    {
+      final String sKey = "k" + i;
+      final int nKeyHash = AtomicComparator.getMapKey (XdmAtomic.string (sKey)).hashCode ();
+      if (nKeyHash != nHash && (nKeyHash & 0x3ff) == (nHash & 0x3ff))
+        aKeys.add (sKey);
+    }
+    XdmMap aMap = XdmMap.EMPTY;
+    for (final String sKey : aKeys)
+      aMap = aMap.put (XdmAtomic.string (sKey), _seq (sKey));
+    assertEquals (aKeys.size (), aMap.size ());
+    for (final String sKey : aKeys)
+      assertEquals (sKey, ((XdmAtomic) aMap.get (XdmAtomic.string (sKey)).get (0)).getString ());
+    // Remove them again, the collision pair first
+    for (int i = 0; i < aKeys.size (); ++i)
+    {
+      aMap = aMap.remove (XdmAtomic.string (aKeys.get (i)));
+      assertEquals (aKeys.size () - i - 1, aMap.size ());
+      assertNull (aMap.get (XdmAtomic.string (aKeys.get (i))));
+      for (int j = i + 1; j < aKeys.size (); ++j)
+        assertTrue (aMap.containsKey (XdmAtomic.string (aKeys.get (j))));
+    }
   }
 
   @Test

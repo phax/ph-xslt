@@ -234,7 +234,13 @@ public final class XdmMap implements IXdmItem
                      nFirst < nSecond ? new Object [] { aFirst, aSecond } : new Object [] { aSecond, aFirst });
   }
 
-  /** @return The node with the slot in place of any slot of the same key. */
+  /**
+   * @return The node with the slot in place of any slot of the same key. A
+   *         collision list only ever holds slots of one hash: a new key that
+   *         only shares the hash prefix with it gets a branch node above it.
+   *         The recursion depth is bounded by the trie depth, see
+   *         {@link Node}.
+   */
   @NonNull
   private static Node _assoc (@Nullable final Node aNode, final int nShift, @NonNull final Slot aNew)
   {
@@ -243,6 +249,13 @@ public final class XdmMap implements IXdmItem
     final Object [] aKids = aNode.m_aKids;
     if (aNode.m_nBitmap == 0)
     {
+      final int nCollisionHash = ((Slot) aKids[0]).m_nHash;
+      if (nCollisionHash != aNew.m_nHash)
+      {
+        // Branch on the bits of this level; the collision list moves one level
+        // down, where it is split again if the bits are still the same
+        return _assoc (new Node (1 << ((nCollisionHash >>> nShift) & 31), new Object [] { aNode }), nShift, aNew);
+      }
       for (int i = 0; i < aKids.length; ++i)
         if (((Slot) aKids[i]).m_aMapKey.equals (aNew.m_aMapKey))
           return new Node (0, _replaceAt (aKids, i, aNew));

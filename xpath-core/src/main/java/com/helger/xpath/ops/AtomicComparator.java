@@ -918,7 +918,9 @@ public final class AtomicComparator
    * @param aCollation
    *        The collation, <code>null</code> for the codepoint collation.
    * @param bNarrow
-   *        <code>true</code> as soon as any compared value is an xs:float.
+   *        <code>true</code> as soon as any compared value is an xs:float:
+   *        numeric keys are then the value rounded once to xs:float, as eq
+   *        compares with an xs:float.
    * @return A key that two values equal under eq always share, or
    *         <code>null</code> if there is none for the value's type.
    */
@@ -932,9 +934,10 @@ public final class AtomicComparator
       double d = aValue.getAsDouble ();
       if (Double.isNaN (d))
         return new NumericBucket (Double.NaN);
-      // A comparison with an xs:float happens in float space
+      // A comparison with an xs:float happens in float space, where eq rounds
+      // each value to xs:float once (not first to xs:double)
       if (bNarrow)
-        d = (float) d;
+        d = AtomicCaster.toFloat (aValue);
       if (d == 0)
         d = 0;
       return new NumericBucket (d);

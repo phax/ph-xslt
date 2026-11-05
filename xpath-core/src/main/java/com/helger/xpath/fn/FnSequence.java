@@ -221,12 +221,19 @@ public final class FnSequence
     return XdmSequence.of (aItems);
   }
 
-  /** fn:round on a double, as needed by fn:subsequence. */
+  /**
+   * fn:round on a double, as needed by fn:subsequence: halves round towards
+   * positive infinity. The fraction is compared with 0.5 instead of computing
+   * <code>floor(d + 0.5)</code>, whose addition can round up a value just
+   * below a half (such as 0.49999999999999994).
+   */
   private static double _roundHalfUp (final double d)
   {
     if (Double.isNaN (d) || Double.isInfinite (d))
       return d;
-    return Math.floor (d + 0.5);
+    // floor(d) and the fraction d - floor(d) are both exact
+    final double dFloor = Math.floor (d);
+    return d - dFloor >= 0.5 ? dFloor + 1 : dFloor;
   }
 
   /**

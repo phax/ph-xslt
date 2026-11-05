@@ -108,6 +108,10 @@ public final class FnJsonTest
     assertEquals ("<a/>", evalString ("serialize(parse-xml-fragment('<?xml version=\"1.0\" encoding=\"UTF-8\"?><a/>'))"));
     assertError ("FODC0006", "parse-xml-fragment('<?xml version=\"1.0\"?><a/>')");
     assertError ("FODC0006", "parse-xml-fragment('<!DOCTYPE a><a/>')");
+    assertError ("FODC0006", "parse-xml-fragment('<a/><!DOCTYPE a>')");
+    // Only markup is a DOCTYPE, not text in a comment or CDATA section
+    assertEquals ("<!-- <!DOCTYPE x> -->", evalString ("serialize(parse-xml-fragment('<!-- <!DOCTYPE x> -->'))"));
+    assertEquals ("<a>&lt;!DOCTYPE x&gt;</a>", evalString ("serialize(parse-xml-fragment('<a><![CDATA[<!DOCTYPE x>]]></a>'))"));
     assertEquals ("", evalString ("serialize(parse-xml-fragment(''))"));
   }
 

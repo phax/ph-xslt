@@ -476,23 +476,33 @@ public final class FunctionLibrary
   }
 
   /**
+   * @param sVariadicKey
+   *        The name key of a variadic registration.
+   * @return <code>true</code> if this library itself (not a parent) has a
+   *         variadic registration of that name.
+   */
+  private boolean _hasOwnVariadic (@NonNull final String sVariadicKey)
+  {
+    return m_aRWLock.readLockedBoolean ( () -> m_aVariadic.containsKey (sVariadicKey));
+  }
+
+  /**
+   * The function of a variadic registration of this library itself (not of a
+   * parent) for one arity. It is created on the first request and kept with
+   * the other functions of this library.
+   *
    * @param aName
    *        Expanded function name.
    * @param nArity
    *        Number of arguments.
-   * @return <code>null</code> if there is no such function.
+   * @param sKey
+   *        The key of name and arity.
+   * @return <code>null</code> if there is no such registration or the arity
+   *         is below its minimum.
    */
   @Nullable
-  public FunctionDef getFunction (@NonNull final XdmQName aName, final int nArity)
+  private FunctionDef _getOwnVariadic (@NonNull final XdmQName aName, final int nArity, @NonNull final String sKey)
   {
-    final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
-    final FunctionDef aOwn = m_aRWLock.readLockedGet ( () -> m_aMap.get (sKey));
-    if (aOwn != null)
-      return aOwn;
-    // The parent is called without holding this library's lock
-    if (m_aParent != null)
-      return m_aRWLock.readLockedBoolean ( () -> m_aHidden.contains (sKey)) ? null : m_aParent.getFunction (aName,
-                                                                                                         nArity);
     final Object [] aVar = m_aRWLock.readLockedGet ( () -> m_aVariadic.get ("{" +
                                                                             aName.namespaceUri () +
                                                                             "}" +
@@ -516,6 +526,33 @@ public final class FunctionLibrary
       m_aMap.put (sKey, aNew);
       return aNew;
     });
+  }
+
+  /**
+   * Find a function: one registered in this library; otherwise, unless name
+   * and arity are hidden here, one of a variadic registration of this library
+   * or else the one of the parent library.
+   *
+   * @param aName
+   *        Expanded function name.
+   * @param nArity
+   *        Number of arguments.
+   * @return <code>null</code> if there is no such function.
+   */
+  @Nullable
+  public FunctionDef getFunction (@NonNull final XdmQName aName, final int nArity)
+  {
+    final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
+    final FunctionDef aOwn = m_aRWLock.readLockedGet ( () -> m_aMap.get (sKey));
+    if (aOwn != null)
+      return aOwn;
+    if (m_aRWLock.readLockedBoolean ( () -> m_aHidden.contains (sKey)))
+      return null;
+    final FunctionDef aVariadic = _getOwnVariadic (aName, nArity, sKey);
+    if (aVariadic != null)
+      return aVariadic;
+    // The parent is called without holding this library's lock
+    return m_aParent != null ? m_aParent.getFunction (aName, nArity) : null;
   }
 
   /**
@@ -543,14 +580,20 @@ public final class FunctionLibrary
     });
     if (aOwn != null)
       return (FunctionDef) aOwn[0];
+    final FunctionDef aVariadic = _getOwnVariadic (aName, nArity, sKey);
+    if (aVariadic != null)
+      return aVariadic;
     // The parent is called without holding this library's lock
-    return m_aParent != null ? m_aParent.getFunctionForLookup (aName, nArity) : getFunction (aName, nArity);
+    return m_aParent != null ? m_aParent.getFunctionForLookup (aName, nArity) : null;
   }
 
   /**
    * @param aName
    *        Expanded function name.
-   * @return <code>true</code> if a function of that name exists with any arity.
+   * @return <code>true</code> if a function of that name exists with any arity:
+   *         registered in this library, from a variadic registration of this
+   *         library or any parent (which covers more arities than can be
+   *         hidden), or a function of the parent chain that is not hidden here.
    */
   public boolean containsName (@NonNull final XdmQName aName)
   {
@@ -565,7 +608,10 @@ public final class FunctionLibrary
       return false;
     }))
       return true;
-    // The parent is called without holding this library's lock
+    // The parents are called without holding this library's lock
+    for (FunctionLibrary aLib = m_aParent; aLib != null; aLib = aLib.m_aParent)
+      if (aLib._hasOwnVariadic (sVariadicKey))
+        return true;
     if (m_aParent != null)
       for (final FunctionDef aDef : m_aParent.getAllFunctions ())
         if (aDef.getName ().equals (aName))
