@@ -40,8 +40,9 @@ import com.helger.collection.commons.ICommonsList;
  * <li><code>xslt30.seq=true</code> - run the test sets sequentially</li>
  * <li><code>xslt30.checkAccepted=false</code> - do not fail on failing cases
  * not named in the accepted-failures file</li>
- * <li><code>xslt30.strictCode=true</code> - an <code>error</code> assertion
- * must match the expected error code, not just any error</li>
+ * <li><code>xslt30.strictCode=true</code> - an <code>error</code> or
+ * <code>assert-serialization-error</code> assertion must match the expected
+ * error code, not just any error (resp. any serialization error)</li>
  * <li><code>xslt30.u90=true</code> - also run the Unicode-version cases that
  * are normally excluded with a reason</li>
  * <li><code>xslt30.out</code> - output directory (default

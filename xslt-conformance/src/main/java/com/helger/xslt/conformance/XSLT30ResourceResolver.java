@@ -396,11 +396,13 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    * The documents of a collection, in declaration order (or file name order
    * for a directory collection). A member declared as <code>file#id</code>
    * contributes the element with that <code>xml:id</code> or <code>id</code>
-   * instead of the document. Members that do not parse, and fragment members
-   * whose ID is not found, are silently left out.
+   * instead of the document.
    *
    * @return <code>null</code> if the URI names no declared collection and no
    *         existing directory with <code>?select=</code>.
+   * @throws XPathException
+   *         FODC0002 if a member cannot be read or parsed, or a fragment
+   *         member's ID is not found (a member is never left out silently)
    */
   @Nullable
   @ReturnsMutableCopy
@@ -415,9 +417,17 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     for (int i = 0; i < aPaths.size (); ++i)
     {
-      final IXdmNode aDoc = m_aDocs.getDocument (aPaths.get (i));
-      if (aDoc == null)
-        continue;
+      final IXdmNode aDoc;
+      try
+      {
+        aDoc = m_aDocs.getDocumentOrThrow (aPaths.get (i));
+      }
+      catch (final XdmParseException ex)
+      {
+        throw new XPathException ("FODC0002",
+                                  "Member '" + aPaths.get (i) + "' of collection '" + sUri + "' cannot be parsed",
+                                  ex);
+      }
       // A member "file#id" is the element with that ID (collection-004)
       final String sFragment = aFragments != null && aFragments.size () == aPaths.size () ? aFragments.get (i) : null;
       if (sFragment == null)
@@ -425,8 +435,10 @@ public final class XSLT30ResourceResolver implements IResourceResolver
       else
       {
         final IXdmNode aElement = _findById (aDoc, sFragment);
-        if (aElement != null)
-          ret.add (aElement);
+        if (aElement == null)
+          throw new XPathException ("FODC0002",
+                                    "Member '" + aPaths.get (i) + "#" + sFragment + "' of collection '" + sUri + "' not found");
+        ret.add (aElement);
       }
     }
     return ret;

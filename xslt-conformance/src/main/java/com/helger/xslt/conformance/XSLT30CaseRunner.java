@@ -33,6 +33,7 @@ import org.jspecify.annotations.Nullable;
 import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.annotation.style.VisibleForTesting;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.base.wrapper.Wrapper;
@@ -428,6 +429,35 @@ public final class XSLT30CaseRunner
   }
 
   /**
+   * The part of the compile cache key for the static parameters: per
+   * parameter (sorted by expanded name) its expanded name, <code>as</code>,
+   * <code>select</code> and the namespaces in scope on the catalogue element
+   * (which resolve the prefixes in <code>select</code> and <code>as</code>);
+   * and, if there is any static parameter, the environment the values are
+   * evaluated in (its sources, collections and resources are what
+   * <code>doc()</code> and friends in a <code>select</code> see).
+   *
+   * @param aStaticParams
+   *        The static parameters.
+   * @param aEnv
+   *        The environment of the case, may be <code>null</code>.
+   * @return The key part, empty without static parameters.
+   */
+  @NonNull
+  @VisibleForTesting
+  static String getStaticParamKey (@NonNull final Iterable <XSLT30Param> aStaticParams,
+                                   @Nullable final XSLT30Environment aEnv)
+  {
+    final ICommonsSortedMap <String, String> aKey = new CommonsTreeMap <> ();
+    for (final XSLT30Param aParam : aStaticParams)
+      aKey.put (String.valueOf (aParam.name ()),
+                aParam.as () + "\u0001" + aParam.select () + "\u0001" + aParam.namespaces ());
+    if (aKey.isEmpty ())
+      return "";
+    return aKey + "\u0002" + aEnv;
+  }
+
+  /**
    * Register a library package file for <code>xsl:use-package</code>: under
    * the name and version the catalog gives (if it gives a name; a blank
    * version means none), and in any case without a name, so the compiler
@@ -459,15 +489,16 @@ public final class XSLT30CaseRunner
    * <li>Compilation, with external entities read, the stylesheet's file URI as
    * base URI and the claimed options (schema-aware with the host schemas,
    * streaming with binding streamability). The cache key is the file,
-   * embedded or not, the static parameters (name, <code>as</code>,
-   * <code>select</code>), the packages and the host schemas.</li>
+   * embedded or not, the static parameters (see
+   * {@link #getStaticParamKey}), the packages and the host schemas.</li>
    * <li>The principal source: the environment source with role
    * <code>.</code>, or one with neither role nor URI if no role
    * <code>.</code> exists (the last matching one wins). It is inline content
    * (with the test-set file as base URI unless declared in the catalog), a
    * file (from the document cache, or freshly parsed and validated in a
    * schema-aware run), or built by its <code>select</code> alone (e.g.
-   * <code>parse-xml(...)</code>). A missing file gives no source. Secondary
+   * <code>parse-xml(...)</code>). A file that does not exist is a harness
+   * failure. Secondary
    * sources with <code>validation</code> are validated and registered with
    * the resolver in a schema-aware run.</li>
    * <li>The global context item: the source, or the first item of the
@@ -500,7 +531,8 @@ public final class XSLT30CaseRunner
    *         that is not well-formed, XTSE0010 for an embedded stylesheet that
    *         is not found, XTSE0165 for a stylesheet file that cannot be read)
    * @throws HarnessException
-   *         for an unbound prefix in the catalog or a writeTo difference
+   *         for an unbound prefix in the catalog, a principal source file
+   *         that does not exist or a writeTo difference
    */
   @NonNull
   private XSLT30Actual _transform (@NonNull final XSLT30TestSet aSet,
@@ -543,9 +575,7 @@ public final class XSLT30CaseRunner
       aPackageKey.append ('\u0001').append (aPackage.name ()).append ('@').append (aPackage.version ()).append ('=').append (aPackage.baseUri ());
 
     // Compile
-    final ICommonsSortedMap <String, String> aStaticKey = new CommonsTreeMap <> ();
-    for (final XSLT30Param aParam : aStaticParams.values ())
-      aStaticKey.put (aParam.name ().toString (), aParam.as () + "\u0001" + aParam.select ());
+    final String sStaticKey = getStaticParamKey (aStaticParams.values (), aEnv);
     // Schema-aware: the schemas of the environment are offered to
     // xsl:import-schema
     final ICommonsList <XsltCompileOptions.HostSchema> aHostSchemas = m_bSchemaAware ? XSLT30SchemaSupport.getHostSchemas (aEnv,
@@ -554,7 +584,7 @@ public final class XSLT30CaseRunner
     final String sKey = aStylesheet.toString () +
                         (bEmbedded ? "\u0003embedded" : "") +
                         "\u0000" +
-                        aStaticKey +
+                        sStaticKey +
                         aPackageKey +
                         (m_bSchemaAware ? "\u0004" + aHostSchemas : "");
     final XsltExecutable aExecutable = m_aCache.getOrCompile (sKey, () -> {
@@ -636,21 +666,20 @@ public final class XSLT30CaseRunner
             if (!aSrc.file ().isEmpty ())
             {
               final Path aPath = XSLT30ResourceResolver.getAbsolutePath (aEnv.baseDir (), aSrc.file ());
-              if (Files.isRegularFile (aPath))
+              if (!Files.isRegularFile (aPath))
+                throw new HarnessException ("Principal source file '" + aPath + "' does not exist");
+              if (sValidation != null)
               {
-                if (sValidation != null)
-                {
-                  // A fresh tree, as validation annotates it in place
-                  aSource = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
-                  XSLT30SchemaSupport.validateSource (aSource, sValidation, aExecutable, aEnv);
-                }
-                else
-                {
-                  aSource = aDocs.getDocumentOrThrow (aPath);
-                  aStreamablePath = aPath;
-                }
-                sSourceSelect = aSrc.select ().strip ();
+                // A fresh tree, as validation annotates it in place
+                aSource = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
+                XSLT30SchemaSupport.validateSource (aSource, sValidation, aExecutable, aEnv);
               }
+              else
+              {
+                aSource = aDocs.getDocumentOrThrow (aPath);
+                aStreamablePath = aPath;
+              }
+              sSourceSelect = aSrc.select ().strip ();
             }
             else
               if (!aSrc.select ().isBlank ())
@@ -808,7 +837,8 @@ public final class XSLT30CaseRunner
     return XSLT30Actual.ofResult (aResult,
                                   aFunction != null || (aOutput != null && "no".equals (aOutput.tree ())),
                                   sResultVar,
-                                  aOutput != null && "yes".equals (aOutput.serialize ()));
+                                  aOutput != null && "yes".equals (aOutput.serialize ()),
+                                  aRequest.getBaseOutputUri ());
   }
 
   /**

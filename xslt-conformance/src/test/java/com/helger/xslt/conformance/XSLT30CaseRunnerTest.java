@@ -36,6 +36,7 @@ import org.junit.rules.TemporaryFolder;
 import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
+import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
@@ -327,6 +328,84 @@ public final class XSLT30CaseRunnerTest
                   _run (aFake,
                         "<test-case name='c'><test><stylesheet file='t.xsl'/><initial-template name='u:x'/></test>" +
                                "<result><error/></result></test-case>").outcome ().reason ());
+  }
+
+  @Test
+  public void testMissingPrincipalSource () throws Exception
+  {
+    // A missing source file must not leave the case without source, where an
+    // expected error would then pass
+    final XSLT30CaseRunner.CaseResult aResult = _run (new FakeCompiler (r -> _result ("")),
+                                                      "<test-case name='c'><environment><source role='.' file='missing.xml'/>" +
+                                                                                              "</environment><test><stylesheet file='t.xsl'/></test>" +
+                                                                                              "<result><error code='*'/></result></test-case>");
+    assertEquals ("harness", aResult.outcome ().reason ());
+    assertTrue (aResult.detail ().contains ("missing.xml"));
+  }
+
+  @Test
+  public void testResultDocumentAgainstBaseOutputUri () throws Exception
+  {
+    final IXdmNode aTree = IXdmNode.createDocument ();
+    final FakeCompiler aFake = new FakeCompiler (r -> new XsltTransformResult (XdmSequence.EMPTY,
+                                                                                null,
+                                                                                "",
+                                                                                new CommonsArrayList <> (new XsltTransformResult.SecondaryResult ("sub/r.xml",
+                                                                                                                                                  XdmSequence.EMPTY,
+                                                                                                                                                  aTree,
+                                                                                                                                                  "<r/>")),
+                                                                                new CommonsArrayList <> ()));
+    final String sCase = "<test-case name='c'><test><stylesheet file='t.xsl'/><output file='out/result.xml'/></test>" +
+                         "<result><assert-result-document uri='%s'><assert-xml><![CDATA[<r/>]]></assert-xml>" +
+                         "</assert-result-document></result></test-case>";
+    assertTrue (_run (aFake, sCase.formatted ("sub/r.xml")).outcome ().isPass ());
+    // Same last path segment, other URI
+    assertEquals ("result-document-missing", _run (aFake, sCase.formatted ("r.xml")).outcome ().reason ());
+  }
+
+  @Test
+  public void testStaticParamKey ()
+  {
+    final CommonsLinkedHashMap <String, String> aNs1 = new CommonsLinkedHashMap <> ();
+    aNs1.put ("p", "urn:one");
+    final CommonsLinkedHashMap <String, String> aNs2 = new CommonsLinkedHashMap <> ();
+    aNs2.put ("p", "urn:two");
+    final XSLT30Param aParam1 = new XSLT30Param (new XdmQName ("s"), "s", "p:f()", "", true, false, aNs1);
+    final XSLT30Param aParam2 = new XSLT30Param (new XdmQName ("s"), "s", "p:f()", "", true, false, aNs2);
+    final XSLT30Param aParamNs = new XSLT30Param (new XdmQName ("urn:x", "s"), "x:s", "p:f()", "", true, false, aNs1);
+    assertEquals ("", XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (), null));
+    // The same select with another prefix binding, or another parameter
+    // namespace, is another compilation
+    final String sKey1 = XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (aParam1), null);
+    assertFalse (sKey1.equals (XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (aParam2), null)));
+    assertFalse (sKey1.equals (XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (aParamNs), null)));
+    // ... and so is the same parameter in another environment
+    final XSLT30Environment aEnvA = new XSLT30Environment ("a",
+                                                           "",
+                                                           m_aDir,
+                                                           false,
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> ());
+    final XSLT30Environment aEnvB = new XSLT30Environment ("b",
+                                                           "",
+                                                           m_aDir,
+                                                           false,
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> (),
+                                                           new CommonsArrayList <> ());
+    assertFalse (XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (aParam1), aEnvA)
+                                 .equals (XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (aParam1), aEnvB)));
+    assertEquals (XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (aParam1), aEnvA),
+                  XSLT30CaseRunner.getStaticParamKey (new CommonsArrayList <> (aParam1), aEnvA));
   }
 
   @Test

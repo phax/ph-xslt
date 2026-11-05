@@ -25,14 +25,18 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.annotation.style.VisibleForTesting;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.conformance.QT3AssertionChecker;
@@ -62,14 +66,18 @@ import com.helger.xslt.runtime.NodeCopier;
  * evaluated with the XPath engine, with the namespaces in scope on the
  * assertion in the catalog.
  * <p>
- * Rules taken over from Go: <code>error</code> passes for any error unless
- * strict error codes are requested; every other assertion fails when the
- * transformation raised an error (except <code>not</code>,
- * <code>any-of</code> and <code>assert-serialization-error</code>, which look
- * at their children or the error); <code>assert-warning</code> always passes,
- * as in the W3C reference runner; an assertion on the raw result when there
- * is none is a skip. An {@link XPathException} while evaluating an assertion
- * fails it; any other {@link Throwable} propagates, and the case runner
+ * Rules: <code>error</code> passes for any error unless strict error codes
+ * are requested (catalogue: "an implementation is considered to pass a test
+ * if the test expects an error and the implementation raises an error,
+ * regardless whether the error codes match"); every other assertion fails
+ * inconclusively when the transformation raised an error (except the
+ * combinators and <code>assert-serialization-error</code>, which look at
+ * their children or the error); <code>not</code> passes only if its child
+ * was evaluated and is false ({@link QT3AssertionChecker#negate});
+ * <code>assert-warning</code> always passes, as in the W3C reference runner;
+ * an assertion on the raw result when there is none is a skip. An
+ * {@link XPathException} while evaluating an assertion fails it
+ * inconclusively; any other {@link Throwable} propagates, and the case runner
  * reports it as a crash.
  *
  * @author Philip Helger
@@ -81,6 +89,7 @@ public final class XSLT30AssertionChecker
   private static final XdmQName VAR_P = new XdmQName ("xslt30-p");
   private static final XdmQName VAR_F = new XdmQName ("xslt30-f");
   private static final XdmQName VAR_RESULT = new XdmQName ("xslt30-result");
+  private static final XdmQName VAR_EXPECTED = new XdmQName ("xslt30-expected");
 
   /** An unclosed HTML void element start tag. */
   private static final Pattern HTML_VOID_TAG = Pattern.compile ("<(area|base|basefont|br|col|embed|frame|hr|img|input|isindex|link|meta|param|source|track|wbr)(\\s[^<>]*[^<>/]|\\s*)>",
@@ -90,6 +99,16 @@ public final class XSLT30AssertionChecker
   private static final Pattern INDENTATION = Pattern.compile (">[ \\t\\r\\n]+<");
   /** A run of XML whitespace. */
   private static final Pattern WHITESPACE_RUN = Pattern.compile ("[ \\t\\r\\n]+");
+  /**
+   * An HTML element whose content the html and xhtml serializers must not
+   * change with indent="yes" (Serialization 3.1 sections 6.1.4 and 7.4.3:
+   * <code>pre</code>, <code>script</code>, <code>style</code>,
+   * <code>title</code>, <code>textarea</code>), with its content.
+   */
+  private static final Pattern FORMATTED_ELEMENT = Pattern.compile ("<(pre|script|style|title|textarea)(?:[\\s/][^>]*)?>.*?</\\1\\s*>",
+                                                                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+  /** A real XML declaration at the start of a text. */
+  private static final Pattern XML_DECL = Pattern.compile ("^<\\?xml[ \\t\\r\\n][^>]*?\\?>");
 
   /** Expression fragments only a type-annotated tree can answer. */
   private static final String [] PSVI_MARKERS = { "instance of element(",
@@ -151,21 +170,19 @@ public final class XSLT30AssertionChecker
 
   /**
    * @return The text trimmed, without a leading XML declaration and the
-   *         whitespace after it. Any leading <code>&lt;?xml</code>... up to
-   *         the first <code>?&gt;</code> is taken as the declaration, so a
-   *         leading <code>&lt;?xml-stylesheet ...?&gt;</code> processing
-   *         instruction is removed as well.
+   *         whitespace after it. Only a real declaration
+   *         (<code>&lt;?xml</code> followed by whitespace) is removed, never a
+   *         processing instruction such as
+   *         <code>&lt;?xml-stylesheet ...?&gt;</code>.
    */
   @NonNull
-  private static String _stripDecl (@NonNull final String s)
+  @VisibleForTesting
+  static String stripDecl (@NonNull final String s)
   {
     final String ret = XSLT30XmlCompare.trimSpace (s);
-    if (ret.startsWith ("<?xml"))
-    {
-      final int i = ret.indexOf ("?>");
-      if (i >= 0)
-        return XSLT30XmlCompare.trimSpace (ret.substring (i + 2));
-    }
+    final Matcher aMatcher = XML_DECL.matcher (ret);
+    if (aMatcher.find ())
+      return XSLT30XmlCompare.trimSpace (ret.substring (aMatcher.end ()));
     return ret;
   }
 
@@ -177,7 +194,7 @@ public final class XSLT30AssertionChecker
   @NonNull
   private static String _wrapFragment (@NonNull final String s)
   {
-    return "<_x_>" + _stripDecl (s) + "</_x_>";
+    return "<_x_>" + stripDecl (s) + "</_x_>";
   }
 
   /**
@@ -219,17 +236,54 @@ public final class XSLT30AssertionChecker
   }
 
   /**
-   * Remove the whitespace that indent="yes" leaves to the serializer of the
-   * given method: whitespace-only runs between tags, and for xhtml and html
-   * also the length of every other whitespace run.
+   * Remove the whitespace indent="yes" leaves to the serializer from a text
+   * without formatted elements: whitespace-only runs between tags, and for
+   * xhtml and html also the length of every other whitespace run.
    */
   @NonNull
-  private static String _stripIndentation (@NonNull final String s, @NonNull final String sMethod)
+  private static String _stripIndentationPart (@NonNull final String s, final boolean bHtml)
   {
     String ret = s;
-    if (SerializationParams.METHOD_XHTML.equals (sMethod) || SerializationParams.METHOD_HTML.equals (sMethod))
+    if (bHtml)
       ret = WHITESPACE_RUN.matcher (ret).replaceAll (" ");
     return INDENTATION.matcher (ret).replaceAll ("><");
+  }
+
+  /**
+   * Remove the whitespace that indent="yes" leaves to the serializer of the
+   * given method: whitespace-only runs between tags, and for xhtml and html
+   * also the length of every other whitespace run. For xhtml and html the
+   * content of the formatted elements (<code>pre</code>,
+   * <code>script</code>, <code>style</code>, <code>title</code>,
+   * <code>textarea</code>) is kept as it is, since the serializer must not
+   * change whitespace there.
+   */
+  @NonNull
+  @VisibleForTesting
+  static String stripIndentation (@NonNull final String s, @NonNull final String sMethod)
+  {
+    final boolean bHtml = SerializationParams.METHOD_XHTML.equals (sMethod) ||
+                          SerializationParams.METHOD_HTML.equals (sMethod);
+    if (!bHtml)
+      return _stripIndentationPart (s, false);
+    // Each formatted element is replaced by a placeholder tag (private use
+    // characters, which a serialization does not contain as markup) and put
+    // back afterwards
+    final ICommonsList <String> aFormatted = new CommonsArrayList <> ();
+    final StringBuilder aSB = new StringBuilder ();
+    final Matcher aMatcher = FORMATTED_ELEMENT.matcher (s);
+    int nLast = 0;
+    while (aMatcher.find ())
+    {
+      aSB.append (s, nLast, aMatcher.start ()).append ("<\uE000").append (aFormatted.size ()).append ("\uE001>");
+      aFormatted.add (aMatcher.group ());
+      nLast = aMatcher.end ();
+    }
+    aSB.append (s, nLast, s.length ());
+    String ret = _stripIndentationPart (aSB.toString (), true);
+    for (int i = 0; i < aFormatted.size (); ++i)
+      ret = ret.replace ("<\uE000" + i + "\uE001>", aFormatted.get (i));
+    return ret;
   }
 
   /**
@@ -329,9 +383,10 @@ public final class XSLT30AssertionChecker
    * @return The expected text: the referenced file read like
    *         fn:unparsed-text (byte order mark dropped, declared encoding
    *         honoured) with every CR removed, as the reference runner does; or
-   *         the inline value.
+   *         the inline value if there is no <code>file</code>;
+   *         <code>null</code> if the file cannot be read.
    */
-  @NonNull
+  @Nullable
   private String _getExpected (@NonNull final XSLT30Assertion aAssertion)
   {
     final String sFile = aAssertion.getAttribute ("file");
@@ -347,28 +402,63 @@ public final class XSLT30AssertionChecker
       }
       catch (final IOException | InvalidPathException ex)
       {
-        // fall through to the inline value, like Go
+        // Never fall back to the (usually empty) inline value
+        return null;
       }
     return aAssertion.value ();
   }
 
   /**
-   * Find the secondary result an <code>assert-result-document</code> names.
-   * The first result whose href equals the URI, ends with
-   * <code>/</code>URI, or merely has the same last path segment matches.
-   *
-   * @return The result or <code>null</code> if none matches.
+   * @return The reference resolved against the base and normalised (a
+   *         <code>file:///</code> URI written as <code>file:/</code>, the
+   *         form {@link URI#resolve(URI)} gives), or <code>null</code> if
+   *         either is no valid URI.
    */
-  private static XsltTransformResult.@Nullable SecondaryResult _findSecondary (@NonNull final XSLT30Actual aActual,
-                                                                               @NonNull final String sUri)
+  @Nullable
+  private static String _resolveAgainst (@NonNull final String sBase, @NonNull final String sRef)
   {
-    final String sBaseName = sUri.substring (sUri.lastIndexOf ('/') + 1);
+    try
+    {
+      final String ret = new URI (sBase).resolve (new URI (sRef)).normalize ().toString ();
+      return ret.startsWith ("file:///") ? "file:/" + ret.substring (8) : ret;
+    }
+    catch (final URISyntaxException | IllegalArgumentException ex)
+    {
+      return null;
+    }
+  }
+
+  /**
+   * Find the secondary result an <code>assert-result-document</code> names.
+   * The catalogue's <code>uri</code> is relative to the base output URI, and
+   * so is the <code>href</code> of <code>xsl:result-document</code>: both are
+   * resolved against the base output URI of the transformation (or, if it had
+   * none, the test-set directory, the harness's implementation-defined
+   * choice) and must be equal. If either does not resolve, the texts must be
+   * equal.
+   *
+   * @param aActual
+   *        The outcome with the secondary results.
+   * @param sUri
+   *        The <code>uri</code> of the assertion.
+   * @return The first matching result or <code>null</code> if none matches.
+   */
+  @VisibleForTesting
+  XsltTransformResult.@Nullable SecondaryResult findSecondary (@NonNull final XSLT30Actual aActual,
+                                                               @NonNull final String sUri)
+  {
+    String sBase = aActual.baseOutputUri ();
+    if (sBase == null)
+    {
+      sBase = XSLT30ResourceResolver.getFileUri (m_aDir.toAbsolutePath ().normalize ());
+      if (!sBase.endsWith ("/"))
+        sBase += "/";
+    }
+    final String sWant = _resolveAgainst (sBase, sUri.strip ());
     for (final XsltTransformResult.SecondaryResult aSec : aActual.secondaries ())
     {
-      final String sHref = aSec.href ();
-      if (sHref.equals (sUri) ||
-          sHref.endsWith ("/" + sUri) ||
-          sHref.substring (sHref.lastIndexOf ('/') + 1).equals (sBaseName))
+      final String sGot = _resolveAgainst (sBase, aSec.href ());
+      if (sWant != null && sGot != null ? sWant.equals (sGot) : sUri.strip ().equals (aSec.href ()))
         return aSec;
     }
     return null;
@@ -408,8 +498,8 @@ public final class XSLT30AssertionChecker
    * context item. The raw result is bound to the result variable (empty
    * sequence if there is none) unless the variable name is empty.
    *
-   * @return Pass or fail with reason <code>assert</code>, or fail with
-   *         <code>assert-eval</code> if the evaluation raised an error.
+   * @return Pass or fail with reason <code>assert</code>, or an inconclusive
+   *         fail <code>assert-eval</code> if the evaluation raised an error.
    */
   @NonNull
   private QT3Outcome _evalAssertOn (@NonNull final XSLT30Assertion aAssertion,
@@ -424,7 +514,7 @@ public final class XSLT30AssertionChecker
     }
     final Boolean aValue = _evalBool (aAssertion, aDoc, aAssertion.value ().strip (), aVars);
     if (aValue == null)
-      return QT3Outcome.fail ("assert-eval");
+      return QT3Outcome.failInconclusive ("assert-eval");
     return QT3Outcome.of (aValue.booleanValue (), "assert");
   }
 
@@ -440,8 +530,8 @@ public final class XSLT30AssertionChecker
    * gets the base URI of the outcome if it has none. If nothing parses, the
    * raw tree is the last resort.
    *
-   * @return The outcome; fail with <code>assert-parse</code> if there is no
-   *         document to evaluate on.
+   * @return The outcome; an inconclusive fail <code>assert-parse</code> if
+   *         there is no document to evaluate on.
    */
   @NonNull
   private QT3Outcome _checkAssert (@NonNull final XSLT30Assertion aAssertion, @NonNull final XSLT30Actual aActual)
@@ -451,37 +541,37 @@ public final class XSLT30AssertionChecker
     {
       // The message itself, as a document node
       if (aRawDoc == null)
-        return QT3Outcome.fail ("assert-parse");
+        return QT3Outcome.failInconclusive ("assert-parse");
       return _evalAssertOn (aAssertion, aRawDoc, aActual);
     }
     // Serialising discards type annotations: only the raw tree can answer
     if (aRawDoc != null && _isAssertNeedingPsvi (aAssertion.value ()))
       return _evalAssertOn (aAssertion, aRawDoc, aActual);
     // No markup at all (a text result): the raw tree is that document
-    if (aRawDoc != null && !_stripDecl (aActual.output ()).startsWith ("<"))
+    if (aRawDoc != null && !stripDecl (aActual.output ()).startsWith ("<"))
       return _evalAssertOn (aAssertion, aRawDoc, aActual);
 
     final String sOutput = aActual.output ();
-    IXdmNode aDoc = _tryParse (_stripDecl (sOutput));
+    IXdmNode aDoc = _tryParse (stripDecl (sOutput));
     if (aDoc == null)
     {
       // Several top-level elements (or top-level text): a document node with
       // these children, as the result tree has
-      aDoc = _parseMessageDocument (_stripDecl (sOutput));
+      aDoc = _parseMessageDocument (stripDecl (sOutput));
     }
     if (aDoc == null)
       aDoc = _tryParse (_wrapFragment (sOutput));
     if (aDoc == null)
     {
       // An HTML result: close the void tags, unwrapped first
-      aDoc = _tryParse (_stripDecl (_closeHtmlVoidTags (sOutput)));
+      aDoc = _tryParse (stripDecl (_closeHtmlVoidTags (sOutput)));
       if (aDoc == null)
         aDoc = _tryParse (_wrapFragment (_closeHtmlVoidTags (sOutput)));
     }
     if (aDoc == null)
     {
       // XML 1.1 only content
-      aDoc = _tryParse ("<?xml version=\"1.1\"?>" + _stripDecl (sOutput));
+      aDoc = _tryParse ("<?xml version=\"1.1\"?>" + stripDecl (sOutput));
       if (aDoc == null)
         aDoc = _tryParse ("<?xml version=\"1.1\"?>" + _wrapFragment (sOutput));
     }
@@ -493,7 +583,7 @@ public final class XSLT30AssertionChecker
     else
       aDoc = aRawDoc;
     if (aDoc == null)
-      return QT3Outcome.fail ("assert-parse");
+      return QT3Outcome.failInconclusive ("assert-parse");
     return _evalAssertOn (aAssertion, aDoc, aActual);
   }
 
@@ -502,7 +592,7 @@ public final class XSLT30AssertionChecker
    * <ul>
    * <li><code>assert-empty</code>: the sequence is empty;</li>
    * <li><code>assert-count</code>: its length equals the (trimmed) integer
-   * text; a text that is no integer is a skip;</li>
+   * text; a text that is no integer is an inconclusive fail;</li>
    * <li><code>assert-true</code>/<code>assert-false</code>: a single
    * <code>xs:boolean</code> (or derived) with that value;</li>
    * <li><code>assert-deep-eq</code>: <code>fn:deep-equal</code> of the result
@@ -515,8 +605,9 @@ public final class XSLT30AssertionChecker
    * The expressions are evaluated without a context item, with the result
    * bound to an internal variable.
    *
-   * @return The outcome; fail with <code>&lt;kind&gt;-eval</code> if the
-   *         evaluation raised an error, skip for any other kind.
+   * @return The outcome; an inconclusive fail <code>&lt;kind&gt;-eval</code>
+   *         if the evaluation raised an error or
+   *         <code>harness:unknown:&lt;kind&gt;</code> for any other kind.
    */
   @NonNull
   private QT3Outcome _checkValueAssert (@NonNull final XSLT30Assertion aAssertion,
@@ -535,7 +626,7 @@ public final class XSLT30AssertionChecker
         }
         catch (final NumberFormatException ex)
         {
-          return QT3Outcome.skip ("assert:" + sKind);
+          return QT3Outcome.failInconclusive (sKind + "-eval");
         }
       case "assert-true":
       case "assert-false":
@@ -568,59 +659,116 @@ public final class XSLT30AssertionChecker
                 "count($xslt30-result[deep-equal(., $r)]) eq count($e[deep-equal(., $r)]))";
         break;
       default:
-        return QT3Outcome.skip ("assert:" + sKind);
+        return QT3Outcome.failInconclusive ("harness:unknown:" + sKind);
     }
     final ICommonsMap <XdmQName, XdmSequence> aVars = new CommonsHashMap <> ();
     aVars.put (VAR_RESULT, aRaw);
     final Boolean aValue = _evalBool (aAssertion, null, sExpr, aVars);
     if (aValue == null)
-      return QT3Outcome.fail (sKind + "-eval");
+      return QT3Outcome.failInconclusive (sKind + "-eval");
     return QT3Outcome.of (aValue.booleanValue (), sKind);
+  }
+
+  /**
+   * Check <code>assert-eq</code> (catalogue: the expected value is an XPath
+   * expression, and the result must be an atomic value that compares equal
+   * to it under the rules of <code>eq</code>; the catalogue names an untyped
+   * atomic value as acceptable, so an untyped value is cast to the type of
+   * the expected one, as in a general comparison). The result is the raw
+   * result: it must be exactly one item, atomised (a result tree gives its
+   * untyped string value), and the expected expression must give exactly one
+   * atomic value. Values whose types cannot be compared (e.g.
+   * <code>xs:string "3"</code> and the integer 3) are not equal.
+   *
+   * @return The outcome; an inconclusive fail if there is no raw result or
+   *         the expected expression does not evaluate to one atomic value.
+   */
+  @NonNull
+  private QT3Outcome _checkEq (@NonNull final XSLT30Assertion aAssertion, @NonNull final XSLT30Actual aActual)
+  {
+    final XdmSequence aRaw = aActual.rawValue ();
+    if (aRaw == null)
+      return QT3Outcome.failInconclusive ("assert-eq-no-result");
+    final XdmSequence aWant;
+    try
+    {
+      aWant = _createEvaluator (aAssertion, null).evaluate (aAssertion.value ().strip (), new CommonsHashMap <> ());
+    }
+    catch (final XPathException ex)
+    {
+      return QT3Outcome.failInconclusive ("assert-eq-eval");
+    }
+    if (!aWant.isSingleton () || !(aWant.getFirst () instanceof XdmAtomic))
+      return QT3Outcome.failInconclusive ("assert-eq-eval");
+    if (!aRaw.isSingleton ())
+      return QT3Outcome.fail ("assert-eq");
+    final ICommonsMap <XdmQName, XdmSequence> aVars = new CommonsHashMap <> ();
+    aVars.put (VAR_RESULT, aRaw);
+    aVars.put (VAR_EXPECTED, aWant);
+    final XdmSequence aEqual;
+    try
+    {
+      // Single items on both sides: "=" is "eq" with an untyped value cast
+      // to the type of the other operand; incomparable types raise XPTY0004
+      aEqual = _createEvaluator (aAssertion, null).evaluate ("data($xslt30-result) = $xslt30-expected", aVars);
+    }
+    catch (final XPathException ex)
+    {
+      return QT3Outcome.fail ("assert-eq");
+    }
+    final Boolean aValue = QT3AssertionChecker.getEffectiveBooleanValue (aEqual);
+    return QT3Outcome.of (aValue != null && aValue.booleanValue (), "assert-eq");
   }
 
   /**
    * Check one assertion.
    * <p>
    * The combinators and the assertions that look at the error come first:
-   * <code>error</code> passes on any error (with strict error codes the code
-   * must match, unless it is empty or <code>*</code>);
-   * <code>assert-message</code> passes if any <code>xsl:message</code> text
-   * satisfies the nested assertion (which sees the message text as output;
-   * an <code>assert</code> is evaluated on it as a document node), or
-   * without a nested assertion if there is a message at all;
-   * <code>assert-serialization-error</code> passes on any error, whatever
-   * its code; <code>all-of</code> passes if every child passes (a skipping
-   * child fails it); <code>any-of</code> if one child passes;
-   * <code>not</code> if its child does not pass, so a child that fails
-   * because the transformation raised an error, cannot be evaluated or is
-   * skipped makes <code>not</code> pass.
+   * <code>error</code> passes on any error (see
+   * {@link QT3AssertionChecker#checkErrorCode}: with strict error codes the
+   * code must match, unless it is empty or <code>*</code>; otherwise a wrong
+   * code passes with a note); <code>assert-message</code> passes if any
+   * <code>xsl:message</code> text satisfies the nested assertion (which sees
+   * the message text as output; an <code>assert</code> is evaluated on it as
+   * a document node), or without a nested assertion if there is a message at
+   * all; <code>assert-serialization-error</code> needs an error that is a
+   * serialization error (code <code>SE*</code>, catalogue: "the
+   * transformation can be executed without error, but serializing the
+   * result produces a serialization error"), whose code is judged like that
+   * of <code>error</code>; <code>all-of</code> passes if every child passes
+   * (a skipping child fails it); <code>any-of</code> see
+   * {@link QT3AssertionChecker#combineAnyOf}; <code>not</code> passes only if
+   * its single child was evaluated and is false (see
+   * {@link QT3AssertionChecker#negate}), so a child that fails because the
+   * transformation raised an error, cannot be evaluated or is skipped fails
+   * <code>not</code>.
    * <p>
-   * Every other assertion fails with <code>errored:&lt;code&gt;</code> after
-   * an error. Then:
+   * Every other assertion fails inconclusively with
+   * <code>errored:&lt;code&gt;</code> after an error. Then:
    * <ul>
    * <li><code>assert-xml</code>: the expected XML (inline or from
    * <code>file</code>) and the output compared by
    * {@link XSLT30XmlCompare#isXmlEqual(String, String, boolean)}; failing
    * that, against the result tree serialised as XML (html and xhtml
    * output).</li>
-   * <li><code>assert-serialization</code>: the texts compared trimmed (or
-   * whitespace normalised with <code>normalize-space="true"</code>); failing
-   * that, after indent="yes" output, with the whitespace the serializer may
-   * add removed from both.</li>
+   * <li><code>assert-serialization</code>: the texts must be equal exactly
+   * (catalogue: "in principle, the serialization must match exactly"; a file
+   * is read without CRs), or whitespace normalised with
+   * <code>normalize-space="true"</code>; failing that, after indent="yes"
+   * output, with the whitespace the serializer may add or change removed
+   * from both (see {@link #stripIndentation}) and both trimmed.</li>
    * <li><code>serialization-matches</code>: <code>fn:matches</code> of the
    * output, the trimmed regex and the <code>flags</code>; an invalid regex
-   * fails with <code>bad-regex</code>.</li>
+   * fails inconclusively with <code>bad-regex</code>.</li>
    * <li><code>assert-string-value</code>: the string value of the output
    * (reparsed as a fragment if possible, else the text) equals the expected
    * text, both whitespace normalised unless
    * <code>normalize-space="false"</code>.</li>
    * <li><code>assert-result-document</code>: the secondary result named by
-   * <code>uri</code> exists, and the nested assertion holds for its
-   * serialisation (or its tree, if the nested assertion needs type
-   * annotations).</li>
-   * <li><code>assert-eq</code>: the expected expression's items, as strings
-   * joined by a space, equal the string value of the output, exactly or
-   * after trimming. Types and the number of items are not compared.</li>
+   * <code>uri</code> exists (see {@link #findSecondary}), and the nested
+   * assertion holds for its serialisation (or its tree, if the nested
+   * assertion needs type annotations).</li>
+   * <li><code>assert-eq</code>: see {@link #_checkEq}.</li>
    * <li><code>assert</code>: see {@link #_checkAssert}.</li>
    * <li><code>assert-count</code>, <code>assert-deep-eq</code>,
    * <code>assert-type</code>, <code>assert-empty</code>,
@@ -628,7 +776,9 @@ public final class XSLT30AssertionChecker
    * <code>assert-permutation</code>: on the raw result (skip if there is
    * none), see {@link #_checkValueAssert}.</li>
    * </ul>
-   * Any other kind is a skip.
+   * An expected <code>file</code> that cannot be read fails inconclusively
+   * with <code>expected-file</code>. Any other kind is an inconclusive fail
+   * <code>harness:unknown:&lt;kind&gt;</code>.
    *
    * @param aAssertion
    *        The assertion.
@@ -644,14 +794,9 @@ public final class XSLT30AssertionChecker
     switch (sKind)
     {
       case "error":
-      {
         if (aError == null)
           return QT3Outcome.fail ("expected-error");
-        final String sWant = aAssertion.getAttribute ("code").strip ();
-        if (m_bStrictErrorCodes && !sWant.isEmpty () && !"*".equals (sWant) && !sWant.equals (aError.getCode ()))
-          return QT3Outcome.fail ("error-code");
-        return QT3Outcome.pass ();
-      }
+        return QT3AssertionChecker.checkErrorCode (aAssertion.getAttribute ("code"), aError, m_bStrictErrorCodes);
       case "assert-message":
         if (aAssertion.children ().isEmpty ())
           return QT3Outcome.of (aActual.messages ().isNotEmpty (), "no-message");
@@ -667,7 +812,8 @@ public final class XSLT30AssertionChecker
                                                           aActual.baseUri (),
                                                           null,
                                                           true,
-                                                          null);
+                                                          null,
+                                                          aActual.baseOutputUri ());
           if (check (aAssertion.children ().getFirstOrNull (), aMessage).isPass ())
             return QT3Outcome.pass ();
         }
@@ -676,30 +822,41 @@ public final class XSLT30AssertionChecker
         // As in the W3C reference runner: warnings cannot be tested
         return QT3Outcome.pass ();
       case "assert-serialization-error":
-        return QT3Outcome.of (aError != null, "expected-serialization-error");
+        if (aError == null)
+          return QT3Outcome.fail ("expected-serialization-error");
+        if (!QT3AssertionChecker.isSerializationError (aError))
+          return QT3Outcome.fail ("serialization-error-code");
+        return QT3AssertionChecker.checkErrorCode (aAssertion.getAttribute ("code"), aError, m_bStrictErrorCodes);
       case "all-of":
         for (final XSLT30Assertion aChild : aAssertion.children ())
         {
           final QT3Outcome aOutcome = check (aChild, aActual);
           if (!aOutcome.isPass ())
-            return QT3Outcome.fail (aOutcome.isSkip () ? "all-of" : aOutcome.reason ());
+            return aOutcome.isSkip () ? QT3Outcome.failInconclusive ("all-of") : aOutcome;
         }
         return QT3Outcome.pass ();
       case "any-of":
+      {
+        final ICommonsList <QT3Outcome> aOutcomes = new CommonsArrayList <> ();
         for (final XSLT30Assertion aChild : aAssertion.children ())
-          if (check (aChild, aActual).isPass ())
-            return QT3Outcome.pass ();
-        return QT3Outcome.fail ("any-of");
+        {
+          final QT3Outcome aOutcome = check (aChild, aActual);
+          aOutcomes.add (aOutcome);
+          if (aOutcome.isPass ())
+            break;
+        }
+        return QT3AssertionChecker.combineAnyOf (aOutcomes);
+      }
       case "not":
-        if (aAssertion.children ().isEmpty ())
-          return QT3Outcome.fail ("not");
-        return QT3Outcome.of (!check (aAssertion.children ().getFirstOrNull (), aActual).isPass (), "not");
+        if (aAssertion.children ().size () != 1)
+          return QT3Outcome.failInconclusive ("harness:not-children");
+        return QT3AssertionChecker.negate (check (aAssertion.children ().getFirstOrNull (), aActual));
       default:
         break;
     }
 
     if (aError != null)
-      return QT3Outcome.fail ("errored:" + aError.getCode ());
+      return QT3Outcome.failInconclusive ("errored:" + aError.getCode ());
 
     final String sOutput = aActual.output ();
     final boolean bNormalizeSpace = "true".equals (aAssertion.getAttribute ("normalize-space"));
@@ -708,6 +865,8 @@ public final class XSLT30AssertionChecker
       case "assert-xml":
       {
         final String sExpected = _getExpected (aAssertion);
+        if (sExpected == null)
+          return QT3Outcome.failInconclusive ("expected-file");
         if (XSLT30XmlCompare.isXmlEqual (sExpected, sOutput, bNormalizeSpace))
           return QT3Outcome.pass ();
         // The result tree, without what the html/xhtml serializer adds
@@ -718,15 +877,20 @@ public final class XSLT30AssertionChecker
       case "assert-serialization":
       {
         final String sExpected = _getExpected (aAssertion);
-        if (XSLT30XmlCompare.isSerialEqual (sExpected, sOutput, bNormalizeSpace))
+        if (sExpected == null)
+          return QT3Outcome.failInconclusive ("expected-file");
+        if (bNormalizeSpace ? XSLT30XmlCompare.normalizeSpace (sExpected)
+                                                  .equals (XSLT30XmlCompare.normalizeSpace (sOutput))
+                            : sExpected.equals (sOutput))
           return QT3Outcome.pass ();
         // With indent="yes" Serialization 3.1 leaves some whitespace to the
-        // serializer; only that is ignored
+        // serializer (also before and after the outermost markup); only that
+        // is ignored
         final String sIndented = aActual.indentedMethod ();
         return QT3Outcome.of (sIndented != null &&
-                              XSLT30XmlCompare.isSerialEqual (_stripIndentation (sExpected, sIndented),
-                                                              _stripIndentation (sOutput, sIndented),
-                                                              false),
+                              XSLT30XmlCompare.trimSpace (stripIndentation (sExpected, sIndented))
+                                              .equals (XSLT30XmlCompare.trimSpace (stripIndentation (sOutput,
+                                                                                                      sIndented))),
                               sKind);
       }
       case "serialization-matches":
@@ -737,7 +901,7 @@ public final class XSLT30AssertionChecker
         aVars.put (VAR_F, XdmSequence.of (XdmAtomic.string (aAssertion.getAttribute ("flags"))));
         final Boolean aMatch = _evalBool (aAssertion, null, "matches($xslt30-s, $xslt30-p, $xslt30-f)", aVars);
         if (aMatch == null)
-          return QT3Outcome.fail ("bad-regex");
+          return QT3Outcome.failInconclusive ("bad-regex");
         return QT3Outcome.of (aMatch.booleanValue (), sKind);
       }
       case "assert-string-value":
@@ -757,7 +921,7 @@ public final class XSLT30AssertionChecker
       }
       case "assert-result-document":
       {
-        final XsltTransformResult.SecondaryResult aSec = _findSecondary (aActual, aAssertion.getAttribute ("uri"));
+        final XsltTransformResult.SecondaryResult aSec = findSecondary (aActual, aAssertion.getAttribute ("uri"));
         if (aSec == null)
           return QT3Outcome.fail ("result-document-missing");
         if (aAssertion.children ().isEmpty ())
@@ -773,32 +937,14 @@ public final class XSLT30AssertionChecker
                                         aActual.messages (),
                                         aSecRaw,
                                         "",
-                                        _resolveHref (aSec.href ())));
+                                        _resolveHref (aSec.href ()),
+                                        null,
+                                        false,
+                                        null,
+                                        aActual.baseOutputUri ()));
       }
       case "assert-eq":
-      {
-        final String sWant;
-        try
-        {
-          final XdmSequence aWant = _createEvaluator (aAssertion, null).evaluate ("string-join((" +
-                                                                                  aAssertion.value ().strip () +
-                                                                                  ") ! string(.), ' ')",
-                                                                                  new CommonsHashMap <> ());
-          sWant = aWant.isSingleton () && aWant.getFirst () instanceof final XdmAtomic aAtomic ? aAtomic.getString ()
-                                                                                                : "";
-        }
-        catch (final XPathException ex)
-        {
-          return QT3Outcome.fail ("assert-eq-eval");
-        }
-        String sGot = _stripDecl (sOutput);
-        final IXdmNode aDoc = QT3XmlCompare.parseFragment (sOutput);
-        if (aDoc != null)
-          sGot = aDoc.getStringValue ();
-        return QT3Outcome.of (sWant.equals (sGot) ||
-                              XSLT30XmlCompare.trimSpace (sWant).equals (XSLT30XmlCompare.trimSpace (sGot)),
-                              sKind);
-      }
+        return _checkEq (aAssertion, aActual);
       case "assert":
         return _checkAssert (aAssertion, aActual);
       case "assert-count":
@@ -817,7 +963,7 @@ public final class XSLT30AssertionChecker
         return _checkValueAssert (aAssertion, aRaw);
       }
       default:
-        return QT3Outcome.skip ("assert:" + sKind);
+        return QT3Outcome.failInconclusive ("harness:unknown:" + sKind);
     }
   }
 }

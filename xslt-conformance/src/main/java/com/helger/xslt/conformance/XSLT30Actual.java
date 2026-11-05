@@ -67,6 +67,11 @@ import com.helger.xslt.XsltTransformResult;
  *        <code>null</code>. <code>assert-xml</code> compares the result tree,
  *        and the Content-Type <code>meta</code> element those methods add
  *        (include-content-type) is not part of it.
+ * @param baseOutputUri
+ *        The base output URI of the transformation (absolute), against which
+ *        the hrefs of the secondary results and the <code>uri</code> of
+ *        <code>assert-result-document</code> are resolved; <code>null</code>
+ *        if the transformation had none.
  * @author Philip Helger
  */
 public record XSLT30Actual (@NonNull String output,
@@ -78,13 +83,15 @@ public record XSLT30Actual (@NonNull String output,
                             @Nullable String baseUri,
                             @Nullable String indentedMethod,
                             boolean message,
-                            @Nullable String treeXml)
+                            @Nullable String treeXml,
+                            @Nullable String baseOutputUri)
 {
   /** The default name of the result variable. */
   public static final String DEFAULT_RESULT_VAR = "result";
 
   /**
-   * Constructor for an output that is neither indented nor a message.
+   * Constructor for an output that is neither indented nor a message, without
+   * base output URI.
    *
    * @param output
    *        The serialised result.
@@ -109,7 +116,7 @@ public record XSLT30Actual (@NonNull String output,
                        @NonNull final String resultVar,
                        @Nullable final String baseUri)
   {
-    this (output, error, secondaries, messages, rawValue, resultVar, baseUri, null, false, null);
+    this (output, error, secondaries, messages, rawValue, resultVar, baseUri, null, false, null, null);
   }
 
   /**
@@ -187,6 +194,35 @@ public record XSLT30Actual (@NonNull String output,
                                        @NonNull final String sResultVar,
                                        final boolean bSerialize)
   {
+    return ofResult (aResult, bInitialFunction, sResultVar, bSerialize, null);
+  }
+
+  /**
+   * @param aResult
+   *        The transformation result.
+   * @param bInitialFunction
+   *        <code>true</code> if the stylesheet was invoked through an initial
+   *        function.
+   * @param sResultVar
+   *        The result variable name.
+   * @param bSerialize
+   *        <code>true</code> if the test asks for the serialized result
+   *        (<code>&lt;output serialize="yes"/&gt;</code>). Otherwise a result
+   *        of the json or adaptive method that has a tree is checked as that
+   *        tree serialized as XML, as the reference runner's tree assertions
+   *        see it.
+   * @param sBaseOutputUri
+   *        The base output URI the transformation ran with, may be
+   *        <code>null</code>.
+   * @return The actual outcome.
+   */
+  @NonNull
+  public static XSLT30Actual ofResult (@NonNull final XsltTransformResult aResult,
+                                       final boolean bInitialFunction,
+                                       @NonNull final String sResultVar,
+                                       final boolean bSerialize,
+                                       @Nullable final String sBaseOutputUri)
+  {
     ValueEnforcer.notNull (aResult, "Result");
     XdmSequence aRaw = aResult.principalRaw ();
     if (!bInitialFunction && aResult.principalTree () != null)
@@ -222,6 +258,7 @@ public record XSLT30Actual (@NonNull String output,
                              null,
                              aResult.principalIndent () ? sMethod : null,
                              false,
-                             sTreeXml);
+                             sTreeXml,
+                             sBaseOutputUri);
   }
 }
