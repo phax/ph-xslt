@@ -486,6 +486,8 @@ public final class XSLT30CaseRunner
     IXdmNode aSource = null;
     String sSourceSelect = "";
     boolean bSourceStreamed = false;
+    // The file of the principal source, if it can be read as a stream
+    Path aStreamablePath = null;
     if (aEnv != null)
     {
       boolean bHasExplicitPrimary = false;
@@ -502,6 +504,7 @@ public final class XSLT30CaseRunner
           // <source streaming="true"/> declares the principal source streamed
           final String sStreaming = aSrc.streaming ().strip ();
           bSourceStreamed = "true".equals (sStreaming) || "yes".equals (sStreaming);
+          aStreamablePath = null;
           if (aSrc.content () != null && !aSrc.content ().isBlank ())
           {
             // Inline content has the base URI of the file it is written in
@@ -526,7 +529,10 @@ public final class XSLT30CaseRunner
                   XSLT30SchemaSupport.validateSource (aSource, sValidation, aExecutable, aEnv);
                 }
                 else
+                {
                   aSource = aDocs.getDocumentOrThrow (aPath);
+                  aStreamablePath = aPath;
+                }
                 sSourceSelect = aSrc.select ().strip ();
               }
             }
@@ -652,6 +658,22 @@ public final class XSLT30CaseRunner
       }
       if (!aOutput.resultVar ().isEmpty ())
         sResultVar = aOutput.resultVar ();
+    }
+
+    // A streamed principal source that is only the initial match selection of
+    // the initial mode is read as a stream (the engine falls back to the
+    // parsed document when it does not stream it)
+    if (m_bStreaming &&
+        bSourceStreamed &&
+        aStreamablePath != null &&
+        sContextSelect.isBlank () &&
+        aParams.isEmpty () &&
+        aTemplate == null &&
+        aFunction == null &&
+        (aMode == null || aMode.select ().isBlank () && aMode.params ().isEmpty ()))
+    {
+      aRequest.setGlobalContextItem (null);
+      aRequest.setStreamedSourceUri (XSLT30ResourceResolver.getFileUri (aStreamablePath));
     }
 
     final XsltTransformResult aResult = aExecutable.transform (aRequest);

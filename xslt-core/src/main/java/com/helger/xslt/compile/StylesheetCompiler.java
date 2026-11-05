@@ -70,6 +70,7 @@ import com.helger.xslt.pkg.PackageComponent;
 import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.schema.SchemaImportCompiler;
+import com.helger.xslt.stream.StreamVerdicts;
 import com.helger.xslt.stream.StreamabilityIndex;
 import com.helger.xslt.stream.XsltStreamability;
 import com.helger.xslt.tree.XslElement;
@@ -146,8 +147,11 @@ public final class StylesheetCompiler
   {
     m_aOptions = aOptions;
     m_aRegistry = XsltExtensionRegistry.getInstance ();
-    // Only a binding streamability declaration needs the operands afterwards
-    m_aStreamabilityIndex = aOptions.isEnforceStreamability () ? new StreamabilityIndex () : null;
+    // Only the streamability analysis needs the operands afterwards: it runs
+    // when streamability declarations are binding, or when streaming is
+    // claimed and its verdicts select the streamed execution
+    m_aStreamabilityIndex = aOptions.isEnforceStreamability () || aOptions.isStreamingClaim () ? new StreamabilityIndex ()
+                                                                                                 : null;
   }
 
   @NonNull
@@ -178,8 +182,9 @@ public final class StylesheetCompiler
   /**
    * @return The index the expressions, patterns and sequence types compiled
    *         are recorded in for the streamability analysis, or
-   *         <code>null</code> if streamability declarations are not binding
-   *         ({@link XsltCompileOptions#isEnforceStreamability()}).
+   *         <code>null</code> if the analysis does not run (neither
+   *         {@link XsltCompileOptions#isEnforceStreamability()} nor
+   *         {@link XsltCompileOptions#isStreamingClaim()}).
    */
   @Nullable
   public StreamabilityIndex getStreamabilityIndex ()
@@ -1668,7 +1673,14 @@ public final class StylesheetCompiler
     // XTSE3430/XTSE3155: what the stylesheet declares streamable must be
     // guaranteed streamable (XSLT 3.0 section 19)
     if (m_aStreamabilityIndex != null)
-      XsltStreamability.check (this, m_aStreamabilityIndex);
+    {
+      final StreamVerdicts aVerdicts = XsltStreamability.check (this,
+                                                                m_aStreamabilityIndex,
+                                                                m_aOptions.isEnforceStreamability ());
+      // Only a processor claiming streaming executes streamed
+      if (m_aOptions.isStreamingClaim ())
+        m_aStylesheet.setStreamVerdicts (aVerdicts);
+    }
     // For host expressions (XsltExecutable.createStaticContext): the scope of
     // the principal stylesheet element
     final XslElement aRoot = aPrincipal.getRoot ();

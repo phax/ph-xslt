@@ -137,7 +137,7 @@ public final class XdmStreamReader implements AutoCloseable
     m_nMaxElementDepth = nMaxElementDepth;
     m_aStripWhitespace = aStripWhitespace;
     m_aDocument = new XdmDocumentNode ();
-    m_aDocument.internalSetStreamed ();
+    m_aDocument.internalSetStreamed (true);
     if (sSystemId != null)
       m_aDocument.setDocumentUri (sSystemId);
     m_nTree = AbstractXdmNode.internalNewTree ();
@@ -585,6 +585,31 @@ public final class XdmStreamReader implements AutoCloseable
   public boolean isIncomplete (@Nullable final IXdmNode aNode)
   {
     return aNode != null && m_aIncomplete.contains (aNode);
+  }
+
+  /**
+   * Read the rest of the document without dropping anything, for a caller
+   * that turns out to need it in full. The result is the tree
+   * {@link XdmParser} builds, and no longer {@link XdmDocumentNode#isStreamed()
+   * streamed}.
+   *
+   * @return The complete document node.
+   * @throws XdmParseException
+   *         if the document is not well-formed
+   * @throws IllegalStateException
+   *         if a node was dropped or skipped already
+   */
+  @NonNull
+  public IXdmNode readAll () throws XdmParseException
+  {
+    if (!m_aIncomplete.isEmpty ())
+      throw new IllegalStateException ("Nodes were dropped already");
+    while (next () != EEvent.END)
+    {
+      // Keep everything
+    }
+    m_aDocument.internalSetStreamed (false);
+    return m_aDocument;
   }
 
   public void close () throws XdmParseException

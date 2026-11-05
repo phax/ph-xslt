@@ -66,9 +66,9 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   XdmDocumentNode ()
   {}
 
-  void internalSetStreamed ()
+  void internalSetStreamed (final boolean bStreamed)
   {
-    m_bStreamed = true;
+    m_bStreamed = bStreamed;
     m_aNameIndex = null;
   }
 

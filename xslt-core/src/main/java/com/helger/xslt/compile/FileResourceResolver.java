@@ -23,15 +23,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.function.Predicate;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.xml.sax.InputSource;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.xpath.context.IResourceResolver;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.XdmQName;
+import com.helger.xpath.xdm.XdmStreamReader;
 
 /**
  * A resolver that reads <code>file:</code> URIs and nothing else. Used for
@@ -93,6 +97,24 @@ public final class FileResourceResolver implements IResourceResolver
     {
       return null;
     }
+  }
+
+  @Override
+  @Nullable
+  public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+                                             @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
+  {
+    final Path aPath = _getPath (sAbsoluteUri);
+    if (aPath == null)
+      return null;
+    final InputSource aSource = new InputSource (aPath.toUri ().toString ());
+    final XdmStreamReader ret = XdmStreamReader.open (aSource,
+                                                      m_bLoadExternalEntities,
+                                                      XdmParser.DEFAULT_MAX_ELEMENT_DEPTH,
+                                                      aStripWhitespace);
+    if (ret.getDocument ().getDocumentUri () == null)
+      ret.getDocument ().setDocumentUri (sAbsoluteUri);
+    return ret;
   }
 
   @Nullable

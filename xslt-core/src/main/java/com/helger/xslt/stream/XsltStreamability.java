@@ -2075,7 +2075,9 @@ public final class XsltStreamability
    * Anything else is this analysis being incomplete; go-xslt measured that
    * reporting it loses far more cases than it wins.
    */
-  private void _checkSourceDocuments (@NonNull final List <XslElement> aAll)
+  private void _checkSourceDocuments (@NonNull final List <XslElement> aAll,
+                                      @NonNull final StreamVerdicts aVerdicts,
+                                      final boolean bEnforce)
   {
     for (final XslElement aEl : aAll)
     {
@@ -2098,14 +2100,19 @@ public final class XsltStreamability
       if (aVerdict.isStreamable ())
       {
         if (aVerdict.result ().posture () != EPosture.GROUNDED)
-          throw XsltException.at (aEl,
-                                  "XTSE3430",
-                                  "xsl:source-document is declared streamable but is not guaranteed streamable: its sequence constructor is " +
-                                              aVerdict.result ().posture ().getName () +
-                                              " rather than grounded, so it returns nodes of the streamed document");
+        {
+          if (bEnforce)
+            throw XsltException.at (aEl,
+                                    "XTSE3430",
+                                    "xsl:source-document is declared streamable but is not guaranteed streamable: its sequence constructor is " +
+                                                aVerdict.result ().posture ().getName () +
+                                                " rather than grounded, so it returns nodes of the streamed document");
+        }
+        else
+          aVerdicts.addSourceDocument (aEl);
       }
       else
-        if (aDefinite.booleanValue () || _callsDeclaredStreamable (aEl))
+        if (bEnforce && (aDefinite.booleanValue () || _callsDeclaredStreamable (aEl)))
           throw aVerdict.error ();
     }
   }
@@ -2113,25 +2120,56 @@ public final class XsltStreamability
   /**
    * Check that everything a stylesheet declares streamable is guaranteed
    * streamable. Called by the compiler at the end of compilation when
-   * streamability declarations are binding.
+   * streamability declarations are binding or streaming is claimed (then the
+   * verdicts decide what is executed streamed).
    *
    * @param aCompiler
    *        The compiler, with its stylesheet compiled. May not be
    *        <code>null</code>.
    * @param aIndex
    *        The operands the compiler recorded. May not be <code>null</code>.
+   * @param bEnforce
+   *        <code>true</code> if streamability declarations are binding: a
+   *        failure is then an error; else it only means that the construct is
+   *        not streamed.
+   * @return What was proven guaranteed streamable.
    * @throws XsltException
-   *         XTSE3430 or XTSE3155
+   *         XTSE3430 or XTSE3155, only when enforcing
    */
-  public static void check (@NonNull final StylesheetCompiler aCompiler, @NonNull final StreamabilityIndex aIndex)
+  @NonNull
+  public static StreamVerdicts check (@NonNull final StylesheetCompiler aCompiler,
+                                      @NonNull final StreamabilityIndex aIndex,
+                                      final boolean bEnforce)
   {
     final XsltStreamability aChecker = new XsltStreamability (aCompiler, aIndex);
-    aChecker._checkFunctionSignatures ();
-    aChecker._checkModeRules ();
-    aChecker._checkFunctions ();
-    aChecker._checkAccumulators ();
-    final ICommonsList <XslElement> aAll = aChecker._getAllElements ();
-    aChecker._checkMergeSources (aAll);
-    aChecker._checkSourceDocuments (aAll);
+    final StreamVerdicts ret = new StreamVerdicts ();
+    try
+    {
+      aChecker._checkFunctionSignatures ();
+      aChecker._checkModeRules ();
+      aChecker._checkFunctions ();
+      aChecker._checkAccumulators ();
+      aChecker._checkMergeSources (aChecker._getAllElements ());
+    }
+    catch (final XsltException ex)
+    {
+      if (bEnforce)
+        throw ex;
+      // Fail closed: the verdicts of the other constructs trust the
+      // declarations
+      ret.setDeclarationsFailed ();
+      return ret;
+    }
+    for (final XdmQName aMode : aChecker.m_aStreamableModes)
+      ret.addStreamableMode (aMode);
+    for (final XslElement aEl : aChecker._getDeclarations ())
+      if (aEl.isXsl ("accumulator") && XsltNames.isXsltTrue (aEl.getAttr ("streamable")) && aEl.hasAttr ("name"))
+      {
+        final XdmQName aName = aEl.resolveQName (aEl.getAttr ("name").trim (), false);
+        if (aName != null)
+          ret.addStreamableAccumulator (aName);
+      }
+    aChecker._checkSourceDocuments (aChecker._getAllElements (), ret, bEnforce);
+    return ret;
   }
 }

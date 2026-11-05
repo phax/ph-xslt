@@ -33,6 +33,7 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.CompileContext;
@@ -59,6 +60,8 @@ import com.helger.xslt.tree.XsltNames;
 @Immutable
 public final class MergeInstruction
 {
+  private static final XdmQName SNAPSHOT = new XdmQName (XdmConstants.NS_FN, "snapshot");
+
   /** A compiled xsl:merge-source. */
   private record Source (@NonNull XslElement element,
                          @Nullable String name,
@@ -68,7 +71,8 @@ public final class MergeInstruction
                          boolean sortBeforeMerge,
                          @Nullable ValidationRequest validation,
                          @NonNull ICommonsList <SortKeyDef> keys,
-                         @NonNull ICommonsList <XdmQName> accumulators)
+                         @NonNull ICommonsList <XdmQName> accumulators,
+                         boolean snapshot)
   {}
 
   /** One item of an input sequence with its merge key values. */
@@ -205,7 +209,20 @@ public final class MergeInstruction
       final SortKeyDef.Evaluated aKeys = aEvaluated[s];
       for (final XsltContext aAnchor : _getAnchors (aSource, aCtx))
       {
-        final XdmSequence aInput = aSource.select ().evaluate (aAnchor);
+        XdmSequence aInput = aSource.select ().evaluate (aAnchor);
+        // A streamable merge source delivers snapshots of the selected nodes
+        // (XSLT 3.0 section 15.4); fn:snapshot keeps their accumulator values
+        if (aSource.snapshot ())
+        {
+          final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> ();
+          aArgs.add (aInput);
+          aInput = aCtx.getEngine ()
+                       .getStylesheet ()
+                       .getFunctionLibrary ()
+                       .getFunction (SNAPSHOT, 1)
+                       .getImpl ()
+                       .call (aAnchor.getDynamicContext (), aArgs);
+        }
         final ICommonsList <Entry> aEntries = new CommonsArrayList <> (aInput.size ());
         for (final IXdmItem aItem : aInput)
         {
@@ -319,7 +336,9 @@ public final class MergeInstruction
                        sSortBefore != null && XsltNames.isXsltTrue (sSortBefore),
                        aValidation,
                        aKeys,
-                       AccumulatorExtension.registerUseAccumulators (aCtx, aEl));
+                       AccumulatorExtension.registerUseAccumulators (aCtx, aEl),
+                       XsltNames.isXsltTrue (aEl.getAttr ("streamable")) &&
+                                                                 aCtx.getCompiler ().getOptions ().isStreamingClaim ());
   }
 
   /**

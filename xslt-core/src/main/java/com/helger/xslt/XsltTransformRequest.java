@@ -65,6 +65,7 @@ public final class XsltTransformRequest
   private ExecutionBudget m_aSharedBudget;
   private boolean m_bRawDelivery;
   private boolean m_bSourceStreamed;
+  private String m_sStreamedSourceUri;
 
   /** @return The global context item (normally the source document node). */
   @Nullable
@@ -320,8 +321,12 @@ public final class XsltTransformRequest
    * Declare that the host supplies the principal source as a streamed document
    * (XSLT 3.0 leaves it to the host how an input reaches the
    * processor; the W3C test catalogue says so with
-   * <code>&lt;source streaming="true"/&gt;</code>). The engine does not stream
-   * yet: the source is still a complete tree, and the flag is only recorded.
+   * <code>&lt;source streaming="true"/&gt;</code>). The source is still a
+   * complete tree: the flag selects the rules that depend on the declaration
+   * (XTDE3350 for a focus saved in a function item, section 10.3.6; global
+   * variables without context item when the initial mode is streamable). To
+   * have the source read as a stream, use
+   * {@link #setStreamedSourceUri(String)}.
    *
    * @param bSourceStreamed
    *        <code>true</code> if the principal source is streamed.
@@ -331,6 +336,45 @@ public final class XsltTransformRequest
   public XsltTransformRequest setSourceStreamed (final boolean bSourceStreamed)
   {
     m_bSourceStreamed = bSourceStreamed;
+    return this;
+  }
+
+  /**
+   * @return The URI of the principal source to read as a stream, or
+   *         <code>null</code>.
+   */
+  @Nullable
+  public String getStreamedSourceUri ()
+  {
+    return m_sStreamedSourceUri;
+  }
+
+  /**
+   * Supply the principal source as a document to be read as a stream: it is
+   * the initial match selection of the initial mode. The document is opened
+   * with the resolver of this request
+   * ({@link com.helger.xpath.context.IResourceResolver#openDocumentStream(String, java.util.function.Predicate)}).
+   * <p>
+   * When the stylesheet claims streaming, the initial mode is declared
+   * streamable and proven guaranteed streamable, and the template rule for the
+   * document node has the shape the dispatcher runs, the document is read one
+   * record at a time and the global context item is only what
+   * {@link #setGlobalContextItem(IXdmItem)} supplies (XSLT 3.0 section 2.3:
+   * the two are independent; a streamed document cannot be the context of
+   * global variables). Otherwise the document is read in full
+   * ({@link com.helger.xpath.context.IResourceResolver#resolveDocument(String)});
+   * when the initial mode is not streamable it is then also the global context
+   * item if none is supplied, as for a document passed to
+   * {@link #setGlobalContextItem(IXdmItem)}.
+   *
+   * @param sAbsoluteUri
+   *        Absolute URI of the source, or <code>null</code>.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setStreamedSourceUri (@Nullable final String sAbsoluteUri)
+  {
+    m_sStreamedSourceUri = sAbsoluteUri;
     return this;
   }
 }
