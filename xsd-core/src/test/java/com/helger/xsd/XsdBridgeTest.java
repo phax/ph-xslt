@@ -460,6 +460,11 @@ public final class XsdBridgeTest
                                                                                                   null));
     final XsdSchemaProvider aProvider = new XsdSchemaProvider ();
     assertNotNull (aProvider.compile (aSources).getElementDeclaration (_qn (NS, "head")));
+    // A plain path with a space is a path, not a malformed URI
+    final Path aSpaced = m_aTempDir.newFolder ("with space").toPath ().resolve ("t.xsd");
+    Files.writeString (aSpaced, SCHEMA);
+    assertNotNull (aProvider.compile (new CommonsArrayList <> (new XdmSchemaSource (aSpaced.toString (), null)))
+                            .getElementDeclaration (_qn (NS, "head")));
     assertNotNull (aProvider.compile (new CommonsArrayList <> (new XdmSchemaSource (null, SCHEMA)))
                             .getElementDeclaration (_qn (NS, "head")));
     assertNotNull (aProvider.compile (new CommonsArrayList <> ()).getTypeDefinition (_qn (XdmConstants.NS_XS, "int")));
