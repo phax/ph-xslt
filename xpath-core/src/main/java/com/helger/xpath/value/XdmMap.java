@@ -110,6 +110,24 @@ public final class XdmMap implements IXdmItem
   // The entries in iteration order, built on first use
   private volatile Entry [] m_aOrdered;
 
+  /**
+   * @param aRoot
+   *        The trie root, <code>null</code> for the empty map.
+   * @param nSize
+   *        The number of entries in the trie.
+   * @param nNextOrder
+   *        The order number the next new entry gets; always greater than the
+   *        order number of every entry in the trie.
+   * @param eKeyType
+   *        The uniform key type or <code>null</code>, see
+   *        {@link #getUniformKeyType()}.
+   * @param eValueType
+   *        The uniform value type or <code>null</code>, see
+   *        {@link #getUniformValueType()}.
+   * @param aOrdered
+   *        The entries in iteration order if already known, otherwise
+   *        <code>null</code> to build them on first use.
+   */
   private XdmMap (@Nullable final Node aRoot,
                   @Nonnegative final int nSize,
                   final long nNextOrder,
@@ -125,6 +143,20 @@ public final class XdmMap implements IXdmItem
     m_aOrdered = aOrdered;
   }
 
+  /**
+   * Look up a key in the trie, iteratively: at each branch level the next five
+   * bits of the hash (lowest first) select the kid; a slot found there matches
+   * if hash and key are equal, a collision list is searched by key only.
+   *
+   * @param aRoot
+   *        The trie root, may be <code>null</code>.
+   * @param nHash
+   *        The hash code of the map key.
+   * @param aMapKey
+   *        The map key as made by
+   *        {@link AtomicComparator#getMapKey(XdmAtomic)}.
+   * @return The slot of the key, or <code>null</code> if it is absent.
+   */
   @Nullable
   private static Slot _find (@Nullable final Node aRoot, final int nHash, @NonNull final Object aMapKey)
   {
@@ -151,6 +183,10 @@ public final class XdmMap implements IXdmItem
     return null;
   }
 
+  /**
+   * @return A copy of the kids, one longer, with the new kid at the index and
+   *         the following kids shifted up; the source array is not changed.
+   */
   @NonNull
   private static Object [] _insertAt (@NonNull final Object [] aKids, final int nIndex, @NonNull final Object aKid)
   {
@@ -161,6 +197,10 @@ public final class XdmMap implements IXdmItem
     return ret;
   }
 
+  /**
+   * @return A copy of the kids, one shorter, without the kid at the index; the
+   *         source array is not changed.
+   */
   @NonNull
   private static Object [] _removeAt (@NonNull final Object [] aKids, final int nIndex)
   {
@@ -170,6 +210,10 @@ public final class XdmMap implements IXdmItem
     return ret;
   }
 
+  /**
+   * @return A copy of the kids with the kid at the index replaced; the source
+   *         array is not changed.
+   */
   @NonNull
   private static Object [] _replaceAt (@NonNull final Object [] aKids, final int nIndex, @NonNull final Object aKid)
   {
@@ -251,6 +295,19 @@ public final class XdmMap implements IXdmItem
     return aKids.length == 1 ? null : new Node (aNode.m_nBitmap & ~nBit, _removeAt (aKids, nIndex));
   }
 
+  /**
+   * Write all slots below a node into the target array, in trie order (not in
+   * iteration order). The recursion depth is bounded by the trie depth, see
+   * {@link Node}.
+   *
+   * @param aNode
+   *        The node to collect.
+   * @param aTarget
+   *        The array to fill, large enough for all slots.
+   * @param nStart
+   *        The index of the first slot to write.
+   * @return The index after the last slot written.
+   */
   private static int _collect (@NonNull final Node aNode, @NonNull final Slot [] aTarget, final int nStart)
   {
     int ret = nStart;
@@ -262,6 +319,11 @@ public final class XdmMap implements IXdmItem
     return ret;
   }
 
+  /**
+   * @return The entries in iteration order (ascending order numbers). Built on
+   *         the first call by collecting and sorting all slots, then cached;
+   *         the cached array is shared and must not be modified.
+   */
   private Entry @NonNull [] _getOrdered ()
   {
     Entry [] ret = m_aOrdered;
@@ -419,6 +481,10 @@ public final class XdmMap implements IXdmItem
     return ret;
   }
 
+  /**
+   * @return A new list with the entries in iteration order; use
+   *         {@link #entries()} to iterate without copying.
+   */
   @NonNull
   @ReturnsMutableCopy
   public ICommonsList <Entry> getAllEntries ()
@@ -436,6 +502,10 @@ public final class XdmMap implements IXdmItem
     return Collections.unmodifiableList (Arrays.asList (_getOrdered ()));
   }
 
+  /**
+   * @return A new list with the keys, as they were stored, in iteration order
+   *         (<code>map:keys</code>).
+   */
   @NonNull
   @ReturnsMutableCopy
   public ICommonsList <XdmAtomic> getAllKeys ()
@@ -543,6 +613,13 @@ public final class XdmMap implements IXdmItem
       return m_aMap.putIfAbsent (AtomicComparator.getMapKey (aKey), new Entry (aKey, aValue)) == null;
     }
 
+    /**
+     * Remove the entry with the key (by the op:same-key rule), if there is one.
+     *
+     * @param aKey
+     *        The key to remove.
+     * @return this for chaining
+     */
     @NonNull
     public Builder remove (@NonNull final XdmAtomic aKey)
     {
@@ -550,6 +627,16 @@ public final class XdmMap implements IXdmItem
       return this;
     }
 
+    /**
+     * Build the trie from the collected entries in their insertion order (a
+     * replaced entry keeps its first position), numbering them from 0 and
+     * computing the uniform key and value types on the way. The ordered view is
+     * set right away. The builder is unusable afterwards (its entry map is
+     * dropped, so a further call fails with a
+     * <code>NullPointerException</code>).
+     *
+     * @return {@link XdmMap#EMPTY} if no entry was added, otherwise a new map.
+     */
     @NonNull
     public XdmMap build ()
     {

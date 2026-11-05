@@ -186,6 +186,12 @@ final class MarkupWriter
     URI_ATTRS = aMap;
   }
 
+  /**
+   * An element whose start tag is written and whose children are being
+   * written: the index of the next child, the qualified name for the end tag,
+   * the size of the namespace undo log before the start tag, and the
+   * indentation decisions taken when it was opened.
+   */
   private static final class Frame
   {
     private final IXdmNode m_aElement;
@@ -274,6 +280,18 @@ final class MarkupWriter
     m_aScope.put ("xml", XdmConstants.NS_XML);
   }
 
+  /**
+   * The HTML version that decides between the HTML5 and the older rules: the
+   * html-version parameter if set, else for the html method the version
+   * parameter if it is a decimal number, else 4. For the xhtml method the
+   * version parameter is the XML version and is not consulted.
+   *
+   * @param aParams
+   *        The serialization parameters.
+   * @param bHtmlMethod
+   *        <code>true</code> for the html method.
+   * @return The HTML version.
+   */
   @NonNull
   private static BigDecimal _getHtmlVersion (@NonNull final SerializationParams aParams, final boolean bHtmlMethod)
   {
@@ -291,6 +309,9 @@ final class MarkupWriter
     return BigDecimal.valueOf (4);
   }
 
+  /**
+   * Append a decimal character reference <code>&amp;#n;</code>.
+   */
   private static void _charRef (@NonNull final StringBuilder aSB, final int cp)
   {
     aSB.append ("&#").append (cp).append (';');
@@ -318,6 +339,15 @@ final class MarkupWriter
         aSB.appendCodePoint (cp);
   }
 
+  /**
+   * Escape text content: <code>&amp;</code>, <code>&lt;</code> and
+   * <code>&gt;</code> become entity references, CR becomes
+   * <code>&amp;#13;</code> (written as it is with the html method), and every
+   * other character goes through {@link #_appendChar(StringBuilder, int)}.
+   *
+   * @throws XPathException
+   *         SERE0006 for a C0 control character with XML 1.0
+   */
   private void _escapeText (@NonNull final StringBuilder aSB, @NonNull final String s)
   {
     for (int i = 0; i < s.length ();)
@@ -347,6 +377,12 @@ final class MarkupWriter
     }
   }
 
+  /**
+   * Write the content of an HTML <code>script</code> or <code>style</code>
+   * element with the html method (Serialization 3.1 section 7): nothing is
+   * escaped, only characters outside the encoding become character
+   * references.
+   */
   private void _escapeRaw (@NonNull final StringBuilder aSB, @NonNull final String s)
   {
     for (int i = 0; i < s.length ();)
@@ -360,6 +396,17 @@ final class MarkupWriter
     }
   }
 
+  /**
+   * Escape an attribute value (also used for namespace declarations):
+   * <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>,
+   * tab, LF and CR are escaped, every other character goes through
+   * {@link #_appendChar(StringBuilder, int)}. With the html method an
+   * ampersand directly followed by <code>{</code>, and <code>&lt;</code>, tab
+   * and LF are written as they are.
+   *
+   * @throws XPathException
+   *         SERE0006 for a C0 control character with XML 1.0
+   */
   private void _escapeAttr (@NonNull final StringBuilder aSB, @NonNull final String s)
   {
     for (int i = 0; i < s.length ();)
@@ -408,6 +455,12 @@ final class MarkupWriter
     }
   }
 
+  /**
+   * Escape a URI attribute value for escape-uri-attributes (Serialization 3.1
+   * sections 6 and 7): the value is normalised to NFC, encoded as UTF-8, and
+   * every byte outside the printable ASCII range 32 to 126 is written as
+   * <code>%HH</code> with upper-case hex digits. Spaces are kept.
+   */
   @NonNull
   private static String _escapeUri (@NonNull final String sValue)
   {
@@ -424,6 +477,15 @@ final class MarkupWriter
     return aSB.toString ();
   }
 
+  /**
+   * Whether the HTML rules apply to a node: with the html method an element
+   * in no namespace, or (HTML5) in the XHTML namespace; with the xhtml method
+   * an element in the XHTML namespace; never with the xml method.
+   *
+   * @param aNode
+   *        The node, may be <code>null</code>.
+   * @return <code>false</code> for <code>null</code> and non-elements.
+   */
   private boolean _isHtmlElement (@Nullable final IXdmNode aNode)
   {
     if (aNode == null || aNode.getKind () != ENodeKind.ELEMENT)
@@ -436,11 +498,24 @@ final class MarkupWriter
     return false;
   }
 
+  /**
+   * @param aNode
+   *        The node, may be <code>null</code>.
+   * @return <code>true</code> for an HTML element (see
+   *         {@link #_isHtmlElement(IXdmNode)}) whose local name, in lower
+   *         case, is one of the phrasing elements in
+   *         <code>INLINE_ELEMENTS</code>; no line break is added for
+   *         indentation before or after such an element.
+   */
   private boolean _isInline (@Nullable final IXdmNode aNode)
   {
     return _isHtmlElement (aNode) && INLINE_ELEMENTS.contains (aNode.getName ().localName ().toLowerCase (Locale.ROOT));
   }
 
+  /**
+   * @return <code>true</code> if the string consists of XML whitespace (space,
+   *         tab, line feed, carriage return) only, also for the empty string.
+   */
   private static boolean _isWhitespace (@NonNull final String s)
   {
     for (int i = 0; i < s.length (); ++i)
@@ -452,6 +527,12 @@ final class MarkupWriter
     return true;
   }
 
+  /**
+   * Whether indentation may add whitespace between the children of an
+   * element: not inside the HTML elements pre, script, style, title and
+   * textarea, and not if the element has a text child with
+   * non-whitespace content (mixed content).
+   */
   private boolean _mayIndentIn (@NonNull final IXdmNode aElement)
   {
     if (_isHtmlElement (aElement) &&
@@ -503,12 +584,22 @@ final class MarkupWriter
     }
   }
 
+  /**
+   * Write the buffer to the target writer once it holds at least
+   * {@link #FLUSH_SIZE} characters; without a target writer nothing happens.
+   *
+   * @throws UncheckedIOException
+   *         on a write error
+   */
   private void _flushIfFull ()
   {
     if (m_aSB.length () >= FLUSH_SIZE)
       flushBuffer ();
   }
 
+  /**
+   * Append a line feed and two spaces of indentation per depth level.
+   */
   private void _newline (final int nDepth)
   {
     m_aSB.append ('\n');
@@ -516,6 +607,12 @@ final class MarkupWriter
       m_aSB.append ("  ");
   }
 
+  /**
+   * Bind a prefix in the output namespace scope, recording the previous
+   * binding in the undo log, and append the declaration
+   * (<code>xmlns="uri"</code> for the empty prefix) to <code>aDecls</code>.
+   * An empty URI declares an undeclaration.
+   */
   private void _bind (@NonNull final String sPrefix, @NonNull final String sUri, @NonNull final StringBuilder aDecls)
   {
     m_aUndo.add (new String [] { sPrefix, m_aScope.get (sPrefix) });
@@ -525,6 +622,11 @@ final class MarkupWriter
     aDecls.append ('"');
   }
 
+  /**
+   * Undo the bindings recorded since the undo log had the size
+   * <code>nMark</code>, newest first, restoring the previous binding or
+   * removing a prefix that was not bound before.
+   */
   private void _unwind (final int nMark)
   {
     for (int i = m_aUndo.size () - 1; i >= nMark; --i)
@@ -537,6 +639,10 @@ final class MarkupWriter
     }
   }
 
+  /**
+   * @return <code>true</code> if the prefix is bound to the URI in the output
+   *         scope; an unbound prefix counts as bound to the empty URI.
+   */
   private boolean _isBound (@NonNull final String sPrefix, @NonNull final String sUri)
   {
     final String sCur = m_aScope.get (sPrefix);
@@ -575,6 +681,12 @@ final class MarkupWriter
     return sPrefix;
   }
 
+  /**
+   * @return <code>true</code> for a <code>meta</code> element (local name
+   *         compared case-insensitively, any namespace) with an
+   *         <code>http-equiv</code> attribute whose trimmed value is
+   *         <code>Content-Type</code> in any case.
+   */
   private static boolean _isContentTypeMeta (@NonNull final IXdmNode aNode)
   {
     if (aNode.getKind () != ENodeKind.ELEMENT || !"meta".equalsIgnoreCase (aNode.getName ().localName ()))
@@ -587,6 +699,11 @@ final class MarkupWriter
     return false;
   }
 
+  /**
+   * @return The content of the Content-Type <code>meta</code> element: the
+   *         media-type parameter (default <code>text/html</code>) followed by
+   *         <code>; charset=</code> and the encoding parameter as given.
+   */
   @NonNull
   private String _getContentTypeValue ()
   {
@@ -594,6 +711,11 @@ final class MarkupWriter
     return sMediaType + "; charset=" + m_aParams.getEncoding ();
   }
 
+  /**
+   * @return <code>true</code> for a <code>head</code> element (local name
+   *         compared case-insensitively) in the XHTML namespace, or with the
+   *         html method also in no namespace.
+   */
   private boolean _isHead (@Nullable final IXdmNode aNode)
   {
     return aNode != null &&
@@ -716,6 +838,12 @@ final class MarkupWriter
     return sQName;
   }
 
+  /**
+   * @return The complete Content-Type <code>meta</code> element the html and
+   *         xhtml methods add as first child of <code>head</code>
+   *         (include-content-type, Serialization 3.1 sections 6 and 7), as an
+   *         empty-element tag for xhtml.
+   */
   @NonNull
   private String _getContentTypeMeta ()
   {
@@ -725,6 +853,13 @@ final class MarkupWriter
     return aSB.toString ();
   }
 
+  /**
+   * @return <code>true</code> if the element is a <code>head</code> element
+   *         that gets a generated Content-Type <code>meta</code> element: html
+   *         or xhtml method, include-content-type set, and no such
+   *         <code>meta</code> child present (an existing one is rewritten in
+   *         place instead by {@link #_writeStartTag(IXdmNode, boolean)}).
+   */
   private boolean _headNeedsMeta (@NonNull final IXdmNode aElement)
   {
     if ((m_bHtml || m_bXhtml) && m_aParams.isIncludeContentType () && _isHead (aElement))
@@ -737,12 +872,24 @@ final class MarkupWriter
     return false;
   }
 
+  /**
+   * @return The name without its prefix, for the look-up in the
+   *         cdata-section-elements and suppress-indentation sets, which hold
+   *         expanded names.
+   */
   @NonNull
   private static XdmQName _plainName (@NonNull final XdmQName aName)
   {
     return aName.hasPrefix () ? new XdmQName (aName.namespaceUri (), aName.localName ()) : aName;
   }
 
+  /**
+   * Write text as CDATA sections (cdata-section-elements). The text is
+   * normalised; a <code>]]&gt;</code> inside is split over two sections, and a
+   * character the encoding cannot represent ends the current section and is
+   * written as a character reference between sections. The character map is
+   * not applied.
+   */
   private void _writeCData (@NonNull final String sText)
   {
     final String s = m_aCharset.normalize (sText);
@@ -767,6 +914,18 @@ final class MarkupWriter
       m_aSB.append ("<![CDATA[").append (aRun.toString ().replace ("]]>", "]]]]><![CDATA[>")).append ("]]>");
   }
 
+  /**
+   * Write text content: nothing for the empty string; as CDATA if the parent
+   * is in cdata-section-elements (not with the html method); unescaped for
+   * the content of an HTML <code>script</code> or <code>style</code> element
+   * with the html method; escaped otherwise. Character map and normalisation
+   * are applied in the last two cases.
+   *
+   * @param sText
+   *        The text.
+   * @param aParent
+   *        The parent element, <code>null</code> at top level.
+   */
   private void _writeText (@NonNull final String sText, @Nullable final IXdmNode aParent)
   {
     if (sText.isEmpty ())
@@ -788,6 +947,18 @@ final class MarkupWriter
     m_aCharset.mapAndEscape (m_aSB, sText, this::_escapeText);
   }
 
+  /**
+   * Write a text, comment or processing instruction node; other node kinds
+   * are ignored. Text with disable-output-escaping is written as it is.
+   * Comments and processing instructions are written without any escaping
+   * or encoding check; a processing instruction ends with <code>&gt;</code>
+   * instead of <code>?&gt;</code> with the html method.
+   *
+   * @param aNode
+   *        The node.
+   * @param aParent
+   *        The parent element, <code>null</code> at top level.
+   */
   private void _writeLeaf (@NonNull final IXdmNode aNode, @Nullable final IXdmNode aParent)
   {
     switch (aNode.getKind ())
@@ -883,6 +1054,13 @@ final class MarkupWriter
                       m_bIndent && _mayIndentIn (aElement));
   }
 
+  /**
+   * Write the end tag of an element opened by
+   * {@link #_openElement(IXdmNode, int, IXdmNode, boolean, boolean, boolean)},
+   * preceded by a line break if indentation decided so, drop the namespace
+   * bindings of its start tag and end the suppress-indentation region the
+   * element started.
+   */
   private void _closeElement (@NonNull final Frame aFrame)
   {
     if (aFrame.m_bIndentClose)
@@ -893,6 +1071,24 @@ final class MarkupWriter
       m_bSuppress = false;
   }
 
+  /**
+   * Write an element with its subtree, iteratively with an explicit stack of
+   * frames, so that the depth of the tree is not limited by the Java stack.
+   * The buffer is moved to the target writer when it is full.
+   *
+   * @param aRoot
+   *        The element.
+   * @param aPrev
+   *        The preceding sibling (or preceding top-level item), for the
+   *        inline check of indentation; may be <code>null</code>.
+   * @param nDepth
+   *        The indentation depth of the element.
+   * @param bParentMayIndent
+   *        <code>false</code> if the parent forbids added whitespace.
+   * @param bTop
+   *        <code>true</code> if the element has no output parent, so that all
+   *        its in-scope namespaces are declared.
+   */
   private void _writeElement (@NonNull final IXdmNode aRoot,
                               @Nullable final IXdmNode aPrev,
                               final int nDepth,
@@ -932,17 +1128,39 @@ final class MarkupWriter
     }
   }
 
+  /**
+   * Write a top-level element with its subtree at depth 0.
+   */
   private void _writeElement (@NonNull final IXdmNode aRoot, @Nullable final IXdmNode aPrev)
   {
     _writeElement (aRoot, aPrev, 0, true, true);
   }
 
+  /**
+   * @return The string in double quotes, or in single quotes if it contains a
+   *         double quote. A string with both is not handled specially.
+   */
   @NonNull
   private static String _quote (@NonNull final String s)
   {
     return s.indexOf ('"') >= 0 ? "'" + s + "'" : "\"" + s + "\"";
   }
 
+  /**
+   * Write the document type declaration before the first top-level element.
+   * With the html method: if doctype-public or doctype-system is set,
+   * <code>&lt;!DOCTYPE html</code> (HTML5: the element's local name) with
+   * PUBLIC and optional system literal or SYSTEM; otherwise, for HTML5 and a
+   * first element <code>html</code> in no namespace, <code>&lt;!DOCTYPE
+   * html&gt;</code>. With xml and xhtml: if doctype-system is set, the
+   * element's lexical name with PUBLIC (if doctype-public is set too) or
+   * SYSTEM; otherwise, for xhtml with HTML5 and a first element
+   * <code>html</code> in the XHTML namespace, <code>&lt;!DOCTYPE
+   * html&gt;</code>. doctype-public alone is ignored with xml and xhtml.
+   *
+   * @param aFirstElement
+   *        The first top-level element.
+   */
   private void _writeDoctype (@NonNull final IXdmNode aFirstElement)
   {
     final String sSystem = m_aParams.getDoctypeSystem ();
@@ -983,6 +1201,10 @@ final class MarkupWriter
         m_aSB.append ("<!DOCTYPE ").append (sLocal).append ('>');
   }
 
+  /**
+   * Write the document type declaration before the first top-level element;
+   * later top-level elements get none.
+   */
   private void _beforeTopLevelElement (@NonNull final IXdmNode aElement)
   {
     if (!m_bDoctypeDone)

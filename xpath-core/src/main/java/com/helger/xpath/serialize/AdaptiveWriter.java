@@ -44,6 +44,11 @@ import com.helger.xpath.xdm.XdmQName;
 @NotThreadSafe
 final class AdaptiveWriter
 {
+  /**
+   * A map entry value or array member on the work stack: written without
+   * parentheses if it is a single item, otherwise as a parenthesised,
+   * comma-separated list (<code>()</code> for the empty sequence).
+   */
   private record Member (XdmSequence value)
   {}
 
@@ -89,6 +94,13 @@ final class AdaptiveWriter
     return aSB.toString ();
   }
 
+  /**
+   * @param sNamespaceUri
+   *        A function name's namespace URI.
+   * @return The conventional prefix (fn, xs, math, map, array) for the
+   *         namespaces of the built-in functions and constructor functions,
+   *         the empty string for every other namespace.
+   */
   @NonNull
   private static String _getConventionalPrefix (@NonNull final String sNamespaceUri)
   {
@@ -109,6 +121,11 @@ final class AdaptiveWriter
     }
   }
 
+  /**
+   * Append a string in double quotes with every quote doubled, the way an
+   * XPath string literal is written. The character map and normalisation
+   * apply; characters outside the encoding are written as they are.
+   */
   private void _appendQuoted (@NonNull final StringBuilder aSB, @NonNull final String s)
   {
     aSB.append ('"');
@@ -116,6 +133,11 @@ final class AdaptiveWriter
     aSB.append ('"');
   }
 
+  /**
+   * Append an attribute or namespace node value in double quotes, with
+   * <code>&amp;</code>, <code>&lt;</code> and <code>"</code> escaped as
+   * entity references. The character map and normalisation apply.
+   */
   private void _appendAttrValue (@NonNull final StringBuilder aSB, @NonNull final String s)
   {
     aSB.append ('"');
@@ -142,6 +164,18 @@ final class AdaptiveWriter
     aSB.append ('"');
   }
 
+  /**
+   * Write a node. An attribute is written as <code>name="value"</code>, with
+   * an EQName if it has a namespace but no prefix; a namespace node as
+   * <code>xmlns="uri"</code> or <code>xmlns:prefix="uri"</code>. Every other
+   * node is serialized with the xml method and the same parameters, but
+   * without item separator and byte order mark.
+   *
+   * @param aNode
+   *        The node.
+   * @throws com.helger.xpath.XPathException
+   *         the errors of the nested xml serialization
+   */
   private void _writeNode (@NonNull final IXdmNode aNode)
   {
     if (aNode.getKind () == ENodeKind.ATTRIBUTE)
@@ -168,6 +202,18 @@ final class AdaptiveWriter
     m_aSB.append (XdmSerializer.serialize (XdmSequence.of (aNode), aNodeParams));
   }
 
+  /**
+   * Write an atomic value in the adaptive form: a boolean as
+   * <code>true()</code> or <code>false()</code>; strings, xs:untypedAtomic and
+   * xs:anyURI (and the types derived from them) quoted; an xs:double through
+   * {@link #formatDouble(double)}; xs:decimal and its subtypes as their
+   * lexical form; an xs:QName or xs:NOTATION as <code>Q{uri}local</code>;
+   * every other type as a constructor call of its primitive type, e.g.
+   * <code>xs:date("2024-01-01")</code>. An xs:float takes the last form.
+   *
+   * @param aAtomic
+   *        The value.
+   */
   private void _writeAtomic (@NonNull final XdmAtomic aAtomic)
   {
     final EAtomicType eType = aAtomic.getType ();
@@ -200,6 +246,15 @@ final class AdaptiveWriter
             }
   }
 
+  /**
+   * Write a function item as <code>name#arity</code>: the name with its
+   * conventional prefix for the standard namespaces, as an EQName for other
+   * namespaces, as the local name without namespace, and
+   * <code>(anonymous-function)</code> for a function without a name.
+   *
+   * @param aFunc
+   *        The function item; maps and arrays are written by the caller.
+   */
   private void _writeFunction (@NonNull final IXdmFunction aFunc)
   {
     final XdmQName aName = aFunc.getName ();

@@ -153,13 +153,13 @@ public final class XdmAtomic implements IXdmItem
     return of (EAtomicType.QNAME, aValue);
   }
 
-  @NonNull
   /**
    * @return The user-defined schema type this value was validated against (by
    *         atomising a validated node, by a cast to or a constructor function
    *         of a user-defined type), or <code>null</code>. {@link #getType()}
    *         is its built-in base type then.
    */
+  @NonNull
   @Nullable
   public IXdmTypeDefinition getSchemaType ()
   {
@@ -198,6 +198,11 @@ public final class XdmAtomic implements IXdmItem
     return m_eType.isNumeric ();
   }
 
+  /**
+   * @return <code>true</code> for xs:string and its derived types, xs:anyURI
+   *         and xs:untypedAtomic, i.e. the types whose payload is a
+   *         {@link String} and which string functions and comparisons accept.
+   */
   public boolean isStringLike ()
   {
     return m_eType.isStringFamily () || m_eType == EAtomicType.ANY_URI || m_eType == EAtomicType.UNTYPED_ATOMIC;

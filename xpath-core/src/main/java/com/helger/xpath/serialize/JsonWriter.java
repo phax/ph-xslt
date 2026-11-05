@@ -44,6 +44,10 @@ import com.helger.xpath.xdm.IXdmNode;
 @NotThreadSafe
 final class JsonWriter
 {
+  /**
+   * A value still to be written on the work stack, with the nesting depth
+   * used for indentation.
+   */
   private record Task (XdmSequence value, int depth)
   {}
 
@@ -137,6 +141,12 @@ final class JsonWriter
     aSB.append ('"');
   }
 
+  /**
+   * @param nDepth
+   *        The nesting depth of the line that follows.
+   * @return A line feed plus two spaces per depth level if the indent
+   *         parameter is set, the empty string otherwise.
+   */
   @NonNull
   private String _getNewline (final int nDepth)
   {
@@ -148,6 +158,19 @@ final class JsonWriter
     return aSB.toString ();
   }
 
+  /**
+   * Serialize a node with the method of the json-node-output-method parameter
+   * (Serialization 3.1 section 9): the other parameters are taken over,
+   * but without XML declaration, indentation, item separator and byte order
+   * mark. The caller writes the result as a JSON string.
+   *
+   * @param aNode
+   *        The node.
+   * @return The serialized node.
+   * @throws XPathException
+   *         SENR0001 for an attribute or namespace node, and the errors of the
+   *         nested serialization
+   */
   @NonNull
   private String _serializeNode (@NonNull final IXdmNode aNode)
   {
@@ -162,6 +185,16 @@ final class JsonWriter
     return XdmSerializer.serialize (XdmSequence.of (aNode), aNodeParams);
   }
 
+  /**
+   * Write an atomic value: a numeric value as its lexical form, a boolean as
+   * <code>true</code> or <code>false</code>, every other value as a JSON
+   * string of its lexical form with the character map applied.
+   *
+   * @param aAtomic
+   *        The value.
+   * @throws XPathException
+   *         SERE0020 for an xs:double or xs:float NaN or infinity
+   */
   private void _writeAtomic (@NonNull final XdmAtomic aAtomic)
   {
     final EAtomicType eType = aAtomic.getType ();

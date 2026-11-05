@@ -171,6 +171,13 @@ public final class XsltPatternParser
   }
 
   /**
+   * Parse and compile a pattern. A syntax error (XPST0003) of the expression
+   * parser is reported as XTSE0340 with the original error as cause. The top
+   * level unions are split into alternatives (outer parentheses removed);
+   * with more than one alternative each becomes a pattern of its own with
+   * its own source text and default priority, and the default priority of
+   * the whole pattern is the maximum of the alternatives.
+   *
    * @param sPattern
    *        The pattern text.
    * @param aStaticCtx

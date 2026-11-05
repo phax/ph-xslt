@@ -39,6 +39,10 @@ public final class XPathCompiler
   {}
 
   /**
+   * Parse the expression text against the static context into an AST and
+   * wrap it, together with the source text and the static context, in an
+   * immutable {@link CompiledXPath}. Nothing is evaluated.
+   *
    * @param sExpr
    *        Expression text.
    * @param aStaticCtx

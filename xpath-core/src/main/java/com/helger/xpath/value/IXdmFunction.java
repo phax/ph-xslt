@@ -38,6 +38,7 @@ public interface IXdmFunction extends IXdmItem
   @Nullable
   XdmQName getName ();
 
+  /** @return The number of parameters, i.e. of arguments a call takes. */
   int getArity ();
 
   /**
@@ -47,6 +48,10 @@ public interface IXdmFunction extends IXdmItem
   @NonNull
   List <SeqType> getParamTypes ();
 
+  /**
+   * @return The declared result type; <code>item()*</code> where nothing was
+   *         declared, e.g. for a map or array used as a function.
+   */
   @NonNull
   SeqType getReturnType ();
 

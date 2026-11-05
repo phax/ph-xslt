@@ -349,6 +349,10 @@ public final class XsdLexical
     return true;
   }
 
+  /**
+   * @return The value 0-15 of a hexadecimal digit in either case, or -1 for
+   *         any other character.
+   */
   private static int _hexValue (final char c)
   {
     if (c >= '0' && c <= '9')
@@ -400,6 +404,11 @@ public final class XsdLexical
     return new String (ret);
   }
 
+  /**
+   * @return The 6-bit value 0-63 of a character of the base64 alphabet (RFC
+   *         2045: <code>A-Z a-z 0-9 + /</code>), or -1 for any other character,
+   *         including the padding character <code>=</code>.
+   */
   private static int _base64Value (final char c)
   {
     if (c >= 'A' && c <= 'Z')

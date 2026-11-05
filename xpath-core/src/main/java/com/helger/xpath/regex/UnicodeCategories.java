@@ -147,11 +147,24 @@ final class UnicodeCategories
   private record Difference (int codePoint, @NonNull String pinned, @NonNull String jdk)
   {}
 
+  /**
+   * @param sCategory
+   *        A two letter category of a code point.
+   * @param sName
+   *        A category name of a regular expression, one or two letters.
+   * @return <code>true</code> if the category belongs to the named one: a one
+   *         letter name matches the first letter, a two letter name the whole
+   *         category.
+   */
   private static boolean _isIn (@NonNull final String sCategory, @NonNull final String sName)
   {
     return sName.length () == 1 ? sCategory.charAt (0) == sName.charAt (0) : sCategory.equals (sName);
   }
 
+  /**
+   * Append ascending code points as Java class ranges, merging consecutive
+   * code points into one range.
+   */
   private static void _appendRuns (@NonNull final StringBuilder aSB, @NonNull final ICommonsList <Integer> aCPs)
   {
     int i = 0;
@@ -169,6 +182,21 @@ final class UnicodeCategories
     }
   }
 
+  /**
+   * Build the Java class syntax of a category: the built-in
+   * <code>\p{name}</code> class of the running JDK, extended by the code
+   * points that belong to the category in Unicode 15.0 but not in the JDK, and
+   * reduced by an intersection with the complement of those that belong to it
+   * only in the JDK. Without differences it is just the built-in class.
+   *
+   * @param sName
+   *        The category name.
+   * @param aDifferences
+   *        All code points whose category differs between Unicode 15.0 and
+   *        the running JDK.
+   * @return The class expression, bracketed unless it is the plain built-in
+   *         class.
+   */
   @NonNull
   private static String _buildExpression (@NonNull final String sName,
                                           @NonNull final ICommonsList <Difference> aDifferences)
@@ -201,6 +229,13 @@ final class UnicodeCategories
     return aSB.append (']').toString ();
   }
 
+  /**
+   * Lazily initialised tables: on first use the Unicode 15.0 category runs are
+   * read from the resource, every code point is compared with the category
+   * the running JDK reports, and the class expression of every category name
+   * is built from the differences. The initialisation fails with an
+   * {@link IllegalStateException} if the resource is missing.
+   */
   private static final class Holder
   {
     // First code point of every run of equal category, ascending

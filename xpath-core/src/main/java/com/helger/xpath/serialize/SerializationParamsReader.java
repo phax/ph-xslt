@@ -93,12 +93,34 @@ public final class SerializationParamsReader
   private SerializationParamsReader ()
   {}
 
+  /**
+   * @param sType
+   *        A sequence type in XPath syntax with the default prefixes.
+   * @return The parsed sequence type, used for the function conversion rules
+   *         of the map form.
+   */
   @NonNull
   private static SeqType _type (@NonNull final String sType)
   {
     return XPathParser.parseSequenceType (sType, new StaticContext ());
   }
 
+  /**
+   * Bring a normalization-form value into the form {@link OutputCharset}
+   * expects: the value is trimmed and compared case-insensitively; NFC, NFD,
+   * NFKC and NFKD come back in upper case, none and fully-normalized in lower
+   * case. fully-normalized is accepted here but rejected with SESU0011 when
+   * the output is written.
+   *
+   * @param sValue
+   *        The parameter value.
+   * @param sErrorCode
+   *        The error code for an unknown value (the map and the element form
+   *        use different codes).
+   * @return The normalised value.
+   * @throws XPathException
+   *         with <code>sErrorCode</code> for any other value
+   */
   @NonNull
   private static String _normaliseNormalizationForm (@NonNull final String sValue, @NonNull final String sErrorCode)
   {
@@ -119,6 +141,15 @@ public final class SerializationParamsReader
     }
   }
 
+  /**
+   * @param sMethod
+   *        A method name without namespace.
+   * @param sErrorCode
+   *        The error code for an unknown name.
+   * @return The name, if it is one of the six standard output methods.
+   * @throws XPathException
+   *         with <code>sErrorCode</code> for any other name
+   */
   @NonNull
   private static String _checkMethod (@NonNull final String sMethod, @NonNull final String sErrorCode)
   {
@@ -150,12 +181,42 @@ public final class SerializationParamsReader
     return _checkMethod (aAtomic.getString (), "SEPM0016");
   }
 
+  /**
+   * @param aValue
+   *        A sequence already converted to an optional atomic type.
+   * @return Its only item, or <code>null</code> for the empty sequence.
+   */
   @Nullable
   private static XdmAtomic _single (@NonNull final XdmSequence aValue)
   {
     return aValue.isEmpty () ? null : (XdmAtomic) aValue.get (0);
   }
 
+  /**
+   * Apply one entry of the map form. The value is converted with the function
+   * conversion rules to the type F&amp;O 3.1 section 14.7.3 gives the option:
+   * xs:boolean? for the boolean parameters and standalone, xs:QName* for
+   * cdata-section-elements and suppress-indentation, xs:decimal? for
+   * html-version, xs:string or xs:QName for method and
+   * json-node-output-method, map(xs:string, xs:string)? for
+   * use-character-maps and xs:string? for the rest. An empty value keeps the
+   * default, except that it sets standalone to omit. QName lists and the
+   * character map add to what the parameters hold.
+   *
+   * @param aParams
+   *        The parameters to modify.
+   * @param sName
+   *        The parameter name, one of the standard names.
+   * @param aRaw
+   *        The value from the map.
+   * @param aCtx
+   *        Context for the function conversion rules.
+   * @throws XPathException
+   *         XPTY0004 if the value does not convert to the type; SEPM0016 for
+   *         an unknown method, a method QName in a namespace, a character map
+   *         key that is not exactly one character, or an invalid
+   *         normalization-form
+   */
   private static void _applyMapParam (@NonNull final SerializationParams aParams,
                                       @NonNull final String sName,
                                       @NonNull final XdmSequence aRaw,
@@ -340,6 +401,18 @@ public final class SerializationParamsReader
     return ret;
   }
 
+  /**
+   * Parse a boolean of the element form after trimming: yes, true and 1 are
+   * <code>true</code>, no, false and 0 are <code>false</code>.
+   *
+   * @param sValue
+   *        The value attribute.
+   * @param sName
+   *        The parameter name, for the error message.
+   * @return The boolean.
+   * @throws XPathException
+   *         SEPM0017 for any other value
+   */
   private static boolean _parseBoolean (@NonNull final String sValue, @NonNull final String sName)
   {
     switch (sValue.trim ())
@@ -357,6 +430,22 @@ public final class SerializationParamsReader
     }
   }
 
+  /**
+   * Resolve a QName of the element form: an EQName
+   * <code>Q{uri}local</code> is taken as it is (the local part is not
+   * checked), a prefixed name is resolved against the in-scope namespaces of
+   * the context element, and an unprefixed name is in no namespace (the
+   * default namespace is not applied).
+   *
+   * @param sLexical
+   *        The name.
+   * @param aContext
+   *        The parameter element, for the prefix bindings.
+   * @return The resolved name.
+   * @throws XPathException
+   *         SEPM0017 for an EQName without closing brace, an empty local part,
+   *         more than one colon or an unbound prefix
+   */
   @NonNull
   private static XdmQName _resolveQName (@NonNull final String sLexical, @NonNull final IXdmNode aContext)
   {
@@ -385,6 +474,24 @@ public final class SerializationParamsReader
     return new XdmQName (sUri, sLocal, sPrefix);
   }
 
+  /**
+   * Read an <code>output:use-character-maps</code> element: its
+   * <code>output:character-map</code> children each map the code point of
+   * their <code>character</code> attribute to their <code>map-string</code>
+   * attribute. Whitespace text, comments, processing instructions and
+   * attributes in a namespace are ignored.
+   *
+   * @param aParams
+   *        The parameters the mappings are added to.
+   * @param aElement
+   *        The use-character-maps element.
+   * @throws XPathException
+   *         SEPM0017 if use-character-maps has attributes, non-whitespace
+   *         text or another child element, or a character-map has an
+   *         unknown attribute without namespace, lacks one of the two
+   *         attributes or its character is not exactly one character;
+   *         SEPM0018 if a character is mapped twice
+   */
   private static void _readCharacterMaps (@NonNull final SerializationParams aParams, @NonNull final IXdmNode aElement)
   {
     if (aElement.getAttributeCount () > 0)
@@ -427,6 +534,30 @@ public final class SerializationParamsReader
     }
   }
 
+  /**
+   * Apply one parameter element of the element form. The value is trimmed,
+   * except for item-separator. Booleans are parsed by
+   * {@link #_parseBoolean(String, String)}, standalone also accepts omit,
+   * QName lists are split at whitespace and resolved against the element,
+   * and method and json-node-output-method are resolved as QNames. QName
+   * lists add to what the parameters hold.
+   *
+   * @param aParams
+   *        The parameters to modify.
+   * @param sName
+   *        The local name of the parameter element; must be a standard name
+   *        other than use-character-maps.
+   * @param sRawValue
+   *        The value attribute.
+   * @param aElement
+   *        The parameter element, for the prefix bindings.
+   * @throws XPathException
+   *         SEPM0016 for a method name in a namespace; SEPM0017 for an
+   *         invalid boolean, QName, html-version, normalization-form or an
+   *         unknown method name
+   * @throws IllegalStateException
+   *         for a name not handled here
+   */
   private static void _applyElementParam (@NonNull final SerializationParams aParams,
                                           @NonNull final String sName,
                                           @NonNull final String sRawValue,

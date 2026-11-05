@@ -87,6 +87,11 @@ public final class XPathRegex
       return m_sValue.length ();
     }
 
+    /**
+     * Return the char at the index; every 2^20th access (over the lifetime of
+     * this view) calls {@link DynamicContext#checkInterrupt()}, which may
+     * throw to abort the match.
+     */
     public char charAt (final int nIndex)
     {
       if ((++m_nCount & 0xFFFFF) == 0)
@@ -106,6 +111,21 @@ public final class XPathRegex
     }
   }
 
+  /**
+   * Wrap a compiled Java pattern. Whether it matches the empty string is
+   * determined once here, by a full match against <code>""</code>.
+   *
+   * @param aPattern
+   *        The translated Java pattern.
+   * @param nGroupCount
+   *        The number of capturing groups of the XPath expression.
+   * @param aGroupParents
+   *        Per XPath group (index 1..groupCount) the enclosing group.
+   * @param aJavaGroups
+   *        Per XPath group (index 1..groupCount) the Java group number.
+   * @param bLiteral
+   *        <code>true</code> if the 'q' flag was given.
+   */
   private XPathRegex (@NonNull final Pattern aPattern,
                       final int nGroupCount,
                       @NonNull final int [] aGroupParents,
@@ -121,6 +141,26 @@ public final class XPathRegex
     m_bMatchesEmptyString = aPattern.matcher ("").matches ();
   }
 
+  /**
+   * Compile without the cache: parse the flags (F&amp;O 3.1 section 5.6.2),
+   * translate the expression with {@link RegexTranslator} (with 'q' as a
+   * literal string, where the flags 's', 'm' and 'x' have no effect; with 'x'
+   * after removing the whitespace) and compile the Java pattern. Repeated
+   * flags are allowed.
+   *
+   * @param sPattern
+   *        The XPath regular expression.
+   * @param sFlags
+   *        The flags, never <code>null</code>.
+   * @param bXsd11Classes
+   *        <code>true</code> for the XSD 1.1 character class grammar.
+   * @return The compiled expression.
+   * @throws XPathException
+   *         FORX0001 for a flag character other than <code>smixq</code>,
+   *         FORX0002 for an invalid expression (also if Java rejects the
+   *         translation), XPDY0130 if it is nested too deeply or Java runs out
+   *         of stack compiling it
+   */
   @NonNull
   private static XPathRegex _compile (@NonNull final String sPattern,
                                       @NonNull final String sFlags,

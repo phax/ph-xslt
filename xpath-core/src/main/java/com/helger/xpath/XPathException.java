@@ -40,6 +40,16 @@ public class XPathException extends RuntimeException
   private final String m_sDescription;
   private final XdmSequence m_aErrorObject;
 
+  /**
+   * An error in the standard error namespace {@link #ERR_NAMESPACE}. The
+   * exception message is <code>code: message</code>, the description is the
+   * message alone, and there is no error object.
+   *
+   * @param sCode
+   *        The local part of the error code, e.g. <code>XPTY0004</code>.
+   * @param sMessage
+   *        The description.
+   */
   public XPathException (@NonNull final String sCode, @NonNull final String sMessage)
   {
     super (sCode + ": " + sMessage);
@@ -48,6 +58,17 @@ public class XPathException extends RuntimeException
     m_aErrorObject = null;
   }
 
+  /**
+   * Like {@link #XPathException(String, String)}, with the exception that
+   * caused this error.
+   *
+   * @param sCode
+   *        The local part of the error code, e.g. <code>FODC0002</code>.
+   * @param sMessage
+   *        The description.
+   * @param aCause
+   *        The cause, may be <code>null</code>.
+   */
   public XPathException (@NonNull final String sCode, @NonNull final String sMessage, @Nullable final Throwable aCause)
   {
     super (sCode + ": " + sMessage, aCause);
@@ -88,7 +109,10 @@ public class XPathException extends RuntimeException
   }
 
   /**
-   * @return The error code as QName in the standard error namespace.
+   * @return The error code as QName: the QName passed to the
+   *         <code>fn:error</code> constructor, otherwise (created lazily on
+   *         first access) the code in the standard error namespace
+   *         {@link #ERR_NAMESPACE} with the prefix <code>err</code>.
    */
   @NonNull
   public final XdmQName getCodeName ()

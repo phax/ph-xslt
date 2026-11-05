@@ -76,21 +76,45 @@ public final class AtomicComparator
   private static final double TWO_POW_63 = 9.223372036854775808E18;
   private static final Double NAN_KEY = Double.valueOf (Double.NaN);
 
+  /**
+   * Map key of a numeric value; the value is the canonical form of
+   * {@link AtomicComparator#_getCanonicalNumber(Object)}, so record equality is
+   * equality of the exact mathematical value.
+   */
   private record NumericKey (@NonNull Object value)
   {}
 
+  /**
+   * Map key of a string, xs:anyURI or xs:untypedAtomic value: equal by
+   * codepoints, whatever the type.
+   */
   private record StringKey (@NonNull String value)
   {}
 
+  /** Map key of an xs:boolean value. */
   private record BooleanKey (boolean value)
   {}
 
+  /**
+   * Map key of an xs:QName or xs:NOTATION value: equal by namespace URI and
+   * local name, as defined by {@link XdmQName}; a QName never equals a
+   * NOTATION.
+   */
   private record QNameKey (boolean notation, @NonNull XdmQName name)
   {}
 
+  /**
+   * Map key of a duration value: months and seconds, the seconds with
+   * trailing zeros stripped, so that durations of any duration type with the
+   * same value are equal.
+   */
   private record DurationKey (long months, @NonNull BigDecimal seconds)
   {}
 
+  /**
+   * Map key of a binary value: equal by content, but an xs:hexBinary never
+   * equals an xs:base64Binary.
+   */
   private static final class BinaryKey
   {
     private final boolean m_bBase64;
@@ -102,6 +126,10 @@ public final class AtomicComparator
       m_aBytes = aBytes;
     }
 
+    /**
+     * @return <code>true</code> if the other key has the same binary type and
+     *         the same bytes.
+     */
     @Override
     public boolean equals (final Object o)
     {
@@ -133,6 +161,12 @@ public final class AtomicComparator
       m_aValue = aValue;
     }
 
+    /**
+     * @return <code>true</code> if the other key has the same primitive type,
+     *         the same timezone presence and a value that compares equal; the
+     *         implicit timezone is passed as 0, which does not matter because
+     *         both sides have or both lack a timezone.
+     */
     @Override
     public boolean equals (final Object o)
     {
@@ -171,6 +205,16 @@ public final class AtomicComparator
   private AtomicComparator ()
   {}
 
+  /**
+   * Map an atomic type to its comparison class. All numeric types share one
+   * class, and so do the string family, xs:untypedAtomic and xs:anyURI (which
+   * compare as strings; XPath 3.1 appendix B.1 promotes xs:anyURI to
+   * xs:string). All date/time types share one class; whether two of them are
+   * comparable is checked in {@link #_isComparable}.
+   *
+   * @throws IllegalStateException
+   *         for a type without a class, such as xs:anyAtomicType
+   */
   @NonNull
   private static ECmpClass _getClass (@NonNull final EAtomicType eType)
   {
@@ -200,6 +244,11 @@ public final class AtomicComparator
     return eType == EAtomicType.DATE_TIME_STAMP ? EAtomicType.DATE_TIME : eType;
   }
 
+  /**
+   * @return <code>true</code> for the value and general operators that need an
+   *         ordering (<code>lt le gt ge</code> and <code>&lt; &lt;= &gt;
+   *         &gt;=</code>), <code>false</code> for the equality operators.
+   */
   private static boolean _isOrdering (@NonNull final EComparisonOp eOp)
   {
     return switch (eOp)
@@ -243,6 +292,10 @@ public final class AtomicComparator
     }
   }
 
+  /**
+   * @return -1, 0 or 1, with negative and positive zero equal, or
+   *         {@link #UNORDERED} if either value is NaN.
+   */
   private static int _compareDoubles (final double a, final double b)
   {
     if (Double.isNaN (a) || Double.isNaN (b))
@@ -251,12 +304,25 @@ public final class AtomicComparator
     return a < b ? -1 : a > b ? 1 : 0;
   }
 
+  /**
+   * @return The {@link BigDecimal} or {@link BigInteger} payload as exact
+   *         {@link BigDecimal}.
+   */
   @NonNull
   private static BigDecimal _toBigDecimal (@NonNull final Object aPayload)
   {
     return aPayload instanceof final BigDecimal aBD ? aBD : new BigDecimal ((BigInteger) aPayload);
   }
 
+  /**
+   * Compare two numeric values after numeric type promotion (XPath 3.1
+   * appendix B.1): integers and decimals are compared exactly, otherwise as
+   * xs:double if either value is a double, else in float space (each value
+   * rounded to xs:float once).
+   *
+   * @return A negative number, 0, a positive number, or {@link #UNORDERED} if
+   *         a value is NaN.
+   */
   private static int _compareNumeric (@NonNull final XdmAtomic aLeft, @NonNull final XdmAtomic aRight)
   {
     final Object aL = aLeft.getValue ();
@@ -273,6 +339,10 @@ public final class AtomicComparator
     return _compareDoubles (AtomicCaster.toFloat (aLeft), AtomicCaster.toFloat (aRight));
   }
 
+  /**
+   * @return The order of the two strings under the collation, the codepoint
+   *         collation if <code>null</code>.
+   */
   private static int _compareStrings (@NonNull final String sLeft,
                                       @NonNull final String sRight,
                                       @Nullable final ICollation aCollation)
@@ -280,6 +350,12 @@ public final class AtomicComparator
     return (aCollation == null ? CollationRegistry.CODEPOINT : aCollation).compare (sLeft, sRight);
   }
 
+  /**
+   * @return <code>true</code> if the two strings are equal under the
+   *         collation. Without a collation or with the codepoint collation this
+   *         is {@link String#equals(Object)}, otherwise a comparison result of
+   *         0.
+   */
   private static boolean _stringsEqual (@NonNull final String sLeft,
                                         @NonNull final String sRight,
                                         @Nullable final ICollation aCollation)
@@ -289,6 +365,16 @@ public final class AtomicComparator
     return aCollation.compare (sLeft, sRight) == 0;
   }
 
+  /**
+   * Compare two durations (F&amp;O 3.1 section 8.2). Two
+   * xs:yearMonthDuration values are ordered by months, two
+   * xs:dayTimeDuration values by seconds. Any other pair (involving
+   * xs:duration or mixing the two subtypes) only has equality: months and
+   * seconds both equal.
+   *
+   * @return The order for the ordered pairs; for the other pairs 0 if equal
+   *         and 1 (meaning "not equal", not "greater") otherwise.
+   */
   private static int _compareDurations (@NonNull final XdmAtomic aLeft, @NonNull final XdmAtomic aRight)
   {
     final XdmDurationValue aL = (XdmDurationValue) aLeft.getValue ();
@@ -339,6 +425,19 @@ public final class AtomicComparator
     }
   }
 
+  /**
+   * Turn a comparison result into the boolean of an operator. An unordered
+   * result (NaN involved) makes every operator <code>false</code> except
+   * <code>ne</code> and <code>!=</code>, as IEEE 754 requires.
+   *
+   * @param eOp
+   *        A VALUE_* or GENERAL_* operator.
+   * @param nCmp
+   *        The comparison result or {@link #UNORDERED}.
+   * @return The operator result.
+   * @throws IllegalArgumentException
+   *         for a node comparison operator
+   */
   private static boolean _applyOp (@NonNull final EComparisonOp eOp, final int nCmp)
   {
     if (nCmp == UNORDERED)
@@ -355,6 +454,11 @@ public final class AtomicComparator
     };
   }
 
+  /**
+   * @param sWhat
+   *        The end of the message, e.g. "with VALUE_LT" or "for ordering".
+   * @return A new XPTY0004 error for two values that cannot be compared.
+   */
   @NonNull
   private static XPathException _notComparable (@NonNull final XdmAtomic aLeft,
                                                 @NonNull final XdmAtomic aRight,
@@ -396,6 +500,16 @@ public final class AtomicComparator
     return e;
   }
 
+  /**
+   * Cast an xs:untypedAtomic operand of a general comparison to the type
+   * chosen for it, using the static context for xs:QName prefixes.
+   *
+   * @return The cast value.
+   * @throws XPathException
+   *         FORG0001 if the value cannot be cast (a cast error with another
+   *         code, such as FOCA0002 or XPTY0004, is reported as FORG0001 with
+   *         the original error as cause), FONS0004 for an unbound prefix.
+   */
   @NonNull
   private static XdmAtomic _castUntyped (@NonNull final XdmAtomic aUntyped,
                                          @NonNull final EAtomicType eTarget,
@@ -469,6 +583,10 @@ public final class AtomicComparator
     return Double.NaN;
   }
 
+  /**
+   * @return The operator applied to two doubles, with the NaN rules of
+   *         {@link #_applyOp(EComparisonOp, int)}.
+   */
   private static boolean _applyDoubleOp (@NonNull final EComparisonOp eOp, final double a, final double b)
   {
     return _applyOp (eOp, _compareDoubles (a, b));
@@ -499,6 +617,9 @@ public final class AtomicComparator
     return _compareAtomics (eOp, aLeft, aRight, aCollation, aCtx);
   }
 
+  /**
+   * @return <code>true</code> if the sequence is exactly one xs:boolean value.
+   */
   private static boolean _isSingleBoolean (@NonNull final XdmSequence aSeq)
   {
     return aSeq.size () == 1 &&
@@ -519,6 +640,22 @@ public final class AtomicComparator
     return Atomizer.getEffectiveBooleanValue (aSeq);
   }
 
+  /**
+   * General comparison in XPath 1.0 compatibility mode (XPath 3.1 section
+   * 3.7.2). If either operand is a single xs:boolean, both operands are
+   * reduced to booleans (see {@link #_toBoolean10}) and compared once
+   * (<code>false</code> before <code>true</code>). Otherwise the ordering
+   * operators convert every item with {@link #toNumber(XdmAtomic)} and compare
+   * as doubles; <code>=</code> and <code>!=</code> compare the pairs with
+   * {@link #_generalPair10}. The result is <code>true</code> as soon as one
+   * pair satisfies the operator.
+   *
+   * @param aLeft
+   *        Atomised left operand.
+   * @param aRight
+   *        Atomised right operand.
+   * @return The existential result.
+   */
   private static boolean _generalCompare10 (@NonNull final EComparisonOp eOp,
                                             @NonNull final XdmSequence aLeft,
                                             @NonNull final XdmSequence aRight,
@@ -735,6 +872,9 @@ public final class AtomicComparator
     return bLeftNaN ? -1 : 1;
   }
 
+  /**
+   * @return <code>true</code> if the value is an xs:double or xs:float NaN.
+   */
   private static boolean _isNaN (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
@@ -846,6 +986,12 @@ public final class AtomicComparator
     return ret;
   }
 
+  /**
+   * The attribute part of fn:deep-equal for two elements (F&amp;O 3.1 section
+   * 14.2.1): the same number of attributes, and for each attribute of the
+   * left element one with the same expanded name on the right whose string
+   * value is equal under the collation. Typed values are not compared.
+   */
   private static boolean _attributesDeepEqual (@NonNull final IXdmNode aLeft,
                                                @NonNull final IXdmNode aRight,
                                                @Nullable final ICollation aCollation)
@@ -905,6 +1051,12 @@ public final class AtomicComparator
     }
   }
 
+  /**
+   * Atomic value equality of fn:deep-equal: like eq, but values that are not
+   * comparable are simply unequal, NaN equals NaN, and string-like values
+   * (including xs:anyURI and xs:untypedAtomic) are compared with the
+   * collation.
+   */
   private static boolean _atomicsDeepEqual (@NonNull final XdmAtomic aLeft,
                                             @NonNull final XdmAtomic aRight,
                                             @Nullable final ICollation aCollation,

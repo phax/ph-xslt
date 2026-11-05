@@ -134,12 +134,24 @@ public final class XdmIncrementalSerializer
     new OutputCharset (aParams);
   }
 
+  /**
+   * Write the buffer to the writer (and flush it) once it holds at least
+   * {@link MarkupWriter#FLUSH_SIZE} characters.
+   *
+   * @throws UncheckedIOException
+   *         on a write error
+   */
   private void _flushIfFull ()
   {
     if (m_aSB.length () >= MarkupWriter.FLUSH_SIZE)
       flush ();
   }
 
+  /**
+   * Write the prolog once, before the first output: the byte order mark (as
+   * U+FEFF) if requested and, for the markup methods, the XML declaration if
+   * the parameters ask for one. Later calls do nothing.
+   */
   private void _begin ()
   {
     if (m_bBegun)

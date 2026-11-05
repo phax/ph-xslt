@@ -174,6 +174,24 @@ public final class AtomicLexical
     return aValue.stripTrailingZeros ().toPlainString ();
   }
 
+  /**
+   * The string value of an atomic value, i.e. the result of casting it to
+   * xs:string (F&amp;O 3.1 section 19.1.2), chosen by the Java payload: a
+   * string payload (the string-derived types, xs:untypedAtomic, xs:anyURI) is
+   * returned unchanged, booleans as <code>true</code>/<code>false</code>,
+   * integers in plain notation, decimals, doubles and floats through
+   * {@link #formatDecimal(BigDecimal)}, {@link #formatDouble(double)} and
+   * {@link #formatFloat(float)}, QNames and NOTATIONs as their lexical
+   * (prefixed) name, binary values in Base64 for xs:base64Binary and in
+   * upper-case hex for every other type, and date/time and duration values
+   * through their own <code>toLexical</code> for the value's type.
+   *
+   * @param aValue
+   *        The value.
+   * @return The lexical form, never <code>null</code>.
+   * @throws IllegalStateException
+   *         if the payload is of none of the expected Java classes
+   */
   @NonNull
   public static String toLexical (@NonNull final XdmAtomic aValue)
   {

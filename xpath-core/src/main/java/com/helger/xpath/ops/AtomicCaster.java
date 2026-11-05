@@ -85,12 +85,21 @@ public final class AtomicCaster
   private AtomicCaster ()
   {}
 
+  /**
+   * @return A new XPTY0004 error for a source/target type pair that the
+   *         casting table (F&amp;O 3.1 section 19.1) does not allow at all.
+   */
   @NonNull
   private static XPathException _notAllowed (@NonNull final EAtomicType eSource, @NonNull final EAtomicType eTarget)
   {
     return XPathException.type ("Cannot cast " + eSource.getQualifiedName () + " to " + eTarget.getQualifiedName ());
   }
 
+  /**
+   * @return A new FORG0001 error for a value that is not in the lexical space
+   *         of the target type; the message quotes the original, not the
+   *         whitespace-collapsed, value.
+   */
   @NonNull
   private static XPathException _invalid (@NonNull final String sValue, @NonNull final EAtomicType eTarget)
   {
@@ -103,6 +112,19 @@ public final class AtomicCaster
     return eType == EAtomicType.UNTYPED_ATOMIC || eType.isStringFamily ();
   }
 
+  /**
+   * Create a value of an integer type after checking the value space bounds
+   * of the derived integer types (XSD 1.1 part 2, section 3.4.13 ff.). xs:integer
+   * itself has no bounds.
+   *
+   * @param aValue
+   *        The integer value.
+   * @param eTarget
+   *        xs:integer or a type derived from it.
+   * @return A new value of type <code>eTarget</code>.
+   * @throws XPathException
+   *         FORG0001 if the value is outside the range of the target type.
+   */
   @NonNull
   private static XdmAtomic _checkIntegerRange (@NonNull final BigInteger aValue, @NonNull final EAtomicType eTarget)
   {
@@ -156,6 +178,24 @@ public final class AtomicCaster
     return XdmAtomic.of (eTarget, s);
   }
 
+  /**
+   * Cast a string to xs:QName. The whitespace is collapsed and the result
+   * must be a lexical QName. An unprefixed name gets the default element
+   * namespace of the static context (no namespace without a static context);
+   * a prefix is resolved against the statically known namespaces, and the
+   * prefix <code>xml</code> is bound implicitly if the context does not
+   * declare it.
+   *
+   * @param sValue
+   *        The string, not yet whitespace-collapsed.
+   * @param aStaticCtx
+   *        Namespace context, may be <code>null</code>.
+   * @return The xs:QName value, keeping the prefix.
+   * @throws XPathException
+   *         FORG0001 if the value is not a lexical QName, FONS0004 if the
+   *         prefix is not bound (always for a prefix other than
+   *         <code>xml</code> without a static context).
+   */
   @NonNull
   private static XdmAtomic _castStringToQName (@NonNull final String sValue,
                                               @Nullable final StaticContext aStaticCtx)
@@ -178,11 +218,23 @@ public final class AtomicCaster
     return XdmAtomic.qname (new XdmQName (sNS, s.substring (nColon + 1), sPrefix));
   }
 
+  /**
+   * @return <code>true</code> only if a static context is present and asks
+   *         for the XSD 1.0 lexical rules; without a context XSD 1.1 applies.
+   */
   private static boolean _isXsd10 (@Nullable final StaticContext aStaticCtx)
   {
     return aStaticCtx != null && aStaticCtx.getXsdVersion () == EXsdVersion.V10;
   }
 
+  /**
+   * @param s
+   *        A whitespace-collapsed xs:gYear or xs:gYearMonth lexical.
+   * @return <code>true</code> if the year part (after an optional leading
+   *         minus) consists of at least one digit and all its digits are
+   *         <code>0</code>, e.g. for <code>0000</code>, <code>-0000Z</code> or
+   *         <code>0000-05</code>.
+   */
   private static boolean _hasYearZero (@NonNull final String s)
   {
     // The year of a gYear/gYearMonth lexical: optional '-', then digits
@@ -287,6 +339,14 @@ public final class AtomicCaster
     }
   }
 
+  /**
+   * @param s
+   *        A string already accepted by
+   *        {@link XsdLexical#isDoubleLexical(String)}.
+   * @return <code>INF</code>, <code>+INF</code>, <code>-INF</code> and
+   *         <code>NaN</code> mapped to the special values, anything else
+   *         parsed by {@link Double#parseDouble(String)}.
+   */
   private static double _parseDouble (@NonNull final String s)
   {
     switch (s)
@@ -303,6 +363,15 @@ public final class AtomicCaster
     }
   }
 
+  /**
+   * Like {@link #_parseDouble(String)} for xs:float; the number is parsed
+   * directly in single precision, so it is rounded only once.
+   *
+   * @param s
+   *        A string already accepted by
+   *        {@link XsdLexical#isDoubleLexical(String)}.
+   * @return The float value.
+   */
   private static float _parseFloat (@NonNull final String s)
   {
     switch (s)
@@ -320,6 +389,33 @@ public final class AtomicCaster
     }
   }
 
+  /**
+   * Cast a numeric or xs:boolean value to a non-string target (F&amp;O 3.1
+   * section 19):
+   * <ul>
+   * <li>xs:boolean: <code>false</code> for zero and NaN, <code>true</code>
+   * otherwise.</li>
+   * <li>xs:integer and its subtypes: decimals and floating point values are
+   * truncated towards zero, a boolean becomes 1 or 0; the range of the
+   * target is checked.</li>
+   * <li>xs:decimal: a floating point value is converted exactly (its binary
+   * value written in decimal), negative zero becomes 0; a boolean becomes
+   * 1 or 0.</li>
+   * <li>xs:double and xs:float: numeric conversion with a single rounding,
+   * a boolean becomes 1 or 0.</li>
+   * </ul>
+   *
+   * @param aValue
+   *        A numeric or xs:boolean value.
+   * @param eTarget
+   *        The target type, not xs:string, xs:untypedAtomic or a type
+   *        derived from xs:string.
+   * @return The cast value.
+   * @throws XPathException
+   *         FOCA0002 for NaN or an infinite value cast to an integer type or
+   *         xs:decimal, FORG0001 for an integer outside the target range,
+   *         XPTY0004 for any other target type.
+   */
   @NonNull
   private static XdmAtomic _castNumericOrBoolean (@NonNull final XdmAtomic aValue, @NonNull final EAtomicType eTarget)
   {
@@ -405,10 +501,33 @@ public final class AtomicCaster
   }
 
   /**
+   * Cast an atomic value to a built-in atomic type (XPath 3.1 section 3.14.2,
+   * F&amp;O 3.1 section 19). In this order:
+   * <ul>
+   * <li>A value of exactly the target type is returned unchanged.</li>
+   * <li>xs:anyAtomicType and xs:NOTATION as target raise XPST0080, xs:error
+   * raises FORG0001. For xs:numeric a numeric value is returned unchanged,
+   * anything else is cast to xs:double. xs:string and xs:untypedAtomic take
+   * the canonical lexical form.</li>
+   * <li>Other types derived from xs:string apply their whitespace facet to
+   * the lexical form and check its lexical space.</li>
+   * <li>From xs:untypedAtomic or the string family, the collapsed string is
+   * parsed in the lexical space of the target (XSD 1.0 or 1.1 rules, see
+   * the class description).</li>
+   * <li>From numeric or xs:boolean: truncation for integer targets, an exact
+   * conversion to xs:decimal, zero and NaN as <code>false</code>.</li>
+   * <li>Between date/time types and between duration types the cast is
+   * delegated to {@link DateTimeOps#cast}.</li>
+   * <li>Between xs:hexBinary and xs:base64Binary the bytes are kept.</li>
+   * <li>xs:NOTATION to xs:QName keeps the name.</li>
+   * <li>Every other combination is XPTY0004.</li>
+   * </ul>
+   *
    * @param aValue
    *        Source value.
    * @param eTarget
-   *        Target type (not NUMERIC, not ANY_ATOMIC_TYPE).
+   *        Target type; xs:anyAtomicType and xs:NOTATION are rejected with
+   *        XPST0080.
    * @param aStaticCtx
    *        Namespaces for casting a string to xs:QName/xs:NOTATION; may be
    *        <code>null</code>, then such a cast fails with FONS0004 for prefixed

@@ -138,6 +138,10 @@ final class PatternMatcher
     return false;
   }
 
+  /**
+   * @return <code>true</code> if the sequence contains the node itself
+   *         (identity, not equality).
+   */
   private static boolean _contains (@NonNull final XdmSequence aSeq, @NonNull final IXdmNode aNode)
   {
     for (final IXdmItem aItem : aSeq)
@@ -146,6 +150,12 @@ final class PatternMatcher
     return false;
   }
 
+  /**
+   * The numeric predicate rule of XPath 3.1 section 3.3.2: the item is kept if
+   * the number equals its position. An integer is compared exactly (a value
+   * outside the int range never matches), a decimal by value, any other
+   * numeric type as double (NaN never matches).
+   */
   private static boolean _isPosition (@NonNull final XdmAtomic aValue, final int nPosition)
   {
     final Object aPayload = aValue.getValue ();
@@ -156,6 +166,11 @@ final class PatternMatcher
     return aValue.getAsDouble () == nPosition;
   }
 
+  /**
+   * @return The only item of the sequence if it is a numeric atomic value,
+   *         otherwise <code>null</code> (the predicate value is then used by
+   *         its effective boolean value).
+   */
   @Nullable
   private static XdmAtomic _getNumericSingleton (@NonNull final XdmSequence aValue)
   {
@@ -303,6 +318,20 @@ final class PatternMatcher
      */
     private final ICommonsList <ICommonsSet <IXdmNode>> m_aVisited;
 
+    /**
+     * Prepare the search: the path mode follows from the path (a leading
+     * variable or function call is ROOTED, a leading <code>/</code>
+     * ABSOLUTE, otherwise RELATIVE). Only a path with more than one
+     * branching step (a descendant or descendant-or-self axis, or a
+     * parenthesised step) remembers the visited (step, node) pairs, since
+     * only then can the search reach a pair twice.
+     *
+     * @param aPath
+     *        The path pattern.
+     * @param bFirstOnly
+     *        <code>true</code> to stop at the first anchor found (a plain
+     *        match), <code>false</code> to collect all anchors.
+     */
     PathSearch (final IExpr.@NonNull PathExpr aPath, final boolean bFirstOnly)
     {
       m_aPath = aPath;
@@ -329,6 +358,11 @@ final class PatternMatcher
       return m_bFirstOnly && m_bFound;
     }
 
+    /**
+     * @return The nodes the leading variable reference or function call of a
+     *         rooted path returns, evaluated once per search with the
+     *         candidate as context item; non-node items are dropped.
+     */
     @NonNull
     private ICommonsSet <IXdmNode> _getStartNodes ()
     {
@@ -400,6 +434,12 @@ final class PatternMatcher
       }
     }
 
+    /**
+     * @return The anchors found: the single anchors of a relative path, united
+     *         with the complements accepted by
+     *         {@link #_acceptAllExcept(ICommonsSet)}. Meaningful for relative
+     *         paths only; the other modes only set {@link #isFound()}.
+     */
     @NonNull
     AnchorSet getResult ()
     {
@@ -411,6 +451,11 @@ final class PatternMatcher
       return m_bFound;
     }
 
+    /**
+     * Go on with the context node a step selected the node from: for the
+     * first step it is a candidate anchor ({@link #_accept(IXdmNode)}),
+     * otherwise the previous step must have selected it.
+     */
     private void _continue (final int nStep, @NonNull final IXdmNode aContext)
     {
       if (nStep == 0)

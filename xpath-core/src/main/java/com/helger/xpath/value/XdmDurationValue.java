@@ -52,6 +52,14 @@ public final class XdmDurationValue
     m_aSeconds = aSeconds;
   }
 
+  /**
+   * @param aSeconds
+   *        Seconds value.
+   * @return The same number without trailing fraction zeros and never with a
+   *         negative scale; zero (whatever its scale) is always
+   *         {@link BigDecimal#ZERO}. Keeps {@link #hashCode()} consistent with
+   *         the numeric comparison in {@link #equals(Object)}.
+   */
   @NonNull
   private static BigDecimal _normalise (@NonNull final BigDecimal aSeconds)
   {
@@ -61,6 +69,10 @@ public final class XdmDurationValue
     return ret.scale () < 0 ? ret.setScale (0) : ret;
   }
 
+  /**
+   * @return A new FORG0001 error naming the type and the lexical form; the
+   *         caller throws it.
+   */
   @NonNull
   private static XPathException _invalid (@NonNull final EAtomicType eType, @NonNull final String sLexical)
   {
@@ -229,6 +241,10 @@ public final class XdmDurationValue
     return m_aSeconds;
   }
 
+  /**
+   * @return <code>true</code> if the months or the seconds are negative (both
+   *         have the same sign, so this is the sign of the duration).
+   */
   public boolean isNegative ()
   {
     return m_nMonths < 0 || m_aSeconds.signum () < 0;
@@ -252,6 +268,24 @@ public final class XdmDurationValue
     return new XdmDurationValue (-m_nMonths, m_aSeconds.negate ());
   }
 
+  /**
+   * Append the canonical day-time part (XSD 1.1 part 2, canonical duration
+   * mapping): whole days with <code>D</code>, then, only if hours, minutes or
+   * seconds are not zero, <code>T</code> and the non-zero ones of
+   * <code>H</code>, <code>M</code> and <code>S</code> (seconds in plain
+   * notation without trailing zeros). Hours stay below 24 and minutes below 60,
+   * everything above goes to the next larger unit.
+   *
+   * @param aSB
+   *        The target, already holding the sign, <code>P</code> and any
+   *        year-month part.
+   * @param aAbsSeconds
+   *        The absolute number of seconds.
+   * @param bForceZero
+   *        If <code>true</code>, a zero day-time part is written as
+   *        <code>T0S</code>, so that a zero duration is not just
+   *        <code>P</code>; if <code>false</code> nothing is appended for it.
+   */
   private static void _appendDayTime (@NonNull final StringBuilder aSB,
                                       @NonNull final BigDecimal aAbsSeconds,
                                       final boolean bForceZero)
@@ -329,6 +363,12 @@ public final class XdmDurationValue
     }
   }
 
+  /**
+   * Value equality of the XPath duration value space: equal months and
+   * numerically equal seconds, whatever the subtype the value was made for, so
+   * <code>P1Y</code> equals <code>P12M</code> and <code>PT60S</code> equals
+   * <code>PT1M</code>; <code>P1M</code> and <code>P30D</code> stay different.
+   */
   @Override
   public boolean equals (final Object o)
   {
@@ -346,6 +386,10 @@ public final class XdmDurationValue
     return Long.hashCode (m_nMonths) * 31 + m_aSeconds.hashCode ();
   }
 
+  /**
+   * @return The xs:duration lexical form, whatever the subtype of the value;
+   *         for debugging only.
+   */
   @Override
   public String toString ()
   {

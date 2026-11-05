@@ -137,6 +137,11 @@ public enum EAtomicType
     return false;
   }
 
+  /**
+   * @return <code>true</code> for xs:double, xs:float, xs:decimal and all types
+   *         derived from xs:decimal; <code>false</code> for the pseudo type
+   *         {@link #NUMERIC} itself and for every other type.
+   */
   public boolean isNumeric ()
   {
     return this == DOUBLE || this == FLOAT || (isDerivedFrom (DECIMAL) && this != NUMERIC);
