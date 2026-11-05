@@ -194,7 +194,7 @@ Result:
 
 ## Early exit for existence tests
 
-Status: done (2026-11-05; S1 of ph-sch2java's `docs/SUGGESTIONS-sch2java.md`).
+Status: done (2026-11-05; suggestion S1 of ph-sch2java).
 
 ph-sch2java's differential harness against Saxon found dynamic errors that only ph-xslt raised, e.g. in Peppol MLS
 `exists(cac:LineResponse[cac:Response[normalize-space(cac:Status/cbc:StatusReasonCode) = 'BV']])`: with a duplicated
@@ -236,7 +236,7 @@ Result (`XPathEvaluator`):
 
 ## Public operator API
 
-Status: done (2026-11-05; S3 of ph-sch2java's `docs/SUGGESTIONS-sch2java.md`).
+Status: done (2026-11-05; suggestion S3 of ph-sch2java).
 
 ph-sch2java generates Java for the structure of Schematron expressions (navigation, loops, `and`/`or`, quantifiers),
 but the helpers with the evaluator's semantics for comparisons, arithmetic, casts and function argument conversion
