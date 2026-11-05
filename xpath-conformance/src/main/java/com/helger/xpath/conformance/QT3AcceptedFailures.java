@@ -39,6 +39,12 @@ import com.helger.collection.commons.ICommonsSortedSet;
  * The accepted-failures check, a port of Go's
  * <code>checkAcceptedFailures</code>: every failing case must be named in
  * backticks in the accepted-failures markdown file, together with its reason.
+ * Only names in a list position count: a backticked name in a heading line
+ * (starting with <code>#</code>), or on a name-list line that holds nothing
+ * but backticked names separated by commas or blanks (optionally a leading
+ * <code>-</code> or <code>*</code> bullet and a trailing full stop). A
+ * backticked word in prose (a case mentioned for comparison, a class name, a
+ * system property) never accepts a failure.
  *
  * @author Philip Helger
  */
@@ -46,6 +52,8 @@ import com.helger.collection.commons.ICommonsSortedSet;
 public final class QT3AcceptedFailures
 {
   private static final Pattern BACKTICKED = Pattern.compile ("`([^`\\n]+)`");
+  /** A line that is nothing but a list of backticked names. */
+  private static final Pattern NAME_LIST_LINE = Pattern.compile ("(?:[-*][ \\t]+)?(?:`[^`\\n]+`[ \\t,]*)+\\.?");
 
   @PresentForCodeCoverage
   private static final QT3AcceptedFailures INSTANCE = new QT3AcceptedFailures ();
@@ -54,18 +62,35 @@ public final class QT3AcceptedFailures
   {}
 
   /**
+   * @param sLine
+   *        One line of the markdown text.
+   * @return <code>true</code> if the backticked names of the line count:
+   *         a heading line or a name-list line.
+   */
+  private static boolean _isNamePosition (@NonNull final String sLine)
+  {
+    final String sStripped = sLine.strip ();
+    return sStripped.startsWith ("#") || NAME_LIST_LINE.matcher (sStripped).matches ();
+  }
+
+  /**
    * @param sMarkdown
    *        The markdown text.
-   * @return Every name in backticks.
+   * @return Every name in backticks in a list position (a heading or a
+   *         name-list line, see the class description).
    */
   @NonNull
   @ReturnsMutableCopy
   public static ICommonsSet <String> getDocumentedNames (@NonNull final String sMarkdown)
   {
     final ICommonsSet <String> ret = new CommonsHashSet <> ();
-    final Matcher aMatcher = BACKTICKED.matcher (sMarkdown);
-    while (aMatcher.find ())
-      ret.add (aMatcher.group (1));
+    for (final String sLine : sMarkdown.split ("\\r?\\n", -1))
+      if (_isNamePosition (sLine))
+      {
+        final Matcher aMatcher = BACKTICKED.matcher (sLine);
+        while (aMatcher.find ())
+          ret.add (aMatcher.group (1));
+      }
     return ret;
   }
 

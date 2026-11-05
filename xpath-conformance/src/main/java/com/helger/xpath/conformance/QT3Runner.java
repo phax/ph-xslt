@@ -107,11 +107,13 @@ public final class QT3Runner
    * checked with {@link QT3Dependencies#getSkipReason(java.util.List)}; the
    * environment is the inline one, the empty environment (base directory of
    * the set) if there is none, or a referenced one looked up first among the
-   * set's and then among the catalog's named environments (unknown name:
-   * skip <code>env-missing</code>). The outcome of
+   * set's and then among the catalog's named environments (unknown name: the
+   * case fails with <code>harness:env-missing</code>). The outcome of
    * {@link QT3CaseRunner#run} is counted; for a fail, a
    * <code>FAIL name [reason] expr=... want=... got=...</code> line is kept if
-   * fail lines are collected. A test-set file that cannot be read gives a
+   * fail lines are collected. A case whose expected error was raised with
+   * another code (reason {@link QT3Outcome#NOTE_ERROR_CODE}, pass or fail) is
+   * also recorded as <code>name want=... got=...</code> code mismatch. A test-set file that cannot be read gives a
    * result with only a load error.
    *
    * @param aCatalog
@@ -139,7 +141,7 @@ public final class QT3Runner
     }
     final QT3SetResult ret = new QT3SetResult (aSet.name ().isEmpty () ? aRef.name () : aSet.name ());
     final QT3DocumentCache aDocs = new QT3DocumentCache ();
-    final QT3CaseRunner aCaseRunner = new QT3CaseRunner (m_aNow);
+    final QT3CaseRunner aCaseRunner = new QT3CaseRunner (m_aNow, m_aSettings.strictCode ());
     final boolean bCollect = m_aSettings.isCollectFailLines ();
 
     for (final QT3TestCase aCase : aSet.testCases ())
@@ -164,7 +166,9 @@ public final class QT3Runner
             aFound = aCatalog.environments ().get (aEnv.getRef ());
           if (aFound == null)
           {
-            ret.addSkip ("env-missing");
+            ret.addFail (aCase.name (),
+                         "harness:env-missing",
+                         bCollect ? "FAIL " + aCase.name () + " [harness:env-missing] env=" + aEnv.getRef () : null);
             continue;
           }
           aEnv = aFound;
@@ -172,6 +176,12 @@ public final class QT3Runner
 
       final QT3CaseRunner.CaseResult aResult = aCaseRunner.run (aCase, aDeps, aEnv, aSet.dir (), aDocs);
       final QT3Outcome aOutcome = aResult.outcome ();
+      if (QT3Outcome.NOTE_ERROR_CODE.equals (aOutcome.reason ()))
+        ret.addCodeMismatch (aCase.name () +
+                             " want=" +
+                             _describeWant (aCase) +
+                             " got=" +
+                             _cut (aResult.got (), 2 * MAX_EXPR_LEN));
       switch (aOutcome.status ())
       {
         case PASS:

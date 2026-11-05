@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
@@ -33,6 +34,7 @@ import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsSet;
 
 /**
  * Runs the W3C XML Schema test suite (xsdtests) against an
@@ -45,8 +47,11 @@ import com.helger.collection.commons.ICommonsList;
  * or more <code>&lt;instanceTest&gt;</code> (validate an instance against that
  * schema: valid/invalid). Test sets, groups, tests and expected verdicts may
  * carry a <code>version</code> token list; absent means both versions. Each
- * version is a separate run. The schema of a group is compiled once and
- * reused for all its instances.
+ * version is a separate run, which claims the tokens of
+ * {@link XsdSuiteRules#getClaimedTokens} (the version, and for 1.1 the CTA
+ * XPath subset of the validator): a set, group or test applies if one of its
+ * tokens is claimed, an expected verdict if all of its tokens are. The schema
+ * of a group is compiled once and reused for all its instances.
  * <p>
  * Counting, as in Go: a case the validator cannot decide is
  * <em>unsupported</em> (neither pass nor fail); a case whose latest
@@ -56,6 +61,8 @@ import com.helger.collection.commons.ICommonsList;
  * an anonymous fail and drops the rest of the group, an exception thrown by
  * the validator fails the case by its name (so the accepted-failures check
  * sees it); a crash while compiling still drops the group's instance tests.
+ * A crash while compiling a queried schema test is counted as queried (and
+ * as queried crash), not as fail.
  *
  * @author Philip Helger
  */
@@ -200,15 +207,15 @@ public final class XsdRunner
   @Nullable
   private static String _getInstanceExpected (@NonNull final XsdInstanceTest aTest,
                                               @NonNull final Path aDir,
-                                              @NonNull final EXsdVersion eVersion,
+                                              @NonNull final Set <String> aClaimed,
                                               @NonNull final XsdSetResult aResult)
   {
-    if (!XsdSuiteRules.isVersionApplicable (aTest.version (), eVersion))
+    if (!XsdSuiteRules.isVersionApplicable (aTest.version (), aClaimed))
     {
       // Test-level version gate (e.g. a 1.1-only instance twin)
       return null;
     }
-    final String sExpected = XsdSuiteRules.getExpectedValidity (aTest.expected (), eVersion);
+    final String sExpected = XsdSuiteRules.getExpectedValidity (aTest.expected (), aClaimed);
     if (sExpected == null || XsdSuiteRules.INDETERMINATE.equals (sExpected))
     {
       aResult.addSkip ("no-instance-verdict");
@@ -274,12 +281,13 @@ public final class XsdRunner
   private void _runSchemalessInstances (@NonNull final XsdTestGroup aGroup,
                                         @NonNull final Path aDir,
                                         @NonNull final EXsdVersion eVersion,
+                                        @NonNull final Set <String> aClaimed,
                                         @NonNull final IXsdTestValidator aValidator,
                                         @NonNull final XsdSetResult aResult)
   {
     for (final XsdInstanceTest aTest : aGroup.instanceTests ())
     {
-      final String sExpected = _getInstanceExpected (aTest, aDir, eVersion, aResult);
+      final String sExpected = _getInstanceExpected (aTest, aDir, aClaimed, aResult);
       if (sExpected == null)
         continue;
       final XsdCompileResult aCompiled;
@@ -315,7 +323,8 @@ public final class XsdRunner
    * <p>
    * The schema documents are compiled once. The schema test is then scored
    * (or counted as queried; the schema is compiled in any case, and a crash
-   * while compiling fails the schema test even if it is queried) and its
+   * while compiling a queried schema test counts as queried crash, otherwise
+   * it fails the schema test) and its
    * outcome is also booked as schema-test outcome. The instance tests run
    * only if the schema is expected to be valid: each against the compiled
    * schema; if the validator rejected the schema they all fail with
@@ -330,6 +339,8 @@ public final class XsdRunner
    *        <code>xlink:href</code> references resolve.
    * @param eVersion
    *        The run version.
+   * @param aClaimed
+   *        The version tokens the run claims.
    * @param aValidator
    *        The validator of this test set.
    * @param aResult
@@ -338,10 +349,11 @@ public final class XsdRunner
   private void _runGroup (@NonNull final XsdTestGroup aGroup,
                           @NonNull final Path aDir,
                           @NonNull final EXsdVersion eVersion,
+                          @NonNull final Set <String> aClaimed,
                           @NonNull final IXsdTestValidator aValidator,
                           @NonNull final XsdSetResult aResult)
   {
-    if (!XsdSuiteRules.isVersionApplicable (aGroup.version (), eVersion))
+    if (!XsdSuiteRules.isVersionApplicable (aGroup.version (), aClaimed))
     {
       // Not applicable to this version: excluded from the denominator
       return;
@@ -349,15 +361,15 @@ public final class XsdRunner
     final XsdSchemaTest aSchemaTest = aGroup.schemaTest ();
     if (aSchemaTest == null)
     {
-      _runSchemalessInstances (aGroup, aDir, eVersion, aValidator, aResult);
+      _runSchemalessInstances (aGroup, aDir, eVersion, aClaimed, aValidator, aResult);
       return;
     }
-    if (!XsdSuiteRules.isVersionApplicable (aSchemaTest.version (), eVersion))
+    if (!XsdSuiteRules.isVersionApplicable (aSchemaTest.version (), aClaimed))
     {
       // Schema test out of scope: the instance verdicts have nothing to stand on
       return;
     }
-    final String sSchemaExpected = XsdSuiteRules.getExpectedValidity (aSchemaTest.expected (), eVersion);
+    final String sSchemaExpected = XsdSuiteRules.getExpectedValidity (aSchemaTest.expected (), aClaimed);
     if (sSchemaExpected == null || XsdSuiteRules.INDETERMINATE.equals (sSchemaExpected))
     {
       aResult.addSkip ("no-schema-verdict");
@@ -392,6 +404,18 @@ public final class XsdRunner
     }
     catch (final RuntimeException | StackOverflowError ex)
     {
+      if (XsdSuiteRules.isQueried (aSchemaTest.currentStatuses ()))
+      {
+        // A W3C-disputed verdict stays out of the denominator, crash or not
+        aResult.addQueriedCrash (m_aSettings.isCollectFailLines () ? "QUERIED-CRASH " +
+                                                                     aSchemaTest.name () +
+                                                                     " <<" +
+                                                                     sSchemaHref +
+                                                                     ">> || " +
+                                                                     _oneLine (_crashMessage (ex))
+                                                                   : null);
+        return;
+      }
       _fail (aResult, aSchemaTest.name (), sSchemaExpected, sSchemaHref, _crashMessage (ex));
       aResult.addSchemaTestOutcome (0, 1, 0);
       return;
@@ -412,7 +436,7 @@ public final class XsdRunner
       return;
     for (final XsdInstanceTest aTest : aGroup.instanceTests ())
     {
-      final String sExpected = _getInstanceExpected (aTest, aDir, eVersion, aResult);
+      final String sExpected = _getInstanceExpected (aTest, aDir, aClaimed, aResult);
       if (sExpected == null)
         continue;
       final IXsdTestSchema aSchema = aCompiled.schema ();
@@ -445,10 +469,14 @@ public final class XsdRunner
    *        suite directory; also the name of the result.
    * @param eVersion
    *        The run version.
+   * @param aClaimed
+   *        The version tokens the run claims.
    * @return The counts of the set. Never <code>null</code>.
    */
   @NonNull
-  private XsdSetResult _runSet (@NonNull final String sHref, @NonNull final EXsdVersion eVersion)
+  private XsdSetResult _runSet (@NonNull final String sHref,
+                                @NonNull final EXsdVersion eVersion,
+                                @NonNull final Set <String> aClaimed)
   {
     if (m_aSettings.progress ())
       System.err.println ("XSD " + eVersion.getID () + " SET " + sHref);
@@ -463,14 +491,14 @@ public final class XsdRunner
       ret.setLoadError (ex.getMessage ());
       return ret;
     }
-    if (!XsdSuiteRules.isVersionApplicable (aSet.version (), eVersion))
+    if (!XsdSuiteRules.isVersionApplicable (aSet.version (), aClaimed))
     {
       // The whole set is out of scope for this version (e.g. the 1.1-only sets)
       return ret;
     }
     final IXsdTestValidator aValidator = m_aValidatorFactory.get ();
     for (final XsdTestGroup aGroup : aSet.groups ())
-      _runGroup (aGroup, aSet.dir (), eVersion, aValidator, ret);
+      _runGroup (aGroup, aSet.dir (), eVersion, aClaimed, aValidator, ret);
     return ret;
   }
 
@@ -497,6 +525,8 @@ public final class XsdRunner
         aRefs.add (sHref);
 
     final IXsdTestValidator aInfo = m_aValidatorFactory.get ();
+    final ICommonsSet <String> aClaimed = XsdSuiteRules.getClaimedTokens (eVersion,
+                                                                         aInfo.isFullXPathInCtaSupported (eVersion));
     final ICommonsList <XsdSetResult> aResults = new CommonsArrayList <> ();
     final int nThreads = m_aSettings.sequential () ? 1 : Math.max (1, Runtime.getRuntime ().availableProcessors ());
     final ExecutorService aExecutor = Executors.newFixedThreadPool (nThreads);
@@ -504,7 +534,7 @@ public final class XsdRunner
     {
       final ICommonsList <Future <XsdSetResult>> aFutures = new CommonsArrayList <> ();
       for (final String sHref : aRefs)
-        aFutures.add (aExecutor.submit ( () -> _runSet (sHref, eVersion)));
+        aFutures.add (aExecutor.submit ( () -> _runSet (sHref, eVersion, aClaimed)));
       for (int i = 0; i < aFutures.size (); ++i)
       {
         try

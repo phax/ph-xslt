@@ -17,11 +17,13 @@
 package com.helger.xpath.conformance;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
@@ -49,7 +51,7 @@ public final class QT3AssertionCheckerTest
   private static final XPathException ERROR = new XPathException ("FOAR0001", "Division by zero");
 
   /** Fake engine: answers fixed expressions, fails on anything else. */
-  private static final class FakeEvaluator implements IQT3Evaluator
+  private static class FakeEvaluator implements IQT3Evaluator
   {
     private final ICommonsOrderedMap <String, XdmSequence> m_aAnswers = new CommonsLinkedHashMap <> ();
     private final ICommonsList <String> m_aSeen = new CommonsArrayList <> ();
@@ -119,14 +121,53 @@ public final class QT3AssertionCheckerTest
   public void testError ()
   {
     final QT3AssertionChecker aChecker = _checker (new FakeEvaluator ());
-    // Like Go: any error passes, whatever the code
-    assertTrue (aChecker.check (_a ("error", "", "code", "XPTY0004"), null, ERROR).isPass ());
-    assertTrue (aChecker.check (_a ("error", "", "code", "*"), null, ERROR).isPass ());
+    // FOTS: any error passes, a wrong code is only noted
+    assertEquals (QT3Outcome.passWithNote (QT3Outcome.NOTE_ERROR_CODE),
+                  aChecker.check (_a ("error", "", "code", "XPTY0004"), null, ERROR));
+    assertSame (QT3Outcome.pass (), aChecker.check (_a ("error", "", "code", "FOAR0001"), null, ERROR));
+    assertSame (QT3Outcome.pass (), aChecker.check (_a ("error", "", "code", "*"), null, ERROR));
     assertEquals (QT3Outcome.fail ("error"), aChecker.check (_a ("error", "", "code", "FOAR0001"), TRUE, null));
-    // Every value assertion fails when the test raised an error
-    assertEquals (QT3Outcome.fail ("errored:FOAR0001"), aChecker.check (_a ("assert-true", ""), null, ERROR));
-    assertEquals (QT3Outcome.fail ("errored:FOAR0001"), aChecker.check (_a ("assert-eq", "1"), null, ERROR));
-    assertEquals (QT3Outcome.skip ("unknown:assert-foo"), aChecker.check (_a ("assert-foo", ""), null, ERROR));
+    // Every value assertion fails inconclusively when the test raised an error
+    assertEquals (QT3Outcome.failInconclusive ("errored:FOAR0001"),
+                  aChecker.check (_a ("assert-true", ""), null, ERROR));
+    assertEquals (QT3Outcome.failInconclusive ("errored:FOAR0001"),
+                  aChecker.check (_a ("assert-eq", "1"), null, ERROR));
+    // An unknown kind is a harness failure, not a skip
+    assertEquals (QT3Outcome.failInconclusive ("harness:unknown:assert-foo"),
+                  aChecker.check (_a ("assert-foo", ""), null, ERROR));
+    assertEquals (QT3Outcome.failInconclusive ("harness:unknown:assert-foo"),
+                  aChecker.check (_a ("assert-foo", ""), TRUE, null));
+  }
+
+  @Test
+  public void testStrictErrorCode ()
+  {
+    final QT3AssertionChecker aStrict = new QT3AssertionChecker (new FakeEvaluator (), Path.of ("."), true);
+    assertSame (QT3Outcome.pass (), aStrict.check (_a ("error", "", "code", "FOAR0001"), null, ERROR));
+    assertSame (QT3Outcome.pass (), aStrict.check (_a ("error", "", "code", "*"), null, ERROR));
+    assertEquals (QT3Outcome.fail (QT3Outcome.NOTE_ERROR_CODE),
+                  aStrict.check (_a ("error", "", "code", "XPTY0004"), null, ERROR));
+    // any-of(error XPTY0004, assert-true) on FOAR0001: no child passes
+    assertTrue (aStrict.check (_a ("any-of", "", _a ("error", "", "code", "XPTY0004"), _a ("assert-true", "")),
+                               null,
+                               ERROR)
+                       .isFail ());
+  }
+
+  @Test
+  public void testErrorCodeMatching ()
+  {
+    assertTrue (QT3AssertionChecker.isErrorCodeMatching ("", ERROR));
+    assertTrue (QT3AssertionChecker.isErrorCodeMatching (" * ", ERROR));
+    assertTrue (QT3AssertionChecker.isErrorCodeMatching ("FOAR0001", ERROR));
+    assertTrue (QT3AssertionChecker.isErrorCodeMatching ("Q{http://www.w3.org/2005/xqt-errors}FOAR0001", ERROR));
+    assertFalse (QT3AssertionChecker.isErrorCodeMatching ("FOAR0002", ERROR));
+    assertFalse (QT3AssertionChecker.isErrorCodeMatching ("Q{}FOAR0001", ERROR));
+    final XPathException aUser = new XPathException (new XdmQName ("urn:x", "E1", "x"), "user", null);
+    assertTrue (QT3AssertionChecker.isErrorCodeMatching ("Q{urn:x}E1", aUser));
+    assertFalse (QT3AssertionChecker.isErrorCodeMatching ("E1", aUser));
+    assertTrue (QT3AssertionChecker.isSerializationError (new XPathException ("SEPM0004", "x")));
+    assertFalse (QT3AssertionChecker.isSerializationError (ERROR));
   }
 
   @Test
@@ -145,7 +186,8 @@ public final class QT3AssertionCheckerTest
     assertTrue (aChecker.check (_a ("assert-count", " 2 "), XdmSequence.of (XdmAtomic.TRUE, XdmAtomic.FALSE), null)
                         .isPass ());
     assertEquals (QT3Outcome.fail ("assert-count"), aChecker.check (_a ("assert-count", "1"), XdmSequence.EMPTY, null));
-    assertEquals (QT3Outcome.fail ("count-eval"), aChecker.check (_a ("assert-count", "x"), XdmSequence.EMPTY, null));
+    assertEquals (QT3Outcome.failInconclusive ("count-eval"),
+                  aChecker.check (_a ("assert-count", "x"), XdmSequence.EMPTY, null));
   }
 
   @Test
@@ -165,13 +207,15 @@ public final class QT3AssertionCheckerTest
     // $result is bound for the engine
     assertSame (aResult, aEval.m_aLastVars.get (QT3AssertionChecker.RESULT_VAR));
     assertEquals (QT3Outcome.fail ("assert-eq"), aChecker.check (_a ("assert-eq", "3"), aResult, null));
-    assertEquals (QT3Outcome.fail ("eq-eval"), aChecker.check (_a ("assert-eq", "4"), aResult, null));
+    assertEquals (QT3Outcome.failInconclusive ("eq-eval"), aChecker.check (_a ("assert-eq", "4"), aResult, null));
     assertTrue (aChecker.check (_a ("assert-deep-eq", "2"), aResult, null).isPass ());
     assertTrue (aChecker.check (_a ("assert-type", " xs:integer\n"), aResult, null).isPass ());
     assertEquals (QT3Outcome.fail ("assert-type"), aChecker.check (_a ("assert-type", "xs:string"), aResult, null));
-    assertEquals (QT3Outcome.fail ("type-parse"), aChecker.check (_a ("assert-type", "xs:foo"), aResult, null));
+    assertEquals (QT3Outcome.failInconclusive ("type-parse"),
+                  aChecker.check (_a ("assert-type", "xs:foo"), aResult, null));
     assertTrue (aChecker.check (_a ("assert", "$result = 2"), aResult, null).isPass ());
-    assertEquals (QT3Outcome.fail ("assert-eval"), aChecker.check (_a ("assert", "$result = 3"), aResult, null));
+    assertEquals (QT3Outcome.failInconclusive ("assert-eval"),
+                  aChecker.check (_a ("assert", "$result = 3"), aResult, null));
 
     assertEquals (QT3Outcome.fail ("assert-string-value"),
                   aChecker.check (_a ("assert-string-value", "2 x"), aResult, null));
@@ -191,14 +235,49 @@ public final class QT3AssertionCheckerTest
     assertEquals (QT3Outcome.fail ("assert-empty"), aChecker.check (_a ("all-of", "", aTrue, aEmpty), TRUE, null));
     assertTrue (aChecker.check (_a ("any-of", "", aEmpty, aTrue), TRUE, null).isPass ());
     assertEquals (QT3Outcome.fail ("any-of"), aChecker.check (_a ("any-of", "", aEmpty), TRUE, null));
-    assertEquals (QT3Outcome.skip ("unknown:assert-foo"),
+    // A child that cannot be evaluated does not turn a failing any-of into a
+    // skip
+    assertEquals (QT3Outcome.failInconclusive ("any-of"),
                   aChecker.check (_a ("any-of", "", aEmpty, aUnknown), TRUE, null));
     assertTrue (aChecker.check (_a ("any-of", "", aTrue, _a ("error", "")), null, ERROR).isPass ());
     assertTrue (aChecker.check (_a ("not", "", aEmpty), TRUE, null).isPass ());
     assertEquals (QT3Outcome.fail ("not"), aChecker.check (_a ("not", "", aTrue), TRUE, null));
     // not(error) passes when the test succeeds
     assertTrue (aChecker.check (_a ("not", "", _a ("error", "")), TRUE, null).isPass ());
-    assertEquals (QT3Outcome.skip ("not"), aChecker.check (_a ("not", ""), TRUE, null));
+    // not(assert-true) does not pass because the test raised an error
+    assertEquals (QT3Outcome.failInconclusive ("not:errored:FOAR0001"),
+                  aChecker.check (_a ("not", "", aTrue), null, ERROR));
+    // not over an assertion that cannot be evaluated
+    assertEquals (QT3Outcome.failInconclusive ("not:assert-eval"),
+                  aChecker.check (_a ("not", "", _a ("assert", "unknown()")), TRUE, null));
+    assertEquals (QT3Outcome.failInconclusive ("not:harness:unknown:assert-foo"),
+                  aChecker.check (_a ("not", "", aUnknown), TRUE, null));
+    assertEquals (QT3Outcome.failInconclusive ("harness:not-children"), aChecker.check (_a ("not", ""), TRUE, null));
+  }
+
+  @Test
+  public void testCombineAnyOf ()
+  {
+    final QT3Outcome aSkip = QT3Outcome.skip ("s");
+    final QT3Outcome aFail = QT3Outcome.fail ("f");
+    // Only skipped children: a skip
+    assertEquals (aSkip, QT3AssertionChecker.combineAnyOf (List.of (aSkip, QT3Outcome.skip ("t"))));
+    // A skipped child among failing ones: a fail, never a skip
+    assertEquals (QT3Outcome.failInconclusive ("any-of"), QT3AssertionChecker.combineAnyOf (List.of (aSkip, aFail)));
+    assertEquals (QT3Outcome.fail ("any-of"), QT3AssertionChecker.combineAnyOf (List.of (aFail, aFail)));
+    assertSame (QT3Outcome.pass (), QT3AssertionChecker.combineAnyOf (List.of (aSkip, aFail, QT3Outcome.pass ())));
+  }
+
+  @Test
+  public void testNegate ()
+  {
+    assertSame (QT3Outcome.pass (), QT3AssertionChecker.negate (QT3Outcome.fail ("x")));
+    assertEquals (QT3Outcome.fail ("not"), QT3AssertionChecker.negate (QT3Outcome.pass ()));
+    assertEquals (QT3Outcome.fail ("not"),
+                  QT3AssertionChecker.negate (QT3Outcome.passWithNote (QT3Outcome.NOTE_ERROR_CODE)));
+    assertEquals (QT3Outcome.failInconclusive ("not:s"), QT3AssertionChecker.negate (QT3Outcome.skip ("s")));
+    assertEquals (QT3Outcome.failInconclusive ("not:e"),
+                  QT3AssertionChecker.negate (QT3Outcome.failInconclusive ("e")));
   }
 
   @Test
@@ -222,7 +301,7 @@ public final class QT3AssertionCheckerTest
                                 aResult,
                                 null)
                         .isPass ());
-    assertEquals (QT3Outcome.fail ("xml-file"),
+    assertEquals (QT3Outcome.failInconclusive ("xml-file"),
                   aChecker.check (_a ("assert-xml", "", "file", "does-not-exist.xml"), aResult, null));
 
     assertTrue (aChecker.check (_a ("serialization-matches", "^<a"), aResult, null).isPass ());
@@ -231,11 +310,36 @@ public final class QT3AssertionCheckerTest
     assertEquals (QT3Outcome.fail ("assert-serialization-error"),
                   aChecker.check (_a ("assert-serialization-error", "", "code", "SEPM0004"), aResult, null));
 
-    // An engine that cannot serialise
+    // An engine whose serialisation raises a non-serialization error
     final QT3AssertionChecker aNoSer = _checker (new FakeEvaluator ());
-    assertTrue (aNoSer.check (_a ("assert-serialization-error", "", "code", "SEPM0004"), aResult, null).isPass ());
-    assertEquals (QT3Outcome.fail ("serialize"), aNoSer.check (_a ("assert-xml", "<a/>"), aResult, null));
-    assertEquals (QT3Outcome.fail ("serialize"), aNoSer.check (_a ("serialization-matches", "a"), aResult, null));
+    assertEquals (QT3Outcome.fail ("serialization-error-code"),
+                  aNoSer.check (_a ("assert-serialization-error", "", "code", "SEPM0004"), aResult, null));
+    assertEquals (QT3Outcome.failInconclusive ("serialize"), aNoSer.check (_a ("assert-xml", "<a/>"), aResult, null));
+    assertEquals (QT3Outcome.failInconclusive ("serialize"),
+                  aNoSer.check (_a ("serialization-matches", "a"), aResult, null));
+
+    // An engine whose serialisation raises a serialization error
+    final FakeEvaluator aSerErr = new FakeEvaluator ()
+    {
+      @Override
+      public XdmSequence evaluate (final String sExpr, final Map <XdmQName, XdmSequence> aExtraVars)
+      {
+        if ("serialize($result)".equals (sExpr))
+          throw new XPathException ("SEPM0004", "Not serialisable");
+        return super.evaluate (sExpr, aExtraVars);
+      }
+    };
+    assertSame (QT3Outcome.pass (),
+                _checker (aSerErr).check (_a ("assert-serialization-error", "", "code", "SEPM0004"), aResult, null));
+    assertEquals (QT3Outcome.passWithNote (QT3Outcome.NOTE_ERROR_CODE),
+                  _checker (aSerErr).check (_a ("assert-serialization-error", "", "code", "SERE0014"), aResult, null));
+    assertEquals (QT3Outcome.fail (QT3Outcome.NOTE_ERROR_CODE),
+                  new QT3AssertionChecker (aSerErr, Path.of ("."), true).check (_a ("assert-serialization-error",
+                                                                                    "",
+                                                                                    "code",
+                                                                                    "SERE0014"),
+                                                                                aResult,
+                                                                                null));
   }
 
   @Test
@@ -243,7 +347,7 @@ public final class QT3AssertionCheckerTest
   {
     final FakeEvaluator aEval = new FakeEvaluator ();
     final QT3AssertionChecker aChecker = _checker (aEval);
-    assertEquals (QT3Outcome.fail ("permutation-eval"),
+    assertEquals (QT3Outcome.failInconclusive ("permutation-eval"),
                   aChecker.check (_a ("assert-permutation", "1, 2"), XdmSequence.EMPTY, null));
     assertTrue (aEval.m_aSeen.getLastOrNull ().startsWith ("let $e := (1, 2) return count($result) eq count($e)"));
   }

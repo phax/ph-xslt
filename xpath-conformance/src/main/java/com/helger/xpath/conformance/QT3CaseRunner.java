@@ -67,17 +67,34 @@ public final class QT3CaseRunner
 
   private static final String UNDEFINED_BASE_URI = "#UNDEFINED";
   private static final int MAX_GOT_LEN = 200;
+  private static final XdmQName PARAM_VAR = new XdmQName ("qt3-param");
 
   private final OffsetDateTime m_aNow;
+  private final boolean m_bStrictErrorCodes;
 
   /**
+   * Constructor without strict error codes.
+   *
    * @param aNow
    *        The fixed current date/time of the run.
    */
   public QT3CaseRunner (@NonNull final OffsetDateTime aNow)
   {
+    this (aNow, false);
+  }
+
+  /**
+   * @param aNow
+   *        The fixed current date/time of the run.
+   * @param bStrictErrorCodes
+   *        <code>true</code> to require the expected error codes
+   *        (<code>qt3.strictCode</code>).
+   */
+  public QT3CaseRunner (@NonNull final OffsetDateTime aNow, final boolean bStrictErrorCodes)
+  {
     ValueEnforcer.notNull (aNow, "Now");
     m_aNow = aNow;
+    m_bStrictErrorCodes = bStrictErrorCodes;
   }
 
   /**
@@ -261,12 +278,59 @@ public final class QT3CaseRunner
   }
 
   /**
+   * Evaluate the value of an environment <code>param</code> and bind it.
+   * FOTS says that the variable is declared (in XQuery terms) with the
+   * <code>as</code> type; the value must then match that sequence type
+   * (XQuery 3.1 section 4.16: SequenceType matching, no conversion), which
+   * is checked with <code>instance of</code>. <code>declared</code> only
+   * says whether an XQuery prolog declares the variable itself and has no
+   * meaning for XPath; the variable is always bound.
+   *
+   * @param aParam
+   *        The parameter, with a <code>select</code>.
+   * @param aEval
+   *        The evaluator of the test; the parameter is bound in it.
+   * @return <code>null</code> if it was bound, else the reason why not.
+   */
+  @Nullable
+  private static String _bindParam (final QT3Environment.@NonNull Param aParam, @NonNull final QT3EngineEvaluator aEval)
+  {
+    final XdmSequence aValue;
+    try
+    {
+      aValue = aEval.evaluate (aParam.select (), Map.of ());
+    }
+    catch (final XPathException ex)
+    {
+      return "param $" + aParam.name () + " select failed: " + ex.getMessage ();
+    }
+    final String sAs = aParam.as ().strip ();
+    if (!sAs.isEmpty ())
+    {
+      final Boolean aMatches;
+      try
+      {
+        aMatches = QT3AssertionChecker.getEffectiveBooleanValue (aEval.evaluate ("$qt3-param instance of " + sAs,
+                                                                                 Map.of (PARAM_VAR, aValue)));
+      }
+      catch (final XPathException ex)
+      {
+        return "param $" + aParam.name () + " as '" + sAs + "' cannot be checked: " + ex.getMessage ();
+      }
+      if (aMatches == null || !aMatches.booleanValue ())
+        return "param $" + aParam.name () + " does not match as '" + sAs + "'";
+    }
+    aEval.setVariable (_varName (aParam.name (), aParam.namespaceUri (), aEval), aValue);
+    return null;
+  }
+
+  /**
    * Run one case without the crash guard. Steps:
    * <ol>
-   * <li>Skip with <code>no-assertion</code> if the case has no assertion;
-   * take the expression from the <code>file</code> of <code>test</code> if
-   * given (relative to the set directory; unreadable: skip
-   * <code>test-file</code>).</li>
+   * <li>Fail with <code>harness:no-assertion</code> if the case has no
+   * assertion; take the expression from the <code>file</code> of
+   * <code>test</code> if given (relative to the set directory; unreadable:
+   * fail with <code>harness:test-file</code>).</li>
    * <li>Configure the evaluator of the test: namespaces (an empty prefix sets
    * the default element namespace), static base URI, the default collation,
    * XPath 1.0 compatibility for <code>feature xpath-1.0-compatibility</code>,
@@ -281,16 +345,18 @@ public final class QT3CaseRunner
    * single item becomes the context item, an error or any other result
    * leaves no focus.</li>
    * <li>Evaluate every <code>param</code> with a <code>select</code> in
-   * order (a param can use the earlier ones) and bind it; one that raises an
-   * error stays unbound. <code>as</code> and <code>declared</code> are not
-   * used.</li>
+   * order (a param can use the earlier ones), check it against its
+   * <code>as</code> and bind it (see {@link #_bindParam}); one that raises an
+   * error or does not match fails the case with
+   * <code>harness:param</code>.</li>
    * <li>Turn on static typing for <code>feature staticTyping</code> and
    * evaluate the test expression, keeping either its result or its
    * {@link XPathException}.</li>
    * <li>Check the assertion with a second evaluator that has the prefixed
    * namespaces, the versions, the schema set and the variables, but no
    * default element namespace, focus, base URI, resolver, collation or
-   * decimal formats.</li>
+   * decimal formats, and with the strict error code setting of the
+   * runner.</li>
    * </ol>
    *
    * @param aCase
@@ -314,7 +380,7 @@ public final class QT3CaseRunner
   {
     final QT3Assertion aAssertion = aCase.result ();
     if (aAssertion == null)
-      return new CaseResult (QT3Outcome.skip ("no-assertion"), "");
+      return new CaseResult (QT3Outcome.failInconclusive ("harness:no-assertion"), "");
 
     String sExpr = aCase.testExpr ();
     if (!aCase.testFile ().isEmpty ())
@@ -325,7 +391,7 @@ public final class QT3CaseRunner
       }
       catch (final IOException ex)
       {
-        return new CaseResult (QT3Outcome.skip ("test-file"), "");
+        return new CaseResult (QT3Outcome.failInconclusive ("harness:test-file"), ex.getMessage () == null ? "" : ex.getMessage ());
       }
     }
 
@@ -397,15 +463,9 @@ public final class QT3CaseRunner
     {
       if (aParam.select ().isEmpty ())
         continue;
-      try
-      {
-        aEval.setVariable (_varName (aParam.name (), aParam.namespaceUri (), aEval),
-                           aEval.evaluate (aParam.select (), Map.of ()));
-      }
-      catch (final XPathException ex)
-      {
-        // Like Go: a param that fails to evaluate stays unbound
-      }
+      final String sParamProblem = _bindParam (aParam, aEval);
+      if (sParamProblem != null)
+        return new CaseResult (QT3Outcome.failInconclusive ("harness:param"), sParamProblem);
     }
 
     // Only the test expression itself, not the environment or the assertions
@@ -426,7 +486,7 @@ public final class QT3CaseRunner
     // resolver (like Go's assertion context)
     for (final Map.Entry <XdmQName, XdmSequence> aEntry : aEval.getAllVariables ().entrySet ())
       aAssertEval.setVariable (aEntry.getKey (), aEntry.getValue ());
-    final QT3AssertionChecker aChecker = new QT3AssertionChecker (aAssertEval, aSetDir);
+    final QT3AssertionChecker aChecker = new QT3AssertionChecker (aAssertEval, aSetDir, m_bStrictErrorCodes);
     final QT3Outcome aOutcome = aChecker.check (aAssertion, aResult, aError);
     final String sGot = aError != null ? _describeError (aError) : QT3XmlSerializer.describe (aResult,
                                                                                                MAX_GOT_LEN);

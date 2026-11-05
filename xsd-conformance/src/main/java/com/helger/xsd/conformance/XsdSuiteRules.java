@@ -17,12 +17,16 @@
 package com.helger.xsd.conformance;
 
 import java.util.List;
+import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.collection.commons.CommonsHashSet;
+import com.helger.collection.commons.ICommonsSet;
 
 /**
  * The suite's selection rules, ported from the Go harness
@@ -42,6 +46,13 @@ public final class XsdSuiteRules
   public static final String INDETERMINATE = "indeterminate";
   /** The status of a W3C-disputed test. */
   public static final String STATUS_QUERIED = "queried";
+  /** The version token of a processor that accepts any XPath in CTA. */
+  public static final String TOKEN_FULL_XPATH_IN_CTA = "full-xpath-in-CTA";
+  /**
+   * The version token of a processor that accepts only the required XPath
+   * subset in CTA.
+   */
+  public static final String TOKEN_RESTRICTED_XPATH_IN_CTA = "restricted-xpath-in-CTA";
 
   @PresentForCodeCoverage
   private static final XsdSuiteRules INSTANCE = new XsdSuiteRules ();
@@ -50,11 +61,57 @@ public final class XsdSuiteRules
   {}
 
   /**
-   * The suite's version-token semantics (<code>xsts.xsd</code>): an absent
-   * attribute applies everywhere; otherwise the whitespace-separated token
-   * list must contain the run version. Alien tokens (e.g.
-   * <code>Unicode_4.0.0</code>) match neither version. Used at test-set, test
-   * group, schema test and instance test level.
+   * The version tokens (<code>xsts.xsd</code>) a run claims: the run version
+   * (<code>1.0</code> or <code>1.1</code>), and for XSD 1.1 the XPath subset
+   * of conditional type assignment the validator implements
+   * ({@link #TOKEN_FULL_XPATH_IN_CTA} or
+   * {@link #TOKEN_RESTRICTED_XPATH_IN_CTA}; the two exclude each other, as
+   * the suite gives them contradicting verdicts). No other implementation
+   * token (Unicode version, edition, XML version, ...) is claimed.
+   *
+   * @param eVersion
+   *        The run version.
+   * @param bFullXPathInCta
+   *        <code>true</code> if the validator accepts any XPath in CTA.
+   * @return The claimed tokens.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public static ICommonsSet <String> getClaimedTokens (@NonNull final EXsdVersion eVersion,
+                                                       final boolean bFullXPathInCta)
+  {
+    final ICommonsSet <String> ret = new CommonsHashSet <> ();
+    ret.add (eVersion.getID ());
+    if (eVersion == EXsdVersion.XSD_11)
+      ret.add (bFullXPathInCta ? TOKEN_FULL_XPATH_IN_CTA : TOKEN_RESTRICTED_XPATH_IN_CTA);
+    return ret;
+  }
+
+  /**
+   * The suite's version-token semantics for test sets, groups, schema tests
+   * and instance tests (<code>xsts.xsd</code>: run if <em>any</em> of the
+   * tokens is supported): an absent attribute applies everywhere; otherwise
+   * one of the whitespace-separated tokens must be claimed by the run.
+   *
+   * @param sAttr
+   *        The <code>version</code> attribute, empty if absent.
+   * @param aClaimed
+   *        The tokens the run claims, see {@link #getClaimedTokens}.
+   * @return <code>true</code> if the element applies to the run.
+   */
+  public static boolean isVersionApplicable (@NonNull final String sAttr, @NonNull final Set <String> aClaimed)
+  {
+    if (sAttr.isBlank ())
+      return true;
+    for (final String sToken : sAttr.trim ().split ("\\s+"))
+      if (aClaimed.contains (sToken))
+        return true;
+    return false;
+  }
+
+  /**
+   * Like {@link #isVersionApplicable(String, Set)} with only the run version
+   * claimed (no CTA token).
    *
    * @param sAttr
    *        The <code>version</code> attribute, empty if absent.
@@ -64,21 +121,47 @@ public final class XsdSuiteRules
    */
   public static boolean isVersionApplicable (@NonNull final String sAttr, @NonNull final EXsdVersion eVersion)
   {
-    if (sAttr.isEmpty ())
-      return true;
-    for (final String sToken : sAttr.trim ().split ("\\s+"))
-      if (sToken.equals (eVersion.getID ()))
-        return true;
-    return false;
+    return isVersionApplicable (sAttr, Set.of (eVersion.getID ()));
   }
 
   /**
-   * Pick the expected validity for the run version: an
-   * <code>&lt;expected&gt;</code> whose version equals the run version wins;
-   * otherwise the versionless one. The <code>version</code> of an
-   * <code>&lt;expected&gt;</code> is compared as a whole string, not as a
-   * token list, so values such as <code>full-xpath-in-CTA</code> never match
-   * and such an <code>&lt;expected&gt;</code> is ignored.
+   * Pick the expected validity for the run (<code>xsts.xsd</code>: the
+   * prescribed outcome applies if <em>all</em> tokens of the
+   * <code>version</code> of an <code>&lt;expected&gt;</code> are supported):
+   * the first <code>&lt;expected&gt;</code> with a version whose tokens are
+   * all claimed wins; otherwise the (last) versionless one.
+   *
+   * @param aExpected
+   *        The expected elements of a test.
+   * @param aClaimed
+   *        The tokens the run claims, see {@link #getClaimedTokens}.
+   * @return The expected validity or <code>null</code> if none applies.
+   */
+  @Nullable
+  public static String getExpectedValidity (@NonNull final List <XsdExpected> aExpected,
+                                            @NonNull final Set <String> aClaimed)
+  {
+    String sGeneric = null;
+    for (final XsdExpected aExp : aExpected)
+    {
+      if (aExp.version ().isBlank ())
+      {
+        sGeneric = aExp.validity ();
+        continue;
+      }
+      boolean bAll = true;
+      for (final String sToken : aExp.version ().trim ().split ("\\s+"))
+        if (!aClaimed.contains (sToken))
+          bAll = false;
+      if (bAll)
+        return aExp.validity ();
+    }
+    return sGeneric;
+  }
+
+  /**
+   * Like {@link #getExpectedValidity(List, Set)} with only the run version
+   * claimed (no CTA token).
    *
    * @param aExpected
    *        The expected elements of a test.
@@ -90,15 +173,7 @@ public final class XsdSuiteRules
   public static String getExpectedValidity (@NonNull final List <XsdExpected> aExpected,
                                             @NonNull final EXsdVersion eVersion)
   {
-    String sGeneric = null;
-    for (final XsdExpected aExp : aExpected)
-    {
-      if (aExp.version ().equals (eVersion.getID ()))
-        return aExp.validity ();
-      if (aExp.version ().isEmpty ())
-        sGeneric = aExp.validity ();
-    }
-    return sGeneric;
+    return getExpectedValidity (aExpected, Set.of (eVersion.getID ()));
   }
 
   /**

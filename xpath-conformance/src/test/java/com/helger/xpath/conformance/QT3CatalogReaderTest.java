@@ -21,6 +21,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -194,5 +195,28 @@ public final class QT3CatalogReaderTest
     assertEquals (aRoot, aCatalog.environments ().get ("works").getBaseDir ());
     assertEquals (2, aCatalog.testSets ().size ());
     assertEquals (new QT3Catalog.TestSetRef ("op-add", "op/add.xml"), aCatalog.testSets ().get (1));
+  }
+
+  @Test
+  public void testAssertionDepthLimit () throws IOException
+  {
+    final int nLimit = QT3CatalogReader.MAX_ASSERTION_DEPTH;
+    final String sAllowed = "<all-of>".repeat (nLimit - 1) + "<assert-true/>" + "</all-of>".repeat (nLimit - 1);
+    final String sTooDeep = "<all-of>".repeat (nLimit) + "<assert-true/>" + "</all-of>".repeat (nLimit);
+    final String sSet = """
+        <test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="s">
+          <test-case name="c"><test>true()</test><result>%s</result></test-case>
+        </test-set>
+        """;
+    assertNotNull (QT3CatalogReader.readTestSet (sSet.formatted (sAllowed), Path.of (".")).testCases ().get (0).result ());
+    try
+    {
+      QT3CatalogReader.readTestSet (sSet.formatted (sTooDeep), Path.of ("."));
+      fail ();
+    }
+    catch (final IOException ex)
+    {
+      assertTrue (ex.getMessage ().contains ("nested deeper"));
+    }
   }
 }

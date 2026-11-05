@@ -96,6 +96,17 @@ public final class NativeXsdTestValidator implements IXsdTestValidator
   }
 
   /**
+   * The <code>test</code> of an <code>xs:alternative</code> is compiled by
+   * the full XPath engine of <code>xpath-core</code>, so any XPath is
+   * accepted in XSD 1.1, not only the required subset.
+   */
+  @Override
+  public boolean isFullXPathInCtaSupported (@NonNull final EXsdVersion eVersion)
+  {
+    return eVersion == EXsdVersion.XSD_11;
+  }
+
+  /**
    * Compile the schema documents with
    * {@link XsdSchema#compileFiles(List, com.helger.xpath.context.EXsdVersion, XsdCompileOptions)}
    * as XSD 1.0 or 1.1 with local file access only. An

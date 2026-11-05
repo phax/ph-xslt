@@ -150,12 +150,25 @@ public final class QT3RunResult
     return ret;
   }
 
+  /** @return All error code mismatch lines, sorted. */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <String> getCodeMismatches ()
+  {
+    final ICommonsList <String> ret = new CommonsArrayList <> ();
+    for (final QT3SetResult aSet : m_aSets)
+      ret.addAll (aSet.getCodeMismatches ());
+    ret.sort (Comparator.naturalOrder ());
+    return ret;
+  }
+
   /**
    * @return The human readable summary: total, ran, pass, fail, pass rate
    *         (pass divided by the cases that ran, skips excluded) and skipped
    *         on one line, then the number of test sets, all skip and fail
-   *         reasons by count, one line per test set that could not be
-   *         loaded, and the {@value #TOP_SETS} test sets with the most fails.
+   *         reasons by count, the number of expected errors raised with
+   *         another code, one line per test set that could not be loaded,
+   *         and the {@value #TOP_SETS} test sets with the most fails.
    */
   @NonNull
   public String getSummary ()
@@ -177,6 +190,7 @@ public final class QT3RunResult
     aSB.append ("test sets: ").append (m_aSets.size ()).append ('\n');
     aSB.append ("skip reasons: ").append (_formatCounts (getSkipReasons (), Integer.MAX_VALUE)).append ('\n');
     aSB.append ("fail reasons: ").append (_formatCounts (getFailReasons (), Integer.MAX_VALUE)).append ('\n');
+    aSB.append ("expected errors with another code: ").append (getCodeMismatches ().size ()).append ('\n');
     final ICommonsSortedMap <String, Integer> aFailBySet = new CommonsTreeMap <> ();
     for (final QT3SetResult aSet : m_aSets)
     {
@@ -209,7 +223,9 @@ public final class QT3RunResult
   }
 
   /**
-   * Write <code>qt3-fails.txt</code> (sorted fail names) and
+   * Write <code>qt3-fails.txt</code> (sorted fail names),
+   * <code>qt3-code-mismatches.txt</code> (one line per case whose expected
+   * error was raised with another code: name, expected and got) and
    * <code>qt3-byset.csv</code> (per test-set counts).
    *
    * @param aOutDir
@@ -224,6 +240,10 @@ public final class QT3RunResult
     for (final String sName : getFailNames ())
       aSB.append (sName).append ('\n');
     Files.writeString (aOutDir.resolve ("qt3-fails.txt"), aSB.toString (), StandardCharsets.UTF_8);
+    final StringBuilder aMismatches = new StringBuilder ();
+    for (final String sLine : getCodeMismatches ())
+      aMismatches.append (sLine).append ('\n');
+    Files.writeString (aOutDir.resolve ("qt3-code-mismatches.txt"), aMismatches.toString (), StandardCharsets.UTF_8);
     Files.writeString (aOutDir.resolve ("qt3-byset.csv"), getBySetCsv (), StandardCharsets.UTF_8);
   }
 }

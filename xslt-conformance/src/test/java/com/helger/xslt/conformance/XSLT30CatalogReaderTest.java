@@ -21,6 +21,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -235,5 +236,25 @@ public final class XSLT30CatalogReaderTest
                   XSLT30CatalogReader.resolveName ("xsl:initial-template", aNS));
     assertNull (XSLT30CatalogReader.resolveName ("b:x", aNS));
     assertNull (XSLT30CatalogReader.resolveName ("", aNS));
+  }
+
+  @Test
+  public void testAssertionDepthLimit () throws IOException
+  {
+    final int nLimit = XSLT30CatalogReader.MAX_ASSERTION_DEPTH;
+    final String sSet = "<test-set xmlns='http://www.w3.org/2012/10/xslt-test-catalog' name='t'>" +
+                        "<test-case name='c'><test/><result>%s</result></test-case></test-set>";
+    final String sAllowed = "<all-of>".repeat (nLimit - 1) + "<assert>true()</assert>" + "</all-of>".repeat (nLimit - 1);
+    assertNotNull (XSLT30CatalogReader.readTestSet (sSet.formatted (sAllowed), Path.of (".")).testCases ().get (0).result ());
+    final String sTooDeep = "<all-of>".repeat (nLimit) + "<assert>true()</assert>" + "</all-of>".repeat (nLimit);
+    try
+    {
+      XSLT30CatalogReader.readTestSet (sSet.formatted (sTooDeep), Path.of ("."));
+      fail ();
+    }
+    catch (final IOException ex)
+    {
+      assertTrue (ex.getMessage ().contains ("nested deeper"));
+    }
   }
 }

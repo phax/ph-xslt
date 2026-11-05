@@ -139,6 +139,12 @@ public final class XsdRunResult
     return _sum (XsdSetResult::getQueried);
   }
 
+  /** @return The queried schema tests whose compilation crashed. */
+  public int getQueriedCrash ()
+  {
+    return _sum (XsdSetResult::getQueriedCrash);
+  }
+
   /** @return All skip reasons with their counts. */
   @NonNull
   @ReturnsMutableCopy
@@ -189,6 +195,8 @@ public final class XsdRunResult
                                Integer.valueOf (nUnsupported),
                                Integer.valueOf (getSkip ()),
                                Integer.valueOf (getQueried ())));
+    if (getQueriedCrash () > 0)
+      aSB.append ("queried schema tests whose compilation crashed: ").append (getQueriedCrash ()).append ('\n');
     final int nSchemaPass = _sum (XsdSetResult::getSchemaPass);
     final int nSchemaFail = _sum (XsdSetResult::getSchemaFail);
     final int nSchemaUnsupported = _sum (XsdSetResult::getSchemaUnsupported);

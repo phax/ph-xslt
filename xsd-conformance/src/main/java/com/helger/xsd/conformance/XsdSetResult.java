@@ -40,6 +40,7 @@ public final class XsdSetResult
   private int m_nSkip;
   private int m_nUnsupported;
   private int m_nQueried;
+  private int m_nQueriedCrash;
   private int m_nSchemaPass;
   private int m_nSchemaFail;
   private int m_nSchemaUnsupported;
@@ -96,6 +97,22 @@ public final class XsdSetResult
   public void addQueried ()
   {
     m_nQueried++;
+  }
+
+  /**
+   * Count a queried (W3C-disputed) schema test whose compilation crashed: it
+   * is counted as queried, outside the pass/fail denominator, and in
+   * addition as a queried crash, so that the crash stays visible.
+   *
+   * @param sLine
+   *        Dump line, may be <code>null</code> if not collected.
+   */
+  public void addQueriedCrash (@Nullable final String sLine)
+  {
+    m_nQueried++;
+    m_nQueriedCrash++;
+    if (sLine != null)
+      m_aLines.add (sLine);
   }
 
   /**
@@ -166,6 +183,12 @@ public final class XsdSetResult
   public int getQueried ()
   {
     return m_nQueried;
+  }
+
+  /** @return The queried schema tests whose compilation crashed. */
+  public int getQueriedCrash ()
+  {
+    return m_nQueriedCrash;
   }
 
   /** @return The passing schema tests (part of {@link #getPass()}). */
