@@ -281,3 +281,53 @@ saw), and serialising while transforming.
 
 Gate per stage: the default lists (QT3, XSLT30, schema-aware XSLT30, xsdtests) unchanged by name on JDK 21 and 25; the
 streaming run only improves, and every failure in it is documented.
+
+## Child, descendant and attribute steps on large documents (sch2java S2)
+
+Done (2026-11-05). Reported by ph-sch2java: the CEN-EN16931-UBL Schematron (Peppol 2025.11) on a generated invoice
+spent its time in `NodeTestMatcher.matches`, `AxisNavigator._addDescendants` and `AxisNavigator.collect`. Measured with
+`sch-bench` `MainProfile CEN-EN16931-UBL` (JFR `settings=profile`) and a temporary per-step counter in
+`XPathEvaluator._evalAxisStep` (one validation, 1,000 invoice lines; "visited" is the number of nodes looked at):
+
+| Step shape | Calls | Visited | Source |
+|------------|-------|---------|--------|
+| `descendant-or-self::node()` from the document, then `attribute::N` on every node | 23 | 1,686,613 (and 1.57 million attribute steps) | `not(//@schemeName)` and the like: `//@N` is not fused like `//N` |
+| `child::N` from `Invoice` (1,036 children) | about 900 | about 930,000 | `../../../cac:InvoiceLine[...]`, `cac:AccountingSupplierParty` etc. from the root, on every evaluation |
+| `child::N` from small elements (`InvoiceLine` 15 children, `Item`, `ClassifiedTaxCategory`) | about 300,000 | about 3,000,000 | per-line rules; inherent, linear in the lines |
+| `descendant::N` with an exact name | 21 | 21,000 (index) | already answered by the name index |
+
+No step from an element context or with predicates fell back to traversal for `descendant::N`: the index already
+covered those. The cost was the two shapes above it.
+
+Changes:
+
+* `//@N` (and `X//@N`): `descendant-or-self::node()` without predicates followed by `attribute::N` with an exact name
+  and focus-free boolean predicates is answered from a new attribute index of the document
+  (`XdmDocumentNode.getAttributesByName`, `AxisNavigator.collectNamedSubtreeAttributes`): the attributes of the subtree
+  of a node are those numbered in `(getOrder (), getEndOrder ()]`. Detected in `XPathEvaluator._evalPath`
+  (`_isDescendantOrSelfNode`, `_applySubtreeAttributeStep`); positional predicates (`//@a[1]`) keep the walk.
+* `child::N` with an exact name goes through `AxisNavigator.collectNamedChildren`: a node with more than 32 children
+  in a numbered document gets its child elements by name from `XdmDocumentNode.getChildElementsByName`, which takes
+  the indexed elements of the subtree whose parent is the node (or walks the children if that is shorter) and keeps the
+  list with the element index, so a repeated step from the root no longer goes through all lines. Other nodes compare
+  the children by name without the node test predicate.
+* `XdmQName.equals` compares the local name before the namespace URI (short and usually different, against long and
+  usually equal), `hashCode` no longer allocates the varargs array of `Objects.hash`.
+* All indexes belong to the numbering of the tree and are dropped with it by `appendChild`/`removeChild`/
+  `addAttribute`; streamed documents have none.
+
+Measurements (JDK 21, median of the second half of the runs, the machine also running other builds; the baseline is
+`83f11d8` measured in the same session):
+
+| Invoice lines | Before | After |
+|---------------|--------|-------|
+| 1,000 | 134 to 137 ms | 64 to 67 ms |
+| 10,000 | 1,889 ms | 992 ms |
+
+New top of `jfr view hot-methods` (10,000 lines, `-XX:+DebugNonSafepoints`): `collectNamedChildren` 12 %,
+`String.equals` 7.5 %, `getChildAtIndex` 5.5 %, then sequence building: the child scans of the per-line rules from
+small elements, which are linear in the document.
+
+Not done: the per-line child scans walk object graphs (node, name, string) where an integer name code per node would
+be one comparison; that changes the node model and is left for the general performance work. The rule tests that
+evaluate `../../../cac:InvoiceLine[...]` once per tax subtotal still evaluate their predicates on every line.

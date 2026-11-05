@@ -50,8 +50,9 @@ import com.helger.xpath.xdm.XdmQName;
 
 /**
  * Test class for the name index on the descendant axes
- * ({@link AxisNavigator#collectNamedDescendants}) and the fusion of
- * <code>//name</code> into one descendant step.
+ * ({@link AxisNavigator#collectNamedDescendants}), the fusion of
+ * <code>//name</code> into one descendant step, the attribute index for
+ * <code>//@name</code> and the child elements by name.
  *
  * @author Philip Helger
  */
@@ -153,6 +154,72 @@ public final class IndexedDescendantTest
     assertEquals ("1.1 1.1.1 2.2", _eval ("//SubInvoiceLine/@id", aDoc));
   }
 
+  @Test
+  public void testSubtreeAttributes ()
+  {
+    final IXdmNode aDoc = _parse (INVOICE);
+    assertEquals ("1 1.1 1.1.1 2 2.1", _eval ("//@id", aDoc));
+    assertEquals ("2.1", _eval ("//@id[../@flag]", aDoc));
+    assertEquals ("1.1 1.1.1", _eval ("//@id[starts-with(., '1.')]", aDoc));
+    assertEquals ("1", _eval ("count(//@flag)", aDoc));
+    assertEquals ("1.1 1.1.1 2.1", _eval ("//InvoiceLine//@id[contains(., '.')]", aDoc));
+    assertEquals ("2.1", _eval ("//Note//@id", aDoc));
+    assertEquals ("1.1.1", _eval ("//SubInvoiceLine/SubInvoiceLine//@id", aDoc));
+    // From attributes: their only descendant-or-self node is themselves
+    assertEquals ("", _eval ("//@id//@id", aDoc));
+    // Positional predicates count per element, so they are not taken from the index
+    assertEquals ("1 1.1 1.1.1 2 2.1", _eval ("//@id[1]", aDoc));
+    assertEquals ("1 1.1 1.1.1 2 2.1", _eval ("//@id[last()]", aDoc));
+    assertEquals ("y", _eval ("//@*[name() = 'flag']", aDoc));
+    // Context nodes not in document order
+    assertEquals ("1 1.1 1.1.1 2 2.1", _eval ("(//InvoiceLine[2], //InvoiceLine[1])//@id", aDoc));
+    assertEquals ("", _eval ("//@missing", aDoc));
+    // An unnumbered tree walks
+    final IXdmNode aNew = IXdmNode.createElement (new XdmQName ("SubInvoiceLine"));
+    aNew.addAttribute (IXdmNode.createAttribute (new XdmQName ("id"), "3"));
+    aDoc.getChildAtIndex (0).appendChild (aNew);
+    assertEquals ("1 1.1 1.1.1 2 2.1 3", _eval ("//@id", aDoc));
+    aDoc.assignDocumentOrder ();
+    assertEquals ("1 1.1 1.1.1 2 2.1 3", _eval ("//@id", aDoc));
+  }
+
+  @Test
+  public void testNamedChildren ()
+  {
+    // More children than the index threshold, with the same names nested
+    final StringBuilder aSB = new StringBuilder ("<r>");
+    for (int i = 0; i < 100; ++i)
+      if (i % 10 == 0)
+        aSB.append ("<a n='").append (i).append ("'><a n='").append (i).append (".1'/></a>");
+      else
+        aSB.append ("<b n='").append (i).append ("'><a n='").append (i).append (".1'/></b>text");
+    aSB.append ("<c/></r>");
+    final IXdmNode aDoc = _parse (aSB.toString ());
+    assertEquals ("0 10 20 30 40 50 60 70 80 90", _eval ("/r/a/@n", aDoc));
+    assertEquals ("90", _eval ("count(/r/b)", aDoc));
+    assertEquals ("1", _eval ("count(/r/c)", aDoc));
+    assertEquals ("0", _eval ("count(/r/d)", aDoc));
+    assertEquals ("100", _eval ("count(/r/*/a)", aDoc));
+    assertEquals ("10", _eval ("/r/a[2]/@n", aDoc));
+    // Against a walk over the children, before and after a change
+    final IXdmNode aR = aDoc.getChildAtIndex (0);
+    for (int nPass = 0; nPass < 3; ++nPass)
+    {
+      for (final String sName : new String [] { "a", "b", "c", "d" })
+      {
+        final XdmQName aName = new XdmQName (sName);
+        final List <IXdmNode> aExpected = new ArrayList <> ();
+        AxisNavigator.collect (EAxis.CHILD, aR, x -> x.isElement () && aName.equals (x.getName ()), aExpected);
+        final List <IXdmNode> aActual = new ArrayList <> ();
+        AxisNavigator.collectNamedChildren (aR, aName, aActual);
+        assertEquals (aExpected, aActual);
+      }
+      aR.appendChild (IXdmNode.createElement (new XdmQName ("a")));
+      if (nPass == 1)
+        aDoc.assignDocumentOrder ();
+    }
+  }
+
   private static void _addRandomChildren (@NonNull final IXdmNode aParent,
                                           @NonNull final Random aRandom,
                                           final int nDepth)
@@ -218,6 +285,30 @@ public final class IndexedDescendantTest
             assertTrue (AxisNavigator.collectNamedDescendants (eAxis, aContext, aName, aActual));
             assertEquals (NodeSorter.sortAndDeduplicate (aExpected.build ()).getAsList (), aActual);
           }
+      }
+      // The attributes of the subtrees, and the children with a name
+      for (int nRun = 0; nRun < 20; ++nRun)
+      {
+        final List <IXdmNode> aContext = new ArrayList <> ();
+        for (final IXdmNode aNode : aCandidates)
+          if (aRandom.nextInt (4) == 0)
+            aContext.add (aNode);
+        aContext.sort (Comparator.comparingInt (IXdmNode::getOrder));
+        final XdmQName aAttrName = new XdmQName ("x");
+        final List <IXdmNode> aExpected = new ArrayList <> ();
+        for (final IXdmNode aNode : aContext)
+        {
+          final List <IXdmNode> aSubtree = new ArrayList <> ();
+          AxisNavigator.collect (EAxis.DESCENDANT_OR_SELF, aNode, null, aSubtree);
+          for (final IXdmNode aSub : aSubtree)
+            AxisNavigator.collect (EAxis.ATTRIBUTE, aSub, x -> aAttrName.equals (x.getName ()), aExpected);
+        }
+        final XdmSequence.Builder aExpectedSeq = new XdmSequence.Builder ();
+        for (final IXdmNode aFound : aExpected)
+          aExpectedSeq.add (aFound);
+        final List <IXdmNode> aActual = new ArrayList <> ();
+        assertTrue (AxisNavigator.collectNamedSubtreeAttributes (aContext, aAttrName, aActual));
+        assertEquals (NodeSorter.sortAndDeduplicate (aExpectedSeq.build ()).getAsList (), aActual);
       }
       // Not in document order
       if (aAll.size () > 2)

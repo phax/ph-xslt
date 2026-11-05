@@ -16,8 +16,10 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Nodes are `IXdmNode` (own model, built from JDK SAX; one implementation class per node kind below the sealed
   `AbstractXdmNode`). Do not switch to DOM or IMicroDom as the model.
 - Document order: `getOrder ()`/`getEndOrder ()` (end = last node of the subtree, attributes included); a document node
-  has a lazily built name index used by `AxisNavigator.collectNamedDescendants`. Every structural change to a
-  numbered tree must go through `appendChild`/`removeChild`/`addAttribute`, which drop numbering and index.
+  has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children)
+  used by `AxisNavigator.collectNamedDescendants`/`collectNamedSubtreeAttributes`/`collectNamedChildren`. Every
+  structural change to a numbered tree must go through `appendChild`/`removeChild`/`addAttribute`, which drop numbering
+  and indexes.
 - Hosts that evaluate their own XPath against a stylesheet's declarations (Schematron) use
   `XsltExecutable.createStaticContext`/`createEvaluation`, never `Engine` directly; the start-up of a run lives in
   `XsltTransformer.initGlobalContextItem` and is shared by both. `CompiledXPath.evaluate` uses its own static context.

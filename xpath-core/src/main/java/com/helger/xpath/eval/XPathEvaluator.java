@@ -236,12 +236,8 @@ public final class XPathEvaluator
    *         <code>null</code> for any other step.
    */
   @Nullable
-  private static XdmQName _getIndexableName (final IExpr.@NonNull StepExpr aStep)
+  private static XdmQName _getExactName (@Nullable final NodeTest aTest)
   {
-    final EAxis eAxis = aStep.axis ();
-    if (eAxis != EAxis.DESCENDANT && eAxis != EAxis.DESCENDANT_OR_SELF)
-      return null;
-    final NodeTest aTest = aStep.test ();
     if (aTest == null ||
         aTest.kind () != ENodeTestKind.NAME ||
         aTest.anyName () ||
@@ -249,6 +245,15 @@ public final class XPathEvaluator
         aTest.anyLocalName ())
       return null;
     return aTest.name ();
+  }
+
+  @Nullable
+  private static XdmQName _getIndexableName (final IExpr.@NonNull StepExpr aStep)
+  {
+    final EAxis eAxis = aStep.axis ();
+    if (eAxis != EAxis.DESCENDANT && eAxis != EAxis.DESCENDANT_OR_SELF)
+      return null;
+    return _getExactName (aStep.test ());
   }
 
   /**
@@ -266,11 +271,15 @@ public final class XPathEvaluator
     final ENodeKind ePrincipal = AxisNavigator.getPrincipalNodeKind (eAxis);
     final List <IXdmNode> aNodes = new ArrayList <> ();
     final XdmQName aIndexName = _getIndexableName (aStep);
-    if (aIndexName == null || !AxisNavigator.collectNamedDescendants (eAxis, List.of (aNode), aIndexName, aNodes))
-      AxisNavigator.collect (eAxis,
-                             aNode,
-                             aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
-                             aNodes);
+    final XdmQName aChildName = eAxis == EAxis.CHILD ? _getExactName (aTest) : null;
+    if (aChildName != null)
+      AxisNavigator.collectNamedChildren (aNode, aChildName, aNodes);
+    else
+      if (aIndexName == null || !AxisNavigator.collectNamedDescendants (eAxis, List.of (aNode), aIndexName, aNodes))
+        AxisNavigator.collect (eAxis,
+                               aNode,
+                               aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
+                               aNodes);
     XdmSequence ret = _applyPredicates (XdmSequence.of (aNodes), aStep.predicates (), aCtx);
     if (eAxis.isReverse () && ret.size () > 1)
     {
@@ -340,6 +349,56 @@ public final class XPathEvaluator
     if (!AxisNavigator.collectNamedDescendants (aStep.axis (), aContextNodes, aIndexName, aNodes))
       return null;
     return _applyPredicates (XdmSequence.of (aNodes), aStep.predicates (), aCtx);
+  }
+
+  /**
+   * @return <code>true</code> for the step <code>descendant-or-self::node()</code>
+   *         without predicates, as <code>//</code> abbreviates it.
+   */
+  private static boolean _isDescendantOrSelfNode (final IExpr.@NonNull StepExpr aStep)
+  {
+    return aStep.postfix () == null &&
+           aStep.axis () == EAxis.DESCENDANT_OR_SELF &&
+           aStep.test () != null &&
+           aStep.test ().kind () == ENodeTestKind.ANY_NODE &&
+           aStep.predicates ().isEmpty ();
+  }
+
+  /**
+   * The steps <code>descendant-or-self::node()/attribute::N</code> (as in
+   * <code>//@N</code>) with an exact name N from many context nodes at once,
+   * through the attribute index of their document. Only for predicates that
+   * select the same nodes whatever the context position is, as for
+   * {@link #_applyIndexedStep}.
+   *
+   * @return The selected attributes in document order, or <code>null</code> if
+   *         the index cannot be used.
+   */
+  @Nullable
+  private static XdmSequence _applySubtreeAttributeStep (final IExpr.@NonNull StepExpr aAttributeStep,
+                                                         @NonNull final XdmSequence aCurrent,
+                                                         @NonNull final DynamicContext aCtx)
+  {
+    if (aAttributeStep.postfix () != null || aAttributeStep.axis () != EAxis.ATTRIBUTE)
+      return null;
+    final XdmQName aName = _getExactName (aAttributeStep.test ());
+    if (aName == null)
+      return null;
+    for (final IExpr aPredicate : aAttributeStep.predicates ())
+      if (!ExprWalker.isFocusFreeBoolean (aPredicate))
+        return null;
+    final List <IXdmNode> aContextNodes = new ArrayList <> (aCurrent.size ());
+    for (final IXdmItem aItem : aCurrent)
+    {
+      if (!(aItem instanceof final IXdmNode aNode))
+        return null;
+      aContextNodes.add (aNode);
+    }
+    aCtx.checkInterrupt ();
+    final List <IXdmNode> aNodes = new ArrayList <> ();
+    if (!AxisNavigator.collectNamedSubtreeAttributes (aContextNodes, aName, aNodes))
+      return null;
+    return _applyPredicates (XdmSequence.of (aNodes), aAttributeStep.predicates (), aCtx);
   }
 
   /** Apply a step (not the first of a relative path) to every item of the previous step. */
@@ -426,6 +485,18 @@ public final class XPathEvaluator
     for (int i = nFirst; i < nSteps; ++i)
     {
       IExpr.StepExpr aStep = aSteps.get (i);
+      if (i + 1 < nSteps && _isDescendantOrSelfNode (aStep) && aStep.fused () == null)
+      {
+        // "//@name": the attributes from the index in place of all nodes of
+        // the subtrees and the attribute step after them
+        final XdmSequence aAttributes = _applySubtreeAttributeStep (aSteps.get (i + 1), aCurrent, aCtx);
+        if (aAttributes != null)
+        {
+          aCurrent = aAttributes;
+          i++;
+          continue;
+        }
+      }
       if (aStep.fused () != null)
       {
         // "//name": one descendant step in place of descendant-or-self::node()

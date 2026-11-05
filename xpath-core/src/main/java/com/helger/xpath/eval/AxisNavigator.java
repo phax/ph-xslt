@@ -46,6 +46,12 @@ import com.helger.xpath.xdm.XdmQName;
 @Immutable
 public final class AxisNavigator
 {
+  /**
+   * The number of children above which a child step with a name asks the name
+   * index; below it comparing the children is as cheap as the binary search.
+   */
+  private static final int MIN_CHILDREN_FOR_INDEX = 32;
+
   @PresentForCodeCoverage
   private static final AxisNavigator INSTANCE = new AxisNavigator ();
 
@@ -181,22 +187,51 @@ public final class AxisNavigator
   }
 
   /**
-   * @return The first index from nFrom on whose node has an order of at least
-   *         nOrder; the size of the list if there is none.
+   * @return The document of the context nodes if all of them belong to it, are
+   *         in strict document order and none is a namespace node;
+   *         <code>null</code> otherwise.
    */
-  private static int _lowerBound (@NonNull final List <IXdmNode> aSorted, final int nFrom, final int nOrder)
+  @Nullable
+  private static XdmDocumentNode _getCommonDocument (@NonNull final List <IXdmNode> aContextNodes)
   {
-    int nLow = nFrom;
-    int nHigh = aSorted.size ();
-    while (nLow < nHigh)
+    if (!(aContextNodes.get (0).getRoot () instanceof final XdmDocumentNode aDoc))
+      return null;
+    int nPrevious = -1;
+    for (final IXdmNode aNode : aContextNodes)
     {
-      final int nMid = (nLow + nHigh) >>> 1;
-      if (aSorted.get (nMid).getOrder () < nOrder)
-        nLow = nMid + 1;
-      else
-        nHigh = nMid;
+      if (aNode.getKind () == ENodeKind.NAMESPACE || aNode.getOrder () <= nPrevious || aNode.getRoot () != aDoc)
+        return null;
+      nPrevious = aNode.getOrder ();
     }
-    return nLow;
+    return aDoc;
+  }
+
+  /**
+   * Add the nodes of a sorted index list whose order lies in the subtree
+   * interval of a context node: <code>(getOrder (), getEndOrder ()]</code>,
+   * or <code>[getOrder (), getEndOrder ()]</code> with bSelf. A context node
+   * inside the interval of an earlier one adds nothing new and is skipped, so
+   * the result is in document order and free of duplicates.
+   */
+  private static void _addInSubtrees (@NonNull final List <IXdmNode> aSorted,
+                                      @NonNull final List <IXdmNode> aContextNodes,
+                                      final boolean bSelf,
+                                      @NonNull final List <IXdmNode> aOut)
+  {
+    final int nSize = aSorted.size ();
+    int nPos = 0;
+    int nCovered = -1;
+    for (final IXdmNode aNode : aContextNodes)
+    {
+      final int nStart = aNode.getOrder ();
+      if (nStart <= nCovered)
+        continue;
+      final int nEnd = aNode.getEndOrder ();
+      nCovered = nEnd;
+      nPos = XdmDocumentNode.getLowerBound (aSorted, nPos, bSelf ? nStart : nStart + 1);
+      while (nPos < nSize && aSorted.get (nPos).getOrder () <= nEnd)
+        aOut.add (aSorted.get (nPos++));
+    }
   }
 
   /**
@@ -230,35 +265,89 @@ public final class AxisNavigator
       throw new IllegalArgumentException ("Not a descendant axis: " + eAxis);
     if (aContextNodes.isEmpty ())
       return true;
-    if (!(aContextNodes.get (0).getRoot () instanceof final XdmDocumentNode aDoc))
+    final XdmDocumentNode aDoc = _getCommonDocument (aContextNodes);
+    if (aDoc == null)
       return false;
     // Built on demand; null if the tree is not numbered
     final List <IXdmNode> aElements = aDoc.getElementsByName (aName);
     if (aElements == null)
       return false;
-    int nPrevious = -1;
-    for (final IXdmNode aNode : aContextNodes)
-    {
-      if (aNode.getKind () == ENodeKind.NAMESPACE || aNode.getOrder () <= nPrevious || aNode.getRoot () != aDoc)
-        return false;
-      nPrevious = aNode.getOrder ();
-    }
-    final boolean bSelf = eAxis == EAxis.DESCENDANT_OR_SELF;
-    int nPos = 0;
-    int nCovered = -1;
-    for (final IXdmNode aNode : aContextNodes)
-    {
-      final int nStart = aNode.getOrder ();
-      if (nStart <= nCovered)
-        continue;
-      final int nEnd = aNode.getEndOrder ();
-      nCovered = nEnd;
-      nPos = _lowerBound (aElements, nPos, bSelf ? nStart : nStart + 1);
-      while (nPos < aElements.size () && aElements.get (nPos).getOrder () <= nEnd)
-        aOut.add (aElements.get (nPos++));
-    }
+    _addInSubtrees (aElements, aContextNodes, eAxis == EAxis.DESCENDANT_OR_SELF, aOut);
     return true;
   }
+
+  /**
+   * Collect the attributes with a name of the context nodes and their
+   * descendants (the path <code>descendant-or-self::node()/attribute::N</code>,
+   * as in <code>//@N</code>) from the attribute index of their document. The
+   * attributes of an element are numbered after it and before its children,
+   * so the attributes in the subtree of a node are those whose order lies in
+   * <code>(getOrder (), getEndOrder ()]</code>.
+   *
+   * @param aContextNodes
+   *        The context nodes in document order without duplicates.
+   * @param aName
+   *        The attribute name to select.
+   * @param aOut
+   *        The list to append to, in document order.
+   * @return <code>true</code> if the nodes were collected, <code>false</code>
+   *         (with nothing added) if the index cannot be used, as for
+   *         {@link #collectNamedDescendants(EAxis, List, XdmQName, List)}.
+   */
+  public static boolean collectNamedSubtreeAttributes (@NonNull final List <IXdmNode> aContextNodes,
+                                                       @NonNull final XdmQName aName,
+                                                       @NonNull final List <IXdmNode> aOut)
+  {
+    if (aContextNodes.isEmpty ())
+      return true;
+    final XdmDocumentNode aDoc = _getCommonDocument (aContextNodes);
+    if (aDoc == null)
+      return false;
+    final List <IXdmNode> aAttributes = aDoc.getAttributesByName (aName);
+    if (aAttributes == null)
+      return false;
+    _addInSubtrees (aAttributes, aContextNodes, false, aOut);
+    return true;
+  }
+
+  /**
+   * Collect the child elements with a name. The child elements of a node with
+   * many children in a numbered document come from
+   * {@link XdmDocumentNode#getChildElementsByName(IXdmNode, XdmQName)}, which
+   * keeps them, so that a repeated step does not go through all children
+   * again; otherwise the children are compared by name.
+   *
+   * @param aNode
+   *        The parent node.
+   * @param aName
+   *        The element name to select.
+   * @param aOut
+   *        The list to append to, in document order.
+   */
+  public static void collectNamedChildren (@NonNull final IXdmNode aNode,
+                                           @NonNull final XdmQName aName,
+                                           @NonNull final List <IXdmNode> aOut)
+  {
+    final int nCount = aNode.getChildCount ();
+    if (nCount == 0)
+      return;
+    if (nCount > MIN_CHILDREN_FOR_INDEX && aNode.getRoot () instanceof final XdmDocumentNode aDoc)
+    {
+      final List <IXdmNode> aChildren = aDoc.getChildElementsByName (aNode, aName);
+      if (aChildren != null)
+      {
+        aOut.addAll (aChildren);
+        return;
+      }
+    }
+    for (int i = 0; i < nCount; ++i)
+    {
+      final IXdmNode aChild = aNode.getChildAtIndex (i);
+      if (aChild.getKind () == ENodeKind.ELEMENT && aName.equals (aChild.getName ()))
+        aOut.add (aChild);
+    }
+  }
+
 
   /**
    * @param eAxis
