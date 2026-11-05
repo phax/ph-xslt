@@ -22,6 +22,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -58,6 +59,34 @@ public final class XsdSuiteRulesTest
     assertEquals ("valid", XsdSuiteRules.getExpectedValidity (aReverse, EXsdVersion.XSD_11));
     assertNull (XsdSuiteRules.getExpectedValidity (List.of (new XsdExpected ("valid", "1.1")), EXsdVersion.XSD_10));
     assertNull (XsdSuiteRules.getExpectedValidity (List.of (), EXsdVersion.XSD_10));
+  }
+
+  @Test
+  public void testClaimedTokens ()
+  {
+    final Set <String> aFull11 = XsdSuiteRules.getClaimedTokens (EXsdVersion.XSD_11, true);
+    final Set <String> aRestricted11 = XsdSuiteRules.getClaimedTokens (EXsdVersion.XSD_11, false);
+    final Set <String> a10 = XsdSuiteRules.getClaimedTokens (EXsdVersion.XSD_10, true);
+    assertEquals (Set.of ("1.1", "full-xpath-in-CTA"), aFull11);
+    assertEquals (Set.of ("1.1", "restricted-xpath-in-CTA"), aRestricted11);
+    // XSD 1.0 has no conditional type assignment
+    assertEquals (Set.of ("1.0"), a10);
+
+    // A group marked full-xpath-in-CTA runs for a validator with full XPath
+    assertTrue (XsdSuiteRules.isVersionApplicable ("full-xpath-in-CTA", aFull11));
+    assertFalse (XsdSuiteRules.isVersionApplicable ("full-xpath-in-CTA", aRestricted11));
+    assertFalse (XsdSuiteRules.isVersionApplicable ("full-xpath-in-CTA", a10));
+
+    // cta0006: valid with full XPath, invalid with the required subset
+    final List <XsdExpected> aCta = List.of (new XsdExpected ("valid", "full-xpath-in-CTA"),
+                                             new XsdExpected ("invalid", "restricted-xpath-in-CTA"));
+    assertEquals ("valid", XsdSuiteRules.getExpectedValidity (aCta, aFull11));
+    assertEquals ("invalid", XsdSuiteRules.getExpectedValidity (aCta, aRestricted11));
+    assertNull (XsdSuiteRules.getExpectedValidity (aCta, a10));
+    // All tokens of an expected version must be claimed
+    final List <XsdExpected> aEdition = List.of (new XsdExpected ("invalid", "1.0 1.0-1e"), new XsdExpected ("valid", ""));
+    assertEquals ("valid", XsdSuiteRules.getExpectedValidity (aEdition, a10));
+    assertEquals ("invalid", XsdSuiteRules.getExpectedValidity (aEdition, Set.of ("1.0", "1.0-1e")));
   }
 
   @Test

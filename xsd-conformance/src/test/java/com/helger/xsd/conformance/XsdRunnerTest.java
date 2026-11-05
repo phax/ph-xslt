@@ -162,4 +162,102 @@ public final class XsdRunnerTest
     assertTrue (Files.isRegularFile (m_aRoot.resolve ("out/xsd11-fails.txt")));
     assertTrue (Files.isRegularFile (m_aRoot.resolve ("out/xsd11-byset.csv")));
   }
+
+  /** A validator whose compilation always crashes. */
+  private static final class CrashingValidator implements IXsdTestValidator
+  {
+    private final boolean m_bFullXPathInCta;
+
+    CrashingValidator (final boolean bFullXPathInCta)
+    {
+      m_bFullXPathInCta = bFullXPathInCta;
+    }
+
+    @NonNull
+    public String getDisplayName ()
+    {
+      return "crashing";
+    }
+
+    public boolean isVersionSupported (@NonNull final EXsdVersion eVersion)
+    {
+      return true;
+    }
+
+    @Override
+    public boolean isFullXPathInCtaSupported (@NonNull final EXsdVersion eVersion)
+    {
+      return m_bFullXPathInCta;
+    }
+
+    @NonNull
+    public XsdCompileResult compile (@NonNull final List <Path> aSchemaDocuments, @NonNull final EXsdVersion eVersion)
+    {
+      throw new IllegalStateException ("boom");
+    }
+  }
+
+  @NonNull
+  private XsdRunResult _runCrashing (final boolean bFullXPathInCta) throws IOException
+  {
+    final Path aRoot = m_aRoot.resolve ("crash");
+    Files.createDirectories (aRoot.resolve ("meta"));
+    Files.writeString (aRoot.resolve ("suite.xml"), """
+        <testSuite %s><testSetRef xlink:href="meta/c.testSet"/></testSuite>
+        """.formatted (TS), StandardCharsets.UTF_8);
+    Files.writeString (aRoot.resolve ("meta/c.testSet"), """
+        <testSet %s name="c" version="1.1">
+          <testGroup name="q1">
+            <schemaTest name="q1s">
+              <schemaDocument xlink:href="../../data/s.xsd"/><expected validity="valid"/><current status="queried"/>
+            </schemaTest>
+          </testGroup>
+          <testGroup name="cta1" version="full-xpath-in-CTA">
+            <schemaTest name="cta1s">
+              <schemaDocument xlink:href="../../data/s.xsd"/>
+              <expected validity="valid" version="full-xpath-in-CTA"/>
+              <expected validity="invalid" version="restricted-xpath-in-CTA"/>
+            </schemaTest>
+          </testGroup>
+          <testGroup name="cta2">
+            <schemaTest name="cta2s">
+              <schemaDocument xlink:href="../../data/s.xsd"/>
+              <expected validity="valid" version="full-xpath-in-CTA"/>
+              <expected validity="invalid" version="restricted-xpath-in-CTA"/>
+            </schemaTest>
+          </testGroup>
+        </testSet>
+        """.formatted (TS), StandardCharsets.UTF_8);
+    final XsdSettings aSettings = new XsdSettings (EXsdTestValidatorKind.XERCES,
+                                                   aRoot,
+                                                   "",
+                                                   new CommonsArrayList <> (EXsdVersion.XSD_11),
+                                                   false,
+                                                   false,
+                                                   false,
+                                                   true,
+                                                   true,
+                                                   aRoot.resolve ("out"),
+                                                   aRoot.resolve ("accepted.md"));
+    return new XsdRunner (aSettings, () -> new CrashingValidator (bFullXPathInCta)).run (EXsdVersion.XSD_11);
+  }
+
+  @Test
+  public void testQueriedCrashAndCtaTokens () throws IOException
+  {
+    final XsdRunResult aFull = _runCrashing (true);
+    // The queried schema test crashed: queried, not failed
+    assertEquals (1, aFull.getQueried ());
+    assertEquals (1, aFull.getQueriedCrash ());
+    assertTrue (aFull.getSummary ().contains ("compilation crashed: 1"));
+    // The full-xpath-in-CTA group and verdict apply to a full XPath validator
+    assertEquals (List.of ("cta1s", "cta2s"), aFull.getFailNames ());
+    assertEquals (0, aFull.getSkip ());
+
+    // A validator with the required subset only: the group is out of scope,
+    // the restricted verdict applies
+    final XsdRunResult aRestricted = _runCrashing (false);
+    assertEquals (List.of ("cta2s"), aRestricted.getFailNames ());
+    assertEquals (1, aRestricted.getQueriedCrash ());
+  }
 }

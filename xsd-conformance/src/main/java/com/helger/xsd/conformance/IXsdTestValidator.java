@@ -48,6 +48,22 @@ public interface IXsdTestValidator
   boolean isVersionSupported (@NonNull EXsdVersion eVersion);
 
   /**
+   * @param eVersion
+   *        The XSD version.
+   * @return <code>true</code> if the validator accepts any XPath expression
+   *         in conditional type assignment (<code>xs:alternative/@test</code>),
+   *         not only the required subset of XSD 1.1 Structures section
+   *         3.12.6; the suite's version token
+   *         <code>full-xpath-in-CTA</code>, otherwise
+   *         <code>restricted-xpath-in-CTA</code>. Only meaningful for XSD
+   *         1.1. The default is <code>false</code>.
+   */
+  default boolean isFullXPathInCtaSupported (@NonNull final EXsdVersion eVersion)
+  {
+    return false;
+  }
+
+  /**
    * Compile a schema set.
    *
    * @param aSchemaDocuments

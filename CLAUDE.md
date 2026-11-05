@@ -40,6 +40,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   same change that makes them wrong.
 - XSD: the native validator (`xsd-core`) does XSD 1.0 and 1.1; `XsdSchemaProvider` (schema-aware XPath/XSLT) compiles as
   1.1. `XsdNativeIT` gates both versions (`xsd-conformance/target/xsd-native-fails.txt`, `xsd-native11-fails.txt`).
+  A run claims the version tokens of `XsdSuiteRules.getClaimedTokens` (the version, and for 1.1 the CTA XPath subset of
+  the validator: the native one claims `full-xpath-in-CTA`); a queried schema test whose compilation crashes counts as
+  queried, not as fail.
 - Streaming (plan: `docs/PLAN.md`, "Streaming"): `-Dxslt30.streaming=true` claims it in the XSLT30 harness (out dir
   `xslt-conformance/target/streaming`, accepted file `xslt30-streaming.md`); with `-Dxslt30.schemaAware=true` as well
   it writes to `target/schema-aware-streaming` and is no gate (`checkAccepted` off by default). The engine switches are
