@@ -1,10 +1,10 @@
 # XSLT 3.0 (`xslt30-test`): failing cases of the streaming run
 
 Processor claiming streaming (`-Dxslt30.streaming=true`; no schema-awareness or backwards compatibility claimed):
-11,111 of 11,291 applicable cases pass, 180 fail. Measured offline, on JDK 21 and 25, after stage S1 of the streaming
-plan (`docs/PLAN.md`): the claim exists, but there is no streamability analysis and no streamed execution yet, so
-every construct runs with the whole document in memory. The default run (basic processor) and its failures are in
-`xslt30.md`.
+11,224 of 11,291 applicable cases pass, 67 fail. Measured offline, on JDK 21 and 25, after stage S3 of the streaming
+plan (`docs/PLAN.md`): the streamability analysis (`com.helger.xslt.stream.XsltStreamability`) makes
+`streamable="yes"` binding, but there is no streamed execution yet, so every construct that passes the analysis runs
+with the whole document in memory. The default run (basic processor) and its failures are in `xslt30.md`.
 
 The run claims streaming in both directions: the cases that need it run, and the one case written for a processor
 without it (`system-property-013`) is skipped. `streaming-fallback` stays unsupported: it names a processor configured
@@ -19,37 +19,40 @@ Every failing case is named here in backticks under a heading with its status an
 Status **Open** means winnable later (the stage of the streaming plan that addresses it is named); **Accepted** means
 a decision not to.
 
-### Expected XTSE3430 (119 cases)
-**Status:** Open (stage S3).
-The stylesheet declares a construct streamable that is not guaranteed streamable under the rules of XSLT 3.0 section
-19, and the case expects the static error XTSE3430. Without a streamability analysis the construct runs buffered.
-`accumulator-009s`, `accumulator-029s`, `accumulator-030s`, `accumulator-059`, `accumulator-060`, `accumulator-076`,
-`error-3430a`, `merge-094`, `merge-095`, `mode-1903`, `sf-avg-901`, `sf-avg-902`, `sf-boolean-901`, `sf-count-901`,
-`sf-current-901`, `sf-empty-901`, `sf-exists-901`, `sf-filter-001`, `sf-innermost-901`, `sf-max-901`, `sf-max-902`,
-`sf-min-901`, `sf-min-902`, `sf-not-901`, `sf-reverse-901`, `sf-sum-901`, `sf-sum-902`, `si-copy-901`, `si-copy-902`,
-`si-copy-903`, `si-element-901`, `si-element-902`, `si-element-903`, `si-fork-116`, `si-fork-951`, `si-fork-952`,
-`si-fork-953`, `si-fork-954`, `si-fork-955`, `si-fork-956`, `si-fork-957`, `si-for-each-806`, `si-for-each-904`,
-`si-for-each-905`, `si-for-each-907`, `si-group-017`, `si-group-030`, `si-group-031`, `si-group-052`, `si-group-063`,
-`si-group-901`, `si-iterate-035`, `si-iterate-904`, `si-iterate-905`, `si-iterate-907`, `si-lre-901`, `si-lre-902`,
-`si-lre-903`, `si-map-901`, `si-map-902`, `si-map-903`, `si-value-of-101`, `streamable-060`, `streamable-061`,
-`streamable-062`, `streamable-071`, `streamable-072`, `streamable-079`, `streamable-106`, `streamable-114`,
-`streamable-136`, `streamable-142`, `streamable-143`, `streamable-144`, `stream-204`, `su-absorbing-205`,
-`su-absorbing-901`, `su-absorbing-904`, `su-absorbing-905`, `su-absorbing-906`, `su-absorbing-908`, `su-absorbing-912`,
-`su-ascent-901`, `su-ascent-902`, `su-ascent-903`, `su-ascent-904`, `su-filter-901`, `su-filter-902`, `su-filter-903`,
-`su-filter-904`, `su-inspection-901`, `su-inspection-902`, `su-inspection-903`, `su-inspection-904`,
-`su-shallow-descent-903`, `su-shallow-descent-904`, `su-shallow-descent-905`, `su-shallow-descent-906`,
-`su-shallow-descent-907`, `sx-MapExpr-901`, `sx-MapExpr-902`, `sx-comma-201`, `sx-gc-eq-901`, `sx-gc-eq-902`,
-`sx-gc-ge-901`, `sx-gc-ge-902`, `sx-gc-gt-901`, `sx-gc-gt-902`, `sx-gc-le-901`, `sx-gc-le-902`, `sx-gc-lt-901`,
-`sx-gc-lt-902`, `sx-gc-ne-901`, `sx-gc-ne-902`, `sx-instance-of-901`, `sx-square-array-201`, `sx-treat-902`,
-`sx-union-201`, `sx-union-202`.
+### `streamable-100`, `streamable-101`, `streamable-102`
+**Status:** Accepted (the suite asks for more than the Recommendation; same as go-xslt).
+A quantified expression (`some $t in transaction satisfies ...`) over streamed nodes in a template rule of a
+streamable mode. The stylesheets say themselves that they are "streamable in Saxon but not guaranteed-streamable
+according to W3C rules", and the catalogue keywords are `_WRONG:not-streamable`. The engine raises XTSE3430, which
+the Recommendation requires for a construct declared streamable that is not guaranteed streamable. These cases passed
+before S3 only because no analysis ran.
 
-go-xslt accepts some of these after measuring them (`si-fork-951`, `si-fork-953`, `si-fork-954`, `su-ascent-903`,
-`sx-square-array-201`); they are revisited with the analysis in S3.
+### `si-fork-951`, `si-fork-954`
+**Status:** Accepted (measured trade-off; same as go-xslt).
+An `xsl:fork`/`xsl:for-each-group` inside a streamable `xsl:source-document` whose body reads `current-group()` twice
+(`si-fork-951`) or `current-group()` and `.` (`si-fork-954`). Two consuming operands make the body roaming and
+free-ranging (section 19.8.1), so XTSE3430 is correct. The body of an `xsl:source-document` is reported only for a
+verdict the analysis marks as stated unconditionally by the Recommendation; the two-consuming-operands clause is not
+marked so for instruction operands, because go-xslt measured that doing so loses more cases than it wins
+(`si-copy-028`). The construct is classified as not streamable and runs buffered.
 
-### `error-3155a`, `su-shallow-descent-901`
-**Status:** Open (stage S3).
-XTSE3155: an `xsl:function` without parameters declares a streamability category other than `unclassified`. The rule
-belongs to the streamability of stylesheet functions (XSLT 3.0 section 19) and is checked with it.
+### `si-fork-953`
+**Status:** Accepted (same as go-xslt).
+`xsl:sort` in a streamed `xsl:for-each-group` that is the child of `xsl:fork`. The case's own description asks "should
+this be an error?"; the rule of section 19.8.4.19 for a sorted group inside `xsl:fork` does not settle it, so the
+verdict is not reported as definite and the body of the `xsl:source-document` runs buffered.
+
+### `su-ascent-903`
+**Status:** Accepted (the expected result contradicts section 19.8.5.7; same as go-xslt).
+An ascent function that may return its streaming parameter `$element` itself. Section 19.8.5.7 makes a reference to
+the streaming parameter of an ascent function climbing and motionless, and a climbing, motionless result is allowed
+for the category, so the function is guaranteed streamable under the Recommendation's rules.
+
+### `sx-square-array-201`
+**Status:** Accepted (same as go-xslt).
+`[$extraItem, //ITEM]?*/PRICE` in a streamable `xsl:source-document`: a crawling and a grounded member, so the
+expression is not streamable. The verdict comes from the general rules, not from a rule the analysis reports as
+definite for an `xsl:source-document`, so the body runs buffered instead of raising XTSE3430.
 
 ### `accumulator-061`
 **Status:** Open (stage S4).

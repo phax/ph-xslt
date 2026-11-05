@@ -34,8 +34,10 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `xslt-conformance/target/streaming`, accepted file `xslt30-streaming.md`); with `-Dxslt30.schemaAware=true` as well
   it writes to `target/schema-aware-streaming` and is no gate (`checkAccepted` off by default). The engine switches are
   `XsltCompileOptions.setStreamingClaim` (only `system-property('xsl:supports-streaming')`, default off until streamed
-  execution exists), `setEnforceStreamability` (XTSE3430 binding; stored only until S3) and
-  `XsltTransformRequest.setSourceStreamed` (recorded only). The default run must keep claiming no streaming.
+  execution exists), `setEnforceStreamability` (XTSE3430/XTSE3155 binding: `com.helger.xslt.stream.XsltStreamability`
+  checks the stylesheet tree at the end of compilation, reading the operands from the `StreamabilityIndex` the compiler
+  fills only then; off, nothing runs) and `XsltTransformRequest.setSourceStreamed` (recorded only). The default run must
+  keep claiming no streaming.
 - Local `xsl:variable`s are lazy (`DynamicContext.withLazyVariable`, evaluated once on first use); `xsl:try` must not
   catch errors of variables declared outside it (`TryScope`, `LazyVariableException`). The XPath `let` stays eager.
 - Streamability (XSLT 3.0 section 19): `com.helger.xpath.stream.XPathStreamability` classifies expressions and
