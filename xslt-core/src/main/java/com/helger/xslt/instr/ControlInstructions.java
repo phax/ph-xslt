@@ -375,7 +375,7 @@ public final class ControlInstructions
       if (aInput.size () > 1)
         throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string returns more than one item");
       if (aInput.isSingleton () && !((XdmAtomic) aInput.get (0)).isStringLike ())
-        throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string must return aFnArgs string");
+        throw new XPathException ("XPTY0004", "The select expression of xsl:analyze-string must return a string");
       final String sInput = aInput.isEmpty () ? "" : Atomizer.getStringValue (aInput.get (0));
       final String sRegex = aRegex.evaluate (aRtCtx);
       final String sFlags = aFlags == null ? "" : aFlags.evaluate (aRtCtx);
