@@ -260,8 +260,10 @@ public final class XsltCompileOptions
    * is then a static error (XTSE3430) instead of running with the whole
    * document in memory, which XTSE3430 permits when "the user has indicated
    * that the processor is to handle this situation by processing the
-   * stylesheet without streaming". The streamability analysis does not exist
-   * yet, so the option is only stored.
+   * stylesheet without streaming". The analysis
+   * ({@link com.helger.xslt.stream.XsltStreamability}) runs at the end of
+   * compilation and raises XTSE3430 (or XTSE3155 for a declared-streamable
+   * function without parameters); without this option it does not run at all.
    *
    * @param bEnforceStreamability
    *        <code>true</code> to make streamability declarations binding.

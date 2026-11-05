@@ -70,6 +70,8 @@ import com.helger.xslt.pkg.PackageComponent;
 import com.helger.xslt.pkg.PackageModel;
 import com.helger.xslt.pkg.PackageUnit;
 import com.helger.xslt.schema.SchemaImportCompiler;
+import com.helger.xslt.stream.StreamabilityIndex;
+import com.helger.xslt.stream.XsltStreamability;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslModule;
 import com.helger.xslt.tree.XslNode;
@@ -138,11 +140,14 @@ public final class StylesheetCompiler
   private final ICommonsList <VariableDef> m_aAllGlobals = new CommonsArrayList <> ();
   private final ICommonsSet <XdmQName> m_aLocalAttributeSets = new CommonsHashSet <> ();
   private int m_nOriginalCounter;
+  private final StreamabilityIndex m_aStreamabilityIndex;
 
   private StylesheetCompiler (@NonNull final XsltCompileOptions aOptions)
   {
     m_aOptions = aOptions;
     m_aRegistry = XsltExtensionRegistry.getInstance ();
+    // Only a binding streamability declaration needs the operands afterwards
+    m_aStreamabilityIndex = aOptions.isEnforceStreamability () ? new StreamabilityIndex () : null;
   }
 
   @NonNull
@@ -168,6 +173,18 @@ public final class StylesheetCompiler
   public XsltExtensionRegistry getRegistry ()
   {
     return m_aRegistry;
+  }
+
+  /**
+   * @return The index the expressions, patterns and sequence types compiled
+   *         are recorded in for the streamability analysis, or
+   *         <code>null</code> if streamability declarations are not binding
+   *         ({@link XsltCompileOptions#isEnforceStreamability()}).
+   */
+  @Nullable
+  public StreamabilityIndex getStreamabilityIndex ()
+  {
+    return m_aStreamabilityIndex;
   }
 
   /** @return The names of all global variables and parameters. */
@@ -795,9 +812,10 @@ public final class StylesheetCompiler
         case "warning-on-multiple-match" -> aMode.setWarningOnMultipleMatch (XsltNames.isXsltTrue (sValue));
         case "visibility" -> aMode.setVisibility (sValue);
         case "typed" -> aMode.setTyped (sValue);
+        case "streamable" -> aMode.setStreamable (XsltNames.isXsltTrue (sValue));
         default ->
         {
-          // streamable and use-accumulators have no effect here
+          // use-accumulators has no effect here
         }
       }
     }
@@ -1647,6 +1665,10 @@ public final class StylesheetCompiler
     final CompileContext aGlobal = createGlobalContext ();
     for (final ICompileFinisher aFinisher : m_aRegistry.getAllCompileFinishers ())
       aFinisher.finish (aGlobal);
+    // XTSE3430/XTSE3155: what the stylesheet declares streamable must be
+    // guaranteed streamable (XSLT 3.0 section 19)
+    if (m_aStreamabilityIndex != null)
+      XsltStreamability.check (this, m_aStreamabilityIndex);
     // For host expressions (XsltExecutable.createStaticContext): the scope of
     // the principal stylesheet element
     final XslElement aRoot = aPrincipal.getRoot ();

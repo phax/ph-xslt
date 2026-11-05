@@ -208,7 +208,7 @@ About 8,200 lines of Go: `internal/xpath/streamability.go`, `internal/xslt/strea
 |-------|---------|--------------|--------|
 | S1 | Claim: `-Dxslt30.streaming=true` in the harness (streaming supported in both directions, `<source streaming>`, own out dir and accepted-failures file), the compile option that makes `streamable="yes"` binding, `system-property('xsl:supports-streaming')`; baseline with buffered execution | `xslt30_test.go`, `stream_property.go`, `features.go` | done (2026-11-04): streaming run 11,111 of 11,291 applicable cases pass, 180 fail, all in `xslt-conformance/docs/accepted-failures/xslt30-streaming.md` (119 expect XTSE3430 and 2 XTSE3155 for S3, 6 need streamed execution for S4, 45 need undeclared schema-awareness, 1 contradicts XPath, the 7 of the default run) |
 | S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` | done (2026-11-04): `com.helger.xpath.stream.XPathStreamability` with go-xslt's test cases; not yet called. Deviation from go-xslt: a call to a stylesheet function is not assumed to return childless items (go-xslt classifies `string(f:filter(.))` as streamable although it reads the subtree) |
-| S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` | open |
+| S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` | done (2026-11-05): `com.helger.xslt.stream.XsltStreamability`, run at the end of compilation when `setEnforceStreamability` is on; streaming run 11,224 of 11,291 pass, 67 fail (114 of the 119 expected XTSE3430 and both XTSE3155 fixed; 5 XTSE3430 cases and `streamable-100` to `-102` accepted with reasons, as in go-xslt) |
 | S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` | open |
 | S5 | Bounded-memory output: serialize while transforming | `transform_to.go` | open |
 
@@ -224,6 +224,23 @@ construct (`si-fork-113` to `-115`), snapshots from a streamable `xsl:merge-sour
 global variables without a context item when the initial mode is streamable (go-xslt `streamedVarsNoFocus`,
 `streamable-116`, which also needs schema-awareness). XTDE3362 is not raised for a host-streamed source: go-xslt
 deliberately does not either, as the error is optional for a processor that can evaluate the accumulator.
+
+S3 notes: the compiled instructions are opaque lambdas, so the analysis walks the stylesheet tree (`XslElement`) and
+reads the parsed operands from a `StreamabilityIndex` the compiler fills while it compiles (expressions, patterns,
+sequence types keyed by element and text; only with enforcement on, so the default compile is unchanged). An operand
+missing from the index fails closed; the walk is limited to 1,000 nested instructions. Reporting follows go-xslt: every
+failure in a template rule of a streamable mode, a declared-streamable function, a streamable accumulator or a
+streamable `xsl:merge-source` is XTSE3430; the body of a streamable `xsl:source-document` only for a verdict marked
+definite, a non-grounded result or a call to a declared-streamable function. `Mode.isStreamable` is new. Deviations
+from go-xslt, following the Recommendation: a template rule with `mode="#all"` is checked when any mode is
+streamable (go-xslt skips it); only the direct `xsl:for-each-group` child of `xsl:fork` may use `group-by` (go-xslt
+lets nested ones pass); the AVTs `letter-value` (`xsl:number`), `error-code` (`xsl:assert`), `stable` (`xsl:sort`),
+`schema-aware` (`xsl:evaluate`), the `xsl:merge-key` AVTs and a text value template in `xsl:text` are operands too;
+a non-motionless collation AVT of a streamed `xsl:for-each-group` is rejected; `empty-sequence()` permits no nodes.
+`streamable-100` to `-102` passed before S3 only because nothing was checked; they expect a construct the
+Recommendation does not guarantee to run, and now get XTSE3430 (go-xslt accepts them the same way). Found on the way,
+not fixed (default behaviour): `xsl:fork` mixing `xsl:sequence` and `xsl:for-each-group` children is not rejected
+with XTSE0010. Left for S4: the run-time XTSE3430 of go-xslt for `fn:key` over a streamed document.
 
 Gate per stage: the default lists (QT3, XSLT30, schema-aware XSLT30, xsdtests) unchanged by name on JDK 21 and 25; the
 streaming run only improves, and every failure in it is documented.

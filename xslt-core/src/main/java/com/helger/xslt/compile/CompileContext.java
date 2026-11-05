@@ -42,6 +42,7 @@ import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.instr.SortKeyDef;
 import com.helger.xslt.model.CompiledStylesheet;
 import com.helger.xslt.model.VariableDef;
+import com.helger.xslt.stream.StreamabilityIndex;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 import com.helger.xslt.tree.XsltNames;
@@ -176,6 +177,9 @@ public final class CompileContext
     {
       final StaticContext aSC = createStaticContext (aEl);
       final IExpr aExpr = XPathParser.parse (sExpr, aSC);
+      final StreamabilityIndex aIndex = m_aCompiler.getStreamabilityIndex ();
+      if (aIndex != null)
+        aIndex.addExpression (aEl, sExpr, aExpr);
       return new XPathExpr (sExpr, aExpr, aSC, aEl);
     }
     catch (final XPathException ex)
@@ -299,6 +303,9 @@ public final class CompileContext
     {
       final StaticContext aSC = withGlobalScopeOnly ().createStaticContext (aEl);
       final XsltPattern aPattern = XsltPatternParser.parse (sPattern, aSC);
+      final StreamabilityIndex aIndex = m_aCompiler.getStreamabilityIndex ();
+      if (aIndex != null)
+        aIndex.addPattern (aEl, sPattern, aPattern);
       return new CompiledPattern (aPattern, aSC);
     }
     catch (final XPathException ex)
@@ -319,7 +326,11 @@ public final class CompileContext
   {
     try
     {
-      return XPathParser.parseSequenceType (sType, createStaticContext (aEl));
+      final SeqType ret = XPathParser.parseSequenceType (sType, createStaticContext (aEl));
+      final StreamabilityIndex aIndex = m_aCompiler.getStreamabilityIndex ();
+      if (aIndex != null)
+        aIndex.addSequenceType (aEl, sType, ret);
+      return ret;
     }
     catch (final XPathException ex)
     {

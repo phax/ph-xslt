@@ -46,6 +46,7 @@ public final class Mode
   private boolean m_bWarningOnMultipleMatch;
   private String m_sVisibility;
   private String m_sTyped;
+  private boolean m_bStreamable;
   private XslElement m_aDeclaration;
   private final ICommonsList <TemplateRule> m_aRules = new CommonsArrayList <> ();
 
@@ -132,6 +133,20 @@ public final class Mode
   public void setTyped (@Nullable final String s)
   {
     m_sTyped = s;
+  }
+
+  /**
+   * @return <code>true</code> if the mode is declared
+   *         <code>streamable="yes"</code> (XSLT 3.0 section 6.7.1).
+   */
+  public boolean isStreamable ()
+  {
+    return m_bStreamable;
+  }
+
+  public void setStreamable (final boolean bStreamable)
+  {
+    m_bStreamable = bStreamable;
   }
 
   /** @return The (highest precedence) xsl:mode declaration or <code>null</code>. */

@@ -50,6 +50,7 @@ import com.helger.xslt.instr.AbstractInstruction;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.stream.StreamabilityIndex;
 import com.helger.xslt.tree.XslElement;
 
 /**
@@ -498,6 +499,9 @@ public final class NumberInstruction extends AbstractInstruction
     {
       throw XsltException.locate (ex, aEl);
     }
+    final StreamabilityIndex aIndex = aCtx.getCompiler ().getStreamabilityIndex ();
+    if (aIndex != null)
+      aIndex.addPattern (aEl, sPattern, aPattern);
     if (aPattern instanceof final CompiledXsltPattern aCP)
       for (final String [] aEntry : FORBIDDEN_PATTERN_FUNCTIONS)
       {

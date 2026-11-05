@@ -53,6 +53,7 @@ import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.instr.SortKeyDef;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.stream.StreamabilityIndex;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -455,6 +456,9 @@ public final class ForEachGroupInstruction
           throw XsltException.locate (ex, aEl);
         }
         _checkPatternFunctions (aEl, aPattern);
+        final StreamabilityIndex aIndex = aCtx.getCompiler ().getStreamabilityIndex ();
+        if (aIndex != null)
+          aIndex.addPattern (aEl, sPattern, aPattern);
       }
     final String sComposite = aEl.getAttr ("composite");
     final boolean bComposite = sComposite != null && XsltNames.isXsltTrue (sComposite);
