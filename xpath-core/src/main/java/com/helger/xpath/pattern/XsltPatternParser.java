@@ -307,16 +307,8 @@ public final class XsltPatternParser
   {
     if (!(aPattern instanceof final CompiledXsltPattern aCompiled))
       return aPattern;
+    // Never empty: a pattern without a union is its own only alternative
     final ICommonsList <XsltPattern> aAlternatives = aCompiled.getAlternatives ();
-    if (aAlternatives.isEmpty ())
-    {
-      final IExpr aExpr = _rewriteTypedAlternative (aCompiled.getPatternExpr (), aSchemaSet, bStrict);
-      return aExpr == aCompiled.getPatternExpr () ? aPattern
-                                                  : new CompiledXsltPattern (aCompiled.getSource (),
-                                                                             aExpr,
-                                                                             aCompiled.getDefaultPriority (),
-                                                                             new CommonsArrayList <> ());
-    }
     final ICommonsList <CompiledXsltPattern> aNewAlternatives = new CommonsArrayList <> ();
     IExpr aUnion = null;
     boolean bChanged = false;

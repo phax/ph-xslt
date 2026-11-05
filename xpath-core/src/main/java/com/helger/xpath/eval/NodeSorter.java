@@ -28,7 +28,7 @@ import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
 
 /**
- * Sorting node sequences into document order. Owner: evaluator workstream.
+ * Sorting node sequences into document order.
  *
  * @author Philip Helger
  */

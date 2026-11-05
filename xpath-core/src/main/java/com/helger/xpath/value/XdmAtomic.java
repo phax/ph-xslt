@@ -159,7 +159,6 @@ public final class XdmAtomic implements IXdmItem
    *         of a user-defined type), or <code>null</code>. {@link #getType()}
    *         is its built-in base type then.
    */
-  @NonNull
   @Nullable
   public IXdmTypeDefinition getSchemaType ()
   {
