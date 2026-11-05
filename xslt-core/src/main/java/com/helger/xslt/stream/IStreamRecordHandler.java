@@ -22,20 +22,51 @@ import com.helger.annotation.Nonnegative;
 import com.helger.xpath.xdm.IXdmNode;
 
 /**
- * Processes one record of a streamed document (see
- * {@link StreamedRun#drive(StreamRecordPath, IStreamRecordHandler)}).
+ * Processes the records of a streamed document, in document order (see
+ * {@link StreamedRun#drive(java.util.List, java.util.List, com.helger.xslt.runtime.XsltContext, String)}).
+ * The records of one handler are its population: a consuming instruction, or
+ * one prong of an <code>xsl:fork</code>.
  *
  * @author Philip Helger
  */
-@FunctionalInterface
 public interface IStreamRecordHandler
 {
   /**
    * @param aRecord
    *        The record, complete with its subtree and linked to its ancestors.
-   *        It is dropped after this call.
+   *        It is dropped after this call, unless the handler
+   *        {@link #isRetaining() retains} it.
    * @param nPosition
-   *        Its 1-based position among the records.
+   *        Its 1-based position among the records of this handler.
    */
   void handle (@NonNull IXdmNode aRecord, @Nonnegative int nPosition);
+
+  /**
+   * @return <code>true</code> if the handler wants no more records (after
+   *         <code>xsl:break</code>). Asked after every record.
+   */
+  default boolean isDone ()
+  {
+    return false;
+  }
+
+  /**
+   * @return <code>true</code> if the handler keeps the records it is given
+   *         beyond {@link #handle(IXdmNode, int)} (a group that is still open)
+   *         and releases each of them itself with
+   *         {@link StreamedRun#release(IXdmNode)}. A record and its ancestors
+   *         stay linked, with their accumulator values, until then.
+   */
+  default boolean isRetaining ()
+  {
+    return false;
+  }
+
+  /**
+   * Called once at the end of the document, unless the handler is
+   * {@link #isDone() done}: what the instruction owes after its last item
+   * (<code>xsl:on-completion</code>, the last group).
+   */
+  default void complete ()
+  {}
 }

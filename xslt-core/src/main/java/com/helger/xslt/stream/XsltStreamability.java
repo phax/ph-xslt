@@ -2118,6 +2118,54 @@ public final class XsltStreamability
   }
 
   /**
+   * The verdicts streamed execution needs beyond guaranteed streamability:
+   * the literal result elements around the consumer of a streamed body whose
+   * attribute value templates are motionless with the document node as
+   * context item (they are evaluated before any record is read), and the
+   * xsl:merge instructions whose streamable merge sources can be read as
+   * streams (the merge action does not ask for the number of merge groups).
+   */
+  private void _checkStreamedExecution (@NonNull final List <XslElement> aAll, @NonNull final StreamVerdicts aVerdicts)
+  {
+    for (final XslElement aEl : aAll)
+    {
+      final boolean bHost = aEl.isXsl ("source-document") && XsltNames.isXsltTrue (aEl.getAttr ("streamable")) ||
+                            aEl.isXsl ("template") && aEl.hasAttr ("match");
+      if (bHost)
+        for (final XslElement aWrapper : StreamPlanner.getWrapperCandidates (aEl))
+        {
+          if (!StreamPlanner.hasAvt (aWrapper))
+            continue;
+          final StreamContext aCtx = new StreamContext (EPosture.STRIDING).setContextDocument (true)
+                                                                          .setFunctionResolver (m_aResolver);
+          final ICommonsList <StreamOperand> aOps = new CommonsArrayList <> ();
+          _reset ();
+          for (final Map.Entry <XdmQName, String> aEntry : aWrapper.getAllAttributes ().entrySet ())
+            if (!XsltNames.NS_XSL.equals (aEntry.getKey ().namespaceUri ()))
+              _addAvtText (aOps, aWrapper, aEntry.getValue (), aCtx, ABSORPTION);
+          final PostureSweep aPS = XPathStreamability.applyGeneralRules (aOps, aCtx);
+          if (m_aFailure == null && aPS.isStreamable () && aPS.sweep () == ESweep.MOTIONLESS)
+            aVerdicts.addMotionlessWrapper (aWrapper);
+        }
+      if (aEl.isXsl ("merge"))
+      {
+        boolean bStreamable = false;
+        for (final XslElement aSource : aEl.getXslChildren ("merge-source"))
+          if (XsltNames.isXsltTrue (aSource.getAttr ("streamable")))
+            bStreamable = true;
+        boolean bUsesLast = false;
+        for (final XslElement aAction : aEl.getXslChildren ("merge-action"))
+          for (final XslElement aCur : _getSubtree (aAction))
+            for (final IExpr aExpr : m_aIndex.getAllExpressions (aCur))
+              if (XPathStreamability.usesFunction (aExpr, "last"))
+                bUsesLast = true;
+        if (bStreamable && !bUsesLast)
+          aVerdicts.addStreamedMerge (aEl);
+      }
+    }
+  }
+
+  /**
    * Check that everything a stylesheet declares streamable is guaranteed
    * streamable. Called by the compiler at the end of compilation when
    * streamability declarations are binding or streaming is claimed (then the
@@ -2170,6 +2218,7 @@ public final class XsltStreamability
           ret.addStreamableAccumulator (aName);
       }
     aChecker._checkSourceDocuments (aChecker._getAllElements (), ret, bEnforce);
+    aChecker._checkStreamedExecution (aChecker._getAllElements (), ret);
     return ret;
   }
 }

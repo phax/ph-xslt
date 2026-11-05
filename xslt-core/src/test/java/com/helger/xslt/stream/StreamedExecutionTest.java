@@ -117,6 +117,22 @@ public final class StreamedExecutionTest
     return aSB.toString ();
   }
 
+  /** Records with a group attribute (four records each) and a start mark. */
+  @NonNull
+  private static String _groupData (final int nRecords)
+  {
+    final StringBuilder aSB = new StringBuilder ("<?xml version='1.0'?>\n<data id='d'>\n  <meta n='1'/>\n");
+    for (int i = 1; i <= nRecords; ++i)
+    {
+      aSB.append ("  <rec id='r").append (i).append ("' g='").append (i / 4).append ("'");
+      if (i % 5 == 1)
+        aSB.append (" s='1'");
+      aSB.append ("><v>").append (i % 7).append ("</v></rec>\n");
+    }
+    aSB.append ("  <meta n='2'/>\n</data>\n");
+    return aSB.toString ();
+  }
+
   @NonNull
   private static String _sheet (@NonNull final String sDecls, @NonNull final String sBody)
   {
@@ -142,21 +158,35 @@ public final class StreamedExecutionTest
   }
 
   private static void _assertCase (@NonNull final String sName,
+                                   @NonNull final String sDoc,
                                    @NonNull final String sDecls,
                                    @NonNull final String sBody,
                                    @Nullable final String sExpected,
-                                   final boolean bStreamed)
+                                   final boolean bStreamed,
+                                   @Nullable final String sStreamedKind)
   {
-    final MemoryResolver aResolver = new MemoryResolver ().add (BASE + "d.xml", _data (50));
+    final MemoryResolver aResolver = new MemoryResolver ().add (BASE + "d.xml", sDoc);
     final String sSheet = _sheet (sDecls, sBody);
     final String sBuffered = _run (sSheet, aResolver, false);
     final long nBefore = StreamedRun.getStreamedRunCount ();
+    final long nKindBefore = sStreamedKind == null ? 0 : StreamedRun.getStreamedCount (sStreamedKind);
     final String sStreamed = _run (sSheet, aResolver, true);
     final long nRuns = StreamedRun.getStreamedRunCount () - nBefore;
     assertEquals (sName, sBuffered, sStreamed);
     if (sExpected != null)
       assertEquals (sName, sExpected, sStreamed);
     assertEquals (sName + ": streamed", bStreamed ? 1 : 0, nRuns);
+    if (sStreamedKind != null)
+      assertEquals (sName + ": streamed by " + sStreamedKind, 1, StreamedRun.getStreamedCount (sStreamedKind) - nKindBefore);
+  }
+
+  private static void _assertCase (@NonNull final String sName,
+                                   @NonNull final String sDecls,
+                                   @NonNull final String sBody,
+                                   @Nullable final String sExpected,
+                                   final boolean bStreamed)
+  {
+    _assertCase (sName, _data (50), sDecls, sBody, sExpected, bStreamed, null);
   }
 
   @Test
@@ -237,6 +267,256 @@ public final class StreamedExecutionTest
                  "<xsl:apply-templates select='data/rec'><xsl:with-param name='sep' select=\"'!'\"/></xsl:apply-templates>",
                  null,
                  false);
+  }
+
+  @Test
+  public void testIterate ()
+  {
+    final String sDoc = _data (50);
+    _assertCase ("iterate with parameters and xsl:on-completion",
+                 sDoc,
+                 "",
+                 "<xsl:iterate select='data/rec'><xsl:param name='s' select='0'/><xsl:param name='n' select='0'/>" +
+                       "<xsl:on-completion><t s='{$s}' n='{$n}'/></xsl:on-completion>" +
+                       "<xsl:value-of select='position()'/>," +
+                       "<xsl:next-iteration><xsl:with-param name='s' select='$s + xs:integer(v)'/><xsl:with-param name='n' select='$n + 1'/></xsl:next-iteration>" +
+                       "</xsl:iterate>",
+                 null,
+                 true,
+                 "iterate");
+    _assertCase ("iterate with xsl:break",
+                 sDoc,
+                 "",
+                 "<out><xsl:iterate select='data/rec'><xsl:param name='s' select='0'/>" +
+                       "<xsl:on-completion>never</xsl:on-completion>" +
+                       "<xsl:choose><xsl:when test='$s gt 30'><xsl:break select='string(@id)'/></xsl:when>" +
+                       "<xsl:otherwise><xsl:next-iteration><xsl:with-param name='s' select='$s + xs:integer(v)'/></xsl:next-iteration></xsl:otherwise></xsl:choose>" +
+                       "</xsl:iterate></out>",
+                 "<out>r12</out>",
+                 true,
+                 "iterate");
+    _assertCase ("iterate without records",
+                 sDoc,
+                 "",
+                 "<xsl:iterate select='data/none'><xsl:param name='s' select='0'/><xsl:on-completion select='$s'/>x</xsl:iterate>",
+                 "0",
+                 true,
+                 "iterate");
+  }
+
+  @Test
+  public void testGrouping ()
+  {
+    final String sDoc = _groupData (30);
+    final String sBody = "<g n='{position()}' ids='{current-group()/@id}'/>";
+    _assertCase ("group-adjacent",
+                 sDoc,
+                 "",
+                 "<xsl:for-each-group select='data/rec' group-adjacent='@g'><g k='{current-grouping-key()}' n='{position()}' ids='{current-group()/@id}'/></xsl:for-each-group>",
+                 null,
+                 true,
+                 "for-each-group");
+    _assertCase ("group-starting-with",
+                 sDoc,
+                 "",
+                 "<xsl:for-each-group select='data/rec' group-starting-with='rec[@s]'>" + sBody + "</xsl:for-each-group>",
+                 null,
+                 true,
+                 "for-each-group");
+    _assertCase ("group-ending-with",
+                 sDoc,
+                 "",
+                 "<xsl:for-each-group select='data/rec' group-ending-with='*[@s]'>" + sBody + "</xsl:for-each-group>",
+                 null,
+                 true,
+                 "for-each-group");
+    _assertCase ("group copied",
+                 sDoc,
+                 "",
+                 "<out><xsl:for-each-group select='data/rec' group-adjacent='@g'><xsl:copy-of select='current-group()'/></xsl:for-each-group></out>",
+                 null,
+                 true,
+                 "for-each-group");
+    _assertCase ("group climbing",
+                 sDoc,
+                 "",
+                 "<xsl:for-each-group select='data/rec' group-adjacent='@g'><xsl:value-of select='../@id'/></xsl:for-each-group>",
+                 null,
+                 true,
+                 "for-each-group");
+    _assertCase ("group-by inside xsl:fork",
+                 sDoc,
+                 "",
+                 "<xsl:fork><xsl:for-each-group select='data/rec' group-by='@g mod 3'><g k='{current-grouping-key()}' n='{position()}' ids='{current-group()/@id}'/></xsl:for-each-group></xsl:fork>",
+                 null,
+                 true,
+                 "fork");
+    // Not streamed: group-by outside xsl:fork, sorted groups
+    _assertCase ("group-by",
+                 sDoc,
+                 "",
+                 "<xsl:for-each-group select='data/rec' group-by='@g'><xsl:value-of select='current-grouping-key()'/></xsl:for-each-group>",
+                 null,
+                 false,
+                 null);
+    _assertCase ("sorted groups",
+                 sDoc,
+                 "",
+                 "<xsl:for-each-group select='data/rec' group-adjacent='@g'><xsl:sort select='current-grouping-key()' order='descending'/><xsl:value-of select='current-grouping-key()'/></xsl:for-each-group>",
+                 null,
+                 false,
+                 null);
+  }
+
+  @Test
+  public void testFork ()
+  {
+    final String sDoc = _groupData (30);
+    _assertCase ("fork over one path",
+                 sDoc,
+                 "",
+                 "<out><xsl:fork><xsl:sequence><xsl:for-each select='data/rec'><xsl:value-of select='@id'/></xsl:for-each></xsl:sequence>" +
+                       "<xsl:sequence><xsl:iterate select='data/rec'><xsl:param name='s' select='0'/><xsl:on-completion><sum><xsl:value-of select='$s'/></sum></xsl:on-completion>" +
+                       "<xsl:next-iteration><xsl:with-param name='s' select='$s + xs:integer(v)'/></xsl:next-iteration></xsl:iterate></xsl:sequence></xsl:fork></out>",
+                 null,
+                 true,
+                 "fork");
+    _assertCase ("fork over two paths",
+                 sDoc,
+                 "",
+                 "<out><xsl:fork><xsl:sequence><xsl:copy-of select='data/meta'/></xsl:sequence>" +
+                       "<xsl:sequence><xsl:for-each-group select='data/rec' group-starting-with='rec[@s]'><g ids='{current-group()/@id}'/></xsl:for-each-group></xsl:sequence>" +
+                       "<xsl:sequence><xsl:iterate select='data/rec'><xsl:if test='@id = \"r3\"'><xsl:break select='string(@id)'/></xsl:if></xsl:iterate></xsl:sequence></xsl:fork></out>",
+                 null,
+                 true,
+                 "fork");
+    // Not streamed: a record of one prong contains the records of another
+    _assertCase ("fork over nested paths",
+                 sDoc,
+                 "",
+                 "<xsl:fork><xsl:sequence><xsl:copy-of select='data'/></xsl:sequence><xsl:sequence><xsl:for-each select='data/rec'><xsl:value-of select='@id'/></xsl:for-each></xsl:sequence></xsl:fork>",
+                 null,
+                 false,
+                 null);
+  }
+
+  @Test
+  public void testPredicatesAndWrappers ()
+  {
+    final String sDoc = _groupData (30);
+    _assertCase ("predicate on the record step",
+                 sDoc,
+                 "",
+                 "<xsl:for-each select=\"data/rec[@s or @id = 'r4']\"><xsl:value-of select='position(), @id' separator=':'/>,</xsl:for-each>",
+                 null,
+                 true,
+                 "for-each");
+    _assertCase ("predicate on an inner step",
+                 sDoc,
+                 "",
+                 "<xsl:for-each select=\"*[@id = 'd']/rec[exists(@s)]\"><xsl:value-of select='@id'/></xsl:for-each>",
+                 null,
+                 true,
+                 "for-each");
+    _assertCase ("predicate rejecting every record",
+                 sDoc,
+                 "",
+                 "<xsl:for-each select=\"*[@id = 'x']/rec\"><xsl:value-of select='@id'/></xsl:for-each>",
+                 "",
+                 true,
+                 "for-each");
+    _assertCase ("predicate with a variable",
+                 sDoc,
+                 "<xsl:variable name='want' select=\"'r7'\"/><xsl:mode streamable='yes'/><xsl:template match='rec'><xsl:value-of select='@id'/></xsl:template>",
+                 "<xsl:apply-templates select='data/rec[@id = $want]'/>",
+                 null,
+                 true,
+                 "apply-templates");
+    _assertCase ("wrapper with attribute value templates",
+                 sDoc,
+                 "<xsl:param name='p' select='3'/>",
+                 "<out a='{$p * 2}' b='x{name()}y' c='{local-name(.)}'><xsl:for-each select='data/rec'><xsl:value-of select='@id'/></xsl:for-each></out>",
+                 null,
+                 true,
+                 "for-each");
+    // Not streamed: a predicate reading the content, a numeric predicate
+    _assertCase ("predicate reading the record",
+                 sDoc,
+                 "",
+                 "<xsl:for-each select='data/rec[v = 3]'><xsl:value-of select='@id'/></xsl:for-each>",
+                 null,
+                 false,
+                 null);
+    _assertCase ("numeric predicate",
+                 sDoc,
+                 "<xsl:variable name='i' select='2'/>",
+                 "<xsl:for-each select='data/rec[$i]'><xsl:value-of select='@id'/></xsl:for-each>",
+                 null,
+                 false,
+                 null);
+  }
+
+  @NonNull
+  private static String _mergeSheet (@NonNull final String sSources, @NonNull final String sAction)
+  {
+    return XsltTestHelper.SHEET.replace ("<xsl:stylesheet ",
+                                         "<xsl:stylesheet exclude-result-prefixes='xs' xml:base='" + BASE + "' ") +
+           "<xsl:output method='xml' omit-xml-declaration='yes'/>" +
+           "<xsl:template name='xsl:initial-template'><out><xsl:merge>" +
+           sSources +
+           "<xsl:merge-action>" +
+           sAction +
+           "</xsl:merge-action></xsl:merge></out></xsl:template>" +
+           XsltTestHelper.END;
+  }
+
+  @Test
+  public void testMerge ()
+  {
+    final MemoryResolver aResolver = new MemoryResolver ().add (BASE + "a.xml",
+                                                               "<log><e t='1' v='a1'/><e t='3' v='a3'/><e t='3' v='a3b'/><e t='7' v='a7'/></log>")
+                                                          .add (BASE + "b.xml",
+                                                                "<log><e t='2' v='b2'/><e t='3' v='b3'/><x/><e t='9' v='b9'/></log>")
+                                                          .add (BASE + "c.xml",
+                                                                "<log><e t='0' v='c0'/><e t='7' v='c7'/></log>");
+    final String sAction = "<g k='{current-merge-key()}' n='{position()}' v='{current-merge-group()!@v}' a='{count(current-merge-group(\"A\"))}'/>";
+    final String [] [] aCases = { { "two streamed sources",
+                                    "<xsl:merge-source name='A' for-each-source=\"'a.xml'\" streamable='yes' select='log/e'><xsl:merge-key select='xs:integer(@t)'/></xsl:merge-source>" +
+                                                            "<xsl:merge-source name='B' for-each-source=\"'b.xml', 'c.xml'\" streamable='yes' select='log/e'><xsl:merge-key select='xs:integer(@t)'/></xsl:merge-source>",
+                                    "1" },
+                                  { "a streamed and a buffered source",
+                                    "<xsl:merge-source name='A' for-each-source=\"'a.xml'\" streamable='yes' select='log/e'><xsl:merge-key select='xs:integer(@t)'/></xsl:merge-source>" +
+                                                                          "<xsl:merge-source name='B' for-each-item=\"doc('b.xml')\" select='log/e'><xsl:merge-key select='xs:integer(@t)'/></xsl:merge-source>",
+                                    "1" },
+                                  { "a streamed source with a predicate",
+                                    "<xsl:merge-source name='A' for-each-source=\"'a.xml', 'c.xml'\" streamable='yes' select=\"log/e[@v != 'a3b']\"><xsl:merge-key select='xs:integer(@t)' order='ascending'/></xsl:merge-source>",
+                                    "1" } };
+    for (final String [] aCase : aCases)
+    {
+      final String sSheet = _mergeSheet (aCase[1], sAction);
+      final String sBuffered = _run (sSheet, aResolver, false);
+      final long nBefore = StreamedRun.getStreamedCount ("merge");
+      assertEquals (aCase[0], sBuffered, _run (sSheet, aResolver, true));
+      assertEquals (aCase[0], Long.parseLong (aCase[2]), StreamedRun.getStreamedCount ("merge") - nBefore);
+    }
+    // Not sorted: XTDE2220 while reading
+    final String sUnsorted = _mergeSheet ("<xsl:merge-source for-each-source=\"'b.xml'\" streamable='yes' select='log/e'><xsl:merge-key select='string(@v)' order='descending'/></xsl:merge-source>",
+                                          "<xsl:value-of select='current-merge-key()'/>");
+    try
+    {
+      _run (sUnsorted, aResolver, true);
+      fail ();
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("XTDE2220", ex.getCode ());
+    }
+    // fn:last in the merge action: buffered
+    final String sLast = _mergeSheet ("<xsl:merge-source for-each-source=\"'a.xml'\" streamable='yes' select='log/e'><xsl:merge-key select='xs:integer(@t)'/></xsl:merge-source>",
+                                      "<xsl:value-of select='position(), last()' separator='/'/>,");
+    final long nBefore = StreamedRun.getStreamedCount ("merge");
+    assertEquals ("<out>1/3,2/3,3/3,</out>", _run (sLast, aResolver, true));
+    assertEquals (0, StreamedRun.getStreamedCount ("merge") - nBefore);
   }
 
   @Test

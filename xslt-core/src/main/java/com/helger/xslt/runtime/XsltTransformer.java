@@ -364,7 +364,7 @@ public final class XsltTransformer
                                                  aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)));
     if (aRule == null)
       return null;
-    final XslElement aConsumer = StreamPlanner.findConsumer (aRule.getTemplate ().getElement ());
+    final XslElement aConsumer = StreamPlanner.findConsumer (aRule.getTemplate ().getElement (), m_aSheet.getStreamVerdicts ());
     if (aConsumer == null || !StreamConsumer.isConsumer (m_aSheet, aConsumer))
       return null;
     return new StreamedRun (aReader, aConsumer);

@@ -128,6 +128,36 @@ public final class StreamedAccumulatorTest
   }
 
   @Test
+  public void testAccumulatorReadsAnother ()
+  {
+    // Declared first, reads the value of the later one at the same node
+    final String sDecls = "<xsl:accumulator name='dbl' initial-value='0' streamable='yes'>" +
+                          "<xsl:accumulator-rule match='rec' select=\"accumulator-before('cnt') * 2\"/>" +
+                          "</xsl:accumulator>" +
+                          "<xsl:accumulator name='cnt' initial-value='0' streamable='yes'>" +
+                          "<xsl:accumulator-rule match='rec' select='$value + 1'/>" +
+                          "</xsl:accumulator>";
+    _assertCase ("rule reading another accumulator",
+                 sDecls,
+                 "<xsl:for-each select='/data/rec'><xsl:value-of select=\"accumulator-before('dbl')\"/>,</xsl:for-each>",
+                 "dbl cnt");
+    assertEquals ("2,4,6,", _run (_sheet (sDecls, "<xsl:for-each select='/data/rec'><xsl:value-of select=\"accumulator-before('dbl')\"/>,</xsl:for-each>", "yes", "dbl cnt"), _data (3)));
+  }
+
+  @Test
+  public void testSnapshotKeepsValuesOfDroppedNode ()
+  {
+    final long nBefore = StreamedRun.getStreamedCount ("iterate");
+    _assertCase ("snapshot carried to the next record",
+                 SUM,
+                 "<xsl:iterate select='/data/rec'><xsl:param name='prev' select='()'/>" +
+                       "<xsl:value-of select=\"$prev/accumulator-after('total')\"/>," +
+                       "<xsl:next-iteration><xsl:with-param name='prev' select='snapshot(.)'/></xsl:next-iteration></xsl:iterate>",
+                 "total");
+    assertEquals (1, StreamedRun.getStreamedCount ("iterate") - nBefore);
+  }
+
+  @Test
   public void testNonStreamableAccumulatorRefused ()
   {
     final String sDecls = "<xsl:accumulator name='total' initial-value='0'>" +

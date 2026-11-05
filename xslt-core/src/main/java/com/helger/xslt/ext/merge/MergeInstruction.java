@@ -33,6 +33,8 @@ import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmParseException;
+import com.helger.xpath.xdm.XdmStreamReader;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
@@ -43,17 +45,21 @@ import com.helger.xslt.instr.CompiledInstruction;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.instr.SortKeyDef;
+import com.helger.xslt.runtime.Engine;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.NodeCopier;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.schema.ValidationRequest;
+import com.helger.xslt.stream.StreamRecordPath;
+import com.helger.xslt.stream.StreamedRun;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
 /**
- * xsl:merge (XSLT 3.0 section 15) without streaming: every input sequence is evaluated, checked to
- * be sorted (or sorted with sort-before-merge), and all of them are merged into groups of items
- * with equal merge keys.
+ * xsl:merge (XSLT 3.0 section 15): every input sequence is evaluated, checked to be sorted (or
+ * sorted with sort-before-merge), and all of them are merged into groups of items with equal merge
+ * keys. With the streaming claim, the documents of a streamable merge source are read as streams
+ * instead, one record at a time as the merge needs it (section 15.4).
  *
  * @author Philip Helger
  */
@@ -72,18 +78,54 @@ public final class MergeInstruction
                          @Nullable ValidationRequest validation,
                          @NonNull ICommonsList <SortKeyDef> keys,
                          @NonNull ICommonsList <XdmQName> accumulators,
-                         boolean snapshot)
+                         boolean snapshot,
+                         @Nullable StreamRecordPath recordPath)
   {}
 
   /** One item of an input sequence with its merge key values. */
   private record Entry (@NonNull IXdmItem item, int source, @NonNull XdmAtomic [] keys)
   {}
 
+  /**
+   * One input sequence of the merge: the entries of a source evaluated in
+   * full, or the records of a document read as a stream, one at a time.
+   */
+  private static final class Input
+  {
+    private final Source m_aSource;
+    private final int m_nSource;
+    private final SortKeyDef.Evaluated m_aKeys;
+    private final XsltContext m_aAnchor;
+    private final ICommonsList <Entry> m_aEntries;
+    private final StreamedRun m_aRun;
+    private int m_nNext;
+    private Entry m_aHead;
+
+    private Input (@NonNull final Source aSource,
+                   final int nSource,
+                   final SortKeyDef.@NonNull Evaluated aKeys,
+                   @NonNull final XsltContext aAnchor,
+                   @Nullable final ICommonsList <Entry> aEntries,
+                   @Nullable final StreamedRun aRun)
+    {
+      m_aSource = aSource;
+      m_nSource = nSource;
+      m_aKeys = aKeys;
+      m_aAnchor = aAnchor;
+      m_aEntries = aEntries;
+      m_aRun = aRun;
+    }
+  }
+
+  private final XslElement m_aElement;
   private final ICommonsList <Source> m_aSources;
   private final SequenceConstructor m_aAction;
 
-  private MergeInstruction (@NonNull final ICommonsList <Source> aSources, @NonNull final SequenceConstructor aAction)
+  private MergeInstruction (@NonNull final XslElement aElement,
+                            @NonNull final ICommonsList <Source> aSources,
+                            @NonNull final SequenceConstructor aAction)
   {
+    m_aElement = aElement;
     m_aSources = aSources;
     m_aAction = aAction;
   }
@@ -120,6 +162,35 @@ public final class MergeInstruction
     }
   }
 
+  /** @return The absolute URIs of the documents for-each-source selects. */
+  @NonNull
+  private static ICommonsList <String> _getSourceUris (@NonNull final Source aSource, @NonNull final XsltContext aCtx)
+  {
+    final ICommonsList <String> ret = new CommonsArrayList <> ();
+    final String sBase = aSource.element ().getStaticBaseUri ();
+    for (final IXdmItem aItem : aSource.forEachSource ().evaluate (aCtx))
+    {
+      final String sRef;
+      if (aItem instanceof final IXdmNode aNode)
+        sRef = aNode.getStringValue ();
+      else
+        if (aItem instanceof final XdmAtomic aAtomic && aAtomic.isStringLike ())
+          sRef = aAtomic.getString ();
+        else
+          throw new XPathException ("XPTY0004", "The for-each-source attribute of xsl:merge-source must deliver strings");
+      final String sTrimmed = FnUri.iriToUri (sRef.trim ());
+      try
+      {
+        ret.add (sBase != null && FnUri.isAbsoluteUri (sBase) ? FnUri.resolveUri (sTrimmed, sBase) : sTrimmed);
+      }
+      catch (final XPathException ex)
+      {
+        throw new XPathException ("FODC0005", "Invalid URI '" + sTrimmed + "' in xsl:merge-source");
+      }
+    }
+    return ret;
+  }
+
   /**
    * @return The contexts in which the select expression of a merge source is evaluated, one per
    *         input sequence.
@@ -138,31 +209,11 @@ public final class MergeInstruction
     else
       if (aSource.forEachSource () != null)
       {
-        final XdmSequence aUris = aSource.forEachSource ().evaluate (aCtx);
+        final ICommonsList <String> aUris = _getSourceUris (aSource, aCtx);
         final int nSize = aUris.size ();
-        final String sBase = aSource.element ().getStaticBaseUri ();
         for (int i = 0; i < nSize; ++i)
         {
-          final IXdmItem aItem = aUris.get (i);
-          final String sRef;
-          if (aItem instanceof final IXdmNode aNode)
-            sRef = aNode.getStringValue ();
-          else
-            if (aItem instanceof final XdmAtomic aAtomic && aAtomic.isStringLike ())
-              sRef = aAtomic.getString ();
-            else
-              throw new XPathException ("XPTY0004",
-                                        "The for-each-source attribute of xsl:merge-source must deliver strings");
-          final String sTrimmed = FnUri.iriToUri (sRef.trim ());
-          String sUri;
-          try
-          {
-            sUri = sBase != null && FnUri.isAbsoluteUri (sBase) ? FnUri.resolveUri (sTrimmed, sBase) : sTrimmed;
-          }
-          catch (final XPathException ex)
-          {
-            throw new XPathException ("FODC0005", "Invalid URI '" + sTrimmed + "' in xsl:merge-source");
-          }
+          final String sUri = aUris.get (i);
           IXdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, sUri);
           if (aDoc == null)
             throw new XPathException ("FODC0002", "Cannot retrieve the document '" + sUri + "'");
@@ -186,65 +237,291 @@ public final class MergeInstruction
     return ret;
   }
 
-  private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
+  /**
+   * The attributes of the merge keys are evaluated in the context of xsl:merge; corresponding keys
+   * must agree.
+   */
+  private SortKeyDef.@NonNull Evaluated [] _evaluateKeys (@NonNull final XsltContext aCtx)
   {
     final int nSources = m_aSources.size ();
-    // The attributes of the merge keys are evaluated in the context of
-    // xsl:merge; corresponding keys must agree
-    final SortKeyDef.Evaluated [] aEvaluated = new SortKeyDef.Evaluated [nSources];
+    final SortKeyDef.Evaluated [] ret = new SortKeyDef.Evaluated [nSources];
     for (int s = 0; s < nSources; ++s)
     {
-      aEvaluated[s] = SortKeyDef.evaluate (m_aSources.get (s).keys (), aCtx);
-      for (int k = 0; k < aEvaluated[s].getKeyCount (); ++k)
-        if (!aEvaluated[s].hasSameSettings (k, aEvaluated[0]))
+      ret[s] = SortKeyDef.evaluate (m_aSources.get (s).keys (), aCtx);
+      for (int k = 0; k < ret[s].getKeyCount (); ++k)
+        if (!ret[s].hasSameSettings (k, ret[0]))
           throw XsltException.locate (new XPathException ("XTDE2210",
                                                           "Corresponding xsl:merge-key elements have different effective attributes"),
                                       m_aSources.get (s).keys ().get (k).getElement ());
     }
+    return ret;
+  }
 
+  /**
+   * A streamable merge source delivers snapshots of the selected nodes (XSLT 3.0 section 15.4);
+   * fn:snapshot keeps their accumulator values.
+   */
+  @NonNull
+  private static XdmSequence _snapshot (@NonNull final XdmSequence aInput, @NonNull final XsltContext aAnchor)
+  {
+    final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> ();
+    aArgs.add (aInput);
+    return aAnchor.getEngine ()
+                  .getStylesheet ()
+                  .getFunctionLibrary ()
+                  .getFunction (SNAPSHOT, 1)
+                  .getImpl ()
+                  .call (aAnchor.getDynamicContext (), aArgs);
+  }
+
+  @NonNull
+  private static XPathException _notSorted (@NonNull final Source aSource)
+  {
+    return XsltException.locate (new XPathException ("XTDE2220",
+                                                     "The input sequence of xsl:merge-source is not sorted by its merge keys"),
+                                 aSource.element ());
+  }
+
+  /** @return The entries of one input sequence, sorted or checked to be sorted. */
+  @NonNull
+  private static ICommonsList <Entry> _collectEntries (@NonNull final Source aSource,
+                                                       final int nSource,
+                                                       final SortKeyDef.@NonNull Evaluated aKeys,
+                                                       @NonNull final XsltContext aAnchor)
+  {
+    XdmSequence aInput = aSource.select ().evaluate (aAnchor);
+    if (aSource.snapshot ())
+      aInput = _snapshot (aInput, aAnchor);
+    final ICommonsList <Entry> ret = new CommonsArrayList <> (aInput.size ());
+    for (final IXdmItem aItem : aInput)
+    {
+      // Merge keys are evaluated with a singleton focus
+      ret.add (new Entry (aItem, nSource, _computeKeys (aKeys, aAnchor.withFocus (aItem, 1, 1))));
+    }
+    if (aSource.sortBeforeMerge ())
+      ret.sort ( (a, b) -> _compare (aKeys, a.keys (), b.keys ()));
+    else
+      for (int i = 1; i < ret.size (); ++i)
+        if (_compare (aKeys, ret.get (i - 1).keys (), ret.get (i).keys ()) > 0)
+          throw _notSorted (aSource);
+    return ret;
+  }
+
+  /** Run the merge action for one merge group. */
+  private void _executeGroup (@NonNull final XsltContext aBase,
+                              @NonNull final ICommonsList <Entry> aGroup,
+                              final int nPosition,
+                              final int nSize,
+                              @NonNull final IXsltOutput aOut)
+  {
+    final int nSources = m_aSources.size ();
+    final XdmSequence.Builder aItems = new XdmSequence.Builder ();
+    final ICommonsList <XdmSequence.Builder> aPerSource = new CommonsArrayList <> (nSources);
+    for (int s = 0; s < nSources; ++s)
+      aPerSource.add (new XdmSequence.Builder ());
+    for (final Entry aEntry : aGroup)
+    {
+      aItems.add (aEntry.item ());
+      aPerSource.get (aEntry.source ()).add (aEntry.item ());
+    }
+    final ICommonsOrderedMap <String, XdmSequence> aBySource = new CommonsLinkedHashMap <> ();
+    for (int s = 0; s < nSources; ++s)
+      if (m_aSources.get (s).name () != null)
+        aBySource.put (m_aSources.get (s).name (), aPerSource.get (s).build ());
+    final XdmSequence.Builder aKeyValues = new XdmSequence.Builder ();
+    for (final XdmAtomic aKey : aGroup.getFirstOrNull ().keys ())
+      if (aKey != null)
+        aKeyValues.add (aKey);
+    final XsltContext aGroupCtx = aBase.with (MergeExtension.CURRENT_MERGE_GROUP, new MergeGroup (aItems.build (), aBySource))
+                                       .with (MergeExtension.CURRENT_MERGE_KEY, aKeyValues.build ())
+                                       .withFocus (aGroup.getFirstOrNull ().item (), nPosition, nSize);
+    m_aAction.execute (aGroupCtx, aOut);
+  }
+
+  /**
+   * Move an input to its next entry: for a stream, the snapshot of the next record, whose
+   * original is released at once.
+   */
+  private static void _advance (@NonNull final Input aInput)
+  {
+    if (aInput.m_aRun == null)
+    {
+      aInput.m_aHead = aInput.m_nNext < aInput.m_aEntries.size () ? aInput.m_aEntries.get (aInput.m_nNext++) : null;
+      return;
+    }
+    final IXdmNode aRecord = aInput.m_aRun.nextRecord ();
+    if (aRecord == null)
+    {
+      aInput.m_aHead = null;
+      return;
+    }
+    final IXdmItem aSnapshot;
+    try
+    {
+      aSnapshot = _snapshot (XdmSequence.of (aRecord), aInput.m_aAnchor).get (0);
+    }
+    finally
+    {
+      aInput.m_aRun.release (aRecord);
+    }
+    final Entry aEntry = new Entry (aSnapshot,
+                                    aInput.m_nSource,
+                                    _computeKeys (aInput.m_aKeys, aInput.m_aAnchor.withFocus (aSnapshot, 1, 1)));
+    if (aInput.m_aHead != null && _compare (aInput.m_aKeys, aInput.m_aHead.keys (), aEntry.keys ()) > 0)
+      throw _notSorted (aInput.m_aSource);
+    aInput.m_aHead = aEntry;
+  }
+
+  /**
+   * @return <code>true</code> if the source is read as a stream: it is declared streamable (and
+   *         proven guaranteed streamable), selects a record path, is not validated and only
+   *         streamable accumulators apply to it.
+   */
+  private static boolean _isStreamed (@NonNull final Source aSource, @NonNull final XsltContext aCtx)
+  {
+    return aSource.recordPath () != null &&
+           (aSource.validation () == null || !aSource.validation ().isValidating ()) &&
+           AccumulatorExtension.isStreamable (aCtx.getEngine ().getStylesheet (), aSource.accumulators ());
+  }
+
+  /** Read all inputs together, one entry at a time, and run the action per group. */
+  private void _mergeInputs (@NonNull final ICommonsList <Input> aInputs,
+                             final SortKeyDef.@NonNull Evaluated aKeys,
+                             @NonNull final XsltContext aCtx,
+                             @NonNull final IXsltOutput aOut)
+  {
+    for (final Input aInput : aInputs)
+      _advance (aInput);
+    final XsltContext aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
+    int nGroups = 0;
+    while (true)
+    {
+      Entry aMin = null;
+      for (final Input aInput : aInputs)
+        if (aInput.m_aHead != null && (aMin == null || _compare (aKeys, aInput.m_aHead.keys (), aMin.keys ()) < 0))
+          aMin = aInput.m_aHead;
+      if (aMin == null)
+        return;
+      // The order of the stable sort: merge source, input sequence, input
+      // order
+      final XdmAtomic [] aGroupKeys = aMin.keys ();
+      final ICommonsList <Entry> aGroup = new CommonsArrayList <> ();
+      for (final Input aInput : aInputs)
+        while (aInput.m_aHead != null && _compare (aKeys, aInput.m_aHead.keys (), aGroupKeys) == 0)
+        {
+          aGroup.add (aInput.m_aHead);
+          _advance (aInput);
+        }
+      ++nGroups;
+      // The number of groups is not known while the inputs are read; the
+      // merge action does not ask for it (StreamVerdicts.isStreamedMerge)
+      _executeGroup (aBase, aGroup, nGroups, nGroups, aOut);
+      aCtx.getDynamicContext ().checkInterrupt ();
+    }
+  }
+
+  /**
+   * The merge with its streamable merge sources read as streams (XSLT 3.0 section 15.4): every
+   * input is read one record at a time, as the merge needs the next one, so that memory holds one
+   * merge group, not the inputs.
+   *
+   * @return <code>false</code> if a document cannot be read as a stream, before anything was
+   *         executed.
+   */
+  private boolean _executeStreamed (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
+  {
+    final Engine aEngine = aCtx.getEngine ();
+    final SortKeyDef.Evaluated [] aEvaluated = _evaluateKeys (aCtx);
+    final ICommonsList <XdmStreamReader> aReaders = new CommonsArrayList <> ();
+    try
+    {
+      // Open every stream first: one that cannot be streamed makes the whole
+      // merge run buffered
+      final ICommonsList <ICommonsList <String>> aUris = new CommonsArrayList <> ();
+      for (final Source aSource : m_aSources)
+      {
+        if (!_isStreamed (aSource, aCtx))
+        {
+          aUris.add (null);
+          continue;
+        }
+        final ICommonsList <String> aSourceUris = _getSourceUris (aSource, aCtx);
+        for (final String sUri : aSourceUris)
+        {
+          final XdmStreamReader aReader = aEngine.openStreamedDocument (sUri);
+          if (aReader == null)
+            return false;
+          aReaders.add (aReader);
+        }
+        aUris.add (aSourceUris);
+      }
+      final ICommonsList <Input> aInputs = new CommonsArrayList <> ();
+      int nReader = 0;
+      for (int s = 0; s < m_aSources.size (); ++s)
+      {
+        final Source aSource = m_aSources.get (s);
+        if (aUris.get (s) == null)
+        {
+          for (final XsltContext aAnchor : _getAnchors (aSource, aCtx))
+            aInputs.add (new Input (aSource, s, aEvaluated[s], aAnchor, _collectEntries (aSource, s, aEvaluated[s], aAnchor), null));
+          continue;
+        }
+        final int nDocs = aUris.get (s).size ();
+        for (int i = 0; i < nDocs; ++i)
+        {
+          final XdmStreamReader aReader = aReaders.get (nReader++);
+          final IXdmNode aRoot = aReader.getDocument ();
+          final XsltContext aAnchor = aCtx.withFocus (aRoot, i + 1, nDocs);
+          final StreamedRun aRun = new StreamedRun (aReader, null);
+          // Only the accumulators named in use-accumulators apply to the
+          // document
+          AccumulatorExtension.restrictTree (aEngine, aRoot, aSource.accumulators (), true);
+          aRun.setAccumulators (AccumulatorExtension.startStreamed (aCtx, aRoot, aSource.accumulators ()));
+          aRun.startPull (aSource.recordPath (), aAnchor);
+          aInputs.add (new Input (aSource, s, aEvaluated[s], aAnchor, null, aRun));
+        }
+      }
+      StreamedRun.countStreamedExecution ("merge");
+      _mergeInputs (aInputs, aEvaluated[0], aCtx, aOut);
+      return true;
+    }
+    finally
+    {
+      for (final XdmStreamReader aReader : aReaders)
+        try
+        {
+          aReader.close ();
+        }
+        catch (final XdmParseException ex)
+        {
+          // Everything needed was read
+        }
+    }
+  }
+
+  private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
+  {
+    // With the streaming claim: the streamable merge sources as streams
+    if (m_aSources.containsAny (x -> x.recordPath () != null) &&
+        aCtx.getEngine ().getStylesheet ().getStreamVerdicts () != null &&
+        aCtx.getEngine ().getStylesheet ().getStreamVerdicts ().isStreamedMerge (m_aElement) &&
+        _executeStreamed (aCtx, aOut))
+      return;
+
+    final int nSources = m_aSources.size ();
+    final SortKeyDef.Evaluated [] aEvaluated = _evaluateKeys (aCtx);
     final ICommonsList <Entry> aAll = new CommonsArrayList <> ();
     for (int s = 0; s < nSources; ++s)
     {
       final Source aSource = m_aSources.get (s);
-      final SortKeyDef.Evaluated aKeys = aEvaluated[s];
       for (final XsltContext aAnchor : _getAnchors (aSource, aCtx))
-      {
-        XdmSequence aInput = aSource.select ().evaluate (aAnchor);
-        // A streamable merge source delivers snapshots of the selected nodes
-        // (XSLT 3.0 section 15.4); fn:snapshot keeps their accumulator values
-        if (aSource.snapshot ())
-        {
-          final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> ();
-          aArgs.add (aInput);
-          aInput = aCtx.getEngine ()
-                       .getStylesheet ()
-                       .getFunctionLibrary ()
-                       .getFunction (SNAPSHOT, 1)
-                       .getImpl ()
-                       .call (aAnchor.getDynamicContext (), aArgs);
-        }
-        final ICommonsList <Entry> aEntries = new CommonsArrayList <> (aInput.size ());
-        for (final IXdmItem aItem : aInput)
-        {
-          // Merge keys are evaluated with a singleton focus
-          aEntries.add (new Entry (aItem, s, _computeKeys (aKeys, aAnchor.withFocus (aItem, 1, 1))));
-        }
-        if (aSource.sortBeforeMerge ())
-          aEntries.sort ((a, b) -> _compare (aKeys, a.keys (), b.keys ()));
-        else
-          for (int i = 1; i < aEntries.size (); ++i)
-            if (_compare (aKeys, aEntries.get (i - 1).keys (), aEntries.get (i).keys ()) > 0)
-              throw XsltException.locate (new XPathException ("XTDE2220",
-                                                              "The input sequence of xsl:merge-source is not sorted by its merge keys"),
-                                          aSource.element ());
-        aAll.addAll (aEntries);
-      }
+        aAll.addAll (_collectEntries (aSource, s, aEvaluated[s], aAnchor));
       aCtx.getDynamicContext ().checkInterrupt ();
     }
 
     // Stable: items with equal keys stay in merge source and input order
     final SortKeyDef.Evaluated aKeys = aEvaluated[0];
-    aAll.sort ((a, b) -> _compare (aKeys, a.keys (), b.keys ()));
+    aAll.sort ( (a, b) -> _compare (aKeys, a.keys (), b.keys ()));
 
     final ICommonsList <ICommonsList <Entry>> aGroups = new CommonsArrayList <> ();
     ICommonsList <Entry> aCur = null;
@@ -258,35 +535,10 @@ public final class MergeInstruction
       aCur.add (aEntry);
     }
 
-    final XsltContext aBase = aCtx.withState (aCtx.getState ()
-                                                  .withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
+    final XsltContext aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
     final int nGroups = aGroups.size ();
     for (int g = 0; g < nGroups; ++g)
-    {
-      final ICommonsList <Entry> aGroup = aGroups.get (g);
-      final XdmSequence.Builder aItems = new XdmSequence.Builder ();
-      final ICommonsList <XdmSequence.Builder> aPerSource = new CommonsArrayList <> (nSources);
-      for (int s = 0; s < nSources; ++s)
-        aPerSource.add (new XdmSequence.Builder ());
-      for (final Entry aEntry : aGroup)
-      {
-        aItems.add (aEntry.item ());
-        aPerSource.get (aEntry.source ()).add (aEntry.item ());
-      }
-      final ICommonsOrderedMap <String, XdmSequence> aBySource = new CommonsLinkedHashMap <> ();
-      for (int s = 0; s < nSources; ++s)
-        if (m_aSources.get (s).name () != null)
-          aBySource.put (m_aSources.get (s).name (), aPerSource.get (s).build ());
-      final XdmSequence.Builder aKeyValues = new XdmSequence.Builder ();
-      for (final XdmAtomic aKey : aGroup.getFirstOrNull ().keys ())
-        if (aKey != null)
-          aKeyValues.add (aKey);
-      final XsltContext aGroupCtx = aBase.with (MergeExtension.CURRENT_MERGE_GROUP,
-                                                new MergeGroup (aItems.build (), aBySource))
-                                         .with (MergeExtension.CURRENT_MERGE_KEY, aKeyValues.build ())
-                                         .withFocus (aGroup.getFirstOrNull ().item (), g + 1, nGroups);
-      m_aAction.execute (aGroupCtx, aOut);
-    }
+      _executeGroup (aBase, aGroups.get (g), g + 1, nGroups, aOut);
   }
 
   @NonNull
@@ -328,17 +580,25 @@ public final class MergeInstruction
     if (aKeys.isEmpty ())
       throw XsltException.at (aEl, "XTSE0010", "xsl:merge-source requires at least one xsl:merge-key");
     final String sSortBefore = aEl.getAttr ("sort-before-merge");
+    final boolean bSortBefore = sSortBefore != null && XsltNames.isXsltTrue (sSortBefore);
+    final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
+    final XPathExpr aForEachSource = aCtx.compileOptionalExpression (aEl, "for-each-source");
+    final boolean bStreamable = XsltNames.isXsltTrue (aEl.getAttr ("streamable")) &&
+                                aCtx.getCompiler ().getOptions ().isStreamingClaim ();
+    // Read as a stream: the records of the documents of for-each-source
+    final StreamRecordPath aRecordPath = bStreamable && aForEachSource != null && !bSortBefore ? StreamRecordPath.of (aSelect)
+                                                                                               : null;
     return new Source (aEl,
                        sName == null ? null : sName.trim (),
-                       aCtx.compileRequiredExpression (aEl, "select"),
+                       aSelect,
                        aCtx.compileOptionalExpression (aEl, "for-each-item"),
-                       aCtx.compileOptionalExpression (aEl, "for-each-source"),
-                       sSortBefore != null && XsltNames.isXsltTrue (sSortBefore),
+                       aForEachSource,
+                       bSortBefore,
                        aValidation,
                        aKeys,
                        AccumulatorExtension.registerUseAccumulators (aCtx, aEl),
-                       XsltNames.isXsltTrue (aEl.getAttr ("streamable")) &&
-                                                                 aCtx.getCompiler ().getOptions ().isStreamingClaim ());
+                       bStreamable,
+                       aRecordPath);
   }
 
   /**
@@ -430,7 +690,7 @@ public final class MergeInstruction
       for (int k = 0; k < aSources.get (s).keys ().size (); ++k)
         _checkCorrespondingKeys (aSources.getFirstOrNull ().keys ().get (k).getElement (),
                                  aSources.get (s).keys ().get (k).getElement ());
-    final MergeInstruction aInstr = new MergeInstruction (aSources, aAction);
+    final MergeInstruction aInstr = new MergeInstruction (aEl, aSources, aAction);
     return new CompiledInstruction (aEl, aInstr::_execute);
   }
 }

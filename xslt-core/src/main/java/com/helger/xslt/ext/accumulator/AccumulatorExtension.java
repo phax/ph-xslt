@@ -17,8 +17,10 @@
 package com.helger.xslt.ext.accumulator;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -121,6 +123,29 @@ public final class AccumulatorExtension implements IXsltExtension
     // The error that stopped the computation while streaming, raised by every
     // lookup of a node that has no value
     private XPathException m_aError;
+    // While streaming: the live computation and the index of the accumulator
+    // in it, to compute the value of the node being read on demand
+    private StreamedValues m_aLive;
+    private int m_nLiveIndex;
+  }
+
+  /**
+   * The accumulator values of a node of a streamed document, taken when a copy
+   * of it was made (XSLT 3.0 section 18.2.9): the original is dropped while
+   * the copy may live on. A value not yet known then (the post-descent value
+   * of an open ancestor of a snapshot) is asked from the original, which is
+   * kept for that.
+   */
+  private record FrozenValues (@NonNull IXdmNode root,
+                               @NonNull Map <Accumulator, XdmSequence []> values,
+                               @Nullable IXdmNode live)
+  {
+    @Nullable
+    XdmSequence get (@NonNull final Accumulator aAcc, final boolean bAfter)
+    {
+      final XdmSequence [] aPair = values.get (aAcc);
+      return aPair == null ? null : aPair[bAfter ? 1 : 0];
+    }
   }
 
   /** Restrictions of the accumulators applicable to a tree. */
@@ -132,8 +157,10 @@ public final class AccumulatorExtension implements IXsltExtension
   {
     private final ICommonsMap <Accumulator, Map <IXdmNode, TreeValues>> m_aValues = new CommonsHashMap <> ();
     private final Map <IXdmNode, TreeRestriction> m_aRestrictions = new IdentityHashMap <> ();
-    // Nodes of copies that keep the accumulator values of their original
-    private final Map <IXdmNode, IXdmNode> m_aOrigins = new IdentityHashMap <> ();
+    // Nodes of copies that keep the accumulator values of their original: the
+    // original node, or the values of a streamed one. Weak, so that a copy no
+    // longer referenced is forgotten (IXdmNode has identity equality)
+    private final Map <IXdmNode, Object> m_aOrigins = new WeakHashMap <> ();
   }
 
   private static boolean _hasContent (@NonNull final XslElement aEl)
@@ -466,6 +493,11 @@ public final class AccumulatorExtension implements IXsltExtension
     private final ICommonsList <TreeValues> m_aValues = new CommonsArrayList <> ();
     private final XdmSequence [] m_aCurrent;
     private final XsltContext m_aBase;
+    // The node whose rules are being applied, the phase, and per accumulator
+    // whether its rule for it is pending (0), running (1) or applied (2)
+    private IXdmNode m_aNode;
+    private boolean m_bEnd;
+    private final int [] m_aState;
 
     StreamedValues (@NonNull final XsltContext aCaller,
                     @NonNull final IXdmNode aRoot,
@@ -474,6 +506,7 @@ public final class AccumulatorExtension implements IXsltExtension
       m_aEngine = aCaller.getEngine ();
       m_aAccumulators = aAccumulators;
       m_aCurrent = new XdmSequence [aAccumulators.size ()];
+      m_aState = new int [aAccumulators.size ()];
       // Rules run in temporary output state: no xsl:result-document (XTDE1480)
       m_aBase = Engine.withTemporaryOutputState (m_aEngine.createRootContext ().withState (XsltState.EMPTY));
       final RunData aData = _getRunData (m_aEngine);
@@ -483,6 +516,8 @@ public final class AccumulatorExtension implements IXsltExtension
         final TreeValues aValues = new TreeValues ();
         aValues.m_bDone = true;
         aValues.m_bStreamed = true;
+        aValues.m_aLive = this;
+        aValues.m_nLiveIndex = i;
         try
         {
           m_aCurrent[i] = _coerce (aAcc, aAcc.initial ().evaluate (m_aBase.withFocus (aRoot, 1, 1)), m_aBase);
@@ -499,26 +534,69 @@ public final class AccumulatorExtension implements IXsltExtension
       enter (aRoot);
     }
 
-    private void _apply (@NonNull final IXdmNode aNode, final boolean bEnd)
+    private void _applyOne (final int nIndex)
     {
-      for (int i = 0; i < m_aAccumulators.size (); ++i)
+      if (m_aState[nIndex] == 2)
+        return;
+      if (m_aState[nIndex] == 1)
+        throw new XPathException ("XTDE3400",
+                                  "The accumulator " + m_aAccumulators.get (nIndex).name ().getEQName () + " depends on its own value");
+      final TreeValues aValues = m_aValues.get (nIndex);
+      m_aState[nIndex] = 1;
+      try
       {
-        final TreeValues aValues = m_aValues.get (i);
         if (aValues.m_aError != null)
-          continue;
+          return;
         m_aEngine.step ();
         try
         {
-          m_aCurrent[i] = _applyRule (m_aAccumulators.get (i), aNode, m_aCurrent[i], bEnd, m_aBase);
+          m_aCurrent[nIndex] = _applyRule (m_aAccumulators.get (nIndex), m_aNode, m_aCurrent[nIndex], m_bEnd, m_aBase);
         }
         catch (final XPathException ex)
         {
           // From here on every lookup raises it
           aValues.m_aError = ex;
-          continue;
+          return;
         }
-        (bEnd ? aValues.m_aAfter : aValues.m_aBefore).put (aNode, m_aCurrent[i]);
+        (m_bEnd ? aValues.m_aAfter : aValues.m_aBefore).put (m_aNode, m_aCurrent[nIndex]);
       }
+      finally
+      {
+        m_aState[nIndex] = 2;
+      }
+    }
+
+    private void _apply (@NonNull final IXdmNode aNode, final boolean bEnd)
+    {
+      m_aNode = aNode;
+      m_bEnd = bEnd;
+      Arrays.fill (m_aState, 0);
+      try
+      {
+        // In declaration order; a rule reading the value of another
+        // accumulator at the same node computes that one first
+        for (int i = 0; i < m_aAccumulators.size (); ++i)
+          _applyOne (i);
+      }
+      finally
+      {
+        m_aNode = null;
+      }
+    }
+
+    /**
+     * @return The value of an accumulator at the node whose rules are being
+     *         applied, computed now if it was not yet, or <code>null</code> if
+     *         the node and phase are not the current ones.
+     */
+    @Nullable
+    XdmSequence computeNow (final int nIndex, @NonNull final IXdmNode aNode, final boolean bAfter)
+    {
+      if (aNode != m_aNode || bAfter != m_bEnd)
+        return null;
+      _applyOne (nIndex);
+      final TreeValues aValues = m_aValues.get (nIndex);
+      return (bAfter ? aValues.m_aAfter : aValues.m_aBefore).get (aNode);
     }
 
     public void enter (@NonNull final IXdmNode aNode)
@@ -679,6 +757,33 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
+   * @return What a copy of the node keeps: the node itself, or for a node of a
+   *         streamed document its accumulator values, since the node is
+   *         dropped while the copy may live on.
+   */
+  @NonNull
+  private static Object _getOriginEntry (@NonNull final RunData aData, @NonNull final IXdmNode aOriginal)
+  {
+    final IXdmNode aRoot = aOriginal.getRoot ();
+    if (!(aRoot instanceof final XdmDocumentNode aDoc) || !aDoc.isStreamed ())
+      return aOriginal;
+    final Map <Accumulator, XdmSequence []> aValues = new IdentityHashMap <> ();
+    boolean bIncomplete = false;
+    for (final Map.Entry <Accumulator, Map <IXdmNode, TreeValues>> aEntry : aData.m_aValues.entrySet ())
+    {
+      final TreeValues aTree = aEntry.getValue ().get (aRoot);
+      if (aTree == null)
+        continue;
+      final XdmSequence aBefore = aTree.m_aBefore.get (aOriginal);
+      final XdmSequence aAfter = aTree.m_aAfter.get (aOriginal);
+      if (aBefore == null || aAfter == null)
+        bIncomplete = true;
+      aValues.put (aEntry.getKey (), new XdmSequence [] { aBefore, aAfter });
+    }
+    return new FrozenValues (aRoot, aValues, bIncomplete ? aOriginal : null);
+  }
+
+  /**
    * Remember that a copy keeps the accumulator values of its original (XSLT 3.0 section 18.2.9):
    * the subtree pairwise, and the ancestors of a snapshot.
    */
@@ -686,7 +791,8 @@ public final class AccumulatorExtension implements IXsltExtension
                                    @NonNull final IXdmNode aCopy,
                                    @NonNull final IXdmNode aOriginal)
   {
-    final Map <IXdmNode, IXdmNode> aOrigins = _getRunData (aEngine).m_aOrigins;
+    final RunData aData = _getRunData (aEngine);
+    final Map <IXdmNode, Object> aOrigins = aData.m_aOrigins;
     final ArrayDeque <IXdmNode []> aStack = new ArrayDeque <> ();
     aStack.push (new IXdmNode [] { aCopy, aOriginal });
     while (!aStack.isEmpty ())
@@ -696,7 +802,7 @@ public final class AccumulatorExtension implements IXsltExtension
       final IXdmNode aO = aPair[1];
       if (aC == aO || aC.getKind () != aO.getKind ())
         continue;
-      aOrigins.put (aC, aO);
+      aOrigins.put (aC, _getOriginEntry (aData, aO));
       if (aC.getChildCount () == aO.getChildCount ())
         for (int i = 0; i < aC.getChildCount (); ++i)
           aStack.push (new IXdmNode [] { aC.getChildAtIndex (i), aO.getChildAtIndex (i) });
@@ -706,20 +812,24 @@ public final class AccumulatorExtension implements IXsltExtension
     IXdmNode aO = aOriginal.getParent ();
     while (aC != null && aO != null && aC.getKind () == aO.getKind ())
     {
-      aOrigins.put (aC, aO);
+      aOrigins.put (aC, _getOriginEntry (aData, aO));
       aC = aC.getParent ();
       aO = aO.getParent ();
     }
   }
 
+  /**
+   * @return The original of a copy (the node itself if it is none), or the
+   *         {@link FrozenValues} of a streamed original.
+   */
   @NonNull
-  private static IXdmNode _originOf (@NonNull final RunData aData, @NonNull final IXdmNode aNode)
+  private static Object _originOf (@NonNull final RunData aData, @NonNull final IXdmNode aNode)
   {
-    IXdmNode ret = aNode;
+    Object ret = aNode;
     // Bounded: a copy of a copy of a copy ...
-    for (int i = 0; i < 64; ++i)
+    for (int i = 0; i < 64 && ret instanceof final IXdmNode aCur; ++i)
     {
-      final IXdmNode aOrigin = aData.m_aOrigins.get (ret);
+      final Object aOrigin = aData.m_aOrigins.get (aCur);
       if (aOrigin == null)
         break;
       ret = aOrigin;
@@ -876,8 +986,11 @@ public final class AccumulatorExtension implements IXsltExtension
                                             "() requires a context node other than an attribute or namespace node");
     final ICommonsMap <Mode, ICommonsSet <XdmQName>> aModes = (ICommonsMap <Mode, ICommonsSet <XdmQName>>) aSheet.getExtensionData (KEY_MODES);
     final RunData aData = _getRunData (aCtx.getEngine ());
-    final IXdmNode aOrigin = _originOf (aData, aNode);
-    final IXdmNode aRoot = aOrigin.getRoot ();
+    final Object aOriginEntry = _originOf (aData, aNode);
+    final FrozenValues aFrozen = aOriginEntry instanceof final FrozenValues aFV ? aFV : null;
+    // null: only the values frozen in a copy are known
+    final IXdmNode aOrigin = aFrozen != null ? aFrozen.live () : (IXdmNode) aOriginEntry;
+    final IXdmNode aRoot = aFrozen != null ? aFrozen.root () : aOrigin.getRoot ();
     final TreeRestriction aRestriction = aData.m_aRestrictions.get (aRoot);
     if (aRestriction != null)
     {
@@ -905,6 +1018,12 @@ public final class AccumulatorExtension implements IXsltExtension
                                                   " is not applicable to the principal source document");
         }
       }
+    if (aFrozen != null)
+    {
+      final XdmSequence aFrozenValue = aFrozen.get (aAcc, bAfter);
+      if (aFrozenValue != null)
+        return aFrozenValue;
+    }
     final Map <IXdmNode, TreeValues> aTrees = aData.m_aValues.computeIfAbsent (aAcc, k -> new IdentityHashMap <> ());
     TreeValues aValues = aTrees.get (aRoot);
     if (aValues == null)
@@ -927,7 +1046,10 @@ public final class AccumulatorExtension implements IXsltExtension
         throw ex;
       }
     }
-    final XdmSequence ret = (bAfter ? aValues.m_aAfter : aValues.m_aBefore).get (aOrigin);
+    XdmSequence ret = aOrigin == null ? null : (bAfter ? aValues.m_aAfter : aValues.m_aBefore).get (aOrigin);
+    // A rule reading another accumulator at the node being read
+    if (ret == null && aOrigin != null && aValues.m_aLive != null)
+      ret = aValues.m_aLive.computeNow (aValues.m_nLiveIndex, aOrigin, bAfter);
     if (ret == null && aValues.m_aError != null)
       throw aValues.m_aError;
     if (ret == null && aValues.m_bStreamed)

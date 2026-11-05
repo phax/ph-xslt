@@ -44,9 +44,13 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   stream). The default run must keep claiming no streaming. Streamed execution: `com.helger.xpath.xdm.XdmStreamReader`
   (StAX, nodes numbered as created, `drop`/`skipSubtree`), `IResourceResolver.openDocumentStream`, and in
   `com.helger.xslt.stream` `StreamPlanner` (shape), `StreamConsumer` (the streamed branch of for-each,
-  apply-templates, copy-of), `StreamedRun` (the driver); accumulators via `AccumulatorExtension.startStreamed`. A
-  streamed document has `XdmDocumentNode.isStreamed ()`: never answer a whole-document question from it. The memory
-  test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`, `-Dstreamed.memory.records=<n>`).
+  apply-templates, copy-of, iterate, for-each-group, fork; created with an `IStreamHandlerFactory`), `StreamRecordPath`
+  (child steps, motionless boolean predicates), `StreamedRun` (the driver: several paths in one pass, records retained
+  by a handler with their ancestors until `release`, `startPull`/`nextRecord` for a streamed `xsl:merge-source`);
+  accumulators via `AccumulatorExtension.startStreamed`. A streamed document has `XdmDocumentNode.isStreamed ()`:
+  never answer a whole-document question from it. Tests tell streamed from buffered runs with
+  `StreamedRun.getStreamedCount (<instruction>)`. The memory test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`,
+  `-Dstreamed.memory.records=<n>`, one stylesheet per streamed construct).
 - Early exit (XPath 3.1 section 2.3.4): where only existence or the effective boolean value matters (`fn:exists`,
   `fn:empty`, `fn:boolean`, `fn:not` resolved to their built-in implementation, `and`/`or`, `if`, `satisfies`,
   predicates, `XPathEvaluator.evaluateEffectiveBooleanValue`), paths ending in an axis step and filter expressions
