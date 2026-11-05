@@ -81,6 +81,15 @@ public final class XsdRunner
     m_aValidatorFactory = aValidatorFactory;
   }
 
+  /**
+   * The fail message for a validator that threw instead of returning a
+   * verdict: <code>validator crashed: </code> plus the class name of the
+   * throwable and, if present, its message.
+   *
+   * @param aThrowable
+   *        The exception or error the validator threw.
+   * @return The message. Never <code>null</code>.
+   */
   @NonNull
   private static String _crashMessage (@NonNull final Throwable aThrowable)
   {
@@ -89,12 +98,39 @@ public final class XsdRunner
            (aThrowable.getMessage () == null ? "" : ": " + aThrowable.getMessage ());
   }
 
+  /**
+   * Make a validator message fit on one dump line: strip leading and trailing
+   * white space and replace every CR and LF by a space.
+   *
+   * @param sText
+   *        The message. May be <code>null</code>.
+   * @return The one-line text, empty for <code>null</code>.
+   */
   @NonNull
   private static String _oneLine (@Nullable final String sText)
   {
     return sText == null ? "" : sText.strip ().replace ('\n', ' ').replace ('\r', ' ');
   }
 
+  /**
+   * Record a failing case under its test name, which is what the fail list
+   * and the accepted-failures check see. A dump line
+   * <code>FAIL exp=&lt;expected&gt; &lt;name&gt; &lt;&lt;href&gt;&gt; || &lt;message&gt;</code>
+   * is only built when {@link XsdSettings#isCollectFailLines()} is on
+   * (<code>xsd.faildump</code> or an <code>xsd.only</code> filter).
+   *
+   * @param aResult
+   *        The set result to book into.
+   * @param sName
+   *        The schema or instance test name.
+   * @param sExpected
+   *        The expected validity, for the dump line.
+   * @param sHref
+   *        The schema or instance document, for the dump line.
+   * @param sMessage
+   *        Why it failed (first validator error, crash message, ...). May be
+   *        <code>null</code>.
+   */
   private void _fail (@NonNull final XsdSetResult aResult,
                       @NonNull final String sName,
                       @NonNull final String sExpected,
@@ -113,6 +149,21 @@ public final class XsdRunner
                                                        : null);
   }
 
+  /**
+   * Record a case the validator cannot decide. It counts neither as pass nor
+   * as fail and is not named in the fail list; a dump line
+   * <code>UNSUP exp=&lt;expected&gt; &lt;name&gt; || &lt;message&gt;</code> is
+   * only built with <code>xsd.unsup=true</code>.
+   *
+   * @param aResult
+   *        The set result to book into.
+   * @param sName
+   *        The schema or instance test name.
+   * @param sExpected
+   *        The expected validity, for the dump line.
+   * @param sMessage
+   *        Why it is unsupported. May be <code>null</code>.
+   */
   private void _unsupported (@NonNull final XsdSetResult aResult,
                              @NonNull final String sName,
                              @NonNull final String sExpected,
@@ -177,6 +228,24 @@ public final class XsdRunner
     return sExpected;
   }
 
+  /**
+   * Validate the instance document of one instance test (resolved against the
+   * test-set directory) and score the verdict. A {@link RuntimeException} or
+   * {@link StackOverflowError} thrown by the validator fails the case with the
+   * crash message instead of aborting the test set.
+   *
+   * @param aSchema
+   *        The compiled schema of the group (or the empty schema set).
+   * @param aTest
+   *        The instance test.
+   * @param sExpected
+   *        Its applicable expected validity, <code>valid</code> or
+   *        <code>invalid</code>.
+   * @param aDir
+   *        The directory of the test-set file.
+   * @param aResult
+   *        The set result to book into.
+   */
   private void _validate (@NonNull final IXsdTestSchema aSchema,
                           @NonNull final XsdInstanceTest aTest,
                           @NonNull final String sExpected,
@@ -235,6 +304,37 @@ public final class XsdRunner
     }
   }
 
+  /**
+   * Run one test group for one version. Nothing is counted if the group or its
+   * schema test does not apply to the version; a group without schema test is
+   * handed to {@link #_runSchemalessInstances}. Otherwise the schema test is
+   * skipped (reason <code>no-schema-verdict</code>,
+   * <code>missing-schema-file</code> or <code>no-schema-doc</code>) when it
+   * has no definite expected validity or one of its documents is missing;
+   * in that case none of the instance tests is counted either.
+   * <p>
+   * The schema documents are compiled once. The schema test is then scored
+   * (or counted as queried; the schema is compiled in any case, and a crash
+   * while compiling fails the schema test even if it is queried) and its
+   * outcome is also booked as schema-test outcome. The instance tests run
+   * only if the schema is expected to be valid: each against the compiled
+   * schema; if the validator rejected the schema they all fail with
+   * <code>schema rejected: ...</code>, if it could not decide they are all
+   * unsupported. A crash while compiling skips the instance tests without
+   * counting them.
+   *
+   * @param aGroup
+   *        The test group.
+   * @param aDir
+   *        The directory of the test-set file, against which all
+   *        <code>xlink:href</code> references resolve.
+   * @param eVersion
+   *        The run version.
+   * @param aValidator
+   *        The validator of this test set.
+   * @param aResult
+   *        The set result to book into.
+   */
   private void _runGroup (@NonNull final XsdTestGroup aGroup,
                           @NonNull final Path aDir,
                           @NonNull final EXsdVersion eVersion,
@@ -332,6 +432,21 @@ public final class XsdRunner
     }
   }
 
+  /**
+   * Read one test set and run all its groups for one version with a fresh
+   * validator from the factory. With <code>xsd.progress=true</code> the set is
+   * announced on <code>System.err</code> first. A test set that cannot be read
+   * yields a result with only the load error set; a set whose
+   * <code>version</code> attribute excludes the run version yields an empty
+   * result (both still count as a test set in the summary).
+   *
+   * @param sHref
+   *        The test-set reference from <code>suite.xml</code>, relative to the
+   *        suite directory; also the name of the result.
+   * @param eVersion
+   *        The run version.
+   * @return The counts of the set. Never <code>null</code>.
+   */
   @NonNull
   private XsdSetResult _runSet (@NonNull final String sHref, @NonNull final EXsdVersion eVersion)
   {
@@ -360,7 +475,12 @@ public final class XsdRunner
   }
 
   /**
-   * Run one version of the suite.
+   * Run one version of the suite: every test set referenced by
+   * <code>suite.xml</code> whose reference contains <code>xsd.only</code> (all
+   * if it is empty), in parallel on one thread per available processor (one
+   * thread with <code>xsd.seq=true</code>). The results stay in suite order.
+   * An exception escaping a test set is recorded as its load error
+   * (<code>harness error: ...</code>) instead of aborting the run.
    *
    * @param eVersion
    *        The version.

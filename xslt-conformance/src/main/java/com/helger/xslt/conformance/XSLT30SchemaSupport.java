@@ -103,6 +103,13 @@ public final class XSLT30SchemaSupport
     return ret;
   }
 
+  /**
+   * Compile the schema documents together into one schema set.
+   *
+   * @return The schema set, or empty if the documents do not compile (the
+   *         error is dropped; the caller then falls back to another schema or
+   *         none).
+   */
   @NonNull
   private static Optional <IXdmSchemaSet> _compile (@NonNull final List <Path> aFiles)
   {
@@ -119,12 +126,22 @@ public final class XSLT30SchemaSupport
     }
   }
 
+  /**
+   * @return The compiled schema set of exactly these documents, from the cache
+   *         shared by all cases and threads of the JVM (keyed by the ordered
+   *         list of paths); <code>null</code> if they do not compile, which is
+   *         cached as well.
+   */
   @Nullable
   private static IXdmSchemaSet _getSchemaSet (@NonNull final List <Path> aFiles)
   {
     return CACHE.computeIfAbsent (List.copyOf (aFiles), XSLT30SchemaSupport::_compile).orElse (null);
   }
 
+  /**
+   * @return <code>true</code> if the schema set exists and has a top-level
+   *         element declaration for the name of the element.
+   */
   private static boolean _declares (@Nullable final IXdmSchemaSet aSet, @NonNull final IXdmNode aRoot)
   {
     return aSet != null && aSet.getElementDeclaration (aRoot.getName ()) != null;

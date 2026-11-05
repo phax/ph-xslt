@@ -110,6 +110,40 @@ public final class XSLT30Dependencies
             v.contains ("+"));
   }
 
+  /**
+   * Check one list of dependencies (of a test set or of a test case). The
+   * categories are checked in this order, and the first reason found wins:
+   * <ol>
+   * <li><code>spec</code> not admitting XSLT 3.0
+   * (<code>spec:&lt;value&gt;</code>);</li>
+   * <li><code>feature</code>: the schema-awareness spellings must match the
+   * claim in both directions, <code>streaming</code> in a streaming run too;
+   * otherwise an unsupported feature required or a supported one required
+   * absent skips (<code>feat:</code>/<code>feat-not:</code>);</li>
+   * <li><code>xsd-version</code> 1.0 without 1.1 (<code>xsd1.0</code>);</li>
+   * <li><code>year_component_values</code> with
+   * <code>satisfied="false"</code>;</li>
+   * <li><code>languages_for_numbering</code> other than en, de, fr, it (by the
+   * part before the first hyphen, case-insensitive);</li>
+   * <li><code>default_html_version</code> other than 5;</li>
+   * <li><code>enable_assertions</code> with <code>satisfied="false"</code>
+   * (assertions are always enabled);</li>
+   * <li><code>ignore_doc_failure</code> with <code>satisfied="true"</code>;</li>
+   * <li><code>package_version_resolution</code> other than
+   * <code>highest_version</code> or <code>unspecified</code>.</li>
+   * </ol>
+   * Any other dependency type (e.g. <code>unicode-version</code>,
+   * <code>sweep_and_posture</code>) never skips.
+   *
+   * @param aDeps
+   *        The dependencies.
+   * @param bSchemaAware
+   *        <code>true</code> if the run claims schema-awareness.
+   * @param bStreaming
+   *        <code>true</code> if the run claims streaming.
+   * @return <code>null</code> if nothing in the list prevents the case,
+   *         otherwise the short skip reason.
+   */
   @Nullable
   private static String _getSkipReason (@NonNull final List <XSLT30Dependency> aDeps,
                                         final boolean bSchemaAware,

@@ -121,6 +121,23 @@ public final class XSLT30UnicodeExclusions
   private XSLT30UnicodeExclusions ()
   {}
 
+  /**
+   * The exclusion rules of the <code>unicode-90</code> test set, in this
+   * order: the listed cases that no implementation can pass (counts over all
+   * planes against BMP totals, empty <code>&lt;c&gt;</code> elements, the
+   * non-characters U+FFFE/U+FFFF) are <code>suite-defect</code>; the Ll cases
+   * of {@link #UNICODE90_LL_VERSION_CASES} are <code>unicode-version</code>;
+   * every other generated <code>unicode90-</code> case (not Ll) that has an
+   * initial mode outside {@link #UNICODE90_CLASS_FREE_MODES} is
+   * <code>suite-defect</code>, because the catalog never passes the
+   * <code>charclass</code> parameter and the case therefore tests Ll instead
+   * of its own category. Everything else runs.
+   *
+   * @param aCase
+   *        A case of the <code>unicode-90</code> test set.
+   * @return <code>null</code> if the case runs, otherwise the exclusion
+   *         reason.
+   */
   @Nullable
   private static String _getUnicode90Reason (@NonNull final XSLT30TestCase aCase)
   {

@@ -160,6 +160,12 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     return ret;
   }
 
+  /**
+   * @return The absolute, normalised path of a <code>file:</code> URI, with a
+   *         fragment identifier removed, or <code>null</code> if the URI is not
+   *         a <code>file:</code> URI or cannot be converted. The file need not
+   *         exist.
+   */
   @Nullable
   private static Path _fileUriToPath (@NonNull final String sUri)
   {
@@ -177,6 +183,13 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     }
   }
 
+  /**
+   * Map an absolute URI to a file: a URI declared by the environment (in any
+   * of its forms, see the constructor) first; else, for a <code>file:</code>
+   * URI, the declared file with the same path (<code>file:/x</code> and
+   * <code>file:///x</code> are the same file), else that file itself if it
+   * exists. Any other URI gives <code>null</code>.
+   */
   @Nullable
   private Path _getPath (@NonNull final String sAbsoluteUri)
   {
@@ -231,6 +244,15 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     m_aPrepared.put (aPath, aDoc);
   }
 
+  /**
+   * The document for <code>fn:doc</code>/<code>document()</code>: a prepared
+   * (validated) document if one was registered for the file, else the parsed
+   * document of the test set's cache (so the same file is always the same
+   * node).
+   *
+   * @return <code>null</code> if the URI maps to no file, or the file is not
+   *         well-formed.
+   */
   @Nullable
   public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
@@ -241,6 +263,16 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     return aPrepared != null ? aPrepared : m_aDocs.getDocument (aPath);
   }
 
+  /**
+   * Open the file the URI maps to as a stream for streamed processing, with
+   * external entities read like the document cache does. A file with a
+   * prepared (validated) document is not streamed, so its type annotations
+   * are kept.
+   *
+   * @return <code>null</code> if the URI maps to no file or the file has a
+   *         prepared document; the engine then uses
+   *         {@link #resolveDocument(String)}.
+   */
   @Override
   @Nullable
   public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
@@ -258,6 +290,17 @@ public final class XSLT30ResourceResolver implements IResourceResolver
                                  aStripWhitespace);
   }
 
+  /**
+   * The text for <code>fn:unparsed-text</code> and friends: the file is read
+   * and decoded like the QT3 harness does, with the encoding declared by the
+   * environment's <code>&lt;resource&gt;</code> for that exact URI taking
+   * precedence over the requested one.
+   *
+   * @return <code>null</code> if the URI maps to no file or the file cannot
+   *         be read.
+   * @throws XPathException
+   *         FOUT1190 if the content cannot be decoded
+   */
   @Nullable
   public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
   {
@@ -349,6 +392,16 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     return null;
   }
 
+  /**
+   * The documents of a collection, in declaration order (or file name order
+   * for a directory collection). A member declared as <code>file#id</code>
+   * contributes the element with that <code>xml:id</code> or <code>id</code>
+   * instead of the document. Members that do not parse, and fragment members
+   * whose ID is not found, are silently left out.
+   *
+   * @return <code>null</code> if the URI names no declared collection and no
+   *         existing directory with <code>?select=</code>.
+   */
   @Nullable
   @ReturnsMutableCopy
   public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sUri)
@@ -379,6 +432,14 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     return ret;
   }
 
+  /**
+   * The <code>file:</code> URIs of the members of a collection (for
+   * <code>fn:uri-collection</code>), in the order of
+   * {@link #resolveCollection(String)}; fragments of members are not part of
+   * them.
+   *
+   * @return <code>null</code> if the collection is unknown.
+   */
   @Nullable
   @ReturnsMutableCopy
   public ICommonsList <String> resolveUriCollection (@NonNull final String sUri)

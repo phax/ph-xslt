@@ -98,6 +98,10 @@ public record XSLT30Invocation (@NonNull ICommonsList <XSLT30Environment.Module>
    * @param resultVar
    *        The variable the raw result is bound to in assertions, may be
    *        empty (then <code>$result</code>).
+   * @param tree
+   *        The <code>tree</code> attribute, may be empty. <code>no</code>
+   *        makes the raw result the delivered sequence instead of the
+   *        principal result tree, as for an initial function.
    */
   public record Output (@NonNull String file, @NonNull String serialize, @NonNull String resultVar, @NonNull String tree)
   {

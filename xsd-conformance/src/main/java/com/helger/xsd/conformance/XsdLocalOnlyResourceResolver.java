@@ -76,6 +76,11 @@ public final class XsdLocalOnlyResourceResolver implements LSResourceResolver
       // ignored
     }
 
+    /**
+     * @return A new stream whose every <code>read ()</code> throws an
+     *         {@link IOException} naming the refused URI, so the consumer sees
+     *         an unreadable resource.
+     */
     public InputStream getByteStream ()
     {
       return new InputStream ()
@@ -177,6 +182,17 @@ public final class XsdLocalOnlyResourceResolver implements LSResourceResolver
     }
   }
 
+  /**
+   * Decide on one reference. A reference without system ID, or one whose
+   * scheme (after resolving it against the base URI) is absent or
+   * <code>file</code>, is left to the caller's default resolution
+   * (<code>null</code>). Any other reference is recorded (see
+   * {@link #getBlocked()}) and answered with an input that fails on the first
+   * read.
+   *
+   * @return <code>null</code> for a local reference, a blocking input
+   *         otherwise.
+   */
   @Nullable
   public LSInput resolveResource (@Nullable final String sType,
                                   @Nullable final String sNamespaceURI,

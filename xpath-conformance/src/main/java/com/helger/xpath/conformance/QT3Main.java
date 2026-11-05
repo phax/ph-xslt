@@ -34,6 +34,22 @@ public final class QT3Main
   private QT3Main ()
   {}
 
+  /**
+   * Read the {@link QT3Settings} from the system properties, run the catalog
+   * with {@link QT3Runner#runAndReport()} (summary on stdout, fail list and
+   * per-set CSV in the output directory) and then, unless
+   * <code>qt3.checkAccepted=false</code>, compare the failing case names with
+   * the accepted-failures file. Exits the JVM with status 1 if
+   * <code>catalog.xml</code> is not found below <code>qt3.dir</code> or if a
+   * failing case is not documented (the names are printed to stderr);
+   * otherwise returns normally.
+   *
+   * @param aArgs
+   *        Ignored.
+   * @throws IOException
+   *         if the catalog, a result file or the accepted-failures file
+   *         cannot be read or written
+   */
   public static void main (final String [] aArgs) throws IOException
   {
     final QT3Settings aSettings = QT3Settings.fromSystemProperties ();

@@ -54,6 +54,15 @@ public final class NativeXsdTestValidator implements IXsdTestValidator
       m_aSchema = aSchema;
     }
 
+    /**
+     * Validate the instance with the native validator.
+     *
+     * @param aInstance
+     *        The local instance file.
+     * @return Valid; invalid with the first reported error (or the message of
+     *         an {@link XsdInvalidException}); or unsupported with the message
+     *         of an {@link XsdUnsupportedException}.
+     */
     @NonNull
     public XsdVerdict validate (@NonNull final Path aInstance)
     {
@@ -86,6 +95,14 @@ public final class NativeXsdTestValidator implements IXsdTestValidator
     return true;
   }
 
+  /**
+   * Compile the schema documents with
+   * {@link XsdSchema#compileFiles(List, com.helger.xpath.context.EXsdVersion, XsdCompileOptions)}
+   * as XSD 1.0 or 1.1 with local file access only. An
+   * {@link XsdInvalidException} or an {@link IOException} reading a document
+   * makes the set invalid, an {@link XsdUnsupportedException} makes it
+   * unsupported.
+   */
   @NonNull
   public XsdCompileResult compile (@NonNull final List <Path> aSchemaDocuments, @NonNull final EXsdVersion eVersion)
   {

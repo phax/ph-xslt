@@ -75,7 +75,10 @@ public final class XsdSuiteRules
   /**
    * Pick the expected validity for the run version: an
    * <code>&lt;expected&gt;</code> whose version equals the run version wins;
-   * otherwise the versionless one.
+   * otherwise the versionless one. The <code>version</code> of an
+   * <code>&lt;expected&gt;</code> is compared as a whole string, not as a
+   * token list, so values such as <code>full-xpath-in-CTA</code> never match
+   * and such an <code>&lt;expected&gt;</code> is ignored.
    *
    * @param aExpected
    *        The expected elements of a test.

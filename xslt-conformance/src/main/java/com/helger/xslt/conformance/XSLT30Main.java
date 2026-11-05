@@ -35,6 +35,23 @@ public final class XSLT30Main
   private XSLT30Main ()
   {}
 
+  /**
+   * Run the suite from the command line: the settings come from the system
+   * properties ({@link XSLT30Settings#fromSystemProperties()}), the run prints
+   * the summary (and the fail lines if requested) and writes
+   * <code>xslt30-fails.txt</code> and <code>xslt30-byset.csv</code> to the
+   * output directory ({@link XSLT30Runner#runAndReport()}). Then, if
+   * {@link XSLT30Settings#checkAccepted()} is on, every failing case name must
+   * appear in backticks in the accepted-failures file; the undocumented ones
+   * are printed to stderr and the JVM exits with 1. A missing
+   * <code>catalog.xml</code> also exits with 1, before anything runs.
+   *
+   * @param aArgs
+   *        Ignored.
+   * @throws IOException
+   *         if the catalog, a test set or the accepted-failures file cannot be
+   *         read, or the output files cannot be written
+   */
   public static void main (final String [] aArgs) throws IOException
   {
     final XSLT30Settings aSettings = XSLT30Settings.fromSystemProperties ();

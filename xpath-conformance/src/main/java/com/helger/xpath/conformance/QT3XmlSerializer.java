@@ -49,6 +49,19 @@ public final class QT3XmlSerializer
   private QT3XmlSerializer ()
   {}
 
+  /**
+   * Append text with <code>&amp;</code>, <code>&lt;</code> and
+   * <code>&gt;</code> escaped, and in attribute values also the double quote.
+   * Other characters (including CR, tab and line feed in attributes) are
+   * appended as they are.
+   *
+   * @param aSB
+   *        The target.
+   * @param s
+   *        The text; <code>null</code> appends nothing.
+   * @param bAttr
+   *        <code>true</code> for an attribute value.
+   */
   private static void _escape (@NonNull final StringBuilder aSB, @Nullable final String s, final boolean bAttr)
   {
     if (s == null)
@@ -83,6 +96,17 @@ public final class QT3XmlSerializer
     return aName == null ? "" : aName.getLexicalName ();
   }
 
+  /**
+   * Append the start tag of an element with its lexical name, the namespace
+   * declarations made on the element itself (not the inherited ones) and its
+   * attributes; an element without children is written as an empty-element
+   * tag.
+   *
+   * @param aSB
+   *        The target.
+   * @param aElement
+   *        The element.
+   */
   private static void _startTag (@NonNull final StringBuilder aSB, @NonNull final IXdmNode aElement)
   {
     aSB.append ('<').append (_name (aElement.getName ()));
@@ -104,7 +128,11 @@ public final class QT3XmlSerializer
   /**
    * @param aNode
    *        The node to serialise.
-   * @return Its XML form; attributes as <code>name="value"</code>.
+   * @return Its XML form, built with an explicit stack so deep trees cannot
+   *         overflow: a document node contributes only its children, an
+   *         attribute or namespace node is written as
+   *         <code>name="value"</code>, comments and processing instructions
+   *         are not escaped.
    */
   @NonNull
   public static String serialize (@NonNull final IXdmNode aNode)

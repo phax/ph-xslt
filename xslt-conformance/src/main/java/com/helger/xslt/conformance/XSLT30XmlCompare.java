@@ -60,11 +60,20 @@ public final class XSLT30XmlCompare
   private XSLT30XmlCompare ()
   {}
 
+  /**
+   * @return <code>true</code> for a text node whose value is empty after
+   *         trimming Unicode whitespace: such a node is ignored on both sides
+   *         of the comparison.
+   */
   private static boolean _isBlankText (@NonNull final IXdmNode aNode)
   {
     return aNode.getKind () == ENodeKind.TEXT && trimSpace (aNode.getValue ()).isEmpty ();
   }
 
+  /**
+   * @return The children of the node without the whitespace-only text nodes,
+   *         in document order.
+   */
   @NonNull
   private static ICommonsList <IXdmNode> _significantChildren (@NonNull final IXdmNode aNode)
   {
@@ -75,11 +84,22 @@ public final class XSLT30XmlCompare
     return ret;
   }
 
+  /**
+   * @return <code>true</code> if the local name and the namespace URI are
+   *         equal; the prefixes are not compared.
+   */
   private static boolean _isSameName (@NonNull final XdmQName aLeft, @NonNull final XdmQName aRight)
   {
     return aLeft.localName ().equals (aRight.localName ()) && aLeft.namespaceUri ().equals (aRight.namespaceUri ());
   }
 
+  /**
+   * Attributes are compared as a set: the same number on both sides, and for
+   * every attribute on the left one with the same expanded name and exactly
+   * the same value on the right. Order and prefixes do not matter; attribute
+   * values are never whitespace normalised, not even with
+   * <code>normalize-space</code>.
+   */
   private static boolean _isSameAttributes (@NonNull final IXdmNode aLeft, @NonNull final IXdmNode aRight)
   {
     if (aLeft.getAttributeCount () != aRight.getAttributeCount ())
@@ -93,6 +113,10 @@ public final class XSLT30XmlCompare
     return true;
   }
 
+  /**
+   * @return The string value of the node (empty if it has none), with
+   *         whitespace normalised if requested.
+   */
   @NonNull
   private static String _value (@NonNull final IXdmNode aNode, final boolean bNormalizeSpace)
   {
@@ -130,6 +154,14 @@ public final class XSLT30XmlCompare
 
   /**
    * Structural comparison of two trees.
+   * <p>
+   * The node kinds must be equal. Elements need the same expanded name and
+   * the same attributes (as a set, values compared exactly); elements and
+   * document nodes need the same children after dropping whitespace-only
+   * text nodes on both sides, compared pairwise. Processing instructions
+   * compare target and value, all other nodes (text, comment, attribute)
+   * their value. Namespace nodes, prefixes and type annotations are not
+   * compared.
    *
    * @param aLeft
    *        First node.

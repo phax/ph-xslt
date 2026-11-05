@@ -59,6 +59,17 @@ public final class QT3CatalogReader
   private QT3CatalogReader ()
   {}
 
+  /**
+   * Parse a FOTS file namespace aware, without validation, with secure
+   * processing and without loading an external DTD.
+   *
+   * @param aSource
+   *        The XML.
+   * @return The DOM document.
+   * @throws IOException
+   *         if it cannot be read, or wrapping a parser configuration or SAX
+   *         error.
+   */
   @NonNull
   private static Document _parse (@NonNull final InputSource aSource) throws IOException
   {
@@ -78,6 +89,12 @@ public final class QT3CatalogReader
     }
   }
 
+  /**
+   * @param aNode
+   *        An element or attribute.
+   * @return Its local name, or its node name if it was not created namespace
+   *         aware.
+   */
   @NonNull
   private static String _localName (@NonNull final Node aNode)
   {
@@ -85,6 +102,14 @@ public final class QT3CatalogReader
     return ret != null ? ret : aNode.getNodeName ();
   }
 
+  /**
+   * @param aParent
+   *        The parent element.
+   * @param sLocalName
+   *        The local name to match (any namespace); <code>null</code> for
+   *        all child elements.
+   * @return The matching child elements in document order.
+   */
   @NonNull
   private static ICommonsList <Element> _childElements (@NonNull final Element aParent, @Nullable final String sLocalName)
   {
@@ -95,6 +120,14 @@ public final class QT3CatalogReader
     return ret;
   }
 
+  /**
+   * @param aParent
+   *        The parent element.
+   * @param sLocalName
+   *        The local name to match (any namespace).
+   * @return The first child element with that local name, or
+   *         <code>null</code>; further ones are ignored.
+   */
   @Nullable
   private static Element _firstChildElement (@NonNull final Element aParent, @NonNull final String sLocalName)
   {
@@ -125,6 +158,13 @@ public final class QT3CatalogReader
     return aElement.getAttribute (sName);
   }
 
+  /**
+   * @param aParent
+   *        A <code>test-set</code> or <code>test-case</code> element.
+   * @return Its direct <code>dependency</code> children with their
+   *         <code>type</code>, <code>value</code> and <code>satisfied</code>
+   *         attributes (empty strings when absent).
+   */
   @NonNull
   private static ICommonsList <QT3Dependency> _readDependencies (@NonNull final Element aParent)
   {
@@ -134,6 +174,12 @@ public final class QT3CatalogReader
     return ret;
   }
 
+  /**
+   * @param aSource
+   *        A <code>source</code> element of an environment or collection.
+   * @return Its <code>role</code>, <code>file</code>, <code>uri</code> and
+   *         <code>validation</code> attributes (empty strings when absent).
+   */
   private static QT3Environment.@NonNull Source _readSource (@NonNull final Element aSource)
   {
     return new QT3Environment.Source (_attr (aSource, "role"),
@@ -142,6 +188,17 @@ public final class QT3CatalogReader
                                       _attr (aSource, "validation"));
   }
 
+  /**
+   * @param aElement
+   *        An element.
+   * @param bByLocalName
+   *        <code>true</code> to key by local name, <code>false</code> to key
+   *        by the qualified name as written (then namespace declarations
+   *        appear as <code>xmlns:p</code> keys).
+   * @return All attributes in the DOM's order, including namespace
+   *         declarations; a later attribute with the same key replaces an
+   *         earlier one.
+   */
   @NonNull
   private static ICommonsOrderedMap <String, String> _allAttributes (@NonNull final Element aElement,
                                                                      final boolean bByLocalName)
@@ -157,7 +214,16 @@ public final class QT3CatalogReader
   }
 
   /**
-   * Read one environment element.
+   * Read one environment element: its <code>name</code> and
+   * <code>ref</code>, and the children <code>source</code>,
+   * <code>resource</code>, <code>namespace</code>, <code>param</code> (with
+   * the namespace URI of a prefixed name resolved against the declarations
+   * in scope on the param element), <code>static-base-uri</code>,
+   * <code>schema</code>, <code>collection</code> (with its sources),
+   * <code>collation</code>, <code>decimal-format</code> (all attributes by
+   * qualified name) and <code>context-item</code>. Other children are
+   * ignored; a repeated <code>static-base-uri</code> or
+   * <code>context-item</code> replaces the earlier one.
    *
    * @param aEnv
    *        The <code>&lt;environment&gt;</code> element.
@@ -231,6 +297,16 @@ public final class QT3CatalogReader
     return ret;
   }
 
+  /**
+   * Read an assertion with its nested assertions (for <code>all-of</code>,
+   * <code>any-of</code>, <code>not</code>): every child element is read as an
+   * assertion, recursively; the depth is that of the catalogue file.
+   *
+   * @param aElement
+   *        The assertion element.
+   * @return The assertion with its local name, attributes by local name and
+   *         direct text (untrimmed).
+   */
   @NonNull
   static QT3Assertion readAssertion (@NonNull final Element aElement)
   {
@@ -240,6 +316,19 @@ public final class QT3CatalogReader
     return new QT3Assertion (_localName (aElement), _allAttributes (aElement, true), _directText (aElement), aChildren);
   }
 
+  /**
+   * Read one test case: name, dependencies, the first
+   * <code>environment</code> (a reference or inline declaration), the text
+   * and <code>file</code> attribute of the first <code>test</code>, and the
+   * first assertion element below the first <code>result</code>.
+   *
+   * @param aTC
+   *        The <code>test-case</code> element.
+   * @param aDir
+   *        The directory of the test-set file, the base directory of an
+   *        inline environment.
+   * @return The test case.
+   */
   @NonNull
   private static QT3TestCase _readTestCase (@NonNull final Element aTC, @NonNull final Path aDir)
   {
@@ -262,7 +351,9 @@ public final class QT3CatalogReader
   }
 
   /**
-   * Read the catalog.
+   * Read the catalog: its named <code>environment</code> children (by name;
+   * a later one with the same name replaces an earlier one) and its
+   * <code>test-set</code> references in order.
    *
    * @param aSource
    *        The catalog XML.
@@ -306,7 +397,9 @@ public final class QT3CatalogReader
   }
 
   /**
-   * Read a test-set file.
+   * Read a test-set file: its <code>name</code>, its own dependencies, its
+   * named environments (by name, a later one replaces an earlier one) and
+   * its test cases in document order.
    *
    * @param aSource
    *        The test-set XML.

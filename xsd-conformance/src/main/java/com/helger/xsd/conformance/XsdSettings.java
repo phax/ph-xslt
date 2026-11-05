@@ -42,8 +42,10 @@ import com.helger.collection.commons.ICommonsList;
  * case</li>
  * <li><code>xsd.seq=true</code> - run the test sets sequentially</li>
  * <li><code>xsd.checkAccepted=false|true</code> - whether to fail on failing
- * cases not named in the accepted-failures file (default: on for Xerces-J,
- * off for the native validator until it becomes the gate)</li>
+ * cases not named in the accepted-failures file; every value other than
+ * <code>false</code> turns it on (default:
+ * {@link EXsdTestValidatorKind#isCheckAcceptedByDefault()}, on for both
+ * Xerces-J and the native validator)</li>
  * <li><code>xsd.out</code> - output directory (default <code>target</code>)</li>
  * <li><code>xsd.accepted</code> - accepted-failures file (default
  * {@value #DEFAULT_ACCEPTED_FILE} for Xerces-J,

@@ -93,6 +93,18 @@ public final class XercesXsdTestValidator implements IXsdTestValidator
       m_bHintsOnly = bHintsOnly;
     }
 
+    /**
+     * Validate the instance with a new Xerces-J validator that uses the local
+     * only resolver and stops at the first error. For the empty schema set a
+     * new hints-only schema is created per call, because Xerces-J would
+     * otherwise keep the grammars an earlier instance's
+     * <code>xsi:schemaLocation</code> hints loaded.
+     *
+     * @param aInstance
+     *        The local instance file.
+     * @return Valid, or invalid with the message of the first error or of the
+     *         {@link IOException} reading the instance.
+     */
     @NonNull
     public XsdVerdict validate (@NonNull final Path aInstance)
     {
@@ -113,7 +125,14 @@ public final class XercesXsdTestValidator implements IXsdTestValidator
     }
   }
 
-  /** Constructor. */
+  /**
+   * Create the Xerces-J schema factory with secure processing on, the local
+   * only resolver and an error handler that turns every error into an
+   * exception.
+   *
+   * @throws IllegalStateException
+   *         if Xerces-J does not accept the secure processing feature
+   */
   public XercesXsdTestValidator ()
   {
     m_aFactory = new XMLSchemaFactory ();
@@ -140,6 +159,13 @@ public final class XercesXsdTestValidator implements IXsdTestValidator
     return eVersion == EXsdVersion.XSD_10;
   }
 
+  /**
+   * Compile the schema documents with Xerces-J. Any version other than XSD 1.0
+   * is unsupported. The empty list compiles to a schema that only knows the
+   * built-in types and loads what the instance's hints name; otherwise all
+   * documents are passed to Xerces-J together. The first schema error makes
+   * the set invalid.
+   */
   @NonNull
   public XsdCompileResult compile (@NonNull final List <Path> aSchemaDocuments, @NonNull final EXsdVersion eVersion)
   {

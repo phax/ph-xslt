@@ -151,6 +151,10 @@ public record XSLT30Actual (@NonNull String output,
     return ofResult (aResult, bInitialFunction, sResultVar, true);
   }
 
+  /**
+   * @return <code>true</code> if the sequence is not empty and every item is
+   *         a node.
+   */
   private static boolean _isAllNodes (@NonNull final XdmSequence aSeq)
   {
     if (aSeq.isEmpty ())

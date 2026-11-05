@@ -56,6 +56,14 @@ public final class QT3XmlCompare
   private QT3XmlCompare ()
   {}
 
+  /**
+   * @param s
+   *        An XML text.
+   * @return The text with surrounding whitespace removed and, if it then
+   *         starts with an XML declaration, that declaration (and the
+   *         whitespace after it) removed, so the rest can be wrapped in an
+   *         element.
+   */
   @NonNull
   private static String _stripDecl (@NonNull final String s)
   {
@@ -69,6 +77,17 @@ public final class QT3XmlCompare
     return ret;
   }
 
+  /**
+   * @param aLeft
+   *        First name, may be <code>null</code>.
+   * @param aRight
+   *        Second name, may be <code>null</code>.
+   * @param bIgnorePrefixes
+   *        <code>true</code> to ignore the prefixes.
+   * @return <code>true</code> if both are <code>null</code>, or both have the
+   *         same local name and namespace URI and, unless ignored, the same
+   *         prefix.
+   */
   private static boolean _isSameName (@Nullable final XdmQName aLeft,
                                       @Nullable final XdmQName aRight,
                                       final boolean bIgnorePrefixes)
@@ -80,6 +99,20 @@ public final class QT3XmlCompare
            (bIgnorePrefixes || aLeft.prefix ().equals (aRight.prefix ()));
   }
 
+  /**
+   * Compare the attributes of two elements as unordered sets: the counts
+   * must match and every attribute of the left element must have one on the
+   * right with the same name (see <code>_isSameName</code>) and exactly the
+   * same string value.
+   *
+   * @param aLeft
+   *        First element.
+   * @param aRight
+   *        Second element.
+   * @param bIgnorePrefixes
+   *        <code>true</code> to compare names without prefixes.
+   * @return <code>true</code> if the attribute sets are equal.
+   */
   private static boolean _isSameAttributes (@NonNull final IXdmNode aLeft,
                                             @NonNull final IXdmNode aRight,
                                             final boolean bIgnorePrefixes)
@@ -132,7 +165,12 @@ public final class QT3XmlCompare
   }
 
   /**
-   * Structural comparison of two trees.
+   * Structural comparison of two trees, iterative with an explicit stack:
+   * nodes must have the same kind; elements the same name and attributes
+   * and, like document nodes, the same number of children, which are
+   * compared pairwise in order; processing instructions the same target
+   * (local name) and value; text, comment, attribute and namespace nodes the
+   * same string value, without any whitespace normalisation.
    *
    * @param aLeft
    *        First node.

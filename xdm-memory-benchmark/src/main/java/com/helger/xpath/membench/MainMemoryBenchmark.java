@@ -74,6 +74,13 @@ public final class MainMemoryBenchmark
   private MainMemoryBenchmark ()
   {}
 
+  /**
+   * Request a garbage collection four times in a row and read the used heap
+   * afterwards. <code>System.gc ()</code> is only a request, so the figure is
+   * approximate.
+   *
+   * @return The used heap in bytes.
+   */
   private static long _usedHeapAfterGC ()
   {
     final MemoryMXBean aBean = ManagementFactory.getMemoryMXBean ();
@@ -82,6 +89,16 @@ public final class MainMemoryBenchmark
     return aBean.getHeapMemoryUsage ().getUsed ();
   }
 
+  /**
+   * Measure the heap a tree retains as the difference of the used heap after
+   * GC before and after building it. The tree is touched after the second
+   * measurement so that it cannot be collected before it.
+   *
+   * @param aBuilder
+   *        Parses the document and returns the tree.
+   * @return The heap delta in bytes; can be inaccurate or even negative,
+   *         since GC is only requested.
+   */
   private static long _heapDelta (@NonNull final Supplier <Object> aBuilder)
   {
     final long nBefore = _usedHeapAfterGC ();
@@ -93,6 +110,17 @@ public final class MainMemoryBenchmark
     return nAfter - nBefore;
   }
 
+  /**
+   * Count the nodes of an XDM tree with an explicit stack (no recursion): the
+   * element nodes, the attributes of all nodes (by attribute count; attribute
+   * nodes are not visited), the text nodes and all other child nodes
+   * including the root itself (document, comment, processing instruction).
+   *
+   * @param aRoot
+   *        The root of the tree, usually the document node.
+   * @return The four counts in the order elements, attributes, text, other.
+   *         The last one is not printed.
+   */
   @NonNull
   private static long [] _countXdmNodes (@NonNull final IXdmNode aRoot)
   {
@@ -118,6 +146,16 @@ public final class MainMemoryBenchmark
     return ret;
   }
 
+  /**
+   * Parse a file into the ph-xslt XDM tree.
+   *
+   * @param aFile
+   *        The XML file.
+   * @return The document node.
+   * @throws IllegalStateException
+   *         wrapping the {@link XdmParseException} of a file that cannot be
+   *         parsed
+   */
   @NonNull
   private static IXdmNode _parseXdm (@NonNull final File aFile)
   {
@@ -131,12 +169,32 @@ public final class MainMemoryBenchmark
     }
   }
 
+  /**
+   * Parse a file into a ph-xml MicroDOM document.
+   *
+   * @param aFile
+   *        The XML file.
+   * @return The document, or <code>null</code> if MicroReader cannot read it.
+   */
   @NonNull
   private static IMicroDocument _parseMicro (@NonNull final File aFile)
   {
     return MicroReader.readMicroXML (aFile);
   }
 
+  /**
+   * Parse a file into a Saxon tree with the default tree model of the
+   * configuration (TinyTree, checked by the caller).
+   *
+   * @param aConfig
+   *        The Saxon configuration; its NamePool receives the names of the
+   *        document.
+   * @param aFile
+   *        The XML file.
+   * @return The tree.
+   * @throws IllegalStateException
+   *         wrapping any exception Saxon throws
+   */
   @NonNull
   private static TreeInfo _parseSaxon (@NonNull final Configuration aConfig, @NonNull final File aFile)
   {
@@ -150,12 +208,40 @@ public final class MainMemoryBenchmark
     }
   }
 
+  /**
+   * @param n
+   *        A size in bytes.
+   * @return The size in MiB (1024 * 1024 bytes) with two decimals.
+   */
   @NonNull
   private static String _mb (final long n)
   {
     return String.format (Locale.ROOT, "%.2f", Double.valueOf (n / 1024.0 / 1024.0));
   }
 
+  /**
+   * Run the benchmark over the fixed document list. The paths are relative to
+   * the working directory, which must be the module directory (as with
+   * <code>mvn exec:exec</code>, which also passes <code>-Xmx4g</code> and the
+   * flags JOL needs); the documents come from the sibling checkouts of
+   * <code>peppol-commons</code>, <code>qt3tests</code> and
+   * <code>xslt30-test</code>.
+   * <p>
+   * First the first document is parsed once in each model so that class and
+   * static initialisation is not attributed to it. Then, for every document,
+   * a Markdown table row is printed with the file size, the XDM element,
+   * attribute and text node counts, the JOL deep size of the XDM tree, of the
+   * MicroDOM document and of the Saxon TinyTree (its object graph minus the
+   * graph of its fresh {@link Configuration}), the growth of the Saxon
+   * NamePool while parsing, and the three sizes divided by the file size.
+   * Finally a second table is printed with the heap delta after GC of a fresh
+   * parse in each model, where the Saxon figure includes a new Configuration.
+   *
+   * @param args
+   *        Ignored.
+   * @throws Exception
+   *         if a document is missing or cannot be parsed
+   */
   public static void main (final String [] args) throws Exception
   {
     System.out.println ("Java " + System.getProperty ("java.version") + ", " + System.getProperty ("java.vm.name"));

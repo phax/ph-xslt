@@ -48,6 +48,14 @@ public final class QT3SetResult
     m_sName = sName;
   }
 
+  /**
+   * Increment the counter of a reason, starting at 1 for a new one.
+   *
+   * @param aMap
+   *        The reason counters, changed in place.
+   * @param sKey
+   *        The reason.
+   */
   private static void _inc (@NonNull final ICommonsSortedMap <String, Integer> aMap, @NonNull final String sKey)
   {
     final Integer aOld = aMap.get (sKey);
@@ -65,6 +73,13 @@ public final class QT3SetResult
     m_nPass++;
   }
 
+  /**
+   * Count one skipped case and its reason (e.g.
+   * <code>spec-inapplicable</code>, <code>env-missing</code>).
+   *
+   * @param sReason
+   *        Short skip reason.
+   */
   public void addSkip (@NonNull final String sReason)
   {
     m_nSkip++;
@@ -88,6 +103,14 @@ public final class QT3SetResult
       m_aFailLines.add (sLine);
   }
 
+  /**
+   * Remember why the test-set file could not be read (or, for a harness
+   * bug, why its run ended with an exception); the set then has no counts
+   * and the error is listed in the run summary.
+   *
+   * @param sLoadError
+   *        The error message.
+   */
   public void setLoadError (@NonNull final String sLoadError)
   {
     m_sLoadError = sLoadError;

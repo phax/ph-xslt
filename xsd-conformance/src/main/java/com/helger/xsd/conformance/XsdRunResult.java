@@ -249,9 +249,13 @@ public final class XsdRunResult
   }
 
   /**
-   * Write <code>xsd-fails.txt</code> (sorted fail names) and
-   * <code>xsd-byset.csv</code> (per test-set counts) for XSD 1.0, resp.
-   * <code>xsd11-fails.txt</code> and <code>xsd11-byset.csv</code> for XSD 1.1.
+   * Write <code>&lt;prefix&gt;-fails.txt</code> (sorted fail names, one per
+   * line) and <code>&lt;prefix&gt;-byset.csv</code> (per test-set counts), the
+   * prefix being the file prefix plus the version suffix: for Xerces-J
+   * <code>xsd-fails.txt</code> and <code>xsd-byset.csv</code> for XSD 1.0,
+   * resp. <code>xsd11-fails.txt</code> and <code>xsd11-byset.csv</code> for
+   * XSD 1.1; for the native validator <code>xsd-native-fails.txt</code>,
+   * <code>xsd-native11-fails.txt</code> etc. Existing files are overwritten.
    *
    * @param aOutDir
    *        Output directory; created if missing.
