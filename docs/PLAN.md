@@ -23,7 +23,7 @@ Decisions:
 | 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
 | X1 | XSLT: XSLT30 harness (`xslt-conformance`), match patterns (`xpath-core` `pattern`), core compiler and engine with the basic instructions (`xslt-core`) | `xslt30_test.go`, `pattern*.go`, `compile.go`, `transform.go`, `modes.go`, `loader.go`, `avt.go` | done |
 | X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | done |
-| X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform` and schema-awareness (Xerces-J, opt-in) done; rest open |
+| X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform`, schema-awareness (native validator, opt-in) and streaming (opt-in claim) done; backwards compatibility and JAXP `TransformerFactory` open |
 
 XSLT30 status (2026-11-04, after the open cases `function-lookup-005`/`006` and `glob-cxt-item-010`): 8,640 of 8,647
 applicable cases pass (99.9%) as a basic processor, identical on JDK 21 and 25; all 7 fails are documented in
@@ -39,9 +39,10 @@ QT3 status (2026-10-26): 22,419 of 22,478 applicable cases pass (99.7%), 59 fail
 | Static typing (type inference) | 20 | Accepted: same 20 cases as go-xslt |
 | External entity in `fn:parse-xml`, network access | 2 | Accepted (same in go-xslt) |
 
-Schema-awareness (2026-10-26): Apache Xerces-J, optional and loaded only when present (`XdmSchemaSupport`), is the
-schema processor. `-Dxslt30.schemaAware=true` runs XSLT30 schema-aware: 9,292 of 9,310 pass
-(`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`); the default run is unchanged (8,640/8,647).
+Schema-awareness (2026-11-05): the native validator (`xsd-core`) is the schema processor, Apache Xerces-J (optional,
+loaded only when present, `XdmSchemaSupport`) the fallback. `-Dxslt30.schemaAware=true` runs XSLT30 schema-aware:
+9,298 of 9,310 pass, all 12 fails accepted (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`); the
+default run is unchanged (8,640/8,647).
 With `-Dqt3.schemaProcessor=jdk` the QT3 harness uses the JDK validator instead, and the 7 schema-validated source
 cases fail again.
 
@@ -264,8 +265,8 @@ moved there from `XPathEvaluator`, which now calls the same methods, so there is
 
 ## Streaming
 
-Status: in progress (started 2026-11-04). After streaming, performance and memory optimisation start (focused on the
-hot spots a profile shows, with an own benchmark first).
+Status: done (2026-11-04 to 2026-11-05; S1 to S5). Next: performance and memory optimisation (focused on the hot spots
+a profile shows, with an own benchmark first).
 
 Reference: go-xslt, "XSLT 3.0 guaranteed streaming" in its `CLAUDE.md`: a real incremental reader builds ordinary nodes
 one record at a time and keeps only the ancestor spine; the streaming dispatcher hands each completed record to the
@@ -280,7 +281,7 @@ About 8,200 lines of Go: `internal/xpath/streamability.go`, `internal/xslt/strea
 | S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` | done (2026-11-04): `com.helger.xpath.stream.XPathStreamability` with go-xslt's test cases; not yet called. Deviation from go-xslt: a call to a stylesheet function is not assumed to return childless items (go-xslt classifies `string(f:filter(.))` as streamable although it reads the subtree) |
 | S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` | done (2026-11-05): `com.helger.xslt.stream.XsltStreamability`, run at the end of compilation when `setEnforceStreamability` is on; streaming run 11,224 of 11,291 pass, 67 fail (114 of the 119 expected XTSE3430 and both XTSE3155 fixed; 5 XTSE3430 cases and `streamable-100` to `-102` accepted with reasons, as in go-xslt) |
 | S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` | done (2026-11-05): `XdmStreamReader`, `StreamedRun`, streamed accumulators, memory test; streaming run 11,230 of 11,291 pass, 61 fail (the 6 S4 cases fixed: `accumulator-061`, `si-fork-113` to `-115`, `merge-079`, `merge-097s`); streamed `xsl:iterate`, `xsl:for-each-group` and `xsl:fork` are left for S5 (they run buffered) |
-| S5 | Bounded-memory output: serialize while transforming | `transform_to.go` | open |
+| S5 | Streamed `xsl:iterate`, `xsl:for-each-group`, `xsl:fork`, `xsl:merge-source`, record-path predicates and wrappers; bounded `generate-id` and snapshot origins; bounded-memory output: serialise while transforming | `stream_exec/group/fork.go`, `transform_to.go` | done (2026-11-05): streaming run unchanged at 11,230 of 11,291 (the newly streamed constructs passed buffered before; the gain is memory); `XsltExecutable.transform (request, OutputStream\|Writer)`, drained where the output definition allows it; the XSLT30 run through the writer (`-Dxslt30.writeTo=true`) gives the same output for every case |
 
 S1 notes: the first streaming run had 190 fails; fixed on the way, also for the default processor: `lang` without
 `collation` on `xsl:sort`/`xsl:merge-key` now selects a UCA collation for that language with `case-order` as its
@@ -348,6 +349,30 @@ S5: streamed `xsl:iterate`, `xsl:for-each-group` (`group-starting-with`/`-ending
 attribute value templates that do not read the document in the record path and wrappers, streamed
 `xsl:merge-source`, distinct generate-id values without retaining the nodes (`fn:generate-id` remembers every node it
 saw), and serialising while transforming.
+
+S5 notes: streamed only with the streaming claim and a proven verdict, everything else runs buffered. `xsl:iterate`
+over a record path (bounded); `xsl:for-each-group` with `group-adjacent`/`-starting-with`/`-ending-with` (one open
+group retained); `group-by` as the direct child of `xsl:fork` (every selected record retained, then the buffered
+grouping: correct, not bounded); `xsl:fork` whose prongs each consume one record path (all paths in one pass, each
+prong's result buffered, replayed in prong order); streamable `xsl:merge-source` read one record at a time per document
+(`StreamedRun.startPull`/`nextRecord`); predicates on any step of a record path when motionless, non-positional and
+boolean or node-valued; wrappers with attribute value templates proven motionless. `fn:generate-id` and the
+accumulator origin map of copies are weak maps (identity, `IXdmNode` has no `equals`); copies of streamed nodes keep
+frozen accumulator values; a streamed accumulator rule may read another accumulator at the same node (XTDE3400 on a
+cycle). Deviations from go-xslt, following the Recommendation: `group-adjacent` with a motionless key is streamed
+(section 19.8.4.19), fork prongs may read different non-nesting paths (section 16), predicates on any step (section
+19.8), `group-by` under `xsl:fork` is streamed. Output: level 1 writes xml/xhtml/html to the target in chunks (text,
+json and adaptive are built first); level 2 (`ResultDrain`, `XsltTransformer._createDrain`) writes and detaches every
+completed child of the elements under construction when the stylesheet is not schema-aware, the unnamed `xsl:output`
+names its method, there is no item separator, no `xsl:result-document` in any module, no indent, no standalone or
+doctype-system, `include-content-type='no'` for html/xhtml and no character map or normalisation for text.
+Serialisation errors found while draining are raised at the end, so a later dynamic error still wins as on the
+ordinary path. Deviations from go-xslt: html and xhtml are drained too; the `xsl:result-document` check walks the
+compiled modules instead of scanning the text. Memory test (`-Xmx32m`): every streamed construct about 25 MB peak; a
+streamed copy of 2.8 million records (242 MB in, 234 MB out) 24.5 MB, OutOfMemoryError without draining. Not done
+(later, if needed): bounded `group-by` under fork, positional predicates in record paths, nested forks and prongs with
+wrappers, draining with schema-awareness or `xsl:result-document`, a top-level `xsl:document`, and incremental text,
+json and adaptive output.
 
 Gate per stage: the default lists (QT3, XSLT30, schema-aware XSLT30, xsdtests) unchanged by name on JDK 21 and 25; the
 streaming run only improves, and every failure in it is documented.
