@@ -61,7 +61,8 @@ public final class XsltNames
    * @param s
    *        String to check, already trimmed.
    * @return <code>true</code> if it is a lexical QName (prefix:local or
-   *         local).
+   *         local, each part an NCName); <code>false</code> for
+   *         <code>null</code>.
    */
   public static boolean isLexicalQName (@Nullable final String s)
   {
@@ -77,7 +78,8 @@ public final class XsltNames
    * @param s
    *        String to check, already trimmed.
    * @return <code>true</code> if it is a lexical QName or a URIQualifiedName
-   *         (<code>Q{uri}local</code>).
+   *         (<code>Q{uri}local</code>, the URI part free of further braces,
+   *         possibly empty; the local part must be an NCName).
    */
   public static boolean isEQName (@Nullable final String s)
   {
@@ -128,7 +130,10 @@ public final class XsltNames
    * @param s
    *        String to check, already trimmed.
    * @return <code>true</code> if it is a valid xs:decimal lexical form
-   *         (optional sign, digits, optional fraction, no exponent).
+   *         (optional sign, digits, optional fraction, no exponent; at
+   *         least one digit on either side of the point, so
+   *         <code>1.</code> and <code>.5</code> pass, <code>.</code> does
+   *         not). Used for the <code>[xsl:]version</code> attribute.
    */
   public static boolean isDecimalLexical (@Nullable final String s)
   {
@@ -157,7 +162,10 @@ public final class XsltNames
    * @param sUri
    *        A namespace URI.
    * @return <code>true</code> if it is one of the namespaces reserved by XSLT
-   *         3.0 section 3.3.2.
+   *         3.0 section 5.1.3: XSLT, XML Schema, schema instance, the
+   *         <code>fn</code>, <code>math</code>, <code>map</code> and
+   *         <code>array</code> function namespaces, XML and the error
+   *         namespace. Exact string comparison.
    */
   public static boolean isReservedNamespace (@NonNull final String sUri)
   {
@@ -208,8 +216,9 @@ public final class XsltNames
   /**
    * @param s
    *        A string.
-   * @return The whitespace-separated tokens of the string; empty for a
-   *         whitespace-only string.
+   * @return The tokens of the string separated by runs of XML whitespace
+   *         (space, tab, CR, LF), leading and trailing whitespace ignored;
+   *         an empty array for an empty or whitespace-only string.
    */
   @NonNull
   public static String [] tokenize (@NonNull final String s)

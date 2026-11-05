@@ -76,6 +76,10 @@ public final class XsltElementSpecs
   private XsltElementSpecs ()
   {}
 
+  /**
+   * @return The whitespace-separated tokens of the string as a set; empty
+   *         for an empty string.
+   */
   @NonNull
   private static ICommonsSet <String> _set (@NonNull final String s)
   {
@@ -85,6 +89,21 @@ public final class XsltElementSpecs
     return ret;
   }
 
+  /**
+   * Register the shape of one XSLT element.
+   *
+   * @param sName
+   *        Local name of the element.
+   * @param sAttrs
+   *        Allowed attributes, space separated.
+   * @param sRequired
+   *        Required attributes, space separated.
+   * @param sChildren
+   *        Allowed XSLT children, space separated; "" if unchecked,
+   *        <code>empty</code> if the element must have no XSLT children.
+   * @param bNoText
+   *        <code>true</code> if non-whitespace text is not allowed.
+   */
   private static void _add (@NonNull final String sName,
                             @NonNull final String sAttrs,
                             @NonNull final String sRequired,

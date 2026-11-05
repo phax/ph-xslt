@@ -71,8 +71,14 @@ public final class XslText extends XslNode
   }
 
   /**
+   * Find the nearest ancestor element within the stylesheet module that
+   * carries <code>xml:space</code> (XSLT 3.0 section 4.3: such text is not
+   * stripped from the stylesheet).
+   *
    * @return <code>true</code> if the nearest ancestor with an
-   *         <code>xml:space</code> attribute says <code>preserve</code>.
+   *         <code>xml:space</code> attribute says <code>preserve</code>
+   *         (surrounding whitespace ignored); <code>false</code> if it says
+   *         anything else or no ancestor has the attribute.
    */
   public boolean isXmlSpacePreserve ()
   {

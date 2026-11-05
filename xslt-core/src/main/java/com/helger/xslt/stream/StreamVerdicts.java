@@ -78,6 +78,11 @@ public final class StreamVerdicts
     m_aStreamedMerges.add (aEl);
   }
 
+  /**
+   * Record that the analysis rejected a declaration (see the class
+   * description): from now on every query of these verdicts answers
+   * <code>false</code>, whatever was added before or after.
+   */
   void setDeclarationsFailed ()
   {
     m_bDeclarationsFailed = true;
@@ -98,7 +103,7 @@ public final class StreamVerdicts
    * @param aName
    *        Accumulator name.
    * @return <code>true</code> if the accumulator is declared streamable and
-   *         guaranteed streamable (section 18.2.8).
+   *         guaranteed streamable (section 18.2.9).
    */
   public boolean isAccumulatorStreamable (@Nullable final XdmQName aName)
   {

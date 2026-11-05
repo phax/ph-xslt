@@ -59,6 +59,10 @@ public final class ExposeChecker
   private ExposeChecker ()
   {}
 
+  /**
+   * @return The trimmed <code>visibility</code> attribute of a declaration,
+   *         or <code>null</code> if it has none.
+   */
   @Nullable
   private static String _vis (@NonNull final XslElement aEl)
   {
@@ -66,6 +70,17 @@ public final class ExposeChecker
     return s == null ? null : s.trim ();
   }
 
+  /**
+   * Collect the named components of the compiled package that xsl:expose
+   * can refer to: named templates, stylesheet functions (with arity),
+   * attribute sets (visibility of their first declaration), global variables
+   * and parameters, and named modes. The arity is -1 for all but functions.
+   *
+   * @param aSheet
+   *        The compiled stylesheet.
+   * @return The components with their declared visibility, <code>null</code>
+   *         where none is declared.
+   */
   @NonNull
   private static ICommonsList <Component> _getComponents (@NonNull final CompiledStylesheet aSheet)
   {
@@ -86,10 +101,36 @@ public final class ExposeChecker
   }
 
   /**
+   * Check every xsl:expose of the package and record its effect on modes and
+   * named templates. Each token of <code>names</code> is either
+   * <code>*</code>, <code>*:local</code>, <code>prefix:*</code>,
+   * <code>Q{uri}*</code> or an EQName (no-namespace default), optionally
+   * followed by <code>#arity</code>; the arity restricts an exact name only.
+   * For each matching component of the requested kind:
+   * <ul>
+   * <li>exposing as abstract fails with XTSE3025 for a wildcard, a mode or a
+   * component without declared visibility, and with XTSE3010 if the
+   * declared visibility is not abstract;</li>
+   * <li>exposing an explicitly named component that is declared abstract
+   * with another visibility fails with XTSE3010;</li>
+   * <li>public or final exposure adds a mode or template to the exposed
+   * ones, explicitly named private exposure to the private ones.</li>
+   * </ul>
+   * The checks against the declared visibility are a simplification of the
+   * table in XSLT 3.0 section 3.5.3.1: only the abstract cases are
+   * reported.
+   *
    * @param aCtx
    *        Compile context.
    * @param aExposes
    *        The xsl:expose elements of the package.
+   * @throws XsltException
+   *         XTSE0020 for an unknown <code>component</code> or
+   *         <code>visibility</code> value, a malformed name token or arity,
+   *         or an unbound prefix; XTSE3022 for <code>component="*"</code>
+   *         with a non-wildcard name; XTSE3020 for a function name without
+   *         arity or a non-wildcard name that matches no component;
+   *         XTSE3010 and XTSE3025 as above.
    */
   public static void check (@NonNull final CompileContext aCtx, @NonNull final ICommonsList <XslElement> aExposes)
   {

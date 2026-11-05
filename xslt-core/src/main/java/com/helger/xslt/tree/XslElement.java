@@ -196,7 +196,8 @@ public final class XslElement extends XslNode
   }
 
   /**
-   * Set or replace an attribute.
+   * Set or replace an attribute. An existing attribute with the same expanded
+   * name keeps its position in the source order, a new one is appended.
    *
    * @param aName
    *        Name.
@@ -224,13 +225,22 @@ public final class XslElement extends XslNode
     m_aAttrs.remove (aName);
   }
 
+  /**
+   * Append a child at the end and make this element its parent.
+   *
+   * @param aChild
+   *        The element or text node to append.
+   */
   public void appendChild (@NonNull final XslNode aChild)
   {
     aChild.setParent (this);
     m_aChildren.add (aChild);
   }
 
-  /** Remove the last child (an element excluded by use-when). */
+  /**
+   * Remove the last child (an element excluded by use-when) and clear its
+   * parent. Fails on an element without children.
+   */
   public void removeLastChild ()
   {
     final XslNode aChild = m_aChildren.removeLast ();
@@ -401,6 +411,19 @@ public final class XslElement extends XslNode
     return m_nImportLo;
   }
 
+  /**
+   * Record the import precedence of a top-level declaration (XSLT 3.0
+   * section 3.11.3) together with the lowest precedence of the modules its
+   * module imports, so that the range <code>[importLo, precedence)</code>
+   * identifies the template rules xsl:apply-imports may reach from it
+   * (section 6.8).
+   *
+   * @param nPrecedence
+   *        Import precedence, higher wins.
+   * @param nImportLo
+   *        Lowest import precedence of the directly or indirectly imported
+   *        modules.
+   */
   public void setPrecedence (final int nPrecedence, final int nImportLo)
   {
     m_nPrecedence = nPrecedence;

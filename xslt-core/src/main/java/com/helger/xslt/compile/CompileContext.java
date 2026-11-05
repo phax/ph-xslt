@@ -59,6 +59,10 @@ import com.helger.xslt.tree.XsltNames;
 @Immutable
 public final class CompileContext
 {
+  /**
+   * One local variable binding in a singly linked list of the local variables
+   * in scope, innermost first. Shared between contexts, never changed.
+   */
   private record Scope (@NonNull XdmQName name, @Nullable Scope next)
   {}
 
@@ -66,6 +70,16 @@ public final class CompileContext
   private final Scope m_aScope;
   private final XdmQName m_aHiddenGlobal;
 
+  /**
+   * Create a context without a hidden global variable; used by
+   * {@link StylesheetCompiler} with a <code>null</code> scope for the global
+   * context.
+   *
+   * @param aCompiler
+   *        The compiler of the stylesheet.
+   * @param aScope
+   *        The local variables in scope, or <code>null</code> for none.
+   */
   CompileContext (@NonNull final StylesheetCompiler aCompiler, @Nullable final Scope aScope)
   {
     this (aCompiler, aScope, null);
@@ -130,7 +144,16 @@ public final class CompileContext
     return m_aScope == null ? this : new CompileContext (m_aCompiler, null, m_aHiddenGlobal);
   }
 
-  /** @return The names of all variables in scope (globals and locals). */
+  /**
+   * The names of all variables in scope: the global variable names of the
+   * compiler in their order, without the global hidden by
+   * {@link #withoutGlobalVariable(XdmQName)}, followed by the local variables
+   * from the innermost outwards. A local with the same name as a global does
+   * not add a second entry. Package visibility is not applied here (see
+   * {@link #createStaticContext(XslElement)}).
+   *
+   * @return A new mutable set of the names.
+   */
   @NonNull
   public ICommonsOrderedSet <XdmQName> getVariablesInScope ()
   {
@@ -143,6 +166,14 @@ public final class CompileContext
   }
 
   /**
+   * Create the XPath static context for expressions on an element: the
+   * variables of {@link #getVariablesInScope()}, minus the globals that the
+   * package of the element cannot see when several packages are compiled
+   * together (XSLT 3.0 section 3.5), the function library and the decimal
+   * formats that apply to the element's declaration or package, its
+   * namespaces and base URI (via {@link StaticContexts}), and the schema set of
+   * the stylesheet.
+   *
    * @param aEl
    *        Element.
    * @return A new XPath static context for expressions on that element.
@@ -162,13 +193,19 @@ public final class CompileContext
   }
 
   /**
-   * Compile an XPath expression written on an element.
+   * Compile an XPath expression written on an element with a new static
+   * context from {@link #createStaticContext(XslElement)}. When the compiler
+   * collects a {@link StreamabilityIndex}, the parsed expression is recorded in
+   * it for the streamability check at the end of compilation.
    *
    * @param aEl
    *        The element (namespaces, base URI, ...).
    * @param sExpr
    *        The expression text.
    * @return The compiled expression.
+   * @throws XsltException
+   *         the static error of the parser (for example XPST0003, XPST0008),
+   *         located at the element
    */
   @NonNull
   public XPathExpr compileExpression (@NonNull final XslElement aEl, @NonNull final String sExpr)
@@ -221,6 +258,24 @@ public final class CompileContext
     return s == null ? null : compileExpression (aEl, s);
   }
 
+  /**
+   * Split the template text into fixed text and expression parts with
+   * {@link AvtParser#split(String)} and compile each expression part with
+   * {@link #compileExpression(XslElement, String)}; fixed text parts are kept
+   * as strings.
+   *
+   * @param aEl
+   *        The element for the static context and error location.
+   * @param sText
+   *        The template text.
+   * @param bTvt
+   *        <code>true</code> for a text value template, <code>false</code> for
+   *        an attribute value template.
+   * @return The compiled template.
+   * @throws XsltException
+   *         for a syntax error in the template (unmatched curly bracket) or
+   *         in one of its expressions, located at the element
+   */
   @NonNull
   private Avt _compileAvt (@NonNull final XslElement aEl, @NonNull final String sText, final boolean bTvt)
   {
@@ -288,13 +343,19 @@ public final class CompileContext
   }
 
   /**
-   * Compile a pattern; only global variables are in scope.
+   * Compile a pattern (XSLT 3.0 section 5.5); only global variables are in
+   * scope, as a pattern cannot see local variables. When the compiler
+   * collects a {@link StreamabilityIndex}, the parsed pattern is recorded in
+   * it.
    *
    * @param aEl
    *        Element.
    * @param sPattern
    *        Pattern text.
    * @return The compiled pattern.
+   * @throws XsltException
+   *         for a syntax or static error of the pattern, located at the
+   *         element
    */
   @NonNull
   public CompiledPattern compilePattern (@NonNull final XslElement aEl, @NonNull final String sPattern)
@@ -319,7 +380,11 @@ public final class CompileContext
    *        Element.
    * @param sType
    *        A SequenceType.
-   * @return The parsed type.
+   * @return The parsed type; it is also recorded in the
+   *         {@link StreamabilityIndex} of the compiler if there is one.
+   * @throws XsltException
+   *         for a syntax or static error (for example an unknown type),
+   *         located at the element
    */
   @NonNull
   public SeqType compileSequenceType (@NonNull final XslElement aEl, @NonNull final String sType)
@@ -362,6 +427,9 @@ public final class CompileContext
   }
 
   /**
+   * Resolve a lexical QName or EQName (leading and trailing whitespace is
+   * ignored) against the in-scope namespaces of an element.
+   *
    * @param aEl
    *        Element.
    * @param sLexical
@@ -386,6 +454,10 @@ public final class CompileContext
   }
 
   /**
+   * Text value templates (XSLT 3.0 section 5.6.2): for an element the lookup
+   * starts at the element itself, for a text node at its parent; a node
+   * without a parent element never expands text.
+   *
    * @param aNode
    *        A stylesheet node.
    * @return <code>true</code> if text value templates are enabled for it
@@ -417,8 +489,10 @@ public final class CompileContext
   }
 
   /**
-   * Compile the content of an element, leaving out xsl:param, xsl:sort,
-   * xsl:with-param and xsl:context-item children.
+   * Compile the content of an element, leaving out xsl:param, xsl:sort and
+   * xsl:with-param children, and xsl:context-item children of xsl:template
+   * (under any other parent an xsl:context-item is compiled like other
+   * content).
    *
    * @param aEl
    *        The element.
@@ -450,7 +524,12 @@ public final class CompileContext
    *
    * @param aEl
    *        The element.
-   * @return The instruction or <code>null</code>.
+   * @return The instruction or <code>null</code> if the registered
+   *         instruction compiler of the XSLT element returns none (the element
+   *         contributes nothing at run time).
+   * @throws XsltException
+   *         XTSE0010 for an XSLT element that is no instruction here or not
+   *         supported and has no xsl:fallback child
    */
   @Nullable
   public IInstruction compileInstruction (@NonNull final XslElement aEl)

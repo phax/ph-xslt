@@ -88,6 +88,10 @@ public final class StreamRecordPath
     m_aPredicates = aPredicates;
   }
 
+  /**
+   * @return The number of steps, which is the depth of the records below the
+   *         document node (1 for its children).
+   */
   @Nonnegative
   public int getLength ()
   {
@@ -150,6 +154,15 @@ public final class StreamRecordPath
     return true;
   }
 
+  /**
+   * @param a
+   *        One node test of a record path.
+   * @param b
+   *        Another one.
+   * @return <code>true</code> if a node could pass both tests: either one is
+   *         <code>node()</code> or <code>*</code>, or both name the same
+   *         element.
+   */
   private static boolean _canMatchSame (@NonNull final NodeTest a, @NonNull final NodeTest b)
   {
     if (a.kind () == ENodeTestKind.ANY_NODE || b.kind () == ENodeTestKind.ANY_NODE || a.anyName () || b.anyName ())
@@ -200,6 +213,17 @@ public final class StreamRecordPath
     };
   }
 
+  /**
+   * A predicate of a record path is accepted if its value is a boolean or a
+   * node sequence whatever the input ({@link #_isBooleanOrNodes(IExpr)}), it
+   * is non-positional, and its sweep with the node as a striding context item
+   * is motionless (XSLT 3.0 section 19): its effective boolean value then
+   * depends on the node, its attributes and its ancestors only.
+   *
+   * @param aPredicate
+   *        The predicate.
+   * @return <code>true</code> if the step may keep it.
+   */
   private static boolean _isAcceptedPredicate (@NonNull final IExpr aPredicate)
   {
     if (!_isBooleanOrNodes (aPredicate) || !XPathStreamability.isNonPositionalPredicate (aPredicate))

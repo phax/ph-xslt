@@ -46,6 +46,18 @@ public final class AvtParser
   private AvtParser ()
   {}
 
+  /**
+   * Skip an XPath comment, which may nest (XPath 3.1 section A.2.4).
+   *
+   * @param s
+   *        The template text.
+   * @param nStart
+   *        Index of the opening <code>(:</code>.
+   * @return The index just after the matching <code>:)</code>.
+   * @throws XPathException
+   *         XTSE0350 if the comment is not closed before the end of the
+   *         text.
+   */
   private static int _skipComment (@NonNull final String s, final int nStart)
   {
     int nDepth = 0;
@@ -71,6 +83,15 @@ public final class AvtParser
     throw new XPathException ("XTSE0350", "Unterminated XPath comment in attribute value template '" + s + "'");
   }
 
+  /**
+   * @param s
+   *        The text of an expression part.
+   * @return <code>true</code> if it consists of XML whitespace and XPath
+   *         comments only, i.e. the expression is omitted and the part
+   *         expands to a zero-length string (XSLT 3.0 section 5.6).
+   * @throws XPathException
+   *         XTSE0350 for an unterminated comment
+   */
   private static boolean _isBlank (@NonNull final String s)
   {
     int i = 0;
@@ -89,13 +110,23 @@ public final class AvtParser
   }
 
   /**
+   * Split a value template (XSLT 3.0 section 5.6) into its fixed and
+   * variable parts. In fixed text <code>{{</code> and <code>}}</code> stand
+   * for a single bracket. A variable part extends from <code>{</code> to the
+   * matching <code>}</code>, skipping string literals and (nested) comments
+   * and counting nested brackets. Variable parts without an expression are
+   * dropped, and fixed text on both sides of one is merged; the expression
+   * text itself is not parsed here.
+   *
    * @param s
    *        The template text.
    * @return The parts: {@link String} for fixed text, {@link ExprPart} for
-   *         expressions.
+   *         expressions; adjacent fixed parts never occur, and an empty
+   *         template gives an empty list.
    * @throws XPathException
-   *         XTSE0350 for an unmatched left curly bracket, XTSE0370 for an
-   *         unmatched right one.
+   *         XTSE0350 for an unmatched left curly bracket (also when an
+   *         unterminated string literal or comment hides the right one),
+   *         XTSE0370 for an unmatched right one.
    */
   @NonNull
   public static ICommonsList <Object> split (@NonNull final String s)

@@ -120,6 +120,16 @@ public final class StreamConsumer
     return true;
   }
 
+  /**
+   * @param aSheet
+   *        The stylesheet being compiled.
+   * @return The identity map from each instruction that has a streamed branch
+   *         to that branch, kept in the extension data of the stylesheet and
+   *         created empty on first use. Filled by
+   *         {@link #create(CompileContext, XslElement, XPathExpr, IStreamHandlerFactory)}
+   *         and {@link #createFork(CompileContext, XslElement)}; the latter
+   *         also reads the branches of its prongs from it.
+   */
   @SuppressWarnings ("unchecked")
   @NonNull
   private static Map <XslElement, StreamConsumer> _getMap (@NonNull final CompiledStylesheet aSheet)
