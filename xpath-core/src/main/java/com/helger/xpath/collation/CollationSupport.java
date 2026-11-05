@@ -85,12 +85,25 @@ final class CollationSupport
     return ret;
   }
 
+  /**
+   * @param sValue
+   *        The string.
+   * @return The collation key bytes of the Unicode codepoint collation: the
+   *         code points of the string, three big-endian bytes each, so that
+   *         the unsigned byte order is the code point order.
+   */
   @NonNull
   static byte [] getCodepointBytes (@NonNull final String sValue)
   {
     return toBytes (sValue.codePoints ().toArray ());
   }
 
+  /**
+   * @return <code>true</code> if the index lies inside the string and the
+   *         UTF-16 char there is a digit according to
+   *         {@link Character#isDigit(char)} (any Unicode decimal digit, not
+   *         only ASCII). An index outside the string gives <code>false</code>.
+   */
   private static boolean _isDigit (@NonNull final String s, final int nIndex)
   {
     return nIndex >= 0 && nIndex < s.length () && Character.isDigit (s.charAt (nIndex));
@@ -107,6 +120,12 @@ final class CollationSupport
     return nEnd > nStart && _isDigit (s, nStart) && _isDigit (s, nStart - 1);
   }
 
+  /**
+   * @return The code point boundaries of the string as ascending UTF-16
+   *         offsets: the start of every code point (a surrogate pair counts
+   *         once) followed by the string length. The empty string gives
+   *         <code>[0]</code>.
+   */
   @NonNull
   private static int [] _getBoundaries (@NonNull final String s)
   {
@@ -122,6 +141,30 @@ final class CollationSupport
     return Arrays.copyOf (ret, n);
   }
 
+  /**
+   * The collation-aware substring search of F&amp;O 3.1 section 5.3.1 by brute
+   * force: for every code point boundary from left to right, the candidate
+   * substrings starting there are compared with the search string by
+   * {@link ICollation#compare(String, String)}, shortest first, and the first
+   * equal one is the match. A start position whose first code point alone
+   * compares equal to the empty string (an ignorable character) is skipped.
+   * A search string that compares equal to the empty string matches the empty
+   * substring at offset 0. With <code>bNumeric</code> a candidate that would
+   * cut a run of digits in two (see {@link #_splitsNumber(String, int, int)})
+   * is rejected. The cost is quadratic in the length of the value in
+   * collation comparisons.
+   *
+   * @param aColl
+   *        The collation to compare with.
+   * @param sValue
+   *        The string to search in.
+   * @param sSearch
+   *        The string to search for.
+   * @param bNumeric
+   *        <code>true</code> for a collation with numeric digit ordering.
+   * @return <code>null</code> if there is no match, otherwise the start and
+   *         end UTF-16 offset of the shortest match at the leftmost position.
+   */
   @Nullable
   static int [] findSubstring (@NonNull final ICollation aColl,
                                @NonNull final String sValue,
@@ -145,6 +188,23 @@ final class CollationSupport
     return null;
   }
 
+  /**
+   * Collation-aware <code>fn:starts-with</code> (F&amp;O 3.1 section 5.3.1):
+   * <code>true</code> if the prefix compares equal to the empty string, or if
+   * some prefix of the value that ends on a code point boundary compares
+   * equal to it under the collation. With <code>bNumeric</code> a prefix that
+   * ends inside a run of digits does not count.
+   *
+   * @param aColl
+   *        The collation to compare with.
+   * @param sValue
+   *        The string to check.
+   * @param sPrefix
+   *        The prefix.
+   * @param bNumeric
+   *        <code>true</code> for a collation with numeric digit ordering.
+   * @return <code>true</code> if the value starts with the prefix.
+   */
   static boolean startsWith (@NonNull final ICollation aColl,
                              @NonNull final String sValue,
                              @NonNull final String sPrefix,
@@ -160,6 +220,23 @@ final class CollationSupport
     return false;
   }
 
+  /**
+   * Collation-aware <code>fn:ends-with</code> (F&amp;O 3.1 section 5.3.1), the
+   * mirror image of {@link #startsWith(ICollation, String, String, boolean)}:
+   * the suffixes of the value starting on a code point boundary are tried
+   * from the shortest to the longest. With <code>bNumeric</code> a suffix that
+   * starts inside a run of digits does not count.
+   *
+   * @param aColl
+   *        The collation to compare with.
+   * @param sValue
+   *        The string to check.
+   * @param sSuffix
+   *        The suffix.
+   * @param bNumeric
+   *        <code>true</code> for a collation with numeric digit ordering.
+   * @return <code>true</code> if the value ends with the suffix.
+   */
   static boolean endsWith (@NonNull final ICollation aColl,
                            @NonNull final String sValue,
                            @NonNull final String sSuffix,

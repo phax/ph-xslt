@@ -56,6 +56,10 @@ public final class DateTimeOps
   private DateTimeOps ()
   {}
 
+  /**
+   * @return A new XPTY0004 error saying that the operator is not defined for
+   *         the types of the two operands; the caller throws it.
+   */
   @NonNull
   private static XPathException _typeError (@NonNull final EBinaryOp eOp,
                                             @NonNull final XdmAtomic aLeft,
@@ -118,6 +122,18 @@ public final class DateTimeOps
     return new BigDecimal (Double.toString (d));
   }
 
+  /**
+   * Round a scaled month count to a whole number of months the way
+   * <code>fn:round</code> does (half towards positive infinity), as required
+   * for multiplying and dividing an xs:yearMonthDuration by a number (F&amp;O
+   * 3.1 section 10.6).
+   *
+   * @param aMonths
+   *        The exact month count.
+   * @return The rounded month count.
+   * @throws XPathException
+   *         FODT0002 if the rounded value does not fit into a long
+   */
   private static long _toMonths (@NonNull final BigDecimal aMonths)
   {
     // Round half towards positive infinity (fn:round)
@@ -135,6 +151,26 @@ public final class DateTimeOps
     return XdmAtomic.of (eType, XdmDurationValue.of (nMonths, aSeconds));
   }
 
+  /**
+   * Multiply or divide an xs:yearMonthDuration or xs:dayTimeDuration by a
+   * number (F&amp;O 3.1 section 10.6). The number is taken exactly (a double or
+   * float by its shortest decimal form). A year-month result is rounded to
+   * whole months with <code>_toMonths</code>; a day-time product is exact, a
+   * day-time quotient is computed with {@link #DIVISION_CONTEXT}. Dividing by
+   * an infinity gives a zero-length duration of the same type.
+   *
+   * @param aDur
+   *        The duration operand, of one of the two duration subtypes.
+   * @param aNumber
+   *        The numeric operand.
+   * @param bDivide
+   *        <code>true</code> for <code>aDur div aNumber</code>,
+   *        <code>false</code> for the product.
+   * @return A duration of the type of <code>aDur</code>.
+   * @throws XPathException
+   *         FOCA0005 if the number is NaN, FODT0002 for a division by zero, a
+   *         multiplication by an infinity or a month count that overflows
+   */
   @NonNull
   private static XdmAtomic _scaleDuration (@NonNull final XdmAtomic aDur,
                                            @NonNull final XdmAtomic aNumber,
@@ -167,6 +203,20 @@ public final class DateTimeOps
     return _duration (eType, 0, aScaled);
   }
 
+  /**
+   * Arithmetic between two durations (F&amp;O 3.1 section 10.6): both must be
+   * xs:yearMonthDuration or both xs:dayTimeDuration. Addition and subtraction
+   * give a duration of that type (month counts with an overflow check, seconds
+   * exactly); division gives the xs:decimal ratio of the month counts or of the
+   * seconds, computed with {@link #DIVISION_CONTEXT} and written without
+   * trailing zeros and without a negative scale.
+   *
+   * @return The result value.
+   * @throws XPathException
+   *         XPTY0004 for mixed or plain xs:duration operands or another
+   *         operator, FODT0002 if a month count overflows, FOAR0001 for a
+   *         division by a zero-length duration
+   */
   @NonNull
   private static XdmAtomic _durationArithmetic (@NonNull final EBinaryOp eOp,
                                                 @NonNull final XdmAtomic aLeft,
@@ -259,6 +309,34 @@ public final class DateTimeOps
     return aCur;
   }
 
+  /**
+   * Add a duration to (or subtract it from) a date/time value (F&amp;O 3.1
+   * section 10.8). xs:dateTime and xs:date accept both duration subtypes,
+   * xs:time only xs:dayTimeDuration. For xs:time only the clock is kept: the
+   * seconds of the day plus the duration, modulo 24 hours, on the reference
+   * date 31 December of {@link XdmDateTimeValue#REFERENCE_YEAR}. For xs:date
+   * the value is treated as a dateTime at midnight and the time of the result
+   * is dropped again. The timezone of the date/time operand is kept. The result
+   * type is the primitive type of the date/time operand, so an xs:dateTimeStamp
+   * operand gives an xs:dateTime.
+   *
+   * @param aDT
+   *        The date/time operand.
+   * @param aDur
+   *        The duration operand.
+   * @param bSubtract
+   *        <code>true</code> to subtract the duration (it is negated first).
+   * @param eOp
+   *        The original operator, only for the error message.
+   * @param aLeft
+   *        The original left operand, only for the error message.
+   * @param aRight
+   *        The original right operand, only for the error message.
+   * @return The result value.
+   * @throws XPathException
+   *         XPTY0004 for a disallowed type combination (also for a plain
+   *         xs:duration), FODT0001 if the year leaves the supported range
+   */
   @NonNull
   private static XdmAtomic _addDurationToDateTime (@NonNull final XdmAtomic aDT,
                                                    @NonNull final XdmAtomic aDur,
@@ -394,6 +472,18 @@ public final class DateTimeOps
     throw _typeError (eOp, aLeft, aRight);
   }
 
+  /**
+   * Project a date/time payload onto the components of the target type, after
+   * <code>_isCastAllowed</code> accepted the cast: the components the target
+   * type does not have are set to the defaults used for partial values (time
+   * 00:00:00, month and day 1, the reference year
+   * {@link XdmDateTimeValue#REFERENCE_YEAR}, December for xs:time and xs:gDay).
+   * The timezone is always kept. xs:dateTime and xs:dateTimeStamp return the
+   * payload unchanged.
+   *
+   * @throws IllegalArgumentException
+   *         if the target is not a date/time type
+   */
   @NonNull
   private static XdmDateTimeValue _castDateTime (@NonNull final XdmDateTimeValue aV, @NonNull final EAtomicType eTarget)
   {
@@ -434,6 +524,17 @@ public final class DateTimeOps
     }
   }
 
+  /**
+   * The date/time part of the casting table (F&amp;O 3.1 section 19.1): an
+   * xs:dateTime (or xs:dateTimeStamp) casts to every date/time type, an xs:date
+   * to every one except xs:time, and every other type only to itself.
+   *
+   * @param eSource
+   *        A date/time source type.
+   * @param eTarget
+   *        A date/time target type.
+   * @return <code>true</code> if the cast is allowed.
+   */
   private static boolean _isCastAllowed (@NonNull final EAtomicType eSource, @NonNull final EAtomicType eTarget)
   {
     switch (_primitive (eSource))

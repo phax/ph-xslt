@@ -184,6 +184,10 @@ public final class SchemaTypeOps
     }
   }
 
+  /**
+   * @return The EQName of a named type, "an anonymous type" otherwise; for
+   *         error messages.
+   */
   @NonNull
   private static String _describe (@NonNull final IXdmTypeDefinition aType)
   {

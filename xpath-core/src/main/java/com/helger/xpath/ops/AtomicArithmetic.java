@@ -57,12 +57,33 @@ public final class AtomicArithmetic
   private AtomicArithmetic ()
   {}
 
+  /**
+   * @return A new FOAR0001 "Division by zero" error, shared by all numeric
+   *         operators that divide.
+   */
   @NonNull
   private static XPathException _divByZero ()
   {
     return XPathException.of ("FOAR0001", "Division by zero");
   }
 
+  /**
+   * Arithmetic on two xs:integer operands (F&amp;O 3.1 section 4.2). The
+   * operands are unbounded, so <code>+</code>, <code>-</code> and
+   * <code>*</code> never overflow and return xs:integer. <code>div</code>
+   * returns an xs:decimal computed by {@link #divideDecimal}, as
+   * op:numeric-divide does for two integers. <code>idiv</code> truncates
+   * towards zero and <code>mod</code> keeps the sign of the dividend, both as
+   * xs:integer.
+   *
+   * @return The result, of the primitive type xs:integer or xs:decimal, never
+   *         of an integer subtype.
+   * @throws XPathException
+   *         FOAR0001 if <code>b</code> is zero for <code>div</code>,
+   *         <code>idiv</code> or <code>mod</code>.
+   * @throws IllegalArgumentException
+   *         if <code>eOp</code> is not an arithmetic operator
+   */
   @NonNull
   private static XdmAtomic _integerArithmetic (@NonNull final EBinaryOp eOp,
                                                @NonNull final BigInteger a,
@@ -93,6 +114,21 @@ public final class AtomicArithmetic
     }
   }
 
+  /**
+   * Exact arithmetic on two xs:decimal operands (F&amp;O 3.1 section 4.2), used
+   * when at least one operand is an xs:decimal and neither is a float or
+   * double. <code>+</code>, <code>-</code>, <code>*</code> and
+   * <code>mod</code> are exact; <code>div</code> uses {@link #divideDecimal};
+   * <code>idiv</code> truncates the quotient towards zero and returns an
+   * xs:integer; <code>mod</code> keeps the sign of the dividend.
+   *
+   * @return The result as xs:decimal, or xs:integer for <code>idiv</code>.
+   * @throws XPathException
+   *         FOAR0001 if <code>b</code> is zero for <code>div</code>,
+   *         <code>idiv</code> or <code>mod</code>.
+   * @throws IllegalArgumentException
+   *         if <code>eOp</code> is not an arithmetic operator
+   */
   @NonNull
   private static XdmAtomic _decimalArithmetic (@NonNull final EBinaryOp eOp,
                                                @NonNull final BigDecimal a,
@@ -124,6 +160,27 @@ public final class AtomicArithmetic
     }
   }
 
+  /**
+   * <code>idiv</code> on xs:double or xs:float operands
+   * (op:numeric-integer-divide, F&amp;O 3.1 section 4.2.5): the quotient
+   * already computed in the precision of the operand type is truncated
+   * towards zero. A finite dividend divided by an infinite divisor gives 0.
+   * The checks run in this order, so <code>NaN idiv 0</code> reports
+   * FOAR0002.
+   *
+   * @param a
+   *        Dividend.
+   * @param b
+   *        Divisor.
+   * @param dQuotient
+   *        <code>a div b</code> in the precision of the operand type (a float
+   *        quotient widened to double).
+   * @return The truncated quotient.
+   * @throws XPathException
+   *         FOAR0002 if an operand is NaN or the dividend is infinite,
+   *         FOAR0001 if the divisor is zero, FOAR0002 if the quotient
+   *         overflows to infinity.
+   */
   @NonNull
   private static BigInteger _floatingIntegerDivide (final double a, final double b, final double dQuotient)
   {
@@ -136,6 +193,16 @@ public final class AtomicArithmetic
     return AtomicCaster.truncateToBigInteger (dQuotient);
   }
 
+  /**
+   * IEEE 754 double arithmetic (F&amp;O 3.1 section 4.2): no error for
+   * division by zero or overflow, which give INF, -INF or NaN; <code>mod</code>
+   * is the truncated remainder with the sign of the dividend; <code>idiv</code>
+   * goes through {@link #_floatingIntegerDivide} and returns an xs:integer.
+   *
+   * @return The result as xs:double, or xs:integer for <code>idiv</code>.
+   * @throws IllegalArgumentException
+   *         if <code>eOp</code> is not an arithmetic operator
+   */
   @NonNull
   private static XdmAtomic _doubleArithmetic (@NonNull final EBinaryOp eOp, final double a, final double b)
   {
@@ -152,6 +219,17 @@ public final class AtomicArithmetic
     };
   }
 
+  /**
+   * Like {@link #_doubleArithmetic}, but every operation is done in single
+   * precision, so the result is rounded to xs:float once. For
+   * <code>idiv</code> the float quotient is checked, so a quotient that
+   * overflows the float range raises FOAR0002 even if it would fit into a
+   * double.
+   *
+   * @return The result as xs:float, or xs:integer for <code>idiv</code>.
+   * @throws IllegalArgumentException
+   *         if <code>eOp</code> is not an arithmetic operator
+   */
   @NonNull
   private static XdmAtomic _floatArithmetic (@NonNull final EBinaryOp eOp, final float a, final float b)
   {
@@ -167,6 +245,13 @@ public final class AtomicArithmetic
     };
   }
 
+  /**
+   * @param aValue
+   *        An xs:decimal or xs:integer (or integer subtype) value.
+   * @return The payload as {@link BigDecimal}; an integer payload is
+   *         converted exactly. Any other payload fails with a
+   *         {@link ClassCastException}.
+   */
   @NonNull
   private static BigDecimal _toBigDecimal (@NonNull final XdmAtomic aValue)
   {
@@ -176,6 +261,14 @@ public final class AtomicArithmetic
     return new BigDecimal ((BigInteger) aPayload);
   }
 
+  /**
+   * Numeric type promotion (XPath 3.1 appendix B.1) followed by the operator
+   * of the common type: xs:double if either operand is a double, else xs:float
+   * if either is a float, else xs:integer if both payloads are integers (any
+   * integer subtype counts as xs:integer), else xs:decimal.
+   *
+   * @return The result of the matching <code>_xxxArithmetic</code> method.
+   */
   @NonNull
   private static XdmAtomic _numericArithmetic (@NonNull final EBinaryOp eOp,
                                                @NonNull final XdmAtomic aLeft,
@@ -235,6 +328,15 @@ public final class AtomicArithmetic
   }
 
   /**
+   * Apply a binary arithmetic operator to two atomized operands (XPath 3.1
+   * section 3.5.1). An xs:untypedAtomic operand is still cast to xs:double
+   * here as a safety net. Two numeric operands go through numeric type
+   * promotion and the op:numeric-* operators (F&amp;O 3.1 section 4.2). If
+   * either operand is a date/time or duration value, the operation is
+   * delegated to {@link DateTimeOps#arithmetic}. Any other combination, or a
+   * date/time combination that {@link DateTimeOps} does not define, is a type
+   * error.
+   *
    * @param eOp
    *        ADD, SUBTRACT, MULTIPLY, DIVIDE, INTEGER_DIVIDE or MODULO.
    * @param aLeft
@@ -245,7 +347,10 @@ public final class AtomicArithmetic
    *        For the implicit timezone in date/time subtraction.
    * @return The result.
    * @throws com.helger.xpath.XPathException
-   *         XPTY0004 for operand types without that operator.
+   *         XPTY0004 for operand types without that operator, FOAR0001 for a
+   *         division by zero of integers or decimals, FOAR0002 for an
+   *         invalid floating point <code>idiv</code>, and the date/time
+   *         errors of {@link DateTimeOps#arithmetic}.
    */
   @NonNull
   public static XdmAtomic arithmetic (@NonNull final EBinaryOp eOp,

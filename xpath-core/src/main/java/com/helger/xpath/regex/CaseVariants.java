@@ -47,11 +47,20 @@ final class CaseVariants
   private CaseVariants ()
   {}
 
+  /**
+   * Lazily initialised table of the case variant classes, built on first use
+   * of {@link CaseVariants#getVariants(int)}.
+   */
   private static final class Holder
   {
     // For every code point with case variants: all members of its class
     static final ICommonsMap <Integer, int []> VARIANTS = _build ();
 
+    /**
+     * @return The simple case folding of the code point as
+     *         <code>lower(upper(c))</code> of the JDK; the Turkic U+0130 and
+     *         U+0131 fold to themselves.
+     */
     private static int _fold (final int c)
     {
       if (c == 0x130 || c == 0x131)
@@ -59,6 +68,16 @@ final class CaseVariants
       return Character.toLowerCase (Character.toUpperCase (c));
     }
 
+    /**
+     * Group all code points by their folding: every code point whose folding
+     * differs from itself joins the class of its folding, if neither is
+     * unassigned (<code>Cn</code>) in {@link UnicodeCategories}. Runs once
+     * over all code points, on first use of {@link #VARIANTS}.
+     *
+     * @return A map from every member of a class (the folding first, then the
+     *         other members in code point order) to the shared array of all
+     *         members. Code points without case variants are absent.
+     */
     @NonNull
     private static ICommonsMap <Integer, int []> _build ()
     {

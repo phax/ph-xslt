@@ -45,18 +45,28 @@ final class AnchorSet
     m_aNodes = aNodes;
   }
 
+  /** @return A new, modifiable empty set. */
   @NonNull
   static AnchorSet createEmpty ()
   {
     return new AnchorSet (false, new CommonsHashSet <> ());
   }
 
+  /**
+   * @return A new, modifiable set of all nodes (the complement of the empty
+   *         set).
+   */
   @NonNull
   static AnchorSet createAll ()
   {
     return new AnchorSet (true, new CommonsHashSet <> ());
   }
 
+  /**
+   * @param aExcluded
+   *        The nodes not in the set; copied.
+   * @return A new set of all nodes except the passed ones.
+   */
   @NonNull
   static AnchorSet createComplementOf (@NonNull final ICommonsSet <IXdmNode> aExcluded)
   {
@@ -80,6 +90,11 @@ final class AnchorSet
     return m_aNodes;
   }
 
+  /**
+   * @return <code>true</code> if this is a finite set without members. A
+   *         complement is never considered empty, even if it excludes every
+   *         node there is.
+   */
   boolean isDefinitelyEmpty ()
   {
     return !m_bComplement && m_aNodes.isEmpty ();
@@ -94,6 +109,12 @@ final class AnchorSet
       m_aNodes.add (aNode);
   }
 
+  /**
+   * @param aOther
+   *        The other set; not modified.
+   * @return A new set with the members of this set or the other one: finite
+   *         if both are finite, otherwise a complement.
+   */
   @NonNull
   AnchorSet getUnion (@NonNull final AnchorSet aOther)
   {
@@ -121,6 +142,12 @@ final class AnchorSet
     return new AnchorSet (true, aSet);
   }
 
+  /**
+   * @param aOther
+   *        The other set; not modified.
+   * @return A new set with the members of both this set and the other one:
+   *         a complement if both are complements, otherwise finite.
+   */
   @NonNull
   AnchorSet getIntersection (@NonNull final AnchorSet aOther)
   {
@@ -148,6 +175,13 @@ final class AnchorSet
     return new AnchorSet (false, aSet);
   }
 
+  /**
+   * @param aOther
+   *        The other set; not modified.
+   * @return A new set with the members of this set that are not in the other
+   *         one: a complement only if this is a complement and the other one
+   *         is finite, otherwise finite.
+   */
   @NonNull
   AnchorSet getDifference (@NonNull final AnchorSet aOther)
   {

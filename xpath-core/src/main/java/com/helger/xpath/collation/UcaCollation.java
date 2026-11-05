@@ -93,6 +93,34 @@ final class UcaCollation implements ICollation
   private final boolean m_bQuaternary;
   private final boolean m_bIdentical;
 
+  /**
+   * Create the collation from the parameters {@link #create(String)} parsed.
+   * The quaternary level is only built for alternate=shifted (or
+   * shift-trimmed) with strength 4 or 5, the identical level for strength 5.
+   * For any French locale the JDK root collator is used, because the only
+   * French tailoring of the JDK is the backwards secondary ordering, which
+   * is controlled by <code>bBackwards</code> instead.
+   *
+   * @param sUri
+   *        The collation URI as requested.
+   * @param aLocale
+   *        The locale of the <code>lang</code> parameter.
+   * @param nLevel
+   *        The strength, 1 (primary) to 5 (identical).
+   * @param bUpperFirst
+   *        <code>true</code> for caseFirst=upper.
+   * @param bCaseLevel
+   *        <code>true</code> for caseLevel=yes.
+   * @param bBackwards
+   *        <code>true</code> to compare the secondary level from the end.
+   * @param bNumeric
+   *        <code>true</code> for numeric=yes.
+   * @param nMaxVariable
+   *        0 for alternate=non-ignorable, otherwise the highest variable
+   *        group (1 space, 2 punctuation, 3 symbol, 4 currency).
+   * @param bBlanked
+   *        <code>true</code> for alternate=blanked (no quaternary level).
+   */
   private UcaCollation (@NonNull final String sUri,
                         @NonNull final Locale aLocale,
                         final int nLevel,
@@ -120,6 +148,11 @@ final class UcaCollation implements ICollation
     m_aTertiary = _createCollator (aJdkLocale, Collator.TERTIARY);
   }
 
+  /**
+   * @return A new JDK collator for the locale with the passed strength and
+   *         canonical decomposition, so canonically equivalent strings
+   *         compare equal.
+   */
   @NonNull
   private static Collator _createCollator (@NonNull final Locale aLocale, final int nStrength)
   {
@@ -160,12 +193,24 @@ final class UcaCollation implements ICollation
     }
   }
 
+  /**
+   * @return <code>true</code> if the code point belongs to a variable group
+   *         up to and including maxVariable, i.e. it is shifted or blanked.
+   *         Always <code>false</code> for alternate=non-ignorable.
+   */
   private boolean _isVariable (final int c)
   {
     final int nGroup = _getVariableGroup (c);
     return nGroup > 0 && nGroup <= m_nMaxVariable;
   }
 
+  /**
+   * The length prefix of a digit run for {@link #_numericTransform(String)}:
+   * a length up to 8 is its single decimal digit; a longer length is
+   * <code>9</code>, then (recursively) the prefix of the number of its
+   * digits, then the length itself, so longer runs always sort after shorter
+   * ones (9 gives <code>919</code>, 10 gives <code>9210</code>).
+   */
   @NonNull
   private static String _lengthPrefix (final int nLength)
   {
@@ -212,6 +257,11 @@ final class UcaCollation implements ICollation
     return aSB.toString ();
   }
 
+  /**
+   * @return The string without the variable characters (see
+   *         {@link #_isVariable(int)}), used for the levels below primary with
+   *         alternate=shifted/blanked.
+   */
   @NonNull
   private String _strip (@NonNull final String s)
   {
@@ -220,6 +270,10 @@ final class UcaCollation implements ICollation
     return aSB.toString ();
   }
 
+  /**
+   * @return The string with its code points in reverse order (surrogate pairs
+   *         stay intact), used for backwards=yes on the secondary level.
+   */
   @NonNull
   private static String _reverse (@NonNull final String s)
   {
@@ -303,6 +357,32 @@ final class UcaCollation implements ICollation
     _appendJavaPrimary (aList, s.substring (nSegmentStart));
   }
 
+  /**
+   * Build the collation key every comparison of this collation is based on.
+   * Units are 24-bit values and 0 is the level separator, so a string that
+   * is a prefix of another at some level sorts first. With numeric=yes the
+   * digit runs are rewritten first ({@link #_numericTransform(String)}). The
+   * levels, in order:
+   * <ul>
+   * <li>primary ({@link #_appendPrimary(IntList, String)}), always;</li>
+   * <li>if strength &gt;= 2 or caseLevel=yes: the JDK secondary key (empty
+   * below strength 2; of the reversed string with backwards=yes), then the
+   * case level with one unit per upper- or lower-case letter (upper before
+   * lower with caseFirst=upper, the other way round otherwise), present with
+   * caseLevel=yes or with caseFirst=upper at strength &gt;= 3, then the JDK
+   * tertiary key at strength &gt;= 3; with alternate=shifted/blanked these
+   * levels see the string without variable characters;</li>
+   * <li>the quaternary level of alternate=shifted at strength &gt;= 4: one
+   * unit per code point, the group and code point for a variable character
+   * and <code>0xFFFFFF</code> for every other one;</li>
+   * <li>the identical level at strength 5: the code points of the original
+   * string, each plus one.</li>
+   * </ul>
+   *
+   * @param sValue
+   *        The string.
+   * @return The key, compared unit by unit as unsigned values.
+   */
   @NonNull
   private int [] _getKey (@NonNull final String sValue)
   {
@@ -408,13 +488,27 @@ final class UcaCollation implements ICollation
   }
 
   /**
-   * Create a UCA collation from its URI.
+   * Create a UCA collation from its URI (F&amp;O 3.1 section 5.3.4). The query
+   * part is split at <code>;</code> into <code>keyword=value</code>
+   * parameters (a later duplicate keyword wins; a part without
+   * <code>=</code> has the empty value). The defaults are the root locale,
+   * strength tertiary, alternate=non-ignorable and fallback=yes.
+   * <code>lang</code> is read as a BCP 47 language tag; <code>version</code>
+   * is accepted but not applied; <code>reorder</code> and
+   * <code>normalization</code> are not applied (the JDK collators always
+   * decompose canonically). An unknown keyword or value, an unusable
+   * language, an implausible version and <code>reorder</code> are ignored
+   * with fallback=yes. Without an explicit <code>backwards</code> it is set
+   * for Canadian French. With alternate other than non-ignorable,
+   * maxVariable defaults to punct.
    *
    * @param sUri
    *        The full URI starting with {@link #UCA_URI}.
    * @return The collation.
    * @throws XPathException
-   *         FOCH0002 if a parameter is not supported and fallback=no
+   *         FOCH0002 if the fallback value is neither <code>yes</code> nor
+   *         <code>no</code>, or if a parameter is not supported and
+   *         fallback=no
    */
   @NonNull
   static UcaCollation create (@NonNull final String sUri)

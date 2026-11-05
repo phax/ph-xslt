@@ -103,6 +103,26 @@ final class RegexTranslator
   private final ICommonsList <Integer> m_aJavaGroups = new CommonsArrayList <> ();
   private final ICommonsList <Integer> m_aMarkerGroups = new CommonsArrayList <> ();
 
+  /**
+   * Prepare one translation pass: the pattern is split into code points and
+   * its capturing groups are counted up front (needed to decide how many
+   * digits a back-reference takes). The lists indexed by XPath group number
+   * get their entry 0 for the whole match.
+   *
+   * @param sPattern
+   *        The XPath regular expression.
+   * @param bCaseInsensitive
+   *        'i' flag
+   * @param bDotAll
+   *        's' flag
+   * @param bMultiLine
+   *        'm' flag
+   * @param bXsd11Classes
+   *        <code>true</code> for the XSD 1.1 character class grammar.
+   * @param aWithMarker
+   *        The XPath groups that get an empty marker group after them; empty
+   *        in the first pass.
+   */
   private RegexTranslator (@NonNull final String sPattern,
                            final boolean bCaseInsensitive,
                            final boolean bDotAll,
@@ -123,6 +143,11 @@ final class RegexTranslator
     m_aMarkerGroups.add (Integer.valueOf (0));
   }
 
+  /**
+   * @return The NCName start character ranges of {@link XmlNames} with the
+   *         range of the colon put in front, i.e. the XML NameStartChar
+   *         ranges for <code>\i</code>.
+   */
   @NonNull
   private static int [] _getNameStartRanges ()
   {
@@ -163,12 +188,20 @@ final class RegexTranslator
     return ret;
   }
 
+  /**
+   * @return A new FORX0002 error naming the whole pattern and the reason; the
+   *         caller throws it.
+   */
   @NonNull
   private XPathException _error (@NonNull final String sMessage)
   {
     return XPathException.of ("FORX0002", "Invalid regular expression '" + m_sPattern + "': " + sMessage);
   }
 
+  /**
+   * Append a code point as the Java escape <code>\x{HEX}</code> with
+   * upper-case hex digits, so no character needs Java-specific quoting.
+   */
   private static void _appendHex (@NonNull final StringBuilder aSB, final int c)
   {
     aSB.append ("\\x{").append (Integer.toHexString (c).toUpperCase (Locale.ROOT)).append ('}');
@@ -194,6 +227,10 @@ final class RegexTranslator
     }
   }
 
+  /**
+   * Append every (low, high) pair of a flat range array with
+   * {@link #appendRange(StringBuilder, int, int)}, without brackets.
+   */
   private static void _appendRanges (@NonNull final StringBuilder aSB, @NonNull final int [] aRanges)
   {
     for (int i = 0; i < aRanges.length; i += 2)
@@ -561,6 +598,10 @@ final class RegexTranslator
       _appendHex (m_aSB, c);
   }
 
+  /**
+   * @return <code>true</code> if the string is non-empty and consists of the
+   *         ASCII digits 0-9 only.
+   */
   private static boolean _isDigits (@NonNull final String s)
   {
     if (s.isEmpty ())
@@ -571,6 +612,10 @@ final class RegexTranslator
     return true;
   }
 
+  /**
+   * @return The digit string without leading zeros; a string of zeros only
+   *         keeps its last zero.
+   */
   @NonNull
   private static String _stripZeros (@NonNull final String s)
   {
@@ -682,6 +727,36 @@ final class RegexTranslator
       m_aSB.append (m_bCaseInsensitive ? "(?iu:\\" : "(?:\\").append (nJavaGroup).append (')');
   }
 
+  /**
+   * One pass over the whole pattern: validate it against the XPath regular
+   * expression grammar and append the Java translation to <code>m_aSB</code>.
+   * <ul>
+   * <li>Escapes: <code>\1</code>-<code>\9</code> start a back-reference;
+   * a single character escape is a literal; <code>\p</code>/<code>\P</code>
+   * and the multi-character escapes become a bracketed Java class (an empty
+   * block class matches nothing); <code>\0</code> and every other escape are
+   * rejected.</li>
+   * <li>Quantifiers <code>*</code>, <code>+</code>, <code>?</code> and
+   * <code>{...}</code> need a preceding atom and may not follow another
+   * quantifier, except one <code>?</code> that makes it reluctant.</li>
+   * <li>Groups: only <code>(...)</code> and <code>(?:...)</code> are allowed.
+   * Every capturing group records the enclosing capturing group and its Java
+   * group number; a group of <code>m_aWithMarker</code> is emitted as
+   * <code>(?:(...)())</code>, and the empty group is recorded as its
+   * marker.</li>
+   * <li><code>.</code> matches any character except #xA and #xD (all with
+   * the 's' flag); <code>^</code> and <code>$</code> get the F&amp;O meaning
+   * at the string start and end, with the 'm' flag also around newlines.</li>
+   * <li>Every other character is a literal, expanded to its case variants
+   * with the 'i' flag.</li>
+   * </ul>
+   * Nesting deeper than {@link #MAX_NESTING} groups is XPDY0130.
+   *
+   * @return The translation with the group tables of this pass.
+   * @throws XPathException
+   *         FORX0002 if the pattern is invalid, XPDY0130 if it is nested too
+   *         deeply
+   */
   @NonNull
   private Result _translate ()
   {
@@ -931,7 +1006,11 @@ final class RegexTranslator
   }
 
   /**
-   * Validate and translate an XPath regular expression.
+   * Validate and translate an XPath regular expression. If the pattern
+   * contains back-references, it is translated a second time with an empty
+   * marker group after each referenced group, so that a back-reference to a
+   * group that did not take part in the match matches the empty string
+   * (F&amp;O 3.1 section 5.6.1) instead of failing as in Java.
    *
    * @param sPattern
    *        The XPath regular expression (after 'x' processing).

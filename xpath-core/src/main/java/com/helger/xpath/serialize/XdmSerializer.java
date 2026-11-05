@@ -54,6 +54,19 @@ public final class XdmSerializer
   private XdmSerializer ()
   {}
 
+  /**
+   * Check the parameter combinations that are errors before anything is
+   * written. Only the xml and xhtml methods are checked; for the other methods
+   * nothing happens.
+   *
+   * @param aParams
+   *        The serialization parameters.
+   * @throws XPathException
+   *         SESU0013 for a version other than 1.0 or 1.1 (an absent version is
+   *         accepted); SEPM0009 if omit-xml-declaration is set together with a
+   *         standalone value other than omit, or together with a version other
+   *         than 1.0 and a doctype-system; SEPM0010 for undeclare-prefixes without XML 1.1
+   */
   static void checkParams (@NonNull final SerializationParams aParams)
   {
     final String sMethod = aParams.getMethod ();
@@ -73,6 +86,10 @@ public final class XdmSerializer
       throw XPathException.of ("SEPM0010", "undeclare-prefixes requires XML version 1.1");
   }
 
+  /**
+   * Move the collected text, if any, as one string to the output list and
+   * clear the buffer. Nothing is added for an empty buffer.
+   */
   private static void _flushText (@NonNull final StringBuilder aText, @NonNull final ICommonsList <Object> aOut)
   {
     if (aText.length () > 0)
@@ -191,6 +208,20 @@ public final class XdmSerializer
     });
   }
 
+  /**
+   * The text output method (Serialization 3.1 section 8) on a normalised
+   * sequence: the strings and the string values of element and text nodes are
+   * concatenated, comments and processing instructions are dropped, and the
+   * result goes through {@link #appendTextMethod}.
+   *
+   * @param aItems
+   *        The result of {@link #normalize}.
+   * @param aCharset
+   *        The output charset.
+   * @return The serialized text.
+   * @throws XPathException
+   *         SERE0008 for a character the encoding cannot represent
+   */
   @NonNull
   private static String _serializeText (@NonNull final ICommonsList <Object> aItems,
                                         @NonNull final OutputCharset aCharset)
@@ -224,6 +255,26 @@ public final class XdmSerializer
     JsonWriter.appendString (aSB, s, null, false);
   }
 
+  /**
+   * Check the parameters, write the byte order mark (as U+FEFF) if requested
+   * and dispatch to the writer of the output method. The xml, xhtml, html and
+   * text methods work on the normalised sequence (see {@link #normalize}),
+   * json and adaptive on the raw sequence.
+   *
+   * @param aSeq
+   *        The sequence to serialize.
+   * @param aParams
+   *        The serialization parameters.
+   * @param aSB
+   *        The buffer the output is appended to.
+   * @param aTarget
+   *        If not <code>null</code>, the markup writer moves the buffer
+   *        content to this writer in pieces while writing; the rest stays in
+   *        the buffer for the caller to write. Ignored by the other methods.
+   * @throws XPathException
+   *         SEPM0016 for an unknown method, and the errors of
+   *         {@link #checkParams} and of the method writers
+   */
   private static void _serialize (@NonNull final XdmSequence aSeq,
                                   @NonNull final SerializationParams aParams,
                                   @NonNull final StringBuilder aSB,

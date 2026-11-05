@@ -34,9 +34,9 @@ import com.helger.xpath.XPathException;
  * minutes.
  * <p>
  * Every value carries all seven components. Components a type does not have hold the reference
- * values of F&amp;O 3.1 section 10.4 (year 1972, month 12, day 31 for xs:time; month 1, day 1, ...
- * for the g* types), so values of one type compare correctly as instants. The type itself is not
- * part of the payload.
+ * values of F&amp;O 3.1 section 10.4 (year 1972, month 12, day 31 for xs:time; year 1972 and month
+ * 12 for xs:gDay; year 1972, month 1, day 1 as far as missing for the other g* types), so values
+ * of one type compare correctly as instants. The type itself is not part of the payload.
  *
  * @author Philip Helger
  */
@@ -60,6 +60,10 @@ public final class XdmDateTimeValue
   private final boolean m_bHasTimezone;
   private final int m_nTimezoneMinutes;
 
+  /**
+   * Store the components as they are, without any check; the callers validate. Without a timezone
+   * the stored offset is forced to 0, so that {@link #equals(Object)} does not depend on it.
+   */
   private XdmDateTimeValue (final long nYear,
                             final int nMonth,
                             final int nDay,
@@ -79,6 +83,14 @@ public final class XdmDateTimeValue
     m_nTimezoneMinutes = bHasTimezone ? nTimezoneMinutes : 0;
   }
 
+  /**
+   * @param aSecond
+   *        Seconds value.
+   * @return The same number without trailing fraction zeros and never with a negative scale (so
+   *         <code>5.500</code> becomes <code>5.5</code> and <code>30.0</code> becomes
+   *         <code>30</code>); zero is always {@link BigDecimal#ZERO}. This keeps
+   *         {@link #equals(Object)} and the lexical form independent of the input precision.
+   */
   @NonNull
   private static BigDecimal _normaliseSeconds (@NonNull final BigDecimal aSecond)
   {
@@ -93,6 +105,9 @@ public final class XdmDateTimeValue
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
   }
 
+  /**
+   * @return A new FORG0001 error naming the type and the lexical form; the caller throws it.
+   */
   @NonNull
   private static XPathException _invalid (@NonNull final EAtomicType eType, @NonNull final String sLexical)
   {
@@ -104,6 +119,10 @@ public final class XdmDateTimeValue
     return c >= '0' && c <= '9';
   }
 
+  /**
+   * @return The index after the run of ASCII digits starting at <code>nStart</code>;
+   *         <code>nStart</code> itself if there is no digit there.
+   */
   private static int _digitsFrom (@NonNull final String s, final int nStart)
   {
     int i = nStart;
@@ -112,11 +131,19 @@ public final class XdmDateTimeValue
     return i;
   }
 
+  /**
+   * @return <code>true</code> if the string has ASCII digits at positions <code>i</code> and
+   *         <code>i + 1</code>; what follows is not looked at.
+   */
   private static boolean _twoDigitsAt (@NonNull final String s, final int i)
   {
     return i + 2 <= s.length () && _isDigit (s.charAt (i)) && _isDigit (s.charAt (i + 1));
   }
 
+  /**
+   * @return The value of the two digits at <code>i</code>, which the caller has checked with
+   *         <code>_twoDigitsAt</code>.
+   */
   private static int _twoDigits (@NonNull final String s, final int i)
   {
     return (s.charAt (i) - '0') * 10 + (s.charAt (i + 1) - '0');
@@ -137,12 +164,21 @@ public final class XdmDateTimeValue
       m_eType = eType;
     }
 
+    /**
+     * @return A new FORG0001 error for the whole input; the caller throws it.
+     */
     @NonNull
     XPathException invalid ()
     {
       return _invalid (m_eType, m_s);
     }
 
+    /**
+     * Consume the given character.
+     *
+     * @throws XPathException
+     *         FORG0001 if the input ends or another character is at the current position
+     */
     void expect (final char c)
     {
       if (m_nPos >= m_s.length () || m_s.charAt (m_nPos) != c)
@@ -150,6 +186,13 @@ public final class XdmDateTimeValue
       m_nPos++;
     }
 
+    /**
+     * Consume exactly two digits; no range check is done here.
+     *
+     * @return Their value 0..99.
+     * @throws XPathException
+     *         FORG0001 if there are no two digits at the current position
+     */
     int twoDigits ()
     {
       if (!_twoDigitsAt (m_s, m_nPos))
@@ -159,6 +202,16 @@ public final class XdmDateTimeValue
       return ret;
     }
 
+    /**
+     * Consume a year (XSD 1.1 part 2 <code>yearFrag</code>): an optional minus sign and at least
+     * four digits, where a year of more than four digits must not start with <code>0</code>. Year
+     * <code>0000</code> is allowed.
+     *
+     * @return The astronomical year, negative after a minus sign.
+     * @throws XPathException
+     *         FORG0001 for fewer than four digits or a superfluous leading zero, FODT0001 for more
+     *         than nine digits
+     */
     long year ()
     {
       final int nStart = m_nPos;
@@ -179,6 +232,14 @@ public final class XdmDateTimeValue
       return Long.parseLong (m_s.substring (nStart, nEnd));
     }
 
+    /**
+     * Consume seconds: two digits, optionally followed by a dot and at least one digit. The range
+     * is checked by <code>_build</code>.
+     *
+     * @return The exact value as written.
+     * @throws XPathException
+     *         FORG0001 if the two digits are missing or the dot is not followed by a digit
+     */
     @NonNull
     BigDecimal seconds ()
     {
@@ -593,6 +654,9 @@ public final class XdmDateTimeValue
                                  aTimezoneMinutes == null ? 0 : aTimezoneMinutes.intValue ());
   }
 
+  /**
+   * @return The non-negative number with a leading zero if it is a single digit.
+   */
   @NonNull
   private static String _pad2 (final int n)
   {
@@ -630,6 +694,11 @@ public final class XdmDateTimeValue
     return (nMinutes < 0 ? "-" : "+") + _pad2 (nAbs / 60) + ":" + _pad2 (nAbs % 60);
   }
 
+  /**
+   * @return The seconds as two digits (with a leading zero), followed by the fraction exactly as
+   *         stored (normalised, so without trailing zeros) if there is one, e.g. <code>05</code> or
+   *         <code>05.25</code>.
+   */
   @NonNull
   private String _formatSeconds ()
   {
@@ -698,6 +767,11 @@ public final class XdmDateTimeValue
     return getEpochSeconds (nImplicitTimezoneMinutes).compareTo (aOther.getEpochSeconds (nImplicitTimezoneMinutes));
   }
 
+  /**
+   * Identity of the stored components, not equality of the XPath values: two values with the same
+   * instant in different timezones, or with and without a timezone, are different here. Use
+   * {@link #compareTo(XdmDateTimeValue, EAtomicType, int)} for the XPath <code>eq</code>.
+   */
   @Override
   public boolean equals (final Object o)
   {
@@ -729,6 +803,9 @@ public final class XdmDateTimeValue
     return ret * 31 + m_nTimezoneMinutes;
   }
 
+  /**
+   * @return The xs:dateTime lexical form, whatever the type of the value; for debugging only.
+   */
   @Override
   public String toString ()
   {

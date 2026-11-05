@@ -58,6 +58,11 @@ public final class CollationRegistry
       return CODEPOINT_URI;
     }
 
+    /**
+     * Compare by Unicode code point (F&amp;O 3.1 section 5.3.2): the first
+     * differing code point decides, otherwise the shorter string (a prefix of
+     * the other) is less.
+     */
     public int compare (final String sLeft, final String sRight)
     {
       // String.compareTo compares UTF-16 units; codepoint order differs for
@@ -101,9 +106,14 @@ public final class CollationRegistry
   };
 
   /**
-   * A collation that compares by code point after a case mapping that keeps
-   * the string length (so offsets into the mapped string are offsets into the
-   * original).
+   * A collation that compares by code point after a case mapping
+   * ({@link #fold(String)}); the collation key is the mapped string. Only the
+   * ASCII case-insensitive subclass matches substrings on the mapped strings,
+   * which is correct because its mapping keeps the string length (so offsets
+   * into the mapped string are offsets into the original). The full
+   * lower-casing of the case-blind collation can change the length (e.g.
+   * U+0130 becomes two chars), so it keeps the default substring matching of
+   * {@link ICollation} on the original strings.
    */
   private abstract static class AbstractFoldingCollation implements ICollation
   {
@@ -114,6 +124,11 @@ public final class CollationRegistry
       m_sUri = sUri;
     }
 
+    /**
+     * @param s
+     *        The string to map.
+     * @return The case-mapped string that is compared by code point.
+     */
     @NonNull
     protected abstract String fold (@NonNull String s);
 
@@ -149,6 +164,15 @@ public final class CollationRegistry
       super (sUri);
     }
 
+    /**
+     * Map the ASCII upper-case letters A-Z to a-z and leave every other char
+     * unchanged, so the length is kept.
+     *
+     * @param s
+     *        The string to map.
+     * @return The mapped string, the same instance if it has no ASCII
+     *         upper-case letter.
+     */
     @NonNull
     static String asciiFold (@NonNull final String s)
     {
@@ -241,11 +265,20 @@ public final class CollationRegistry
   }
 
   /**
+   * Look up a collation by its absolute URI, compared literally: the
+   * codepoint, HTML ASCII case-insensitive and QT3 case-blind collations are
+   * shared constants; the UCA URI with or without query parameters creates a
+   * UCA collation. UCA collations are cached by their full URI (parameter
+   * order and spelling matter); when the cache holds 256 entries it is emptied
+   * completely before the new one is added.
+   *
    * @param sUri
    *        Absolute collation URI.
    * @return The collation, never <code>null</code>.
    * @throws XPathException
-   *         FOCH0002 if the collation is not supported
+   *         FOCH0002 if the collation is not supported, or if a UCA
+   *         collation has an invalid <code>fallback</code> value or, with
+   *         <code>fallback=no</code>, a parameter that cannot be honoured
    */
   @NonNull
   public static ICollation getCollationOrThrow (@NonNull final String sUri)

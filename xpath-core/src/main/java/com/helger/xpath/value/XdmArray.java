@@ -58,11 +58,29 @@ public final class XdmArray implements IXdmItem
   // The type of all members if each is a single atomic value, otherwise null
   private final EAtomicType m_eMemberType;
 
+  /**
+   * Wrap a member array that nobody else references, without copying. The array
+   * is not shared for appending, and the uniform member type is computed with a
+   * pass over all members.
+   */
   private XdmArray (@NonNull final XdmSequence [] aMembers)
   {
     this (aMembers, aMembers.length, null, _getUniformMemberType (aMembers));
   }
 
+  /**
+   * @param aMembers
+   *        The backing array, used as it is; only the first <code>nSize</code>
+   *        slots belong to this array.
+   * @param nSize
+   *        The number of members.
+   * @param aClaimed
+   *        The counter of slots handed out from a backing array shared by
+   *        {@link #append(XdmSequence)}, or <code>null</code> if the backing
+   *        array is not shared.
+   * @param eMemberType
+   *        The uniform member type, see {@link #getUniformMemberType()}.
+   */
   private XdmArray (@NonNull final XdmSequence [] aMembers,
                     @Nonnegative final int nSize,
                     @Nullable final AtomicInteger aClaimed,
@@ -74,6 +92,13 @@ public final class XdmArray implements IXdmItem
     m_eMemberType = eMemberType;
   }
 
+  /**
+   * @param aMembers
+   *        All members (the whole array is inspected).
+   * @return The atomic type shared by all members if each member is a single
+   *         atomic value of exactly that type (no derivation is considered),
+   *         otherwise <code>null</code>; also <code>null</code> for no members.
+   */
   @Nullable
   private static EAtomicType _getUniformMemberType (@NonNull final XdmSequence [] aMembers)
   {
@@ -137,6 +162,14 @@ public final class XdmArray implements IXdmItem
     return m_nSize == 0;
   }
 
+  /**
+   * @param nIndex
+   *        0-based member index.
+   * @return The member at the index.
+   * @throws ArrayIndexOutOfBoundsException
+   *         if the index is negative or not below {@link #size()}; mapping this
+   *         to FOAY0001 is up to the caller
+   */
   @NonNull
   public XdmSequence get (@Nonnegative final int nIndex)
   {
@@ -156,6 +189,10 @@ public final class XdmArray implements IXdmItem
     return m_eMemberType;
   }
 
+  /**
+   * @return A new list with the members; use {@link #members()} to iterate
+   *         without copying.
+   */
   @NonNull
   @ReturnsMutableCopy
   public ICommonsList <XdmSequence> getAllMembers ()
@@ -276,11 +313,22 @@ public final class XdmArray implements IXdmItem
       this (8);
     }
 
+    /**
+     * @param nExpectedSize
+     *        The initial capacity; values below 1 are treated as 1.
+     */
     public Builder (@Nonnegative final int nExpectedSize)
     {
       m_aBuf = new XdmSequence [Math.max (nExpectedSize, 1)];
     }
 
+    /**
+     * Append one member, doubling the buffer when it is full.
+     *
+     * @param aMember
+     *        The member to append.
+     * @return this for chaining
+     */
     @NonNull
     public Builder add (@NonNull final XdmSequence aMember)
     {
@@ -291,6 +339,13 @@ public final class XdmArray implements IXdmItem
       return this;
     }
 
+    /**
+     * Append all members of an array, in order.
+     *
+     * @param aArray
+     *        The array whose members are appended.
+     * @return this for chaining
+     */
     @NonNull
     public Builder addAll (@NonNull final XdmArray aArray)
     {
@@ -305,6 +360,11 @@ public final class XdmArray implements IXdmItem
       return m_nSize;
     }
 
+    /**
+     * @return {@link XdmArray#EMPTY} if no member was added, otherwise a new
+     *         array over a copy of the buffer trimmed to the member count, with
+     *         the uniform member type computed.
+     */
     @NonNull
     public XdmArray build ()
     {

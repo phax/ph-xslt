@@ -44,6 +44,9 @@ import com.helger.xpath.xdm.schema.IXdmTypeDefinition;
 
 /**
  * fn:data and effective boolean value. Owner: atomic-values workstream.
+ * <p>
+ * Atomisation (XPath 3.1 section 2.4.2) with the typed value of nodes (dm:typed-value of XDM 3.1),
+ * the effective boolean value (XPath 3.1 section 2.4.3) and the string value of fn:string.
  *
  * @author Philip Helger
  */
@@ -56,6 +59,10 @@ public final class Atomizer
   private Atomizer ()
   {}
 
+  /**
+   * @return A short description of an item for error messages: "a map", "an array", "a function
+   *         item", or the simple class name for any other item.
+   */
   @NonNull
   private static String _describe (@NonNull final IXdmItem aItem)
   {
@@ -168,6 +175,19 @@ public final class Atomizer
     }
   }
 
+  /**
+   * Add the typed value of a node. For a node with a schema type, the schema component model is
+   * used if available ({@link #_addDefinitionTypedValue}); if it is missing or the value no longer
+   * validates, the built-in atomic base of the schema type is used
+   * ({@link #_addSchemaTypedValue}). Otherwise a node annotated with a built-in atomic type
+   * (<code>xs:*</code>) gets its string value cast to that type, without a namespace context.
+   * Every other node gets its string value, as xs:string for comments, processing instructions and
+   * namespace nodes and as xs:untypedAtomic for all other kinds.
+   *
+   * @throws XPathException
+   *         FOTY0012 for an element with element-only content (only with the schema component
+   *         model), or a cast error if the string value is not valid for the type.
+   */
   private static void _addTypedValue (@NonNull final IXdmNode aNode, final XdmSequence.@NonNull Builder aBuilder)
   {
     final XdmSchemaType aSchemaType = aNode.getSchemaType ();
@@ -197,6 +217,13 @@ public final class Atomizer
     });
   }
 
+  /**
+   * Add the atomised form of an item that is not an array: an atomic value itself, the typed value
+   * of a node.
+   *
+   * @throws XPathException
+   *         FOTY0013 for a map or a function item, and the errors of {@link #_addTypedValue}.
+   */
   private static void _atomizeNonArray (@NonNull final IXdmItem aItem, final XdmSequence.@NonNull Builder aBuilder)
   {
     if (aItem instanceof final XdmAtomic aAtomic)
@@ -277,8 +304,10 @@ public final class Atomizer
    * with a built-in atomic type; xs:string for comments, processing instructions and namespace
    * nodes; otherwise xs:untypedAtomic of the string value.
    * <p>
-   * The JDK validator does not tell element-only from mixed content, so an element with
-   * element-only content has the untyped string value instead of raising FOTY0012.
+   * Without the schema component model ({@link XdmSchemaType#getDefinition()} is
+   * <code>null</code>) the JDK validator does not tell element-only from mixed content, so an
+   * element with element-only content has the untyped string value instead of raising FOTY0012.
+   * With the schema component model FOTY0012 is raised for element-only content.
    *
    * @param aNode
    *        The node.

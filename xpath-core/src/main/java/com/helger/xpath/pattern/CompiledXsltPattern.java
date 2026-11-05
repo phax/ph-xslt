@@ -57,6 +57,21 @@ public final class CompiledXsltPattern implements XsltPattern
   private final List <CompiledXsltPattern> m_aAlternatives;
   private final Set <IExpr> m_aPositionalPredicates;
 
+  /**
+   * Create the pattern and collect, once, its positional predicates (see
+   * {@link #_collectPositionalPredicates(IExpr, Set)}) for the matcher.
+   *
+   * @param sSource
+   *        The pattern text as written.
+   * @param aExpr
+   *        The parsed pattern.
+   * @param dDefaultPriority
+   *        The default priority; for a top-level union the maximum of the
+   *        alternatives.
+   * @param aAlternatives
+   *        The patterns of the top-level union alternatives, empty if there
+   *        is no top-level union. Taken over, not copied.
+   */
   CompiledXsltPattern (@NonNull final String sSource,
                        @NonNull final IExpr aExpr,
                        final double dDefaultPriority,
@@ -74,6 +89,11 @@ public final class CompiledXsltPattern implements XsltPattern
   /**
    * Collect the axis-step predicates of the pattern that may depend on the
    * position or size of the focus.
+   * <p>
+   * The pattern tree is walked iteratively through set operators and the
+   * postfix expressions of parenthesised steps; a predicate is collected
+   * (by identity) if it calls <code>fn:position</code> or
+   * <code>fn:last</code> anywhere.
    */
   private static void _collectPositionalPredicates (@NonNull final IExpr aPattern, @NonNull final Set <IExpr> aOut)
   {
@@ -139,6 +159,25 @@ public final class CompiledXsltPattern implements XsltPattern
     return ExprWalker.containsFunction (m_aExpr, aFilter);
   }
 
+  /**
+   * Match an item (XSLT 3.0 section 5.5.3). The candidate becomes the current
+   * item. A plain <code>.</code> matches every item; a predicate pattern
+   * <code>.[...]</code> matches if the filter expression, evaluated with the
+   * item as context item at position 1 of 1, is non-empty. A selection pattern
+   * never matches an item that is not a node, and otherwise is decided by
+   * <code>PatternMatcher.matchesNode</code>.
+   * <p>
+   * A dynamic error makes the item not match (XSLT 3.0 section 5.5.4), except
+   * XTDE0640 and XPDY0130, which are rethrown, and a pending cancellation,
+   * which {@link DynamicContext#checkInterrupt()} raises instead. A stack
+   * overflow becomes XPDY0130.
+   *
+   * @param aItem
+   *        The candidate item.
+   * @param aCtx
+   *        Dynamic context for predicates and variable references.
+   * @return <code>true</code> if the item matches.
+   */
   public boolean matches (@NonNull final IXdmItem aItem, @NonNull final DynamicContext aCtx)
   {
     ValueEnforcer.notNull (aItem, "Item");

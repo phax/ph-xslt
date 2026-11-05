@@ -52,6 +52,11 @@ public final class XdmSequence implements Iterable <IXdmItem>
     m_aItems = aItems;
   }
 
+  /**
+   * @param aItem
+   *        The item.
+   * @return A new sequence with exactly this item.
+   */
   @NonNull
   public static XdmSequence of (@NonNull final IXdmItem aItem)
   {
@@ -143,6 +148,13 @@ public final class XdmSequence implements Iterable <IXdmItem>
     return m_aItems.length == 1;
   }
 
+  /**
+   * @param nIndex
+   *        0-based item index.
+   * @return The item at the index.
+   * @throws ArrayIndexOutOfBoundsException
+   *         if the index is negative or not below {@link #size()}
+   */
   @NonNull
   public IXdmItem get (@Nonnegative final int nIndex)
   {
@@ -179,6 +191,7 @@ public final class XdmSequence implements Iterable <IXdmItem>
     return new XdmSequence (Arrays.copyOfRange (m_aItems, nFrom, nTo));
   }
 
+  /** @return A new list with the items in sequence order. */
   @NonNull
   @ReturnsMutableCopy
   public ICommonsList <IXdmItem> getAsList ()
@@ -186,6 +199,10 @@ public final class XdmSequence implements Iterable <IXdmItem>
     return new CommonsArrayList <> (m_aItems);
   }
 
+  /**
+   * @return An iterator over the items in sequence order, reading the item
+   *         array directly; it does not support <code>remove</code>.
+   */
   @Override
   public Iterator <IXdmItem> iterator ()
   {
@@ -216,6 +233,15 @@ public final class XdmSequence implements Iterable <IXdmItem>
     private IXdmItem [] m_aBuf = new IXdmItem [8];
     private int m_nSize = 0;
 
+    /**
+     * Append one item, doubling the buffer when it is full. Unlike
+     * {@link XdmSequence#of(IXdmItem)} the item is not checked for
+     * <code>null</code>.
+     *
+     * @param aItem
+     *        The item to append.
+     * @return this for chaining
+     */
     @NonNull
     public Builder add (@NonNull final IXdmItem aItem)
     {
@@ -225,6 +251,13 @@ public final class XdmSequence implements Iterable <IXdmItem>
       return this;
     }
 
+    /**
+     * Append all items of a sequence, in order.
+     *
+     * @param aSeq
+     *        The sequence whose items are appended.
+     * @return this for chaining
+     */
     @NonNull
     public Builder addAll (@NonNull final XdmSequence aSeq)
     {
@@ -239,6 +272,11 @@ public final class XdmSequence implements Iterable <IXdmItem>
       return m_nSize;
     }
 
+    /**
+     * @return {@link XdmSequence#EMPTY} if no item was added, otherwise a new
+     *         sequence over a copy of the buffer trimmed to the item count. The
+     *         builder stays usable and does not affect the result.
+     */
     @NonNull
     public XdmSequence build ()
     {

@@ -496,6 +496,11 @@ final class UnicodeBlocks
     aMap.put (sName, new int [] { nLow, nHigh });
   }
 
+  /**
+   * @return A copy of the range of an XSD 1.0 block, for
+   *         <code>PrivateUse</code> extended by the two supplementary private
+   *         use areas U+F0000-U+FFFFD and U+100000-U+10FFFD.
+   */
   @NonNull
   private static int [] _withMore (@NonNull final String sName, @NonNull final int [] aRange)
   {
@@ -506,6 +511,13 @@ final class UnicodeBlocks
   }
 
   /**
+   * Look up a block by its exact (case-sensitive) name. An XSD 1.0 surrogate
+   * block (marked by the range -1) gives the empty array, and the legacy
+   * Unicode 3.1 names <code>Greek</code>, <code>CombiningMarksforSymbols</code>
+   * and <code>PrivateUse</code> keep their XSD 1.0 range. Otherwise the
+   * Unicode 15.0 block wins, and a name known only from XSD 1.0 falls back to
+   * its XSD 1.0 range.
+   *
    * @param sName
    *        Block name without the "Is" prefix.
    * @return The ranges of the block as pairs (low, high) in one array, an empty

@@ -66,6 +66,18 @@ final class OutputCharset
     }
   }
 
+  /**
+   * Resolve the encoding and the normalisation form of the parameters. For
+   * UTF-8, every other "UTF-" charset and GB18030, and for charsets Java can
+   * only decode, no encoder is kept and every character counts as
+   * representable (see {@link #canEncode(int)}).
+   *
+   * @param aParams
+   *        The serialization parameters. Kept for the character map look-ups.
+   * @throws XPathException
+   *         SESU0007 if the encoding is not supported; SESU0011 for a
+   *         normalization-form other than NFC, NFD, NFKC, NFKD or none
+   */
   OutputCharset (@NonNull final SerializationParams aParams)
   {
     m_aParams = aParams;
@@ -111,6 +123,15 @@ final class OutputCharset
     return m_aEncoder.canEncode ((char) nCodePoint);
   }
 
+  /**
+   * Apply the Unicode normalisation of the normalization-form parameter
+   * (the Unicode normalisation phase, Serialization 3.1 section 4).
+   *
+   * @param s
+   *        The text.
+   * @return The normalised text; the text itself for the form "none" or an
+   *         empty string.
+   */
   @NonNull
   String normalize (@NonNull final String s)
   {
@@ -139,6 +160,13 @@ final class OutputCharset
   @FunctionalInterface
   interface IEscaper
   {
+    /**
+     * @param aSB
+     *        Target.
+     * @param sRun
+     *        The already normalised characters to write, escaped as the output
+     *        method and the context require.
+     */
     void escape (@NonNull StringBuilder aSB, @NonNull String sRun);
   }
 

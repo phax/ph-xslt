@@ -95,6 +95,11 @@ public final class DateTimeIetfParser
     m_sLower = sInput.toLowerCase (Locale.ROOT);
   }
 
+  /**
+   * @param sMsg
+   *        What is wrong, appended to the quoted input.
+   * @return A new FORG0010 error for the input; the caller throws it.
+   */
   @NonNull
   private XPathException _error (@NonNull final String sMsg)
   {
@@ -106,11 +111,19 @@ public final class DateTimeIetfParser
     return m_nPos >= m_sInput.length ();
   }
 
+  /**
+   * @return The character at the current position without consuming it, or
+   *         <code>'\0'</code> at the end of the input.
+   */
   private char _peek ()
   {
     return m_nPos < m_sInput.length () ? m_sInput.charAt (m_nPos) : '\0';
   }
 
+  /**
+   * @return <code>true</code> for the whitespace characters of the grammar's
+   *         <code>S</code> (space, tab, line feed, carriage return).
+   */
   private static boolean _isSpace (final char c)
   {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
@@ -130,6 +143,12 @@ public final class DateTimeIetfParser
     return m_nPos > nStart;
   }
 
+  /**
+   * Consume the mandatory <code>S</code> of the grammar.
+   *
+   * @throws XPathException
+   *         FORG0010 if no whitespace is at the current position
+   */
   private void _requireSpace ()
   {
     if (!_skipSpace ())
@@ -164,6 +183,17 @@ public final class DateTimeIetfParser
     return i - m_nPos;
   }
 
+  /**
+   * Consume the complete run of ASCII digits at the current position and return
+   * its value. The run must have between <code>nMin</code> and
+   * <code>nMax</code> digits; a longer run is an error, it is not split.
+   *
+   * @param sWhat
+   *        The name of the field, for the error message.
+   * @throws XPathException
+   *         FORG0010 if the run length is outside the bounds (also when there
+   *         is no digit at all)
+   */
   private int _digits (final int nMin, final int nMax, @NonNull final String sWhat)
   {
     final int nRun = _digitRun ();
@@ -182,6 +212,13 @@ public final class DateTimeIetfParser
     return ret;
   }
 
+  /**
+   * Consume a <code>dsep</code>: whitespace, or a hyphen with optional
+   * whitespace around it.
+   *
+   * @throws XPathException
+   *         FORG0010 if there is neither whitespace nor a hyphen
+   */
   private void _dsep ()
   {
     final boolean bSpace = _skipSpace ();
@@ -195,6 +232,13 @@ public final class DateTimeIetfParser
         throw _error ("date separator expected");
   }
 
+  /**
+   * Consume a three-letter English month name (case-insensitive) and store its
+   * number 1..12.
+   *
+   * @throws XPathException
+   *         FORG0010 if no month name is at the current position
+   */
   private void _month ()
   {
     final int nIdx = _matchName (MONTH_NAMES);
@@ -203,6 +247,13 @@ public final class DateTimeIetfParser
     m_nMonth = nIdx + 1;
   }
 
+  /**
+   * Consume the year, which must be exactly two or four digits; 1900 is added
+   * to a two-digit year.
+   *
+   * @throws XPathException
+   *         FORG0010 for any other number of digits
+   */
   private void _year ()
   {
     final int nRun = _digitRun ();
@@ -299,6 +350,15 @@ public final class DateTimeIetfParser
       m_nPos = nBeforeComment;
   }
 
+  /**
+   * Consume <code>time</code>: one or two digit hours, a colon, two digit
+   * minutes, optionally a colon and two digit seconds with an optional fraction
+   * of at least one digit, then the optional timezone. Only the syntax is
+   * checked here, the ranges are checked by <code>_parse</code>.
+   *
+   * @throws XPathException
+   *         FORG0010 on a syntax error
+   */
   private void _time ()
   {
     m_nHour = _digits (1, 2, "hours");
@@ -323,6 +383,21 @@ public final class DateTimeIetfParser
     _optionalTimezone ();
   }
 
+  /**
+   * Parse the whole input: optional leading whitespace, an optional day name
+   * (which is not checked against the date) with optional comma and mandatory
+   * whitespace, then either <code>datespec S time</code> (when a digit follows)
+   * or <code>asctime</code>, then optional trailing whitespace. After the
+   * syntax the day is checked against the month length and the time against
+   * 0..23:59:59.999...; <code>24:00</code> or <code>24:00:00</code> (with zero
+   * seconds) is accepted and becomes 00:00:00 of the next day. Without a
+   * timezone the offset stays 0 (UTC).
+   *
+   * @return The xs:dateTime payload, always with a timezone.
+   * @throws XPathException
+   *         FORG0010 on a syntax error, trailing content or a value out of
+   *         range
+   */
   @NonNull
   private XdmDateTimeValue _parse ()
   {
