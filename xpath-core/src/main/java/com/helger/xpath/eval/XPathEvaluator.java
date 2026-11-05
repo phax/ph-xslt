@@ -94,6 +94,11 @@ public final class XPathEvaluator
     return Atomizer.getEffectiveBooleanValue (aSeq);
   }
 
+  /**
+   * @return The context item of the focus, never <code>null</code>.
+   * @throws XPathException
+   *         XPDY0002 if the context item is absent
+   */
   @NonNull
   private static IXdmItem _getContextItem (@NonNull final DynamicContext aCtx)
   {
@@ -103,6 +108,10 @@ public final class XPathEvaluator
     return ret;
   }
 
+  /**
+   * @return The string value of an atomic value as <code>fn:string</code> gives it: the string
+   *         itself for string-like values, the canonical lexical form otherwise.
+   */
   @NonNull
   private static String _getStringValue (@NonNull final XdmAtomic aValue)
   {
@@ -221,6 +230,14 @@ public final class XPathEvaluator
     return aBuilder.build ();
   }
 
+  /**
+   * Apply the predicates one after the other (XPath 3.1 sections 3.2.1 and 3.3.3), each to the
+   * complete result of the one before, so that the positions of each predicate count within that
+   * result.
+   *
+   * @return The items that pass all predicates in their current order; the input itself without
+   *         predicates.
+   */
   @NonNull
   private static XdmSequence _applyPredicates (@NonNull final XdmSequence aSeq,
                                                @NonNull final List <IExpr> aPredicates,
@@ -278,6 +295,11 @@ public final class XPathEvaluator
     return aTest.name ();
   }
 
+  /**
+   * @return The exact element name of a <code>descendant</code> or
+   *         <code>descendant-or-self</code> step, which the name index of a document can answer;
+   *         <code>null</code> for any other axis or a test that is no exact name test.
+   */
   @Nullable
   private static XdmQName _getIndexableName (final IExpr.@NonNull StepExpr aStep)
   {
@@ -334,6 +356,14 @@ public final class XPathEvaluator
     return ret;
   }
 
+  /**
+   * @param sCode
+   *        The error code if the item is not a node: XPTY0019 for the result of a previous step,
+   *        XPTY0020 for the context item of the first step.
+   * @return The item as node.
+   * @throws XPathException
+   *         with <code>sCode</code> if the item is not a node
+   */
   @NonNull
   private static IXdmNode _getStepContextNode (@NonNull final IXdmItem aItem, @NonNull final String sCode)
   {
@@ -412,7 +442,7 @@ public final class XPathEvaluator
    * <code>//@N</code>) with an exact name N from many context nodes at once,
    * through the attribute index of their document. Only for predicates that
    * select the same nodes whatever the context position is, as for
-   * {@link #_applyIndexedStep}.
+   * {@link #_getIndexedCandidates(IExpr.StepExpr, XdmSequence, DynamicContext)}.
    *
    * @return The selected attributes in document order, or <code>null</code> if
    *         the index cannot be used.
@@ -565,6 +595,12 @@ public final class XPathEvaluator
     return aCurrent;
   }
 
+  /**
+   * Evaluate a whole path expression (XPath 3.1 section 3.3) with all its steps.
+   *
+   * @return The result of the last step: nodes in document order without duplicates, or, for a
+   *         last step that is a postfix expression yielding no nodes, its items in their order.
+   */
   @NonNull
   private static XdmSequence _evalPath (final IExpr.@NonNull PathExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -735,6 +771,12 @@ public final class XPathEvaluator
     return !evaluateInternal (aExpr, aCtx).isEmpty ();
   }
 
+  /**
+   * A variable reference (XPath 3.1 section 3.1.2): the value bound in the dynamic context.
+   *
+   * @throws XPathException
+   *         XPDY0002 if no value is bound to the name
+   */
   @NonNull
   private static XdmSequence _evalVarRef (final IExpr.@NonNull VarRefExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -744,6 +786,11 @@ public final class XPathEvaluator
     return ret;
   }
 
+  /**
+   * @return <code>true</code> if one of the arguments is an argument placeholder
+   *         (<code>?</code>), which makes the call a partial function application (XPath 3.1
+   *         section 3.1.5.1).
+   */
   private static boolean _hasPlaceholder (@NonNull final List <IExpr> aArgs)
   {
     for (final IExpr aArg : aArgs)
@@ -800,6 +847,19 @@ public final class XPathEvaluator
     return null;
   }
 
+  /**
+   * A static function call (XPath 3.1 section 3.1.5). The function is resolved by name and arity
+   * in the static context. With an argument placeholder the result is a partially applied
+   * {@link BuiltInFunctionItem}. A one-argument call of <code>fn:exists</code>,
+   * <code>fn:empty</code>, <code>fn:boolean</code> or <code>fn:not</code> is answered with early
+   * exit. Otherwise every argument is evaluated, converted to its parameter type with the function
+   * conversion rules (including the XPath 1.0 compatibility conversions) and the implementation is
+   * invoked.
+   *
+   * @throws XPathException
+   *         XPST0017 (from the function lookup) if no function of that name and arity exists;
+   *         XPTY0004 or another conversion error for an argument that does not match its type
+   */
   @NonNull
   private static XdmSequence _evalFunctionCall (final IExpr.@NonNull FunctionCallExpr aExpr,
                                                 @NonNull final DynamicContext aCtx)
@@ -826,6 +886,16 @@ public final class XPathEvaluator
     return XPathOperators.invokeBuiltIn (aDef, aCtx, aArgs);
   }
 
+  /**
+   * A dynamic function call (XPath 3.1 section 3.2.2): the base expression must give exactly one
+   * function item (a map or an array counts as a function of arity one) whose arity is the number
+   * of arguments. With an argument placeholder the function is partially applied; otherwise the
+   * arguments are evaluated and passed to
+   * {@link #callFunction(DynamicContext, IXdmItem, List)}, which converts them.
+   *
+   * @throws XPathException
+   *         XPTY0004 if the base is not a single item, not a function item, or of another arity
+   */
   @NonNull
   private static XdmSequence _evalDynamicCall (final IExpr.@NonNull DynamicCallExpr aExpr,
                                                @NonNull final DynamicContext aCtx)
@@ -855,6 +925,16 @@ public final class XPathEvaluator
     return callFunction (aCtx, aFuncItem, aArgs);
   }
 
+  /**
+   * One operand of a range expression <code>a to b</code> (XPath 3.1 section 3.4.1): atomised,
+   * an <code>xs:untypedAtomic</code> value cast to <code>xs:integer</code>, and then required to
+   * be of an integer type.
+   *
+   * @return The integer value, or <code>null</code> for the empty sequence.
+   * @throws XPathException
+   *         XPTY0004 for more than one item or a value that is no integer (<code>1.0</code> and
+   *         <code>1e0</code> included); FORG0001 for an untyped value that is no valid integer
+   */
   @Nullable
   private static BigInteger _getRangeOperand (@NonNull final XdmSequence aSeq, @NonNull final DynamicContext aCtx)
   {
@@ -868,6 +948,11 @@ public final class XPathEvaluator
     return aValue.getBigInteger ();
   }
 
+  /**
+   * @return The general comparison operator with the operands swapped (<code>&lt;</code> becomes
+   *         <code>&gt;</code>, <code>&lt;=</code> becomes <code>&gt;=</code> and vice versa);
+   *         <code>=</code>, <code>!=</code> and every other operator are returned unchanged.
+   */
   @NonNull
   private static EComparisonOp _swapGeneralOp (@NonNull final EComparisonOp eOp)
   {
@@ -986,6 +1071,15 @@ public final class XPathEvaluator
     return FALSE_SEQ;
   }
 
+  /**
+   * A value, general or node comparison (XPath 3.1 section 3.7). A general comparison with a range
+   * expression as one operand is first tried without materialising the range
+   * ({@link #_evalRangeComparison(EComparisonOp, IExpr.RangeExpr, XdmSequence, DynamicContext)});
+   * not in XPath 1.0 compatibility mode, which has its own general comparison rules. Everything
+   * else goes to
+   * {@link XPathOperators#compare(EComparisonOp, XdmSequence, XdmSequence, DynamicContext)}. The
+   * left operand is evaluated before the right one.
+   */
   @NonNull
   private static XdmSequence _evalComparison (final IExpr.@NonNull ComparisonExpr aExpr,
                                               @NonNull final DynamicContext aCtx)
@@ -1021,6 +1115,13 @@ public final class XPathEvaluator
     return XPathOperators.compare (aExpr.op (), aLeft, aRight, aCtx);
   }
 
+  /**
+   * A logical (XPath 3.1 section 3.8) or arithmetic (section 3.5) expression. <code>and</code>
+   * and <code>or</code> take the effective boolean value of the operands left to right, each with
+   * early exit, and do not evaluate the right operand once the left one decides the result. An
+   * arithmetic operator evaluates both operands and applies
+   * {@link XPathOperators#arithmetic(EBinaryOp, XdmSequence, XdmSequence, DynamicContext)}.
+   */
   @NonNull
   private static XdmSequence _evalBinary (final IExpr.@NonNull BinaryExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1041,6 +1142,15 @@ public final class XPathEvaluator
     return XPathOperators.unaryArithmetic (aExpr.negate (), evaluateInternal (aExpr.operand (), aCtx), aCtx);
   }
 
+  /**
+   * The string concatenation <code>a || b || ...</code> (XPath 3.1 section 3.6): each operand is
+   * atomised, an empty operand counts as the zero-length string, and the string values are joined.
+   *
+   * @return A single <code>xs:string</code>.
+   * @throws XPathException
+   *         XPTY0004 if an operand atomises to more than one item; FOTY0013 for a map or function
+   *         item
+   */
   @NonNull
   private static XdmSequence _evalStringConcat (final IExpr.@NonNull StringConcatExpr aExpr,
                                                 @NonNull final DynamicContext aCtx)
@@ -1055,6 +1165,13 @@ public final class XPathEvaluator
     return XdmSequence.of (XdmAtomic.string (aSB.toString ()));
   }
 
+  /**
+   * @param sOp
+   *        The operator name for the message.
+   * @return The sequence itself if all items are nodes.
+   * @throws XPathException
+   *         XPTY0004 for any item that is not a node
+   */
   @NonNull
   private static XdmSequence _checkNodes (@NonNull final XdmSequence aSeq, @NonNull final String sOp)
   {
@@ -1064,6 +1181,14 @@ public final class XPathEvaluator
     return aSeq;
   }
 
+  /**
+   * <code>union</code>, <code>intersect</code> and <code>except</code> (XPath 3.1 section 3.4.2)
+   * on node identity: both operands must be node sequences, the result is in document order
+   * without duplicates.
+   *
+   * @throws XPathException
+   *         XPTY0004 if an operand holds an item that is not a node
+   */
   @NonNull
   private static XdmSequence _evalSet (final IExpr.@NonNull SetExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1084,6 +1209,15 @@ public final class XPathEvaluator
     return NodeSorter.sortAndDeduplicate (aBuilder.build ());
   }
 
+  /**
+   * The range expression <code>a to b</code> (XPath 3.1 section 3.4.1), materialised as a
+   * sequence of <code>xs:integer</code> values in ascending order. An empty operand or
+   * <code>a &gt; b</code> gives the empty sequence. Interrupts are checked every 4096 items.
+   *
+   * @throws XPathException
+   *         XPDY0130 if the range has more than {@link #MAX_RANGE_SIZE} items; the operand errors
+   *         of {@link #_getRangeOperand(XdmSequence, DynamicContext)}
+   */
   @NonNull
   private static XdmSequence _evalRange (final IExpr.@NonNull RangeExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1118,6 +1252,12 @@ public final class XPathEvaluator
     return aBuilder.build ();
   }
 
+  /**
+   * @return The value to bind to a variable: unchanged without a declared type, otherwise
+   *         converted to the declared type with the function conversion rules.
+   * @throws XPathException
+   *         XPTY0004 or another conversion error if the value does not match the declared type
+   */
   @NonNull
   private static XdmSequence _bindingValue (final IExpr.@NonNull Binding aBinding,
                                             @NonNull final XdmSequence aValue,
@@ -1128,6 +1268,18 @@ public final class XPathEvaluator
     return SequenceTypeMatcher.convert (aValue, aBinding.type (), aCtx, "XPTY0004");
   }
 
+  /**
+   * The <code>for</code> expression (XPath 3.1 section 3.9) from the binding at
+   * <code>nIndex</code> on: the binding sequence is evaluated in the context of the outer
+   * variables, and for each of its items in order the variable is bound to that item and the next
+   * binding (finally the return expression) is evaluated. The recursion depth is the number of
+   * bindings in the expression.
+   *
+   * @param nIndex
+   *        The 0-based index of the binding to iterate; the size of the list evaluates the body.
+   * @param aOut
+   *        Receives the results of the return expression in iteration order.
+   */
   private static void _evalFor (@NonNull final List <IExpr.Binding> aBindings,
                                 final int nIndex,
                                 @NonNull final IExpr aBody,
@@ -1149,6 +1301,15 @@ public final class XPathEvaluator
     }
   }
 
+  /**
+   * The quantified expression <code>some</code>/<code>every</code> (XPath 3.1 section 3.13) from
+   * the binding at <code>nIndex</code> on, over all combinations of the binding items in order.
+   * <code>some</code> stops at the first combination whose test is true, <code>every</code> at
+   * the first one whose test is false, so later combinations and their errors are not evaluated.
+   *
+   * @return For <code>some</code> <code>false</code>, for <code>every</code> <code>true</code>
+   *         if no combination decides it (also for an empty binding sequence).
+   */
   private static boolean _evalQuantified (final IExpr.@NonNull QuantifiedExpr aExpr,
                                           final int nIndex,
                                           @NonNull final DynamicContext aCtx)
@@ -1171,6 +1332,11 @@ public final class XPathEvaluator
     return bEvery;
   }
 
+  /**
+   * The <code>let</code> expression (XPath 3.1 section 3.10): the bindings are evaluated eagerly
+   * in order, each seeing the variables bound before it, then the return expression is evaluated
+   * with all of them.
+   */
   @NonNull
   private static XdmSequence _evalLet (final IExpr.@NonNull LetExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1181,6 +1347,12 @@ public final class XPathEvaluator
     return evaluateInternal (aExpr.body (), aCur);
   }
 
+  /**
+   * The simple map operator <code>a ! b ! ...</code> (XPath 3.1 section 3.15): each step is
+   * evaluated once per item of the result before it, with that item, its position and the size
+   * as focus, and the results are concatenated in order. Unlike a path, nothing is sorted or
+   * deduplicated and atomic values are allowed.
+   */
   @NonNull
   private static XdmSequence _evalSimpleMap (final IExpr.@NonNull SimpleMapExpr aExpr,
                                              @NonNull final DynamicContext aCtx)
@@ -1202,6 +1374,12 @@ public final class XPathEvaluator
     return aCur;
   }
 
+  /**
+   * <code>cast as</code> (XPath 3.1 section 3.14.2) or <code>castable as</code> (section 3.14.3),
+   * delegated to {@link XPathOperators}.
+   *
+   * @return The cast value, or for <code>castable as</code> a single boolean.
+   */
   @NonNull
   private static XdmSequence _evalCast (final IExpr.@NonNull CastExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1211,6 +1389,15 @@ public final class XPathEvaluator
     return XPathOperators.cast (aValue, aExpr.type (), aCtx);
   }
 
+  /**
+   * The map constructor <code>map { k : v, ... }</code> (XPath 3.1 section 3.11.1.1): the entries
+   * are evaluated in order, each key atomised to exactly one atomic value.
+   *
+   * @return A single map.
+   * @throws XPathException
+   *         XPTY0004 if a key is not exactly one atomic value after atomisation; XQDY0137 if two
+   *         keys are the same key (<code>op:same-key</code>)
+   */
   @NonNull
   private static XdmSequence _evalMapConstructor (final IExpr.@NonNull MapConstructorExpr aExpr,
                                                   @NonNull final DynamicContext aCtx)
@@ -1231,6 +1418,13 @@ public final class XPathEvaluator
     return XdmSequence.of (aMap.build ());
   }
 
+  /**
+   * The array constructors (XPath 3.1 section 3.11.2): the square form <code>[a, b]</code> makes
+   * the value of each expression one member; the curly form <code>array { a, b }</code> makes each
+   * item of the concatenated values one member.
+   *
+   * @return A single array.
+   */
   @NonNull
   private static XdmSequence _evalArrayConstructor (final IExpr.@NonNull ArrayConstructorExpr aExpr,
                                                     @NonNull final DynamicContext aCtx)
@@ -1250,6 +1444,16 @@ public final class XPathEvaluator
     return XdmSequence.of (XdmArray.of (aMembers));
   }
 
+  /**
+   * The member of an array at a 1-based position given as an atomic key, as an array lookup or a
+   * call of an array as function does it. An <code>xs:untypedAtomic</code> key is cast to
+   * <code>xs:integer</code> first.
+   *
+   * @return The member (a sequence of any length).
+   * @throws XPathException
+   *         XPTY0004 if the key is not of an integer type; FORG0001 for an untyped key that is no
+   *         valid integer; FOAY0001 if the position is less than 1 or greater than the size
+   */
   @NonNull
   private static XdmSequence _getArrayMember (@NonNull final XdmArray aArray,
                                               @NonNull final XdmAtomic aKey,
@@ -1267,6 +1471,18 @@ public final class XPathEvaluator
     return aArray.get (aBigIndex.intValue () - 1);
   }
 
+  /**
+   * The lookup operator (XPath 3.1 section 3.11.3): postfix <code>E?K</code> with a base
+   * expression, unary <code>?K</code> on the context item without one. The key specifier is
+   * atomised once; a wildcard (<code>?*</code>, no key expression) selects all values of a map (in
+   * the map's iteration order) or all members of an array (in order). For each base item in order,
+   * each key is looked up: a key absent from a map contributes nothing, an array is indexed with
+   * {@link #_getArrayMember(XdmArray, XdmAtomic, DynamicContext)}. The results are concatenated.
+   *
+   * @throws XPathException
+   *         XPTY0004 if a base item is neither a map nor an array; XPDY0002 for a unary lookup
+   *         without context item; the array index errors
+   */
   @NonNull
   private static XdmSequence _evalLookup (final IExpr.@NonNull LookupExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1310,6 +1526,10 @@ public final class XPathEvaluator
     return aBuilder.build ();
   }
 
+  /**
+   * The comma operator and parenthesised expressions (XPath 3.1 sections 3.1.3 and 3.4.1): the
+   * values of the items are concatenated in order; a single item is evaluated directly.
+   */
   @NonNull
   private static XdmSequence _evalSequence (final IExpr.@NonNull SequenceExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1330,6 +1550,13 @@ public final class XPathEvaluator
     return aBuilder.build ();
   }
 
+  /**
+   * <code>treat as</code> (XPath 3.1 section 3.14.5): the value is returned unchanged if it
+   * matches the sequence type, without any conversion.
+   *
+   * @throws XPathException
+   *         XPDY0050 if the value does not match the type
+   */
   @NonNull
   private static XdmSequence _evalTreat (final IExpr.@NonNull TreatExpr aExpr, @NonNull final DynamicContext aCtx)
   {
@@ -1340,6 +1567,15 @@ public final class XPathEvaluator
     return aValue;
   }
 
+  /**
+   * A named function reference <code>name#arity</code> (XPath 3.1 section 3.1.6): a
+   * {@link BuiltInFunctionItem} for the function of that name and arity. A focus-dependent
+   * function (such as <code>fn:name#0</code>) captures the current dynamic context, so that it is
+   * evaluated later with the focus of the reference.
+   *
+   * @throws XPathException
+   *         XPST0017 (from the function lookup) if no function of that name and arity exists
+   */
   @NonNull
   private static XdmSequence _evalNamedFunctionRef (final IExpr.@NonNull NamedFunctionRefExpr aExpr,
                                                     @NonNull final DynamicContext aCtx)

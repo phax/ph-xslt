@@ -112,6 +112,13 @@ public final class XPathOperators
     return (XdmAtomic) aAtoms.get (0);
   }
 
+  /**
+   * The operand conversion of arithmetic (XPath 3.1 section 3.5): an <code>xs:untypedAtomic</code>
+   * value is cast to <code>xs:double</code>, any other value is returned unchanged.
+   *
+   * @throws XPathException
+   *         FORG0001 if the untyped value is not a valid <code>xs:double</code> lexical form
+   */
   @NonNull
   static XdmAtomic untypedToDouble (@NonNull final XdmAtomic aValue, @NonNull final DynamicContext aCtx)
   {
@@ -273,6 +280,18 @@ public final class XPathOperators
     return aValue;
   }
 
+  /**
+   * Cast to one of the built-in list types (<code>xs:IDREFS</code>, <code>xs:NMTOKENS</code>,
+   * <code>xs:ENTITIES</code>, XPath 3.1 section 3.14.2): the string value is split at XML
+   * whitespace and each token is cast to the item type of the list.
+   *
+   * @param eItemType
+   *        The item type of the list, e.g. <code>xs:IDREF</code> for <code>xs:IDREFS</code>.
+   * @return The sequence of the cast tokens, at least one item.
+   * @throws XPathException
+   *         XPTY0004 if the value is neither of a string type nor untyped; FORG0001 if the value
+   *         holds no token or a token is not valid for the item type
+   */
   @NonNull
   private static XdmSequence _castToList (@NonNull final XdmAtomic aValue,
                                           @NonNull final EAtomicType eItemType,
@@ -290,6 +309,15 @@ public final class XPathOperators
     return aBuilder.build ();
   }
 
+  /**
+   * Cast one atomic value to a built-in atomic type. The union target <code>xs:numeric</code>
+   * keeps a numeric value as it is and casts anything else to <code>xs:double</code>, its first
+   * member type.
+   *
+   * @throws XPathException
+   *         if the cast is not allowed (XPTY0004) or the value is not valid for the target type
+   *         (FORG0001 and the other cast errors of F&amp;O 3.1 section 19)
+   */
   @NonNull
   private static XdmAtomic _castAtomic (@NonNull final XdmAtomic aValue,
                                         @NonNull final EAtomicType eTarget,
@@ -305,6 +333,13 @@ public final class XPathOperators
     return AtomicCaster.cast (aValue, eTarget, aCtx.getStaticContext ());
   }
 
+  /**
+   * The castable counterpart of {@link #_castAtomic(XdmAtomic, EAtomicType, DynamicContext)}: a
+   * numeric value is always castable to <code>xs:numeric</code>, anything else if it is castable
+   * to <code>xs:double</code>.
+   *
+   * @return <code>true</code> if the cast would succeed.
+   */
   private static boolean _isCastable (@NonNull final XdmAtomic aValue,
                                       @NonNull final EAtomicType eTarget,
                                       @NonNull final DynamicContext aCtx)
@@ -407,6 +442,12 @@ public final class XPathOperators
     return XdmSequence.of (_castAtomic (aAtomic, eTarget, aCtx));
   }
 
+  /**
+   * The name of a function for an error message: the conventional prefixes <code>fn:</code>,
+   * <code>math:</code>, <code>map:</code> and <code>array:</code> for the standard namespaces, the
+   * EQName (<code>Q{uri}local</code>) for any other namespace, and "function item" for an
+   * anonymous function (<code>null</code>).
+   */
   @NonNull
   private static String _functionDisplayName (@Nullable final XdmQName aName)
   {

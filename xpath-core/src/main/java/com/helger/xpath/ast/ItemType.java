@@ -105,8 +105,14 @@ public record ItemType (@NonNull Kind kind,
     this (kind, atomicType, nodeTest, wildcard, paramTypes, returnType, mapKeyType, valueType, null);
   }
 
+  /** <code>item()</code> */
   public static final ItemType ITEM = new ItemType (Kind.ITEM, null, null, false, null, null, null, null);
 
+  /**
+   * @param eType
+   *        The built-in atomic type.
+   * @return An atomic item type without a user-defined schema type.
+   */
   @NonNull
   public static ItemType atomic (@NonNull final EAtomicType eType)
   {
@@ -127,6 +133,11 @@ public record ItemType (@NonNull Kind kind,
     return new ItemType (Kind.ATOMIC, eBuiltin, null, false, null, null, null, null, aSchemaType);
   }
 
+  /**
+   * @param aTest
+   *        The kind test.
+   * @return A node item type.
+   */
   @NonNull
   public static ItemType node (@NonNull final NodeTest aTest)
   {

@@ -523,11 +523,19 @@ public final class XPathStreamability
     return null;
   }
 
+  /**
+   * @return <code>true</code> for the argument placeholder <code>?</code> of a
+   *         partial function application.
+   */
   private static boolean _isPlaceholder (@NonNull final IExpr aExpr)
   {
     return aExpr instanceof IExpr.PlaceholderExpr;
   }
 
+  /**
+   * @return <code>true</code> if any argument is a placeholder, i.e. the call
+   *         is a partial function application that returns a function item.
+   */
   private static boolean _hasPlaceholder (@NonNull final List <IExpr> aArgs)
   {
     for (final IExpr aArg : aArgs)
@@ -586,6 +594,19 @@ public final class XPathStreamability
     return aTest != null && aTest.kind () == ENodeTestKind.DOCUMENT && aTest.inner () != null;
   }
 
+  /**
+   * Push the direct operand expressions of a node onto the work stack of
+   * {@link #_containsMatch(IExpr, Predicate, boolean)}: the arguments of a
+   * call, the body of an inline function, the binding expressions and the
+   * body of <code>for</code>/<code>let</code>/quantified expressions, the
+   * start, predicates and postfix expressions of the steps of a path (the
+   * steps themselves carry no expression otherwise), and so on. The order in
+   * which they are pushed is not significant for the search.
+   *
+   * @param bSkipPredicates
+   *        <code>true</code> to leave out the predicates of path steps and
+   *        filter expressions.
+   */
   private static void _pushChildren (@NonNull final IExpr aExpr,
                                      @NonNull final ArrayDeque <IExpr> aStack,
                                      final boolean bSkipPredicates)
@@ -908,6 +929,12 @@ public final class XPathStreamability
     return _isStaticNumeric (aPredicate) && _isFocusFree (aPredicate);
   }
 
+  /**
+   * @return <code>true</code> for <code>fn:position</code>,
+   *         <code>fn:last</code> and <code>fn:function-lookup</code> (which
+   *         could return either), the calls that make a predicate positional in
+   *         the sense of section 19.8.10.
+   */
   private static boolean _isPositionalCall (@NonNull final XdmQName aName)
   {
     final String sName = _getBuiltinName (aName);
@@ -1221,6 +1248,11 @@ public final class XPathStreamability
     return ret;
   }
 
+  /**
+   * Classify an expression as an operand in a given usage, with the
+   * childless flag set where the expression can be proven to yield only
+   * childless items.
+   */
   @NonNull
   private static StreamOperand _op (@NonNull final IExpr aExpr,
                                     @NonNull final EPosture eCP,
@@ -1230,6 +1262,10 @@ public final class XPathStreamability
     return StreamOperand.of (_expr (aExpr, eCP, aEnv), eUsage).withChildless (_isChildless (aExpr, aEnv));
   }
 
+  /**
+   * The general rules (section 19.8.1) for a construct with one operand of
+   * the given usage.
+   */
   @NonNull
   private static PostureSweep _one (@NonNull final IExpr aExpr,
                                     @NonNull final EPosture eCP,
@@ -1239,6 +1275,10 @@ public final class XPathStreamability
     return _applyGeneralRules (new CommonsArrayList <> (_op (aExpr, eCP, aEnv, eUsage)), false, aEnv);
   }
 
+  /**
+   * The general rules (section 19.8.1) for a construct with two operands of
+   * the same usage, e.g. an arithmetic or comparison expression.
+   */
   @NonNull
   private static PostureSweep _pair (@NonNull final IExpr aLeft,
                                      @NonNull final IExpr aRight,
@@ -1252,6 +1292,10 @@ public final class XPathStreamability
                                aEnv);
   }
 
+  /**
+   * The general rules (section 19.8.1) for a construct whose operands all
+   * have the same usage. An empty list gives grounded and motionless.
+   */
   @NonNull
   private static PostureSweep _list (@NonNull final List <IExpr> aExprs,
                                      @NonNull final EPosture eCP,
@@ -1699,6 +1743,14 @@ public final class XPathStreamability
     return new PostureSweep (ePosture, eS0);
   }
 
+  /**
+   * The operands of a call to a stylesheet function (section 19.8.5): the
+   * first argument with the usage the caller determined from the category,
+   * every further argument with the type-determined usage of its parameter.
+   *
+   * @param eFirstUsage
+   *        The usage of the first argument.
+   */
   @NonNull
   private static ICommonsList <StreamOperand> _stylesheetOperands (@NonNull final StreamFunctionSignature aSig,
                                                                    @NonNull final List <IExpr> aArgs,
@@ -2360,6 +2412,18 @@ public final class XPathStreamability
     return true;
   }
 
+  /**
+   * Run a recursive walk of the analysis and fail closed if it overflows the
+   * stack: the result is then roaming and free-ranging, and the "definite"
+   * flag is reset to its value before the walk, because the verdict is not
+   * one of the Recommendation.
+   *
+   * @param aWalk
+   *        The walk to run.
+   * @param aCtx
+   *        The context whose definite flag is restored on overflow.
+   * @return The result of the walk, or roaming and free-ranging.
+   */
   @NonNull
   private static PostureSweep _guarded (@NonNull final Supplier <PostureSweep> aWalk,
                                         @NonNull final StreamContext aCtx)

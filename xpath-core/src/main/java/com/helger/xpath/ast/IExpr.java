@@ -40,6 +40,7 @@ public sealed interface IExpr
   record LiteralExpr (@NonNull XdmAtomic value) implements IExpr
   {}
 
+  /** A variable reference <code>$name</code>. */
   record VarRefExpr (@NonNull XdmQName name) implements IExpr
   {}
 
@@ -75,6 +76,10 @@ public sealed interface IExpr
   record SequenceExpr (@NonNull List <IExpr> items) implements IExpr
   {}
 
+  /**
+   * The logical operators <code>and</code>/<code>or</code> and the
+   * arithmetic operators, see {@link EBinaryOp}.
+   */
   record BinaryExpr (@NonNull EBinaryOp op, @NonNull IExpr left, @NonNull IExpr right) implements IExpr
   {}
 
@@ -82,6 +87,7 @@ public sealed interface IExpr
   record UnaryExpr (boolean negate, @NonNull IExpr operand) implements IExpr
   {}
 
+  /** A general, value or node comparison, see {@link EComparisonOp}. */
   record ComparisonExpr (@NonNull EComparisonOp op, @NonNull IExpr left, @NonNull IExpr right) implements IExpr
   {}
 
@@ -97,6 +103,7 @@ public sealed interface IExpr
     }
   }
 
+  /** The range expression <code>from to to</code>. */
   record RangeExpr (@NonNull IExpr from, @NonNull IExpr to) implements IExpr
   {}
 
@@ -104,6 +111,7 @@ public sealed interface IExpr
   record StringConcatExpr (@NonNull List <IExpr> parts) implements IExpr
   {}
 
+  /** <code>if (condition) then thenExpr else elseExpr</code> */
   record IfExpr (@NonNull IExpr condition, @NonNull IExpr thenExpr, @NonNull IExpr elseExpr) implements IExpr
   {}
 
@@ -151,6 +159,21 @@ public sealed interface IExpr
                    @Nullable IExpr postfix,
                    @Nullable StepExpr fused)
   {
+    /**
+     * A step without a fused <code>descendant::</code> step.
+     *
+     * @param axis
+     *        The axis, <code>null</code> for a postfix step.
+     * @param axisExplicit
+     *        The axis was written, not defaulted.
+     * @param test
+     *        The node test, <code>null</code> for a postfix step.
+     * @param predicates
+     *        The predicates, possibly empty.
+     * @param postfix
+     *        The expression of a postfix step, <code>null</code> for an axis
+     *        step.
+     */
     public StepExpr (@Nullable final EAxis axis,
                      final boolean axisExplicit,
                      @Nullable final NodeTest test,
@@ -174,9 +197,11 @@ public sealed interface IExpr
   record FilterExpr (@NonNull IExpr primary, @NonNull List <IExpr> predicates) implements IExpr
   {}
 
+  /** <code>operand instance of type</code> */
   record InstanceOfExpr (@NonNull IExpr operand, @NonNull SeqType type) implements IExpr
   {}
 
+  /** <code>operand treat as type</code> */
   record TreatExpr (@NonNull IExpr operand, @NonNull SeqType type) implements IExpr
   {}
 

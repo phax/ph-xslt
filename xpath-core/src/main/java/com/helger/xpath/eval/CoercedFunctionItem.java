@@ -61,6 +61,10 @@ public final class CoercedFunctionItem extends AbstractFunctionItem
     return m_aWrapped;
   }
 
+  /**
+   * @return The name of the wrapped function, or <code>null</code> if it is
+   *         anonymous or a map or array.
+   */
   @Nullable
   public XdmQName getName ()
   {
@@ -84,6 +88,14 @@ public final class CoercedFunctionItem extends AbstractFunctionItem
     return m_aExpected.returnType ();
   }
 
+  /**
+   * Call the wrapped item through
+   * {@link XPathEvaluator#callFunction(DynamicContext, IXdmItem, List)}, so
+   * that the arguments (already converted to the expected parameter types) are
+   * converted again to the wrapped function's own parameter types, a map or
+   * array is looked up with its single argument, and the result is checked
+   * against the wrapped function's return type.
+   */
   @NonNull
   public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {

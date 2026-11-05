@@ -53,6 +53,14 @@ record XPathToken (@NonNull ETokenKind kind, @NonNull String text, @Nullable Str
     return kind == ETokenKind.NAME && text.indexOf (':') < 0;
   }
 
+  /**
+   * @return The token as it is shown in a syntax error message: a readable
+   *         description for the end of the input and for string literals
+   *         (whose text is the unescaped value, not the source), the braced
+   *         or wildcard notation rebuilt from text and URI for the name and
+   *         wildcard kinds that store them apart, and the plain text for all
+   *         others.
+   */
   @NonNull
   public String getDisplayText ()
   {

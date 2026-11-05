@@ -82,6 +82,10 @@ public final class InlineFunctionItem extends AbstractFunctionItem
     return m_aReturnType;
   }
 
+  /**
+   * Evaluate the body in the captured closure (without focus), with each
+   * parameter bound to its argument. The caller's context is ignored.
+   */
   @NonNull
   public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {

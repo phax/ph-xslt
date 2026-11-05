@@ -58,6 +58,9 @@ public final class AxisNavigator
   private AxisNavigator ()
   {}
 
+  /**
+   * Append the node to the output list if it passes the filter.
+   */
   private static void _add (@NonNull final IXdmNode aNode,
                             @NonNull final Predicate <IXdmNode> aFilter,
                             @NonNull final List <IXdmNode> aOut)
@@ -108,11 +111,23 @@ public final class AxisNavigator
     return -1;
   }
 
+  /**
+   * @return <code>true</code> for an attribute or namespace node: a node that
+   *         has a parent but is not among its children.
+   */
   private static boolean _isAttributeLike (@NonNull final IXdmNode aNode)
   {
     return aNode.getKind () == ENodeKind.ATTRIBUTE || aNode.getKind () == ENodeKind.NAMESPACE;
   }
 
+  /**
+   * The following axis: walking up from the node, each following sibling of
+   * the node and of every ancestor is added together with its descendants, in
+   * document order. For an attribute or namespace node the walk starts at its
+   * parent element, whose descendants (but not other attributes) come first.
+   * Attributes and namespace nodes are never added. A parentless attribute
+   * adds nothing.
+   */
   private static void _addFollowing (@NonNull final IXdmNode aNode,
                                      @NonNull final Predicate <IXdmNode> aFilter,
                                      @NonNull final List <IXdmNode> aOut)
@@ -145,6 +160,12 @@ public final class AxisNavigator
     }
   }
 
+  /**
+   * The preceding axis: walking up from the node, the subtrees of the
+   * preceding siblings of the node and of every ancestor are added in reverse
+   * document order, so ancestors themselves are excluded. For an attribute or
+   * namespace node the walk starts at its parent element.
+   */
   private static void _addPreceding (@NonNull final IXdmNode aNode,
                                      @NonNull final Predicate <IXdmNode> aFilter,
                                      @NonNull final List <IXdmNode> aOut)
@@ -162,6 +183,15 @@ public final class AxisNavigator
     }
   }
 
+  /**
+   * The following-sibling (document order) or preceding-sibling (reverse
+   * document order) axis. Attribute and namespace nodes and parentless nodes
+   * have no siblings.
+   *
+   * @param bFollowing
+   *        <code>true</code> for following-sibling, <code>false</code> for
+   *        preceding-sibling.
+   */
   private static void _addSiblings (@NonNull final IXdmNode aNode,
                                     final boolean bFollowing,
                                     @NonNull final Predicate <IXdmNode> aFilter,
@@ -255,6 +285,8 @@ public final class AxisNavigator
    *         (with nothing added) if the index cannot be used: the nodes are
    *         not all in the same numbered document, not in document order, or
    *         a namespace node is among them.
+   * @throws IllegalArgumentException
+   *         for any other axis
    */
   public static boolean collectNamedDescendants (@NonNull final EAxis eAxis,
                                                  @NonNull final List <IXdmNode> aContextNodes,

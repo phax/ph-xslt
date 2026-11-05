@@ -32,11 +32,19 @@ public enum EOccurrence
   /** <code>+</code> */
   ONE_OR_MORE;
 
+  /**
+   * @return <code>true</code> for <code>?</code> and <code>*</code>, the
+   *         indicators that accept the empty sequence.
+   */
   public boolean allowsEmpty ()
   {
     return this == ZERO_OR_ONE || this == ZERO_OR_MORE;
   }
 
+  /**
+   * @return <code>true</code> for <code>*</code> and <code>+</code>, the
+   *         indicators that accept more than one item.
+   */
   public boolean allowsMany ()
   {
     return this == ZERO_OR_MORE || this == ONE_OR_MORE;

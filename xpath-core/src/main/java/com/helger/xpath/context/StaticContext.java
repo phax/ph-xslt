@@ -64,6 +64,13 @@ public final class StaticContext
   private boolean m_bXsdVersionSet = false;
   private IXdmSchemaSet m_aSchemaSet;
 
+  /**
+   * Create a static context with the prefixes <code>xml</code>,
+   * <code>xs</code>, <code>xsi</code>, <code>fn</code>, <code>math</code>,
+   * <code>map</code>, <code>array</code> and <code>err</code> predeclared, no
+   * default element namespace, <code>fn</code> as default function namespace,
+   * the default function library and the codepoint collation.
+   */
   public StaticContext ()
   {
     m_aNamespaces.put ("xml", XdmConstants.NS_XML);
@@ -120,6 +127,11 @@ public final class StaticContext
     return m_aNamespaces.get (sPrefix);
   }
 
+  /**
+   * @return The default element/type namespace of XPath: the namespace of an
+   *         unprefixed element or type name. Empty for no namespace (the
+   *         default).
+   */
   @NonNull
   public String getDefaultElementNamespace ()
   {
@@ -158,6 +170,10 @@ public final class StaticContext
     return this;
   }
 
+  /**
+   * @return The namespace of an unprefixed function name; the
+   *         <code>fn</code> namespace unless set otherwise.
+   */
   @NonNull
   public String getDefaultFunctionNamespace ()
   {
@@ -171,6 +187,10 @@ public final class StaticContext
     return this;
   }
 
+  /**
+   * @return The static base URI, used to resolve relative URIs (e.g. of
+   *         <code>fn:doc</code>), or <code>null</code> if none is known.
+   */
   @Nullable
   public String getBaseUri ()
   {
@@ -197,6 +217,12 @@ public final class StaticContext
     return this;
   }
 
+  /**
+   * @return <code>true</code> if XPath 1.0 compatibility mode is on: general
+   *         comparisons, arithmetic and the conversion of function arguments
+   *         (XPath 3.1 section 3.1.5.2) follow the XPath 1.0 rules. Default
+   *         <code>false</code>.
+   */
   public boolean isXPath10Compatibility ()
   {
     return m_bXPath10Compatibility;

@@ -42,16 +42,30 @@ public enum EComparisonOp
   /** <code>&gt;&gt;</code> */
   NODE_FOLLOWS;
 
+  /**
+   * @return <code>true</code> for the general comparisons <code>=</code>,
+   *         <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>,
+   *         <code>&gt;</code> and <code>&gt;=</code>.
+   */
   public boolean isGeneral ()
   {
     return ordinal () <= GENERAL_GE.ordinal ();
   }
 
+  /**
+   * @return <code>true</code> for the value comparisons <code>eq</code>,
+   *         <code>ne</code>, <code>lt</code>, <code>le</code>, <code>gt</code>
+   *         and <code>ge</code>.
+   */
   public boolean isValue ()
   {
     return ordinal () >= VALUE_EQ.ordinal () && ordinal () <= VALUE_GE.ordinal ();
   }
 
+  /**
+   * @return <code>true</code> for the node comparisons <code>is</code>,
+   *         <code>&lt;&lt;</code> and <code>&gt;&gt;</code>.
+   */
   public boolean isNode ()
   {
     return ordinal () >= NODE_IS.ordinal ();

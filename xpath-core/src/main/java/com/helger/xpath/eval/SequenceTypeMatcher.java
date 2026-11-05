@@ -66,6 +66,10 @@ public final class SequenceTypeMatcher
   private SequenceTypeMatcher ()
   {}
 
+  /**
+   * @return <code>true</code> if the type is <code>item()*</code>, which every
+   *         value matches without any conversion.
+   */
   private static boolean _isItemStar (@NonNull final SeqType aType)
   {
     return !aType.empty () &&
@@ -73,6 +77,11 @@ public final class SequenceTypeMatcher
            aType.itemType ().kind () == ItemType.Kind.ITEM;
   }
 
+  /**
+   * @return <code>true</code> if a sequence of <code>nCount</code> items
+   *         satisfies the occurrence indicator (exactly one, at most one, at
+   *         least one, or any number).
+   */
   private static boolean _matchesOccurrence (final int nCount, @NonNull final EOccurrence eOcc)
   {
     switch (eOcc)
@@ -114,6 +123,13 @@ public final class SequenceTypeMatcher
     }
   }
 
+  /**
+   * The notation of a node test for messages, close to the XPath syntax:
+   * names as EQNames (<code>Q{uri}local</code>), <code>*</code> for a
+   * wildcard, the type annotation of <code>element(N, T)</code> and
+   * <code>attribute(N, T)</code> with <code>?</code> if nillable, and the
+   * inner test of <code>document-node(...)</code>.
+   */
   @NonNull
   private static String _getNodeTestAsString (@NonNull final NodeTest aTest)
   {
@@ -224,6 +240,10 @@ public final class SequenceTypeMatcher
     return sItem + sSuffix;
   }
 
+  /**
+   * @return A short description of the kind of one item for type error
+   *         messages, e.g. "a value of type xs:string" or "an element node".
+   */
   @NonNull
   private static String _describeItem (@NonNull final IXdmItem aItem)
   {
@@ -238,6 +258,11 @@ public final class SequenceTypeMatcher
     return "a function item";
   }
 
+  /**
+   * @return A short description of a supplied value for type error messages:
+   *         "an empty sequence", the description of a single item, or the
+   *         size and the first item of a longer sequence.
+   */
   @NonNull
   private static String _describe (@NonNull final XdmSequence aSeq)
   {
@@ -257,6 +282,21 @@ public final class SequenceTypeMatcher
     return aItem instanceof IXdmFunction || aItem instanceof XdmMap || aItem instanceof XdmArray;
   }
 
+  /**
+   * Match an item against a function test (XPath 3.1 section 2.5.5.8).
+   * <code>function(*)</code> accepts every function item, maps and arrays
+   * included. For a typed test the arity must be equal, each parameter type
+   * of the test must be a subtype of the item's parameter type
+   * (contravariance) and the item's return type a subtype of the test's.
+   * A map counts as <code>function(xs:anyAtomicType) as item()*</code>, but
+   * its actual values (and the empty sequence, the result for an absent key)
+   * are checked against the return type; an array counts as
+   * <code>function(xs:integer) as item()*</code>, with its actual members
+   * checked against the return type.
+   *
+   * @return <code>true</code> if the item matches; <code>false</code> for an
+   *         item that is no function item at all.
+   */
   private static boolean _matchesFunctionTest (@NonNull final ItemType aType, @NonNull final IXdmItem aItem)
   {
     if (aType.wildcard () || aType.returnType () == null)
@@ -322,6 +362,16 @@ public final class SequenceTypeMatcher
     return true;
   }
 
+  /**
+   * @param eActual
+   *        The type of a key in the map.
+   * @param eKeyType
+   *        The key type of the <code>map(K, V)</code> test;
+   *        <code>null</code> or <code>xs:anyAtomicType</code> accept every
+   *        key.
+   * @return <code>true</code> if the key type is derived from (or equal to)
+   *         the key type of the test.
+   */
   private static boolean _matchesMapKeyType (@NonNull final EAtomicType eActual, @Nullable final EAtomicType eKeyType)
   {
     return eKeyType == null || eKeyType == EAtomicType.ANY_ATOMIC_TYPE || eActual.isDerivedFrom (eKeyType);
@@ -435,6 +485,36 @@ public final class SequenceTypeMatcher
     }
   }
 
+  /**
+   * The subtype judgement on kind tests (XPath 3.1 section 2.5.6.2):
+   * <code>node()</code> is the supertype of every test, otherwise the kinds
+   * must be equal and
+   * <ul>
+   * <li><code>document-node(E)</code>: a test without inner test is the
+   * supertype of every document test, otherwise the inner tests are compared
+   * recursively;</li>
+   * <li><code>processing-instruction(N)</code>: no name in B, or the same
+   * name;</li>
+   * <li><code>element</code>/<code>attribute</code>: the name of B is a
+   * wildcard or equal to the name of A, and if B has a type annotation, the
+   * annotation of A (<code>xs:anyType</code> or
+   * <code>xs:anyAtomicType</code> if absent) must be derived from it; for
+   * elements a nillable A (or one without annotation) requires a nillable
+   * B;</li>
+   * <li><code>schema-element</code>/<code>schema-attribute</code>: the same
+   * name only, substitution groups are not considered;</li>
+   * <li>a name test: B's wildcard (<code>*</code>, <code>*:local</code>,
+   * <code>prefix:*</code>) must cover A's name or narrower wildcard;</li>
+   * <li>any other kind (<code>text()</code>, <code>comment()</code>,
+   * <code>namespace-node()</code>): equal kind suffices.</li>
+   * </ul>
+   *
+   * @param aA
+   *        Candidate subtype.
+   * @param aB
+   *        Candidate supertype.
+   * @return <code>true</code> if every node matching aA also matches aB.
+   */
   private static boolean _isNodeTestSubtype (@NonNull final NodeTest aA, @NonNull final NodeTest aB)
   {
     if (aB.kind () == ENodeTestKind.ANY_NODE)
@@ -495,6 +575,15 @@ public final class SequenceTypeMatcher
     }
   }
 
+  /**
+   * The function type of a map type (XPath 3.1 section 2.5.6.2):
+   * <code>map(K, V)</code> is <code>function(xs:anyAtomicType) as V'</code>,
+   * where <code>V'</code> is <code>V</code> with an occurrence that allows
+   * the empty sequence (<code>1</code> becomes <code>?</code>, <code>+</code>
+   * becomes <code>*</code>), because an absent key gives the empty sequence.
+   * <code>map(*)</code> is <code>function(xs:anyAtomicType) as
+   * item()*</code>.
+   */
   @NonNull
   private static ItemType _getMapAsFunctionType (@NonNull final ItemType aMap)
   {
@@ -518,6 +607,11 @@ public final class SequenceTypeMatcher
     return new ItemType (ItemType.Kind.FUNCTION, null, null, false, List.of (ANY_ATOMIC_ONE), aRet, null, null);
   }
 
+  /**
+   * The function type of an array type (XPath 3.1 section 2.5.6.2):
+   * <code>array(T)</code> is <code>function(xs:integer) as T</code>,
+   * <code>array(*)</code> is <code>function(xs:integer) as item()*</code>.
+   */
   @NonNull
   private static ItemType _getArrayAsFunctionType (@NonNull final ItemType aArray)
   {
@@ -667,6 +761,22 @@ public final class SequenceTypeMatcher
     return _getArrayAsFunctionType (new ItemType (ItemType.Kind.ARRAY, null, null, true, null, null, null, null));
   }
 
+  /**
+   * The function conversion rules for an expected function type (XPath 3.1
+   * section 3.1.5.2): the occurrence is checked first, then every item must
+   * be a function item (maps and arrays included). An item that already
+   * matches the expected type, or any item for <code>function(*)</code>, is
+   * kept. Otherwise function coercion (section 3.1.5.3) applies: the arity
+   * must be the expected one, and the item is wrapped in a
+   * {@link CoercedFunctionItem} that checks arguments and result at call
+   * time, unless its own function type is a subtype of the expected one.
+   *
+   * @return The supplied sequence itself if no item was wrapped, a new
+   *         sequence otherwise.
+   * @throws XPathException
+   *         with <code>sErrorCode</code> for a wrong number of items, an item
+   *         that is no function item, or a function of another arity
+   */
   @NonNull
   private static XdmSequence _convertFunctions (@NonNull final XdmSequence aSeq,
                                                 @NonNull final SeqType aType,
@@ -710,6 +820,30 @@ public final class SequenceTypeMatcher
     return bChanged ? aBuilder.build () : aSeq;
   }
 
+  /**
+   * Convert one atomic value towards an expected atomic type (XPath 3.1
+   * section 3.1.5.2):
+   * <ul>
+   * <li><code>xs:untypedAtomic</code> is cast to the expected type
+   * (<code>xs:double</code> for the union <code>xs:numeric</code>); it stays
+   * as it is for <code>xs:anyAtomicType</code>, <code>xs:untypedAtomic</code>
+   * and <code>xs:error</code>;</li>
+   * <li>a value of the expected type or a subtype stays as it is;</li>
+   * <li>numeric promotion: <code>xs:float</code> and <code>xs:decimal</code>
+   * (with its subtypes) to <code>xs:double</code>, <code>xs:decimal</code>
+   * to <code>xs:float</code>;</li>
+   * <li>URI promotion: <code>xs:anyURI</code> to <code>xs:string</code>.</li>
+   * </ul>
+   * Any other value is returned unchanged; the caller's final match check
+   * then reports the mismatch.
+   *
+   * @return The converted value, or the same instance if nothing changed.
+   * @throws XPathException
+   *         XPTY0117 for an untyped value where a type derived from
+   *         <code>xs:QName</code> or <code>xs:NOTATION</code> is expected; a
+   *         cast error such as FORG0001 if the untyped value is not valid for
+   *         the expected type
+   */
   @NonNull
   private static XdmAtomic _convertAtomic (@NonNull final XdmAtomic aValue,
                                            @NonNull final EAtomicType eTarget,
@@ -743,6 +877,23 @@ public final class SequenceTypeMatcher
     return aValue;
   }
 
+  /**
+   * The function conversion rules for an expected atomic type (XPath 3.1
+   * section 3.1.5.2): non-atomic items are atomised, then each atomic value
+   * is converted with
+   * {@link #_convertAtomic(XdmAtomic, EAtomicType, DynamicContext)}. For a
+   * user-defined (schema) target type only <code>xs:untypedAtomic</code>
+   * values are converted, by a cast to that type which may give several
+   * values for a list type; other values are kept. The result is finally
+   * matched against the whole sequence type, occurrence included.
+   *
+   * @return The supplied sequence itself if nothing changed, a new sequence
+   *         otherwise.
+   * @throws XPathException
+   *         with <code>sErrorCode</code> if the converted value does not match
+   *         the type; FOTY0013 if a map or function item must be atomised;
+   *         the errors of the conversion of single values
+   */
   @NonNull
   private static XdmSequence _convertAtomics (@NonNull final XdmSequence aSeq,
                                               @NonNull final SeqType aType,
@@ -799,6 +950,16 @@ public final class SequenceTypeMatcher
     return ret;
   }
 
+  /**
+   * The function conversion rules without the XPath 1.0 compatibility
+   * conversions: the atomic conversions for an atomic item type, function
+   * coercion for a function item type, and a plain match check for every
+   * other item type (nodes, maps, arrays, <code>item()</code>).
+   *
+   * @throws XPathException
+   *         with <code>sErrorCode</code> if the value does not match after
+   *         conversion
+   */
   @NonNull
   private static XdmSequence _convertNoCompat (@NonNull final XdmSequence aSeq,
                                                @NonNull final SeqType aType,
