@@ -1161,8 +1161,10 @@ public final class FnJson
    * leading text declaration (<code>&lt;?xml</code> with optional version and
    * required encoding) is checked and removed; the rest is parsed inside a
    * wrapper element and its children are copied into a new document node with
-   * the static base URI. Any occurrence of <code>&lt;!DOCTYPE</code> in the
-   * string is rejected, also inside a comment or CDATA section.
+   * the static base URI. A document type declaration cannot occur inside the
+   * wrapper element, so the parser rejects it as not well-formed;
+   * <code>&lt;!DOCTYPE</code> inside a comment or CDATA section is just
+   * content.
    *
    * @param aCtx
    *        The dynamic context of the call.
@@ -1192,8 +1194,6 @@ public final class FnJson
         throw XPathException.of ("FODC0006", "Invalid text declaration in an XML fragment");
       s = s.substring (nEnd + 2);
     }
-    if (s.contains ("<!DOCTYPE"))
-      throw XPathException.of ("FODC0006", "A DOCTYPE declaration is not allowed in an XML fragment");
     final IXdmNode aWrapperDoc = _parse ("<fragment-wrapper>" + s + "</fragment-wrapper>");
     final IXdmNode aWrapper = aWrapperDoc.getChildAtIndex (0);
     final IXdmNode aDoc = IXdmNode.createDocument ();
