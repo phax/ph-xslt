@@ -452,28 +452,6 @@ final class XPathParserImpl
   }
 
   /**
-   * The constructor function of a user-defined simple type of the in-scope
-   * schema definitions is a cast to it (XPath 3.1 section 3.1.5.1).
-   *
-   * @return The cast, or <code>null</code> if the name is not such a type or
-   *         a function of that name and arity exists.
-   */
-  @Nullable
-  private IExpr _getSchemaConstructor (@NonNull final XdmQName aName, @NonNull final List <IExpr> aArgs)
-  {
-    if (aArgs.size () != 1 || m_aCtx.getSchemaSet () == null)
-      return null;
-    if (m_aCtx.getFunctionLibrary ().getFunction (aName, 1) != null)
-      return null;
-    final IXdmTypeDefinition aUserType = _getUserSimpleType (aName);
-    if (aUserType == null)
-      return null;
-    return new IExpr.CastExpr (aArgs.get (0),
-                               new SeqType (false, _schemaAtomicItemType (aUserType), EOccurrence.ZERO_OR_ONE, false),
-                               false);
-  }
-
-  /**
    * Consume a variable name (the token after <code>$</code>). An unprefixed
    * name is in no namespace.
    *
@@ -566,6 +544,59 @@ final class XPathParserImpl
     if (eBuiltin == null)
       eBuiltin = EAtomicType.ANY_ATOMIC_TYPE;
     return ItemType.schemaAtomic (eBuiltin, aType);
+  }
+
+  /**
+   * The constructor function of a user-defined simple type as a function item
+   * (XPath 3.1 section 3.14.4): an inline function with one
+   * <code>xs:anyAtomicType?</code> parameter that casts it to the type. Its
+   * declared return type is that cast target, except for a list type, which
+   * gets none.
+   *
+   * @param aUserType
+   *        The user-defined simple type.
+   * @return The inline function expression.
+   */
+  @NonNull
+  private static IExpr _getUserTypeConstructorFunction (@NonNull final IXdmTypeDefinition aUserType)
+  {
+    final XdmQName aParam = new XdmQName ("http://www.w3.org/2005/xqt-errors/ph-xslt/constructor", "arg");
+    final SeqType aResult = new SeqType (false, _schemaAtomicItemType (aUserType), EOccurrence.ZERO_OR_ONE, false);
+    return new IExpr.InlineFunctionExpr (new CommonsArrayList <> (new IExpr.Param (aParam,
+                                                                                   new SeqType (false,
+                                                                                                ItemType.atomic (EAtomicType.ANY_ATOMIC_TYPE),
+                                                                                                EOccurrence.ZERO_OR_ONE,
+                                                                                                false))),
+                                         aUserType.getVariety () == EXdmSimpleVariety.LIST ? null : aResult,
+                                         new IExpr.CastExpr (new IExpr.VarRefExpr (aParam), aResult, false));
+  }
+
+  /**
+   * The constructor function of a user-defined simple type of the in-scope
+   * schema definitions (XPath 3.1 section 3.14.4): a call with one argument is
+   * a cast to the type; a call whose argument is the placeholder
+   * <code>?</code> is a partial function application (section 3.1.5.1) and
+   * yields the constructor function itself, as
+   * {@link #_getUserTypeConstructorFunction(IXdmTypeDefinition)} builds it.
+   *
+   * @return The cast or the function, or <code>null</code> if the name is not
+   *         such a type or a function of that name and arity exists.
+   */
+  @Nullable
+  private IExpr _getSchemaConstructor (@NonNull final XdmQName aName, @NonNull final List <IExpr> aArgs)
+  {
+    if (aArgs.size () != 1 || m_aCtx.getSchemaSet () == null)
+      return null;
+    if (m_aCtx.getFunctionLibrary ().getFunction (aName, 1) != null)
+      return null;
+    final IXdmTypeDefinition aUserType = _getUserSimpleType (aName);
+    if (aUserType == null)
+      return null;
+    if (aArgs.get (0) instanceof IExpr.PlaceholderExpr)
+      return _getUserTypeConstructorFunction (aUserType);
+    return new IExpr.CastExpr (aArgs.get (0),
+                               new SeqType (false, _schemaAtomicItemType (aUserType), EOccurrence.ZERO_OR_ONE, false),
+                               false);
   }
 
   /**
@@ -1296,9 +1327,8 @@ final class XPathParserImpl
    * token is the name, the next one <code>#</code>. With a schema set, an
    * arity of 1 and no library function of that name, a user-defined simple
    * type of that name yields its constructor function (XPath 3.1 section
-   * 3.14.4): an inline function with one <code>xs:anyAtomicType?</code>
-   * parameter that casts it to the type. Its declared return type is that
-   * cast target, except for a list type, which gets none.
+   * 3.14.4), as {@link #_getUserTypeConstructorFunction(IXdmTypeDefinition)}
+   * builds it.
    *
    * @throws XPathException
    *         FOAR0002 for an arity that does not fit into 31 bits, XPST0017
@@ -1319,17 +1349,7 @@ final class XPathParserImpl
       // The constructor function of a user-defined simple type
       final IXdmTypeDefinition aUserType = _getUserSimpleType (aName);
       if (aUserType != null)
-      {
-        final XdmQName aParam = new XdmQName ("http://www.w3.org/2005/xqt-errors/ph-xslt/constructor", "arg");
-        final SeqType aResult = new SeqType (false, _schemaAtomicItemType (aUserType), EOccurrence.ZERO_OR_ONE, false);
-        return new IExpr.InlineFunctionExpr (new CommonsArrayList <> (new IExpr.Param (aParam,
-                                                                                       new SeqType (false,
-                                                                                                    ItemType.atomic (EAtomicType.ANY_ATOMIC_TYPE),
-                                                                                                    EOccurrence.ZERO_OR_ONE,
-                                                                                                    false))),
-                                             aUserType.getVariety () == EXdmSimpleVariety.LIST ? null : aResult,
-                                             new IExpr.CastExpr (new IExpr.VarRefExpr (aParam), aResult, false));
-      }
+        return _getUserTypeConstructorFunction (aUserType);
     }
     _checkFunction (aName, aArity.intValue (), aNameTok);
     return new IExpr.NamedFunctionRefExpr (aName, aArity.intValue ());
@@ -1359,8 +1379,9 @@ final class XPathParserImpl
    * sequence), context item, square array, unary lookup, map or curly array
    * constructor, inline function, named function reference or static function
    * call. A call of a user-defined simple type with one argument becomes a
-   * cast (see {@link #_getSchemaConstructor(XdmQName, List)}); every other
-   * call must name a known function.
+   * cast, or the constructor function for a placeholder argument (see
+   * {@link #_getSchemaConstructor(XdmQName, List)}); every other call must
+   * name a known function.
    *
    * @throws XPathException
    *         XPST0003 if no primary expression starts here, XPST0017 for an
@@ -1687,7 +1708,7 @@ final class XPathParserImpl
     {
       _next ();
       // A lone "/" unless the next token can start a relative path
-      // (XPath 3.1 A.2.1.2 leading-lone-slash)
+      // (XPath 3.1 A.1.2 leading-lone-slash)
       if (_startsRelativePath ())
       {
         aSteps.add (_parseStep ());
