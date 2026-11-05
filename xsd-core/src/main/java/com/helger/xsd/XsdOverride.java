@@ -218,15 +218,22 @@ final class XsdOverride
    * value) sorted, followed by the fingerprints of its children in
    * parentheses; for a text node its stripped value if not empty. Comments
    * and processing instructions contribute nothing. Recurses over the depth of
-   * the subtree.
+   * the subtree, at most {@link XsdCompiler#MAX_NESTING} levels.
    *
    * @param aSB
    *        Receives the fingerprint.
    * @param aNode
    *        The node.
+   * @param nDepth
+   *        The depth of the node below the override child.
+   * @throws XsdUnsupportedException
+   *         if the subtree is nested deeper than
+   *         {@link XsdCompiler#MAX_NESTING}
    */
-  private static void _signatureRecursive (@NonNull final StringBuilder aSB, @NonNull final IXdmNode aNode)
+  private static void _signatureRecursive (@NonNull final StringBuilder aSB, @NonNull final IXdmNode aNode, final int nDepth)
   {
+    if (nDepth > XsdCompiler.MAX_NESTING)
+      throw new XsdUnsupportedException ("xs:override children are nested deeper than " + XsdCompiler.MAX_NESTING + " levels");
     switch (aNode.getKind ())
     {
       case TEXT:
@@ -247,7 +254,7 @@ final class XsdOverride
           aSB.append ('\u0001').append (sAttr);
         aSB.append ('(');
         for (int i = 0; i < aNode.getChildCount (); ++i)
-          _signatureRecursive (aSB, aNode.getChildAtIndex (i));
+          _signatureRecursive (aSB, aNode.getChildAtIndex (i), nDepth + 1);
         aSB.append (')');
         break;
       }
@@ -307,6 +314,8 @@ final class XsdOverride
    * @param aOverride
    *        The xs:override element.
    * @return The signature. Never <code>null</code>.
+   * @throws XsdUnsupportedException
+   *         if a child is nested deeper than {@link XsdCompiler#MAX_NESTING}
    */
   @NonNull
   static String signature (@NonNull final IXdmNode aOverride)
@@ -316,7 +325,7 @@ final class XsdOverride
       if (aChild.getKind () == ENodeKind.ELEMENT)
       {
         final StringBuilder aSB = new StringBuilder ();
-        _signatureRecursive (aSB, aChild);
+        _signatureRecursive (aSB, aChild, 0);
         aParts.add (aSB.toString ());
       }
     aParts.sort (null);
