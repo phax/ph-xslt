@@ -668,7 +668,19 @@ final class XsdInstanceValidator
     return _wildcardParseExists (aRun, aModel.m_aParticle, aOC, aKids, nIndex);
   }
 
-  /** go-xslt <code>substMatchesAnyDecl</code>. */
+  /**
+   * go-xslt <code>substMatchesAnyDecl</code>: whether a child name is
+   * governed by one of the element declarations of a content model, directly
+   * or as a member of the substitution group of one of them.
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aModel
+   *        The child model of the parent's type.
+   * @param aName
+   *        The expanded name of the child.
+   * @return <code>true</code> if a declaration of the model matches the name.
+   */
   private static boolean _substMatchesAnyDecl (@NonNull final XsdValidationRun aRun,
                                                @NonNull final ChildModel aModel,
                                                @NonNull final XsdName aName)
@@ -1132,7 +1144,33 @@ final class XsdInstanceValidator
   }
 
   /**
-   * go-xslt <code>validateComplex</code>.
+   * go-xslt <code>validateComplex</code>: validate an element against a
+   * complex type. An abstract type is cvc-type.2. The attributes are
+   * validated first (an error is recorded, the content is still checked).
+   * Then, by content kind: empty content admits no children and no
+   * non-whitespace text (under 1.1 no text at all), unless open content lets
+   * wildcard children in; simple content admits no child elements, and the
+   * text (or the declaration's default or fixed value for an element without
+   * character or element children) is validated against the simple type;
+   * element-only content admits no non-whitespace text and the children are
+   * validated against the content model; mixed content validates the
+   * children only. Last, the type's assertions are evaluated (after a
+   * recorded content-model mismatch only if every child could still be
+   * assigned a declaration).
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aType
+   *        The governing complex type.
+   * @param aElement
+   *        The element.
+   * @param aScopes
+   *        The key/unique tables in scope for the children.
+   * @param aDecl
+   *        The governing declaration, for its value constraint; may be
+   *        <code>null</code>.
+   * @throws XsdInvalidException
+   *         if the element is not valid
    */
   private static void _validateComplex (@NonNull final XsdValidationRun aRun,
                                         @NonNull final XsdComplexType aType,
@@ -1219,7 +1257,30 @@ final class XsdInstanceValidator
   }
 
   /**
-   * go-xslt <code>validateAgainstType</code>.
+   * go-xslt <code>validateAgainstType</code>: validate an element against its
+   * governing type (xsi:type, conditional type assignment and substitution
+   * already resolved) and record that type as the element's annotation. For
+   * a simple type, attributes other than xsi: and xml: ones are cvc-type.3.1.1
+   * and child elements cvc-type.3.1.2; the text (or the declaration's default
+   * or fixed value for an element without character or element children) is
+   * validated against the type and its ID values are noted. A complex type is
+   * validated with {@link #_validateComplex}.
+   *
+   * @param aRun
+   *        The validation run.
+   * @param aType
+   *        The governing type; <code>null</code> gives no verdict.
+   * @param aElement
+   *        The element.
+   * @param aScopes
+   *        The key/unique tables in scope for the children.
+   * @param aDecl
+   *        The governing declaration, for its value constraint; may be
+   *        <code>null</code>.
+   * @throws XsdInvalidException
+   *         if the element is not valid
+   * @throws XsdUnsupportedException
+   *         if there is no type to assess the element against
    */
   private static void _validateAgainstType (@NonNull final XsdValidationRun aRun,
                                             @Nullable final IXsdType aType,
