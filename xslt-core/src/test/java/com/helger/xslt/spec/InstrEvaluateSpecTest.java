@@ -42,10 +42,11 @@ public final class InstrEvaluateSpecTest
         "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'$x * 2'\" with-params=\"map{QName('', 'x'): 5}\"/></xsl:template>", null, "10"),
       ok ("with-param children", "\n" +
         "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'$p + 1'\"><xsl:with-param name=\"p\" select=\"1\"/></xsl:evaluate></xsl:template>", null, "2"),
+      // XTTE3165 (XSLT 3.0 section 10.4; go-xslt expects XPTY0004)
       err ("with-params not a map", "\n" +
-        "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'1'\" with-params=\"1\"/></xsl:template>", null, "XPTY0004"),
+        "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'1'\" with-params=\"1\"/></xsl:template>", null, "XTTE3165"),
       err ("with-params key not a QName", "\n" +
-        "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'1'\" with-params=\"map{'x': 1}\"/></xsl:template>", null, "XPTY0004"),
+        "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'1'\" with-params=\"map{'x': 1}\"/></xsl:template>", null, "XTTE3165"),
       ok ("atomic context item", "\n" +
         "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'. + 1'\" context-item=\"5\"/></xsl:template>", null, "6"),
       ok ("node context item", "\n" +
@@ -68,9 +69,10 @@ public final class InstrEvaluateSpecTest
         "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'string(static-base-uri())'\" base-uri=\"http://example.com/x/\"/></xsl:template>", null, "http://example.com/x/"),
       ok ("as converts the result", "\n" +
         "<xsl:template match=\"/\"><xsl:variable name=\"v\"><xsl:evaluate xpath=\"'3'\" as=\"xs:double\"/></xsl:variable><xsl:value-of select=\"$v = '3'\"/></xsl:template>", null, "true"),
-      // XTTE3165: the result does not match @as.
+      // XPTY0004: the result does not match @as (function conversion rules,
+      // XSLT 3.0 section 10.4; go-xslt expects XTTE3165).
       err ("as mismatch", "\n" +
-        "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'(1, 2)'\" as=\"xs:integer\"/></xsl:template>", null, "XTTE3165"),
+        "<xsl:template match=\"/\"><xsl:evaluate xpath=\"'(1, 2)'\" as=\"xs:integer\"/></xsl:template>", null, "XPTY0004"),
       // XTDE3160: a static error in the evaluated expression, including the
       // XSLT functions §10.4.1 keeps out of its static context.
       err ("current() unavailable", "\n" +
