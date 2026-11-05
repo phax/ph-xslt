@@ -167,15 +167,26 @@ public final class NamespaceFixup
   }
 
   /**
-   * Fix the namespaces of a finished tree and number it in document order.
+   * Fix the namespaces of one element, as {@link #finish(IXdmNode)} does for
+   * every element of a tree: the names of the element and its attributes are
+   * declared where they are not bound.
+   *
+   * @param aElement
+   *        The element.
+   */
+  static void fixElement (@NonNull final IXdmNode aElement)
+  {
+    _fixElement (aElement);
+  }
+
+  /**
+   * Fix the namespaces of every element of a tree without numbering it.
    *
    * @param aRoot
-   *        The root of the tree (document, element or any other node).
+   *        The root of the tree (any node).
    */
-  public static void finish (@Nullable final IXdmNode aRoot)
+  static void fixNamespaces (@NonNull final IXdmNode aRoot)
   {
-    if (aRoot == null)
-      return;
     if (aRoot.isElement () || aRoot.isDocument ())
     {
       final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
@@ -194,6 +205,19 @@ public final class NamespaceFixup
         }
       }
     }
+  }
+
+  /**
+   * Fix the namespaces of a finished tree and number it in document order.
+   *
+   * @param aRoot
+   *        The root of the tree (document, element or any other node).
+   */
+  public static void finish (@Nullable final IXdmNode aRoot)
+  {
+    if (aRoot == null)
+      return;
+    fixNamespaces (aRoot);
     aRoot.assignDocumentOrder ();
   }
 }

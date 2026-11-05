@@ -16,6 +16,11 @@
  */
 package com.helger.xpath.serialize;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.Writer;
+import java.nio.charset.Charset;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -49,7 +54,7 @@ public final class XdmSerializer
   private XdmSerializer ()
   {}
 
-  private static void _checkParams (@NonNull final SerializationParams aParams)
+  static void checkParams (@NonNull final SerializationParams aParams)
   {
     final String sMethod = aParams.getMethod ();
     final boolean bXmlLike = SerializationParams.METHOD_XML.equals (sMethod) ||
@@ -154,6 +159,38 @@ public final class XdmSerializer
     return ret;
   }
 
+  /**
+   * Append text with the rules of the text output method: the character map
+   * and normalisation are applied, every other character is written as it is.
+   *
+   * @param aSB
+   *        Target.
+   * @param s
+   *        The text.
+   * @param aCharset
+   *        The output charset.
+   * @throws XPathException
+   *         SERE0008 for a character the encoding cannot represent
+   */
+  static void appendTextMethod (@NonNull final StringBuilder aSB,
+                                @NonNull final String s,
+                                @NonNull final OutputCharset aCharset)
+  {
+    aCharset.mapAndEscape (aSB, s, (aTarget, sRun) -> {
+      for (int i = 0; i < sRun.length ();)
+      {
+        final int cp = sRun.codePointAt (i);
+        i += Character.charCount (cp);
+        if (!aCharset.canEncode (cp))
+          throw XPathException.of ("SERE0008",
+                                   "The character U+" +
+                                                Integer.toHexString (cp) +
+                                                " cannot be represented in the output encoding");
+        aTarget.appendCodePoint (cp);
+      }
+    });
+  }
+
   @NonNull
   private static String _serializeText (@NonNull final ICommonsList <Object> aItems,
                                         @NonNull final OutputCharset aCharset)
@@ -169,19 +206,7 @@ public final class XdmSerializer
           aRaw.append (aNode.getStringValue ());
       }
     final StringBuilder ret = new StringBuilder (aRaw.length ());
-    aCharset.mapAndEscape (ret, aRaw.toString (), (aTarget, sRun) -> {
-      for (int i = 0; i < sRun.length ();)
-      {
-        final int cp = sRun.codePointAt (i);
-        i += Character.charCount (cp);
-        if (!aCharset.canEncode (cp))
-          throw XPathException.of ("SERE0008",
-                                   "The character U+" +
-                                                Integer.toHexString (cp) +
-                                                " cannot be represented in the output encoding");
-        aTarget.appendCodePoint (cp);
-      }
-    });
+    appendTextMethod (ret, aRaw.toString (), aCharset);
     return ret.toString ();
   }
 
@@ -199,27 +224,17 @@ public final class XdmSerializer
     JsonWriter.appendString (aSB, s, null, false);
   }
 
-  /**
-   * Serialize a sequence.
-   *
-   * @param aSeq
-   *        The sequence to serialize.
-   * @param aParams
-   *        The serialization parameters.
-   * @return The serialized form.
-   * @throws XPathException
-   *         with a serialization error code (SENR, SEPM, SERE, SESU).
-   */
-  @NonNull
-  public static String serialize (@NonNull final XdmSequence aSeq, @NonNull final SerializationParams aParams)
+  private static void _serialize (@NonNull final XdmSequence aSeq,
+                                  @NonNull final SerializationParams aParams,
+                                  @NonNull final StringBuilder aSB,
+                                  @Nullable final Writer aTarget)
   {
     ValueEnforcer.notNull (aSeq, "Seq");
     ValueEnforcer.notNull (aParams, "Params");
-    _checkParams (aParams);
+    checkParams (aParams);
     final OutputCharset aCharset = new OutputCharset (aParams);
-    final StringBuilder aSB = new StringBuilder ();
     if (aParams.isByteOrderMark ())
-      aSB.append ('﻿');
+      aSB.append ('\uFEFF');
     final String sMethod = aParams.getMethod ();
     switch (sMethod)
     {
@@ -235,11 +250,80 @@ public final class XdmSerializer
       case SerializationParams.METHOD_XML:
       case SerializationParams.METHOD_XHTML:
       case SerializationParams.METHOD_HTML:
-        new MarkupWriter (aParams, aCharset, aSB, sMethod).write (normalize (aSeq, aParams.getItemSeparator ()));
+        new MarkupWriter (aParams, aCharset, aSB, sMethod, aTarget).write (normalize (aSeq, aParams.getItemSeparator ()));
         break;
       default:
         throw XPathException.of ("SEPM0016", "Unsupported serialization method '" + sMethod + "'");
     }
+  }
+
+  /**
+   * Serialize a sequence.
+   *
+   * @param aSeq
+   *        The sequence to serialize.
+   * @param aParams
+   *        The serialization parameters.
+   * @return The serialized form.
+   * @throws XPathException
+   *         with a serialization error code (SENR, SEPM, SERE, SESU).
+   */
+  @NonNull
+  public static String serialize (@NonNull final XdmSequence aSeq, @NonNull final SerializationParams aParams)
+  {
+    final StringBuilder aSB = new StringBuilder ();
+    _serialize (aSeq, aParams, aSB, null);
     return aSB.toString ();
+  }
+
+  /**
+   * Serialize a sequence to a writer. The characters are the same as those
+   * {@link #serialize(XdmSequence, SerializationParams)} returns; the xml,
+   * xhtml and html methods write them in pieces, the others at the end. The
+   * writer is flushed but not closed. On an error, part of the output may
+   * have been written.
+   *
+   * @param aSeq
+   *        The sequence to serialize.
+   * @param aParams
+   *        The serialization parameters.
+   * @param aWriter
+   *        The target.
+   * @throws XPathException
+   *         with a serialization error code (SENR, SEPM, SERE, SESU).
+   * @throws UncheckedIOException
+   *         on a write error
+   */
+  public static void serialize (@NonNull final XdmSequence aSeq,
+                                @NonNull final SerializationParams aParams,
+                                @NonNull final Writer aWriter)
+  {
+    ValueEnforcer.notNull (aWriter, "Writer");
+    final StringBuilder aSB = new StringBuilder ();
+    _serialize (aSeq, aParams, aSB, aWriter);
+    try
+    {
+      aWriter.append (aSB);
+      aWriter.flush ();
+    }
+    catch (final IOException ex)
+    {
+      throw new UncheckedIOException (ex);
+    }
+  }
+
+  /**
+   * @param aParams
+   *        The serialization parameters.
+   * @return The Java charset to encode the serialized characters with, for
+   *         the encoding parameter.
+   * @throws XPathException
+   *         SESU0007 if the encoding is not supported
+   */
+  @NonNull
+  public static Charset getEncodingCharset (@NonNull final SerializationParams aParams)
+  {
+    ValueEnforcer.notNull (aParams, "Params");
+    return OutputCharset.getCharset (aParams);
   }
 }

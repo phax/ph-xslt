@@ -16,6 +16,9 @@
  */
 package com.helger.xpath.serialize;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.Writer;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
@@ -212,9 +215,13 @@ final class MarkupWriter
     }
   }
 
+  /** Buffered characters written to the target writer when it has one. */
+  static final int FLUSH_SIZE = 16 * 1024;
+
   private final SerializationParams m_aParams;
   private final OutputCharset m_aCharset;
   private final StringBuilder m_aSB;
+  private final Writer m_aTarget;
   private final boolean m_bHtml;
   private final boolean m_bXhtml;
   private final boolean m_bHtml5;
@@ -224,15 +231,41 @@ final class MarkupWriter
   private final ICommonsMap <String, String> m_aScope = new CommonsLinkedHashMap <> ();
   private final ICommonsList <String []> m_aUndo = new CommonsArrayList <> ();
   private boolean m_bSuppress = false;
+  private boolean m_bDoctypeDone = false;
+  // The elements opened by openElement, innermost first
+  private final ArrayDeque <Frame> m_aOpen = new ArrayDeque <> ();
 
   MarkupWriter (@NonNull final SerializationParams aParams,
                 @NonNull final OutputCharset aCharset,
                 @NonNull final StringBuilder aSB,
                 @NonNull final String sMethod)
   {
+    this (aParams, aCharset, aSB, sMethod, null);
+  }
+
+  /**
+   * @param aParams
+   *        Serialization parameters.
+   * @param aCharset
+   *        Output charset.
+   * @param aSB
+   *        The buffer everything is written to.
+   * @param sMethod
+   *        xml, xhtml or html.
+   * @param aTarget
+   *        If not <code>null</code>, the buffer is written to it whenever it
+   *        has grown beyond {@link #FLUSH_SIZE} characters.
+   */
+  MarkupWriter (@NonNull final SerializationParams aParams,
+                @NonNull final OutputCharset aCharset,
+                @NonNull final StringBuilder aSB,
+                @NonNull final String sMethod,
+                @Nullable final Writer aTarget)
+  {
     m_aParams = aParams;
     m_aCharset = aCharset;
     m_aSB = aSB;
+    m_aTarget = aTarget;
     m_bHtml = SerializationParams.METHOD_HTML.equals (sMethod);
     m_bXhtml = SerializationParams.METHOD_XHTML.equals (sMethod);
     m_bHtml5 = (m_bHtml || m_bXhtml) && _getHtmlVersion (aParams, m_bHtml).compareTo (BigDecimal.valueOf (5)) >= 0;
@@ -446,6 +479,34 @@ final class MarkupWriter
   {
     final int n = aElement.getChildCount ();
     return n == 0 ? null : aElement.getChildAtIndex (n - 1);
+  }
+
+  /**
+   * Write the buffer to the target writer.
+   *
+   * @throws UncheckedIOException
+   *         on a write error
+   */
+  void flushBuffer ()
+  {
+    if (m_aTarget != null && m_aSB.length () > 0)
+    {
+      try
+      {
+        m_aTarget.append (m_aSB);
+      }
+      catch (final IOException ex)
+      {
+        throw new UncheckedIOException (ex);
+      }
+      m_aSB.setLength (0);
+    }
+  }
+
+  private void _flushIfFull ()
+  {
+    if (m_aSB.length () >= FLUSH_SIZE)
+      flushBuffer ();
   }
 
   private void _newline (final int nDepth)
@@ -758,14 +819,17 @@ final class MarkupWriter
 
   /**
    * Open an element: write its start tag and either finish it (no children)
-   * or return a frame for its children.
+   * or return a frame for its children. With <code>bForceOpen</code> the
+   * element is treated as having children although it has none yet (its
+   * content is written incrementally).
    */
   @Nullable
   private Frame _openElement (@NonNull final IXdmNode aElement,
                               final int nDepth,
                               @Nullable final IXdmNode aPrev,
                               final boolean bParentMayIndent,
-                              final boolean bTop)
+                              final boolean bTop,
+                              final boolean bForceOpen)
   {
     final boolean bTriggersSuppress = !m_bSuppress && _isSuppressed (aElement);
     final boolean bIndentClose = m_bIndent &&
@@ -779,7 +843,7 @@ final class MarkupWriter
     final int nMark = m_aUndo.size ();
     final String sQName = _writeStartTag (aElement, bTop);
     final String sMeta = _headNeedsMeta (aElement) ? _getContentTypeMeta () : null;
-    if (aElement.getChildCount () == 0)
+    if (!bForceOpen && aElement.getChildCount () == 0)
     {
       final String sLocalLC = aElement.getName ().localName ().toLowerCase (Locale.ROOT);
       if (sMeta != null)
@@ -829,14 +893,19 @@ final class MarkupWriter
       m_bSuppress = false;
   }
 
-  private void _writeElement (@NonNull final IXdmNode aRoot, @Nullable final IXdmNode aPrev)
+  private void _writeElement (@NonNull final IXdmNode aRoot,
+                              @Nullable final IXdmNode aPrev,
+                              final int nDepth,
+                              final boolean bParentMayIndent,
+                              final boolean bTop)
   {
     final ArrayDeque <Frame> aStack = new ArrayDeque <> ();
-    final Frame aRootFrame = _openElement (aRoot, 0, aPrev, true, true);
+    final Frame aRootFrame = _openElement (aRoot, nDepth, aPrev, bParentMayIndent, bTop, false);
     if (aRootFrame != null)
       aStack.push (aRootFrame);
     while (!aStack.isEmpty ())
     {
+      _flushIfFull ();
       final Frame aFrame = aStack.peek ();
       final IXdmNode aElement = aFrame.m_aElement;
       if (aFrame.m_nNext >= aElement.getChildCount ())
@@ -853,6 +922,7 @@ final class MarkupWriter
                                                 aFrame.m_nDepth + 1,
                                                 nIndex > 0 ? aElement.getChildAtIndex (nIndex - 1) : null,
                                                 aFrame.m_bMayIndentChildren,
+                                                false,
                                                 false);
         if (aChildFrame != null)
           aStack.push (aChildFrame);
@@ -860,6 +930,11 @@ final class MarkupWriter
       else
         _writeLeaf (aChild, aElement);
     }
+  }
+
+  private void _writeElement (@NonNull final IXdmNode aRoot, @Nullable final IXdmNode aPrev)
+  {
+    _writeElement (aRoot, aPrev, 0, true, true);
   }
 
   @NonNull
@@ -908,14 +983,17 @@ final class MarkupWriter
         m_aSB.append ("<!DOCTYPE ").append (sLocal).append ('>');
   }
 
-  /**
-   * Write the normalised sequence.
-   *
-   * @param aItems
-   *        Nodes (element, text, comment, processing instruction) and
-   *        strings (text).
-   */
-  void write (@NonNull final List <Object> aItems)
+  private void _beforeTopLevelElement (@NonNull final IXdmNode aElement)
+  {
+    if (!m_bDoctypeDone)
+    {
+      _writeDoctype (aElement);
+      m_bDoctypeDone = true;
+    }
+  }
+
+  /** Write the XML declaration, if the parameters ask for one. */
+  void writeDeclaration ()
   {
     if (!m_bHtml && !m_aParams.isOmitXmlDeclaration ())
     {
@@ -925,10 +1003,22 @@ final class MarkupWriter
         m_aSB.append (" standalone=\"").append (m_aParams.getStandalone ()).append ('"');
       m_aSB.append ("?>");
     }
-    boolean bDoctypeDone = false;
+  }
+
+  /**
+   * Write the normalised sequence.
+   *
+   * @param aItems
+   *        Nodes (element, text, comment, processing instruction) and
+   *        strings (text).
+   */
+  void write (@NonNull final List <Object> aItems)
+  {
+    writeDeclaration ();
     Object aPrev = null;
     for (final Object aItem : aItems)
     {
+      _flushIfFull ();
       if (aItem instanceof final String sText)
         _writeText (sText, null);
       else
@@ -936,11 +1026,7 @@ final class MarkupWriter
         final IXdmNode aNode = (IXdmNode) aItem;
         if (aNode.getKind () == ENodeKind.ELEMENT)
         {
-          if (!bDoctypeDone)
-          {
-            _writeDoctype (aNode);
-            bDoctypeDone = true;
-          }
+          _beforeTopLevelElement (aNode);
           _writeElement (aNode, aPrev instanceof final IXdmNode aPrevNode ? aPrevNode : null);
         }
         else
@@ -948,5 +1034,62 @@ final class MarkupWriter
       }
       aPrev = aItem;
     }
+  }
+
+  /**
+   * Incremental writing: write the start tag of an element whose content
+   * follows through {@link #writeNode(IXdmNode)} and
+   * {@link #openElement(IXdmNode)}, and which is closed by
+   * {@link #closeElement()}. The element is a child of the innermost open
+   * element, or a top-level node if none is open. Its name, attributes and
+   * namespaces must be final. Indentation is not supported.
+   *
+   * @param aElement
+   *        The element.
+   */
+  void openElement (@NonNull final IXdmNode aElement)
+  {
+    final Frame aParent = m_aOpen.peek ();
+    if (aParent == null)
+      _beforeTopLevelElement (aElement);
+    final Frame aFrame = _openElement (aElement,
+                                       aParent == null ? 0 : aParent.m_nDepth + 1,
+                                       null,
+                                       aParent == null || aParent.m_bMayIndentChildren,
+                                       aParent == null,
+                                       true);
+    m_aOpen.push (aFrame);
+  }
+
+  /** Incremental writing: write the end tag of the innermost open element. */
+  void closeElement ()
+  {
+    if (m_aOpen.isEmpty ())
+      throw new IllegalStateException ("No element is open");
+    _closeElement (m_aOpen.pop ());
+  }
+
+  /**
+   * Incremental writing: write a complete node as the next child of the
+   * innermost open element, or as a top-level node if none is open.
+   *
+   * @param aNode
+   *        An element, text, comment or processing instruction node.
+   */
+  void writeNode (@NonNull final IXdmNode aNode)
+  {
+    final Frame aParent = m_aOpen.peek ();
+    if (aNode.getKind () == ENodeKind.ELEMENT)
+    {
+      if (aParent == null)
+      {
+        _beforeTopLevelElement (aNode);
+        _writeElement (aNode, null);
+      }
+      else
+        _writeElement (aNode, null, aParent.m_nDepth + 1, aParent.m_bMayIndentChildren, false);
+    }
+    else
+      _writeLeaf (aNode, aParent == null ? null : aParent.m_aElement);
   }
 }

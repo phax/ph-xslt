@@ -55,12 +55,26 @@ public final class ContentOutput implements IXsltOutput
   private boolean m_bHasChildren;
   private boolean m_bLastAtomic;
   private IXdmNode m_aLastText;
+  // Set for the nodes of a principal result that is written while it is built
+  private final ResultDrain m_aDrain;
 
   /**
    * @param aParent
    *        The element or document node to fill. It may already have content.
    */
   public ContentOutput (@NonNull final IXdmNode aParent)
+  {
+    this (aParent, null);
+  }
+
+  /**
+   * @param aParent
+   *        The element or document node to fill. It may already have content.
+   * @param aDrain
+   *        The drain writing the content while it is built, or
+   *        <code>null</code>.
+   */
+  ContentOutput (@NonNull final IXdmNode aParent, @Nullable final ResultDrain aDrain)
   {
     ValueEnforcer.isTrue (aParent.isElement () || aParent.isDocument (), "Parent must be an element or document");
     m_aParent = aParent;
@@ -69,6 +83,7 @@ public final class ContentOutput implements IXsltOutput
     m_bHasChildren = nChildren > 0;
     if (nChildren > 0 && aParent.getChildAtIndex (nChildren - 1).isText ())
       m_aLastText = aParent.getChildAtIndex (nChildren - 1);
+    m_aDrain = aDrain;
   }
 
   /**
@@ -263,7 +278,16 @@ public final class ContentOutput implements IXsltOutput
     }
   }
 
-  public void append (@NonNull final IXdmItem aItem)
+  /**
+   * The drain wrote the last child, which was text: text appended later
+   * starts a new node.
+   */
+  void forgetLastText ()
+  {
+    m_aLastText = null;
+  }
+
+  private void _append (@NonNull final IXdmItem aItem)
   {
     if (aItem instanceof final XdmArray aArray)
     {
@@ -283,56 +307,129 @@ public final class ContentOutput implements IXsltOutput
     _appendFlat (aItem);
   }
 
+  public void append (@NonNull final IXdmItem aItem)
+  {
+    if (m_aDrain == null)
+      _append (aItem);
+    else
+      if (m_aDrain.beforeAppend (this, aItem))
+      {
+        _append (aItem);
+        m_aDrain.afterAppend (this);
+      }
+  }
+
   public void appendNew (@NonNull final IXdmNode aNode)
   {
+    if (m_aDrain != null && !m_aDrain.beforeAppend (this, aNode))
+      return;
     m_bLastAtomic = false;
     _appendNode (aNode, true);
+    if (m_aDrain != null)
+      m_aDrain.afterAppend (this);
   }
 
   @Override
   public void appendText (@NonNull final String sText)
   {
+    if (m_aDrain != null && !m_aDrain.beforeAppend (this, null))
+      return;
     m_bLastAtomic = false;
     _addText (sText);
+    if (m_aDrain != null)
+      m_aDrain.afterAppend (this);
+  }
+
+  /**
+   * The content of a document node written to the enclosing content instead:
+   * attributes and namespaces in it are errors, and it separates adjacent
+   * atomic values.
+   */
+  private final class DocumentContent implements IXsltOutput
+  {
+    private boolean m_bAtomic;
+
+    @NonNull
+    ContentOutput getOuter ()
+    {
+      return ContentOutput.this;
+    }
+
+    public void append (@NonNull final IXdmItem aItem)
+    {
+      if (aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE))
+        throw new XPathException ("XTDE0420", "An attribute or namespace node cannot be added to a document node");
+      m_bLastAtomic = m_bAtomic;
+      ContentOutput.this.append (aItem);
+      m_bAtomic = m_bLastAtomic;
+      m_bLastAtomic = false;
+    }
+
+    public void appendNew (@NonNull final IXdmNode aNode)
+    {
+      if (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE)
+        throw new XPathException ("XTDE0420", "An attribute or namespace node cannot be added to a document node");
+      m_bAtomic = false;
+      ContentOutput.this.appendNew (aNode);
+    }
+
+    @Override
+    public void appendText (@NonNull final String sText)
+    {
+      m_bAtomic = false;
+      ContentOutput.this.appendText (sText);
+    }
   }
 
   @Override
   @Nullable
   public IXsltOutput getDocumentContentOutput ()
   {
-    final ContentOutput aOuter = this;
-    // The content of the document node replaces it: attributes and namespaces
-    // in it are errors, and it separates adjacent atomic values
+    // The content of the document node replaces it
     m_bLastAtomic = false;
-    return new IXsltOutput ()
+    return new DocumentContent ();
+  }
+
+  /**
+   * Create the output for the content of a new element that an instruction
+   * appends to a target output with {@link IXsltOutput#appendNew(IXdmNode)}
+   * once it is complete, with nothing else appended to that target in
+   * between. If the target is part of a principal result that is written
+   * while it is built ({@link ResultDrain}), the element is written while it
+   * is built as well, provided <code>bDrainable</code> says that the
+   * instruction does not change the content after it was added (as
+   * inherit-namespaces="no" and validation do).
+   *
+   * @param aElement
+   *        The new element, without children.
+   * @param aTarget
+   *        The output the element is appended to.
+   * @param bDrainable
+   *        <code>true</code> if the content of the element is not changed
+   *        after it was added.
+   * @return A new content output for the element.
+   */
+  @NonNull
+  public static ContentOutput createFor (@NonNull final IXdmNode aElement,
+                                         @NonNull final IXsltOutput aTarget,
+                                         final boolean bDrainable)
+  {
+    if (bDrainable)
     {
-      private boolean m_bAtomic;
-
-      public void append (@NonNull final IXdmItem aItem)
+      ContentOutput aParent = null;
+      if (aTarget instanceof final ContentOutput aContent)
+        aParent = aContent;
+      else
+        if (aTarget instanceof final DocumentContent aDocContent)
+          aParent = aDocContent.getOuter ();
+      if (aParent != null && aParent.m_aDrain != null)
       {
-        if (aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE))
-          throw new XPathException ("XTDE0420", "An attribute or namespace node cannot be added to a document node");
-        aOuter.m_bLastAtomic = m_bAtomic;
-        aOuter.append (aItem);
-        m_bAtomic = aOuter.m_bLastAtomic;
-        aOuter.m_bLastAtomic = false;
+        final ContentOutput ret = aParent.m_aDrain.openElement (aParent, aElement);
+        if (ret != null)
+          return ret;
       }
-
-      public void appendNew (@NonNull final IXdmNode aNode)
-      {
-        if (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE)
-          throw new XPathException ("XTDE0420", "An attribute or namespace node cannot be added to a document node");
-        m_bAtomic = false;
-        aOuter.appendNew (aNode);
-      }
-
-      @Override
-      public void appendText (@NonNull final String sText)
-      {
-        m_bAtomic = false;
-        aOuter.appendText (sText);
-      }
-    };
+    }
+    return new ContentOutput (aElement);
   }
 
   /**

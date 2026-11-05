@@ -16,6 +16,9 @@
  */
 package com.helger.xslt.runtime;
 
+import java.io.OutputStream;
+import java.io.Writer;
+import java.util.ArrayDeque;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -29,9 +32,8 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.serialize.SerializationParams;
+import com.helger.xpath.serialize.XdmIncrementalSerializer;
 import com.helger.xpath.serialize.XdmSerializer;
-import com.helger.xpath.value.IXdmFunction;
-import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
@@ -56,12 +58,23 @@ import com.helger.xslt.stream.StreamConsumer;
 import com.helger.xslt.stream.StreamPlanner;
 import com.helger.xslt.stream.StreamedRun;
 import com.helger.xslt.tree.XslElement;
+import com.helger.xslt.tree.XslModule;
 import com.helger.xslt.tree.XsltNames;
 
 /**
  * Runs one transformation (XSLT 3.0 section 2.3): sets up the engine, invokes
  * the initial function, initial template or initial mode, builds the
  * principal result tree and serializes it.
+ * <p>
+ * The principal result can be written to a writer or output stream instead of
+ * being returned as a string. Where the output definition allows it, it is
+ * then also written while it is built ({@link ResultDrain}): the stylesheet is
+ * not schema-aware, the method is stated by the unnamed xsl:output, no
+ * xsl:result-document could redirect the principal output, a tree is built,
+ * and the serialization parameters do not need content not seen yet
+ * ({@link XdmIncrementalSerializer#isSupported(SerializationParams)}).
+ * Otherwise the tree is built in full and then written, with the same
+ * characters as the returned string.
  *
  * @author Philip Helger
  */
@@ -72,6 +85,8 @@ public final class XsltTransformer
 
   private final CompiledStylesheet m_aSheet;
   private final XsltTransformRequest m_aRequest;
+  // The drain of the current run, if its result is written while it is built
+  private ResultDrain m_aDrain;
 
   public XsltTransformer (@NonNull final CompiledStylesheet aSheet, @NonNull final XsltTransformRequest aRequest)
   {
@@ -396,7 +411,78 @@ public final class XsltTransformer
   }
 
   @NonNull
-  private XsltTransformResult _run ()
+  private SerializationParams _createSerializationParams (@NonNull final OutputDefinition aOutputDef,
+                                                          @NonNull final String sMethod)
+  {
+    final SerializationParams ret = aOutputDef.createSerializationParams (sMethod);
+    for (final IOutputCustomizer aCustomizer : XsltExtensionRegistry.getInstance ().getAllOutputCustomizers ())
+      aCustomizer.customize (m_aSheet, aOutputDef, ret);
+    return ret;
+  }
+
+  private static boolean _hasItemSeparator (@NonNull final OutputDefinition aOutputDef)
+  {
+    return aOutputDef.getValue ("item-separator") != null && !"#absent".equals (aOutputDef.getValue ("item-separator"));
+  }
+
+  /**
+   * @return <code>true</code> if any module has an xsl:result-document, which
+   *         may write the principal result with another output definition.
+   */
+  private boolean _hasResultDocument ()
+  {
+    for (final XslModule aModule : m_aSheet.modules ())
+    {
+      final XslElement aRoot = aModule.getRoot ();
+      if (aRoot == null)
+        continue;
+      final ArrayDeque <XslElement> aStack = new ArrayDeque <> ();
+      aStack.push (aRoot);
+      while (!aStack.isEmpty ())
+      {
+        final XslElement aEl = aStack.pop ();
+        if (aEl.isXsl ("result-document"))
+          return true;
+        for (final XslElement aChild : aEl.getElementChildren ())
+          aStack.push (aChild);
+      }
+    }
+    return false;
+  }
+
+  /**
+   * @return The drain writing the principal result while it is built, or
+   *         <code>null</code> if the output definition does not allow it.
+   */
+  @Nullable
+  private ResultDrain _createDrain (@NonNull final ResultTarget aTarget)
+  {
+    // Schema-aware: validation may change or check a tree after it was built
+    if (m_aSheet.isSchemaAware ())
+      return null;
+    final OutputDefinition aOutputDef = m_aSheet.getOutput ();
+    final String sMethod = aOutputDef.getMethod ();
+    // The method must be known before the first character is written
+    if (sMethod == null || !aOutputDef.isBuildTree (sMethod) || _hasItemSeparator (aOutputDef) || _hasResultDocument ())
+      return null;
+    final SerializationParams aParams = _createSerializationParams (aOutputDef, sMethod);
+    if (!XdmIncrementalSerializer.isSupported (aParams))
+      return null;
+    try
+    {
+      SerializationChecks.check (aParams, null);
+      XdmIncrementalSerializer.checkParams (aParams);
+    }
+    catch (final XPathException ex)
+    {
+      // Raised by the serialization after the run, as without a drain
+      return null;
+    }
+    return new ResultDrain (aParams, aTarget.open (aParams));
+  }
+
+  @NonNull
+  private XsltTransformResult _run (@Nullable final ResultTarget aTarget)
   {
     final Engine aEngine = new Engine (m_aSheet, m_aRequest);
     final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots = new CommonsHashMap <> ();
@@ -468,8 +554,10 @@ public final class XsltTransformer
     XsltContext aCtx = aEngine.createRootContext ();
     if (aGlobalItem != null)
       aCtx = aCtx.withFocus (aGlobalItem, 1, 1);
-    final BufferedOutput aBuffer = new BufferedOutput ();
-    aEngine.setPrincipalOutput (aBuffer);
+    m_aDrain = aTarget != null ? _createDrain (aTarget) : null;
+    final BufferedOutput aBuffer = m_aDrain == null ? new BufferedOutput () : null;
+    final IXsltOutput aPrincipal = m_aDrain != null ? m_aDrain.getOutput () : aBuffer;
+    aEngine.setPrincipalOutput (aPrincipal);
     if (m_aRequest.getInitialFunction () != null)
     {
       final XdmQName aName = m_aRequest.getInitialFunction ();
@@ -492,7 +580,7 @@ public final class XsltTransformer
                                                 aDef.getParamTypes ().get (i),
                                                 aCtx.getDynamicContext (),
                                                 "XPTY0004"));
-      aBuffer.appendAll (aFunc.invoke (aEngine.createRootContext (), aArgs));
+      aPrincipal.appendAll (aFunc.invoke (aEngine.createRootContext (), aArgs));
     }
     else
       if (m_aRequest.getInitialTemplate () != null)
@@ -504,7 +592,7 @@ public final class XsltTransformer
                                    null,
                                    0,
                                    0);
-        aEngine.callTemplate (aCtx, aTemplate, _getTemplateParams (m_aRequest), aBuffer);
+        aEngine.callTemplate (aCtx, aTemplate, _getTemplateParams (m_aRequest), aPrincipal);
       }
       else
       {
@@ -517,21 +605,33 @@ public final class XsltTransformer
             throw new XsltException ("XTDE0040", "The template xsl:initial-template is not public", null, 0, 0);
           if (aInitial == null)
             throw new XsltException ("XTDE0044", "There is no initial match selection and no xsl:initial-template", null, 0, 0);
-          aEngine.callTemplate (aCtx, aInitial, _getTemplateParams (m_aRequest), aBuffer);
+          aEngine.callTemplate (aCtx, aInitial, _getTemplateParams (m_aRequest), aPrincipal);
         }
         else
         {
           final Mode aMode = _resolveInitialMode ();
           if (aStreamedRun != null)
-            _applyStreamed (aEngine, aStreamedRun, aCtx, aMode, aBuffer);
+            _applyStreamed (aEngine, aStreamedRun, aCtx, aMode, aPrincipal);
           else
             aEngine.applyTemplates (aCtx.withState (aCtx.getState ().withCurrentRule (null, aMode)),
                                     aMatchSelection,
                                     aMode,
                                     _getTemplateParams (m_aRequest),
-                                    aBuffer);
+                                    aPrincipal);
         }
       }
+
+    if (m_aDrain != null)
+    {
+      m_aDrain.finish ();
+      return new XsltTransformResult (XdmSequence.EMPTY,
+                                      null,
+                                      "",
+                                      aEngine.getSecondaryResults ().getClone (),
+                                      aEngine.getMessages ().getClone (),
+                                      m_aSheet.getOutput ().getMethod (),
+                                      false);
+    }
 
     // The principal result; an xsl:result-document without href may have
     // written it with its own output definition
@@ -544,7 +644,8 @@ public final class XsltTransformer
     final OutputDefinition aOutputDef = aEngine.getPrincipalOutputDefinition () != null ? aEngine.getPrincipalOutputDefinition ()
                                                                                          : m_aSheet.getOutput ();
     final String sDeclaredMethod = aOutputDef.getMethod ();
-    final boolean bRawOnly = m_aRequest.isRawDelivery ();
+    // Raw delivery does not apply when the result is written to a target
+    final boolean bRawOnly = aTarget == null && m_aRequest.isRawDelivery ();
     final boolean bBuildTree = !bRawOnly &&
                                aOutputDef.isBuildTree (sDeclaredMethod != null ? sDeclaredMethod : SerializationParams.METHOD_XML);
     final XdmSequence aRaw;
@@ -557,9 +658,7 @@ public final class XsltTransformer
         final IXdmItem aItem = aBuffer.get (i);
         // Result tree construction is sequence normalization (XSLT 3.0
         // section 2.3.6.1), which rejects attribute and namespace nodes
-        if (aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE) ||
-            aItem instanceof XdmMap ||
-            aItem instanceof IXdmFunction)
+        if (ResultDrain.isNormalizationError (aItem))
           throw new XPathException ("SENR0001", "The principal result contains an attribute or namespace node, a map or a function");
         aItems.add (aItem);
       }
@@ -582,15 +681,24 @@ public final class XsltTransformer
                                       aEngine.getMessages ().getClone (),
                                       sMethod,
                                       false);
-    final SerializationParams aParams = aOutputDef.createSerializationParams (sMethod);
-    for (final IOutputCustomizer aCustomizer : XsltExtensionRegistry.getInstance ().getAllOutputCustomizers ())
-      aCustomizer.customize (m_aSheet, aOutputDef, aParams);
+    final SerializationParams aParams = _createSerializationParams (aOutputDef, sMethod);
     SerializationChecks.check (aParams, aTree);
     // With an item separator the raw sequence is serialized, so that the
     // separator comes between its items
-    final boolean bSerializeRaw = aTree == null || aOutputDef.getValue ("item-separator") != null &&
-                                                   !"#absent".equals (aOutputDef.getValue ("item-separator"));
-    final String sSerialized = XdmSerializer.serialize (bSerializeRaw ? aRaw : XdmSequence.of (aTree), aParams);
+    final boolean bSerializeRaw = aTree == null || _hasItemSeparator (aOutputDef);
+    final XdmSequence aToSerialize = bSerializeRaw ? aRaw : XdmSequence.of (aTree);
+    if (aTarget != null)
+    {
+      XdmSerializer.serialize (aToSerialize, aParams, aTarget.open (aParams));
+      return new XsltTransformResult (XdmSequence.EMPTY,
+                                      null,
+                                      "",
+                                      aEngine.getSecondaryResults ().getClone (),
+                                      aEngine.getMessages ().getClone (),
+                                      sMethod,
+                                      aParams.isIndent ());
+    }
+    final String sSerialized = XdmSerializer.serialize (aToSerialize, aParams);
     return new XsltTransformResult (aRaw,
                                     aTree,
                                     sSerialized,
@@ -610,6 +718,65 @@ public final class XsltTransformer
   @NonNull
   public XsltTransformResult run ()
   {
-    return LargeStackRunner.run (this::_run, "ph-xslt-transform");
+    return LargeStackRunner.run ( () -> _run (null), "ph-xslt-transform");
+  }
+
+  @NonNull
+  private XsltTransformResult _runTo (@NonNull final ResultTarget aTarget)
+  {
+    return LargeStackRunner.run ( () -> {
+      try
+      {
+        return _run (aTarget);
+      }
+      catch (final RuntimeException ex)
+      {
+        // What was written so far is the caller's to discard
+        if (m_aDrain != null)
+          m_aDrain.flushQuietly ();
+        aTarget.flushQuietly ();
+        throw ex;
+      }
+    }, "ph-xslt-transform");
+  }
+
+  /**
+   * Run the transformation on a worker thread with a large stack and write
+   * the serialized principal result to an output stream, encoded with the
+   * encoding of its output definition. The stream is flushed, not closed.
+   *
+   * @param aOS
+   *        The target stream.
+   * @return The result, with an empty principal result and serialized form
+   *         (they went to the stream); the secondary results and messages as
+   *         with {@link #run()}.
+   * @throws XPathException
+   *         for dynamic and serialization errors; part of the output may have
+   *         been written to the stream then
+   */
+  @NonNull
+  public XsltTransformResult runTo (@NonNull final OutputStream aOS)
+  {
+    return _runTo (ResultTarget.of (aOS));
+  }
+
+  /**
+   * Run the transformation on a worker thread with a large stack and write
+   * the serialized principal result to a writer, with the characters
+   * {@link #run()} would return. The writer is flushed, not closed.
+   *
+   * @param aWriter
+   *        The target writer.
+   * @return The result, with an empty principal result and serialized form
+   *         (they went to the writer); the secondary results and messages as
+   *         with {@link #run()}.
+   * @throws XPathException
+   *         for dynamic and serialization errors; part of the output may have
+   *         been written to the writer then
+   */
+  @NonNull
+  public XsltTransformResult runTo (@NonNull final Writer aWriter)
+  {
+    return _runTo (ResultTarget.of (aWriter));
   }
 }

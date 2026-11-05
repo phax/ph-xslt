@@ -16,6 +16,9 @@
  */
 package com.helger.xslt;
 
+import java.io.OutputStream;
+import java.io.Writer;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -38,6 +41,67 @@ public interface XsltExecutable
    */
   @NonNull
   XsltTransformResult transform (@NonNull XsltTransformRequest aRequest);
+
+  /**
+   * Transform and write the serialized principal result to an output stream
+   * instead of returning it, encoded with the encoding of the output
+   * definition (UTF-16 is written big-endian with a byte order mark). Where
+   * the unnamed xsl:output allows it (not schema-aware, an explicit method
+   * that builds a tree, no xsl:result-document in the stylesheet, no indentation, item separator,
+   * standalone or doctype-system declaration for xml and xhtml, no
+   * Content-Type meta element for html and xhtml, no character map or
+   * normalisation for text), the result is also written while it is built,
+   * so that it never exists as a whole; otherwise it is built in full and
+   * then written. The output is the same either way.
+   *
+   * @param aRequest
+   *        How to invoke the stylesheet. Raw delivery does not apply: the
+   *        result is always serialized.
+   * @param aOS
+   *        The target. It is flushed, not closed.
+   * @return The results, with an empty principal result, no principal tree
+   *         and an empty serialized form; the secondary results and messages
+   *         as with {@link #transform(XsltTransformRequest)}.
+   * @throws XsltException
+   *         for dynamic errors (and XPath and serialization errors wrapped
+   *         with their code). Part of the output may have been written then.
+   * @throws UnsupportedOperationException
+   *         if this implementation does not support it
+   */
+  @NonNull
+  default XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest, @NonNull final OutputStream aOS)
+  {
+    throw new UnsupportedOperationException ("Writing to a stream is not supported by " + getClass ().getName ());
+  }
+
+  /**
+   * Transform and write the serialized principal result to a writer instead
+   * of returning it: the same characters as
+   * {@link XsltTransformResult#principalSerialized()} of
+   * {@link #transform(XsltTransformRequest)}. The encoding of the output
+   * definition only decides which characters are written as character
+   * references. See {@link #transform(XsltTransformRequest, OutputStream)}
+   * for when the result is written while it is built.
+   *
+   * @param aRequest
+   *        How to invoke the stylesheet. Raw delivery does not apply: the
+   *        result is always serialized.
+   * @param aWriter
+   *        The target. It is flushed, not closed.
+   * @return The results, with an empty principal result, no principal tree
+   *         and an empty serialized form; the secondary results and messages
+   *         as with {@link #transform(XsltTransformRequest)}.
+   * @throws XsltException
+   *         for dynamic errors (and XPath and serialization errors wrapped
+   *         with their code). Part of the output may have been written then.
+   * @throws UnsupportedOperationException
+   *         if this implementation does not support it
+   */
+  @NonNull
+  default XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest, @NonNull final Writer aWriter)
+  {
+    throw new UnsupportedOperationException ("Writing to a writer is not supported by " + getClass ().getName ());
+  }
 
   /**
    * Create the static context for standalone XPath expressions and patterns of

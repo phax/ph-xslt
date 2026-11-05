@@ -17,12 +17,14 @@
 package com.helger.xslt.conformance;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -79,6 +81,14 @@ public final class XSLT30CaseRunner
   private static final Pattern XML_DECL_ENCODING = Pattern.compile ("^<\\?xml[^>]*encoding\\s*=\\s*[\"']([A-Za-z0-9._:-]+)[\"']");
   private static final Pattern PSEUDO_ATTR_HREF = Pattern.compile ("href\\s*=\\s*[\"']([^\"']*)[\"']");
   private static final int MAX_DETAIL_LEN = 400;
+
+  /**
+   * <code>-Dxslt30.writeTo=true</code>: every transformation is run a second
+   * time writing to a writer, which must give the same characters (or the
+   * same error code); a difference fails the case with "harness".
+   */
+  static final boolean WRITE_TO = Boolean.getBoolean ("xslt30.writeTo");
+  static final AtomicLong WRITE_TO_COMPARED = new AtomicLong (0);
 
   /**
    * The outcome of one case.
@@ -334,6 +344,35 @@ public final class XSLT30CaseRunner
     aEval.setContextItem (aFocus);
     aEval.setResourceResolver (aResolver);
     return aEval.evaluate (sExpr, new CommonsLinkedHashMap <> ());
+  }
+
+  /**
+   * Run the transformation again, writing to a writer, and compare.
+   */
+  private static void _compareWriteTo (@NonNull final XsltExecutable aExecutable,
+                                       @NonNull final XsltTransformRequest aRequest,
+                                       @Nullable final String sExpected,
+                                       @Nullable final String sExpectedCode)
+  {
+    WRITE_TO_COMPARED.incrementAndGet ();
+    final StringWriter aSW = new StringWriter ();
+    String sCode = null;
+    try
+    {
+      aExecutable.transform (aRequest, aSW);
+    }
+    catch (final XPathException ex)
+    {
+      sCode = ex.getCode ();
+    }
+    if (sExpectedCode != null || sCode != null)
+    {
+      if (sExpectedCode == null || !sExpectedCode.equals (sCode))
+        throw new HarnessException ("writeTo: error " + sCode + " instead of " + sExpectedCode);
+    }
+    else
+      if (!aSW.toString ().equals (sExpected))
+        throw new HarnessException ("writeTo: different output: " + _cut (aSW.toString ()));
   }
 
   /**
@@ -676,7 +715,19 @@ public final class XSLT30CaseRunner
       aRequest.setStreamedSourceUri (XSLT30ResourceResolver.getFileUri (aStreamablePath));
     }
 
-    final XsltTransformResult aResult = aExecutable.transform (aRequest);
+    final XsltTransformResult aResult;
+    try
+    {
+      aResult = aExecutable.transform (aRequest);
+    }
+    catch (final XPathException ex)
+    {
+      if (WRITE_TO)
+        _compareWriteTo (aExecutable, aRequest, null, ex.getCode ());
+      throw ex;
+    }
+    if (WRITE_TO && !aRequest.isRawDelivery ())
+      _compareWriteTo (aExecutable, aRequest, aResult.principalSerialized (), null);
     return XSLT30Actual.ofResult (aResult,
                                   aFunction != null || aOutput != null && "no".equals (aOutput.tree ()),
                                   sResultVar,

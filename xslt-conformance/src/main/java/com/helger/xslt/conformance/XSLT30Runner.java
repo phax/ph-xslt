@@ -31,6 +31,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.conformance.QT3Outcome;
 import com.helger.xpath.conformance.QT3SetResult;
+import com.helger.xslt.runtime.ResultDrain;
 
 /**
  * Runs the whole xslt30-test catalog (or the test sets selected by
@@ -180,6 +181,12 @@ public final class XSLT30Runner
         for (final String sLine : aSet.getFailLines ())
           System.out.println (sLine);
     System.out.print (ret.getSummary ());
+    if (XSLT30CaseRunner.WRITE_TO)
+      System.out.println ("writeTo: " +
+                          XSLT30CaseRunner.WRITE_TO_COMPARED.get () +
+                          " runs compared, " +
+                          ResultDrain.getDrainedRunCount () +
+                          " written while built");
     ret.writeFiles (m_aSettings.outDir ());
     System.out.println ("fail list written to " +
                         m_aSettings.outDir ().resolve ("xslt30-fails.txt").toAbsolutePath ());
