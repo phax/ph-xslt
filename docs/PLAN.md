@@ -453,3 +453,45 @@ Done (2026-11-05). Reported by ph-sch2java on `Large_Invoice_sample2.xml` (Peppo
 Seen in the profile, left for the performance phase: `FunctionLibrary.getFunction` builds the key
 `{ns}local#arity` on every static function call (15 to 20 % of the per-line samples), and every axis step allocates an
 `ArrayList` that is then copied into an `XdmSequence` (about 13 % of the child-step profile).
+
+## Review pass: Javadoc, findings, stricter harnesses
+
+Done (2026-11-05). Every module got Javadoc on what its methods actually do (comments only, checked token by token
+against the code). The pass reported about 90 suspected bugs, spec mismatches and rule violations; each was reproduced
+with a unit test before it was fixed, decided against the spec text, and checked against what the W3C suites expect
+(where a suite case contradicts the spec, the suite's behaviour was kept and the case is named below). The harnesses
+were tightened: `not` passes only on an evaluated false child, `assert-eq` compares typed values,
+`assert-result-document` resolves the full URI, `assert-serialization` is exact, QT3 skips that hid failures fail as
+`harness:<reason>`, `-Dqt3.strictCode=true`, accepted-failures files count only listed names, and xsdtests runs the
+`full-xpath-in-CTA` groups. The final gate on JDK 21 (QT3 59, XSLT30 7, schema-aware 12, streaming 61, writer 7, xsd
+256, native 5 and 4) showed only three new failures, `cta0021`/`cta0022`/`cta0024`, fixed in the XPath context of
+assertions and type alternatives (XSD 1.1 Part 1, 3.12.4 and 3.13.4.2).
+
+Kept because a suite case contradicts the spec: `PT.5S`/`PT1.S` are rejected (QT3 `CastAs688`–`691`); SERE0008 is not
+raised for comments and PIs (Serialization 3.1 section 5.1.3; XSLT30 `output-0707` with the adaptive method); named
+accumulators need not be declared streamable (XSLT 3.0 section 18.2.2; about 60 cases); an absent context item for
+`unparsed-entity-uri` stays XTDE1370/XTDE1380 (`error-1370a`, `error-1380a`).
+
+Open, for later:
+
+* `schema-element()` subtyping ignores substitution groups (XPath 3.1 section 3.3.1); an `xs:QName` typed value is
+  atomised without a namespace context (`Atomizer._addTypedValue`); a character-map result outside the encoding does
+  not raise SERE0008 (Serialization 3.1 section 11); SERE0008 for comments and PIs outside the adaptive method.
+* `eq` is not transitive across float, double and decimal, so one distinct-values/group-by bucket key cannot match
+  every equal pair.
+* A parentless processing instruction does not get the instruction's base URI (fixing it touches node adoption in
+  `ContentOutput._appendNode`); the section 26.1 rule that a version 1.0 principal stylesheet defaults to the xml
+  method is not implemented; a missing serialization parameter document raises XTSE0020 (the spec says it should be
+  ignored); the decimal-format check treats the whole digit family as clashing, section 5.4 names only zero-digit.
+* `xsl:expose` rules are checked twice (`compile/ExposeChecker` and `PackageChecks.getExposure`); `XsltStreamability`
+  reads a missing recorded `as` as `item()*` instead of failing closed; `AccumulatorExtension._lookup` raises the static
+  XTSE3430 at run time (detect it statically instead); mode use-accumulators with an invalid token gives XTSE0020, not
+  XTSE3300; `Mode` warning flags, `VariableDef.EKind.FUNCTION_PARAM` and the context of `Engine._buildKeyIndex` are
+  unused.
+* XSD: the 1.0 compiler honours `xpathDefaultNamespace`; `vc:typeAvailable` reports `xs:precisionDecimal`; added
+  default element content is not visible to XSD 1.1 assertions; the wildcard intersection with a union operand;
+  src-ct.2 and src-redefine.1/.2 codes without a clear clause; the current dateTime of assertion tests is not constant
+  over an assessment episode (3.13.4.2).
+* Harness: the XSLT30 harness has no code-mismatch list like `qt3-code-mismatches.txt`; XSD tokens `Unicode_*`,
+  edition and XML-version tokens are never claimed; a non-queried schema compile crash drops the group's instance tests
+  uncounted.

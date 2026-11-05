@@ -6,9 +6,11 @@ The native validator of `xsd-core` (a port of go-xslt's `internal/xsd`) is selec
 list, separate from the Xerces-J one (`xsd.md`).
 
 * XSD 1.0: 39,396 of 39,401 applicable cases pass, 5 fail, nothing is unsupported.
-* XSD 1.1: 41,549 of 41,553 applicable cases pass, 4 fail, nothing is unsupported.
+* XSD 1.1: 41,596 of 41,600 applicable cases pass, 4 fail, nothing is unsupported.
 
-The denominators equal go-xslt's and so do the fail lists.
+The fail lists equal go-xslt's. The XSD 1.0 denominator does too; the XSD 1.1 one is larger by the 47 cases of the
+`full-xpath-in-CTA` test groups, which the harness runs because the native validator evaluates type alternatives
+with the full XPath engine (`XsdSuiteRules.getClaimedTokens`).
 
 Every failing case is named here in backticks under a heading with its status and reason. `XsdIT` fails on any
 failing case that is not named here (switch that off with `-Dxsd.checkAccepted=false`), so a regression is loud and a
