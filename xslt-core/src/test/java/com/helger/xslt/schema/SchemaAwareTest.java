@@ -179,6 +179,26 @@ public final class SchemaAwareTest
   }
 
   @Test
+  public void testLaxWithoutDeclaration ()
+  {
+    // The element itself is not known (xs:anyType), its declared children and
+    // attributes are validated
+    final String sSchema = "<xsl:import-schema><xs:schema targetNamespace='urn:l'>" +
+                           "<xs:element name='n' type='xs:integer'/><xs:attribute name='at' type='xs:integer'/>" +
+                           "</xs:schema></xsl:import-schema>";
+    assertEquals ("false true true true",
+                  _run (sSchema +
+                        _template ("<xsl:variable name='v' as='element()'><w xmlns:l='urn:l' l:at='3' xsl:validation='lax'><u><l:n>5</l:n></u></w></xsl:variable>" +
+                                   "<xsl:value-of select=\"$v instance of element(*, xs:untyped), $v/u instance of element(*, xs:anyType), " +
+                                   "data($v/u/*) instance of xs:integer, data($v/@*) instance of xs:integer\"/>"),
+                        true));
+    assertEquals ("XTTE1515",
+                  _errorCode (sSchema +
+                              _template ("<xsl:variable name='v' as='element()'><w xmlns:l='urn:l' xsl:validation='lax'><l:n>x</l:n></w></xsl:variable>" +
+                                         "<xsl:value-of select='count($v)'/>")));
+  }
+
+  @Test
   public void testCasts ()
   {
     assertEquals ("true false 2",

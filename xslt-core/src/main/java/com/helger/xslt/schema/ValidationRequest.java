@@ -516,14 +516,60 @@ public final class ValidationRequest
   }
 
   /**
+   * Lax assessment of an element that has neither a top-level declaration
+   * nor an <code>xsi:type</code> (XSLT 3.0 section 25.4.1.1, which makes the
+   * recursive checking that XML Schema leaves optional mandatory): the
+   * element's validity is not known, so it is annotated
+   * <code>xs:anyType</code>; each of its attributes is validated against its
+   * top-level declaration, or annotated <code>xs:untypedAtomic</code> if
+   * there is none; each child element is validated by the schema set if it
+   * has a top-level declaration or an <code>xsi:type</code>, and is
+   * otherwise assessed laxly in the same way. The walk is iterative.
+   * Document-level constraints are not checked across the laxly assessed
+   * children.
+   *
+   * @param aElement
+   *        The element without declaration.
+   * @throws XdmValidationException
+   *         if an attribute or a child element with a declaration is invalid
+   */
+  private void _assessLax (@NonNull final IXdmNode aElement) throws XdmValidationException
+  {
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
+    aStack.push (aElement);
+    while (!aStack.isEmpty ())
+    {
+      final IXdmNode aCur = aStack.pop ();
+      _setAnyType (aCur);
+      for (final IXdmNode aAttr : aCur.getAllAttributes ())
+      {
+        final IXdmAttributeDeclaration aDecl = m_aSchemaSet.getAttributeDeclaration (aAttr.getName ());
+        if (aDecl != null)
+          _validateAttributeValue (aAttr, aDecl.getTypeDefinition ());
+        else
+          stripAnnotations (aAttr);
+      }
+      for (final IXdmNode aChild : aCur.getAllChildren ())
+        if (aChild.isElement ())
+        {
+          if (m_aSchemaSet.getElementDeclaration (aChild.getName ()) != null ||
+              aChild.getAttribute (XdmConstants.NS_XSI, "type") != null)
+            m_aSchemaSet.validateElement (aChild, null, false);
+          else
+            aStack.push (aChild);
+        }
+    }
+  }
+
+  /**
    * Strict or lax validation (XSLT 3.0 section 25.4.1.1) of the constructed
    * node, or of the single element child of a constructed document node
    * (section 25.4.2). An attribute is validated against its top-level
    * attribute declaration. An element is validated against its top-level
    * element declaration or its <code>xsi:type</code> by the schema set. If
-   * neither exists, strict fails and lax leaves the node as it is (no
-   * validation episode takes place, the content is not assessed). Other
-   * node kinds are left alone.
+   * neither exists, strict fails; lax annotates an attribute
+   * <code>xs:untypedAtomic</code> and assesses an element laxly (see
+   * {@link #_assessLax}). Other node kinds are left alone.
    *
    * @param aNode
    *        The constructed or copied node.
@@ -555,6 +601,8 @@ public final class ValidationRequest
         {
           if (bStrict)
             throw new XPathException ("XTTE1512", "No top-level declaration for the attribute " + _describe (aTarget));
+          // Lax: the validity is not known
+          stripAnnotations (aTarget);
           return;
         }
         _validateAttributeValue (aTarget, aDecl.getTypeDefinition ());
@@ -563,9 +611,10 @@ public final class ValidationRequest
       final IXdmElementDeclaration aDecl = m_aSchemaSet.getElementDeclaration (aTarget.getName ());
       if (aDecl == null && aTarget.getAttribute (XdmConstants.NS_XSI, "type") == null)
       {
-        // Lax without a declaration: no validation episode happens at all
         if (bStrict)
           throw new XPathException ("XTTE1512", "No top-level declaration for the element " + _describe (aTarget));
+        // Lax without a declaration: the attributes and children are assessed
+        _assessLax (aTarget);
         return;
       }
       m_aSchemaSet.validateElement (aTarget, null, bDocumentLevel);
