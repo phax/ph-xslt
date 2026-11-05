@@ -125,10 +125,6 @@ public final class CompiledStylesheet implements XsltExecutable
   }
 
   /**
-   * @return <code>true</code> if the principal module is an xsl:package (named
-   *         templates and modes are then private unless declared otherwise).
-   */
-  /**
    * @return <code>true</code> if the stylesheet was compiled schema-aware.
    */
   public boolean isSchemaAware ()
@@ -184,6 +180,10 @@ public final class CompiledStylesheet implements XsltExecutable
     m_bStripInputTypeAnnotations = bStrip;
   }
 
+  /**
+   * @return <code>true</code> if the principal module is an xsl:package (named
+   *         templates and modes are then private unless declared otherwise).
+   */
   public boolean isPackage ()
   {
     return m_bPackage;
@@ -194,10 +194,6 @@ public final class CompiledStylesheet implements XsltExecutable
     m_bPackage = bPackage;
   }
 
-  /**
-   * @return The names of the named templates an xsl:expose makes public
-   *         (<code>null</code> stands for all).
-   */
   /** @return The packages of the stylesheet, <code>null</code> before compilation finished. */
   @Nullable
   public PackageModel getPackages ()
@@ -237,6 +233,10 @@ public final class CompiledStylesheet implements XsltExecutable
     return m_aPackages != null && m_aPackages.isMultiPackage ();
   }
 
+  /**
+   * @return The names of the named templates an xsl:expose makes public (a
+   *         <code>null</code> element stands for all).
+   */
   @NonNull
   public ICommonsSet <XdmQName> exposedTemplates ()
   {
@@ -280,6 +280,7 @@ public final class CompiledStylesheet implements XsltExecutable
     m_aTemplates.add (aTemplate);
   }
 
+  /** @return All templates in the order they were added (do not modify). */
   @NonNull
   public ICommonsList <Template> templates ()
   {
@@ -293,6 +294,11 @@ public final class CompiledStylesheet implements XsltExecutable
     return m_aNamedTemplates;
   }
 
+  /**
+   * @param aName
+   *        Template name.
+   * @return The winning named template of that name, or <code>null</code>.
+   */
   @Nullable
   public Template getNamedTemplate (@NonNull final XdmQName aName)
   {
@@ -310,6 +316,12 @@ public final class CompiledStylesheet implements XsltExecutable
     return m_aModes.computeIfAbsent (aName, Mode::new);
   }
 
+  /**
+   * @param aName
+   *        Mode name ({@link Mode#UNNAMED} for the unnamed mode).
+   * @return The mode, or <code>null</code> if no template rule or xsl:mode
+   *         declaration introduced it.
+   */
   @Nullable
   public Mode getMode (@NonNull final XdmQName aName)
   {
@@ -365,6 +377,12 @@ public final class CompiledStylesheet implements XsltExecutable
     return m_aKeys.get (aName);
   }
 
+  /**
+   * Append a key declaration to the list of its name.
+   *
+   * @param aKey
+   *        The declaration.
+   */
   public void addKey (@NonNull final KeyDefinition aKey)
   {
     m_aKeys.computeIfAbsent (aKey.getName (), k -> new CommonsArrayList <> ()).add (aKey);
@@ -469,12 +487,18 @@ public final class CompiledStylesheet implements XsltExecutable
     m_aHostScope = aHostScope;
   }
 
+  /**
+   * {@inheritDoc} Each call runs a new {@link XsltTransformer}.
+   */
   @NonNull
   public XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest)
   {
     return new XsltTransformer (this, aRequest).run ();
   }
 
+  /**
+   * {@inheritDoc} Each call runs a new {@link XsltTransformer}.
+   */
   @Override
   @NonNull
   public XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest, @NonNull final OutputStream aOS)
@@ -482,6 +506,9 @@ public final class CompiledStylesheet implements XsltExecutable
     return new XsltTransformer (this, aRequest).runTo (aOS);
   }
 
+  /**
+   * {@inheritDoc} Each call runs a new {@link XsltTransformer}.
+   */
   @Override
   @NonNull
   public XsltTransformResult transform (@NonNull final XsltTransformRequest aRequest, @NonNull final Writer aWriter)
@@ -489,6 +516,11 @@ public final class CompiledStylesheet implements XsltExecutable
     return new XsltTransformer (this, aRequest).runTo (aWriter);
   }
 
+  /**
+   * {@inheritDoc} The context is built from the host scope the compiler set
+   * ({@link #setHostScope(HostScope)}), plus the schema set; without a host
+   * scope only the function library and the schema set are set.
+   */
   @Override
   @NonNull
   public StaticContext createStaticContext ()
@@ -503,6 +535,10 @@ public final class CompiledStylesheet implements XsltExecutable
                          .setSchemaSet (m_aSchemaSet);
   }
 
+  /**
+   * {@inheritDoc} This implementation never throws
+   * UnsupportedOperationException.
+   */
   @Override
   @NonNull
   public XsltEvaluation createEvaluation (@NonNull final XsltTransformRequest aRequest)

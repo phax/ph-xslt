@@ -70,6 +70,23 @@ public final class XsltState
     m_aSlots = aSlots;
   }
 
+  /**
+   * Filter the slot list for a call: a slot of scope
+   * {@link XsltStateKey.EScope#KEPT} always survives, one of
+   * {@link XsltStateKey.EScope#CLEARED_IN_FUNCTIONS} only in a template call,
+   * {@link XsltStateKey.EScope#CLEARED_IN_CALLS} never. Of several bindings of
+   * the same key only the innermost (first in the list) is kept; the relative
+   * order of the kept slots is unchanged. Works iteratively.
+   *
+   * @param aSlots
+   *        The slot list (innermost first). May be <code>null</code>.
+   * @param bTemplateCall
+   *        <code>true</code> for a template invocation, <code>false</code> for
+   *        a stylesheet function call.
+   * @return The same list object if nothing was dropped (so callers can test
+   *         with <code>==</code>), otherwise a new list; <code>null</code> if
+   *         no slot survives.
+   */
   @Nullable
   private static Slot _filterSlots (@Nullable final Slot aSlots, final boolean bTemplateCall)
   {
@@ -190,6 +207,13 @@ public final class XsltState
     return m_aRegexGroups;
   }
 
+  /**
+   * @param aGroups
+   *        The captured groups of the current xsl:analyze-string match (index
+   *        0 the whole match), or <code>null</code> outside a matching
+   *        substring. The array is stored, not copied.
+   * @return The derived state.
+   */
   @NonNull
   public XsltState withRegexGroups (@Nullable final String [] aGroups)
   {
@@ -201,7 +225,9 @@ public final class XsltState
    *        Slot key.
    * @param <T>
    *        Value type.
-   * @return The value or <code>null</code> if the slot is not set.
+   * @return The value of the innermost binding of the key, or
+   *         <code>null</code> if the slot is not set or bound to
+   *         <code>null</code>.
    */
   @Nullable
   @SuppressWarnings ("unchecked")
@@ -234,7 +260,9 @@ public final class XsltState
    *        The value; <code>null</code> marks the slot as explicitly absent.
    * @param <T>
    *        Value type.
-   * @return The derived state.
+   * @return The derived state, in which the new binding shadows any older
+   *         binding of the key; a binding of the same key at the head of the
+   *         list is replaced instead of shadowed.
    */
   @NonNull
   public <T> XsltState with (@NonNull final XsltStateKey <T> aKey, @Nullable final T aValue)
@@ -248,7 +276,11 @@ public final class XsltState
   /**
    * @param aKey
    *        Slot key.
-   * @return The derived state in which the slot is not set.
+   * @return This state if the key has no binding, otherwise a derived state
+   *         in which the key is bound to <code>null</code> (shadowing the
+   *         outer binding: {@link #get(XsltStateKey)} returns
+   *         <code>null</code>, but {@link #isSet(XsltStateKey)} stays
+   *         <code>true</code>).
    */
   @NonNull
   public XsltState without (@NonNull final XsltStateKey <?> aKey)
@@ -261,7 +293,10 @@ public final class XsltState
   /**
    * @return The state at the start of a template invocation: tunnel
    *         parameters and regex groups kept, the slots that do not survive
-   *         template calls cleared. Rule and mode are set by the caller.
+   *         template calls cleared (see the scopes of
+   *         {@link XsltStateKey.EScope}; shadowed bindings are dropped too).
+   *         Rule and mode are set by the caller. This state itself if nothing
+   *         changes.
    */
   @NonNull
   public XsltState forTemplateCall ()
@@ -275,7 +310,8 @@ public final class XsltState
   /**
    * @return The state in the body of a stylesheet function: no current rule
    *         or mode, no tunnel parameters, no regex groups, only the slots
-   *         marked {@link XsltStateKey.EScope#KEPT}.
+   *         marked {@link XsltStateKey.EScope#KEPT}. {@link #EMPTY} if
+   *         nothing at all was set.
    */
   @NonNull
   public XsltState forFunctionCall ()

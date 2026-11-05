@@ -180,6 +180,22 @@ public final class CoreInstructions
     return new SequenceConstructor (aParent, aInstrs);
   }
 
+  /**
+   * Compile the fallback behaviour of an instruction this processor does not
+   * implement (XSLT 3.0 section 24.2.3). With xsl:fallback children the
+   * result runs the content of each of them in order; the instruction itself
+   * is never evaluated. Without any, the result raises XTDE1450 when (and
+   * only when) it is executed.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The unavailable instruction.
+   * @param sWhat
+   *        The description of the instruction for the error message, such as
+   *        "The extension instruction".
+   * @return The fallback instruction.
+   */
   @NonNull
   private static IInstruction _compileFallback (@NonNull final CompileContext aCtx,
                                                 @NonNull final XslElement aEl,
@@ -278,6 +294,42 @@ public final class CoreInstructions
     return ret;
   }
 
+  /**
+   * Compile a literal result element (XSLT 3.0 section 11.1). At compile
+   * time:
+   * <ul>
+   * <li>The element name is mapped by xsl:namespace-alias (section 11.1.4);
+   * an alias to the null namespace drops the prefix.</li>
+   * <li>The namespace nodes to copy are the in-scope namespaces of the
+   * stylesheet element (section 11.1.3) except the xml namespace and the
+   * excluded namespaces (see {@link #getExcludedNamespaces(XslElement)}). A
+   * namespace that is the source of an alias is replaced by the result
+   * namespace of the alias under the result prefix (nothing for an alias to
+   * the null namespace); a namespace that is the result of an alias is kept
+   * even if it is excluded.</li>
+   * <li>Attributes in the XSLT namespace are dropped, the others are
+   * compiled as attribute value templates, with their names mapped by
+   * namespace aliases like the element name (section 11.1.2).</li>
+   * <li>xsl:use-attribute-sets, the content, the static base URI,
+   * xsl:inherit-namespaces and the validation request are compiled.</li>
+   * </ul>
+   * At run time a new element is created and gets the copied namespaces
+   * (except a binding of the element's own prefix to another URI, which would
+   * clash with its name) and the static base URI. Then, in this order, the
+   * attribute sets are applied, the literal attributes added, and the content
+   * executed into it, so that later attributes replace earlier ones of the
+   * same name. With xsl:inherit-namespaces="no" the namespaces are then
+   * undeclared on the children, and a validation request is applied last.
+   * The finished element is appended to the output; it is written while it is
+   * built (see {@link ContentOutput#createFor}) only if neither of these two
+   * changes it afterwards.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The literal result element.
+   * @return The instruction.
+   */
   @NonNull
   private static IInstruction _compileLiteralResultElement (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -353,16 +405,6 @@ public final class CoreInstructions
   }
 
   /**
-   * Compile an instruction element (see
-   * {@link CompileContext#compileInstruction(XslElement)}).
-   *
-   * @param aCtx
-   *        Compile context.
-   * @param aEl
-   *        The element.
-   * @return The instruction or <code>null</code>.
-   */
-  /**
    * @param aEl
    *        An instruction element.
    * @return <code>true</code> if it is evaluated in backwards compatible mode:
@@ -381,6 +423,35 @@ public final class CoreInstructions
     return false;
   }
 
+  /**
+   * Compile an instruction element (see
+   * {@link CompileContext#compileInstruction(XslElement)}). In this order:
+   * <ul>
+   * <li>An element evaluated in backwards compatible mode compiles to an
+   * instruction that raises XTDE0160 when it is executed (XSLT 3.0 section
+   * 3.9): backwards compatible processing is not supported.</li>
+   * <li>An XSLT element is compiled by the instruction compiler registered for
+   * its local name. Without one, its xsl:fallback children are used if it is
+   * an unknown element in forwards compatible mode (section 3.10) or a known
+   * XSLT element that is no declaration (an instruction this processor does
+   * not implement); otherwise it is the static error XTSE0010.</li>
+   * <li>An element in an extension namespace (extension-element-prefixes on it
+   * or an ancestor) compiles to its xsl:fallback children (section 24.2.3),
+   * since no extension instructions are implemented.</li>
+   * <li>Every other element is a literal result element.</li>
+   * </ul>
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The element.
+   * @return The instruction or <code>null</code> if the registered compiler
+   *         produces none.
+   * @throws XsltException
+   *         XTSE0010 for an XSLT element that is not allowed as an
+   *         instruction and has no usable fallback, and any static error of
+   *         the compiled content.
+   */
   @Nullable
   public static IInstruction compileInstruction (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -411,6 +482,15 @@ public final class CoreInstructions
     return _compileLiteralResultElement (aCtx, aEl);
   }
 
+  /**
+   * @param aEl
+   *        A variable or parameter element.
+   * @return <code>true</code> if it has content for the purpose of the
+   *         "select and content" check: an element child, a text child that
+   *         is not whitespace-only, or a non-empty whitespace text child under
+   *         xml:space="preserve". Whitespace that is stripped from the
+   *         stylesheet does not count.
+   */
   private static boolean _hasContent (@NonNull final XslElement aEl)
   {
     for (final XslNode aNode : aEl.getChildren ())

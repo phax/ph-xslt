@@ -27,7 +27,11 @@ import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.tree.XslElement;
 
 /**
- * One compiled xsl:key declaration. Several declarations may share a name.
+ * One compiled xsl:key declaration (XSLT 3.0 section 20.2.1): the match
+ * pattern and the key value given either by the use expression or by the
+ * sequence constructor. Several declarations may share a name; the compiler
+ * requires the declarations of one name within a package to agree in collation
+ * (XTSE1220) and composite (XTSE1222).
  *
  * @author Philip Helger
  */
@@ -77,24 +81,34 @@ public final class KeyDefinition
     return m_aMatch;
   }
 
+  /** @return The use expression, <code>null</code> if the body gives the value. */
   @Nullable
   public XPathExpr getUse ()
   {
     return m_aUse;
   }
 
+  /** @return The sequence constructor, <code>null</code> if use is given. */
   @Nullable
   public SequenceConstructor getBody ()
   {
     return m_aBody;
   }
 
+  /**
+   * @return <code>true</code> for composite="yes": the key value is the whole
+   *         sequence of atomic values, not each value on its own.
+   */
   public boolean isComposite ()
   {
     return m_bComposite;
   }
 
-  /** @return The collation URI (the codepoint collation unless given). */
+  /**
+   * @return The absolute collation URI: the collation attribute resolved
+   *         against the static base URI, or else the default collation of
+   *         the declaration.
+   */
   @NonNull
   public String getCollation ()
   {

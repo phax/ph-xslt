@@ -31,7 +31,10 @@ import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
- * Options for compiling a stylesheet. Mutable; copied by the compiler.
+ * Options for compiling a stylesheet. Mutable and not copied by the
+ * compiler: the compiled stylesheet keeps a reference to them (for the
+ * stylesheets compiled by fn:transform), so changes made after compiling
+ * reach those nested compilations.
  *
  * @author Philip Helger
  */
@@ -84,7 +87,7 @@ public final class XsltCompileOptions
    * A schema document the host offers to xsl:import-schema: used for a
    * declaration that names its namespace but gives no schema location, or
    * whose schema location cannot be read or has another target namespace
-   * (XSLT 3.0 section 3.16 makes the location a hint).
+   * (XSLT 3.0 section 3.15 makes the location a hint).
    *
    * @param namespace
    *        The target namespace, or <code>null</code> to take it from the
@@ -106,8 +109,8 @@ public final class XsltCompileOptions
   public static final boolean DEFAULT_ENFORCE_STREAMABILITY = false;
 
   /**
-   * The streaming feature is not claimed by default, as the engine has no
-   * streamed execution yet.
+   * The streaming feature is not claimed by default: the default run neither
+   * analyses streamability for execution nor executes streamed.
    */
   public static final boolean DEFAULT_STREAMING_CLAIM = false;
 
@@ -289,7 +292,9 @@ public final class XsltCompileOptions
   /**
    * Claim the optional streaming conformance feature of XSLT 3.0 for the
    * stylesheet: <code>system-property('xsl:supports-streaming')</code> then
-   * reports "yes".
+   * reports "yes", the streamability analysis runs at the end of compilation
+   * and its verdicts are kept with the stylesheet, so that streamable
+   * constructs execute streamed and the run-time streaming rules apply.
    *
    * @param bStreamingClaim
    *        <code>true</code> to claim streaming.

@@ -65,6 +65,7 @@ public final class TemplateRule
     return m_dPriority;
   }
 
+  /** @return The import precedence of the owning template. */
   public int getPrecedence ()
   {
     return m_aTemplate.getPrecedence ();

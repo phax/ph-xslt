@@ -79,6 +79,11 @@ public final class ExecutionBudget
     }
   }
 
+  /**
+   * Leave a template or function invocation: the counterpart of
+   * {@link #enterDepth()}, called once for each call of it that did not
+   * throw.
+   */
   public void leaveDepth ()
   {
     m_nDepth--;

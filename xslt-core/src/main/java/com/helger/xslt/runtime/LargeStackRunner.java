@@ -55,6 +55,12 @@ public final class LargeStackRunner
   }
 
   /**
+   * Run an action on a new daemon worker thread with a stack of
+   * {@link #STACK_SIZE} and wait for it. On a worker thread already (a nested
+   * run started by <code>fn:transform</code>) the action runs in place. A
+   * {@link StackOverflowError} of the action becomes XPDY0130; any other
+   * runtime exception or error is rethrown unchanged on the calling thread.
+   *
    * @param aAction
    *        The action.
    * @param sThreadName
@@ -62,6 +68,10 @@ public final class LargeStackRunner
    * @param <T>
    *        Result type.
    * @return The result of the action.
+   * @throws XPathException
+   *         XPDY0130 when the action overflows the stack, FOER0000 when the
+   *         calling thread is interrupted while waiting (its interrupt flag
+   *         is set again)
    */
   public static <T> T run (@NonNull final Supplier <T> aAction, @NonNull final String sThreadName)
   {

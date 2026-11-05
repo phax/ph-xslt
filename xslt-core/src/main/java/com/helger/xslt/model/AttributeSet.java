@@ -53,6 +53,15 @@ public final class AttributeSet
     return m_aName;
   }
 
+  /**
+   * Append one declaration. The compiler adds them in expansion order: lower
+   * import precedence first, then declaration order, so that a later
+   * declaration's attributes override an earlier one's (XSLT 3.0 section
+   * 10.2.4).
+   *
+   * @param aDecl
+   *        The declaration to append.
+   */
   public void addDecl (@NonNull final Decl aDecl)
   {
     m_aDecls.add (aDecl);

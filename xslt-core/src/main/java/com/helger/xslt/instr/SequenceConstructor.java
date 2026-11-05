@@ -86,6 +86,15 @@ public final class SequenceConstructor implements IInstruction
     return m_aInstructions[nIndex];
   }
 
+  /**
+   * Run the instructions in order. Before each instruction one step is
+   * counted against the execution budget of the engine. A binding instruction
+   * (local variable) writes nothing; the context it returns is used for all
+   * following instructions. A dynamic error raised by an instruction is
+   * located at that instruction, or at the sequence constructor if the
+   * instruction has no location; an error that already has a location keeps
+   * it (see {@link XsltException#locate}).
+   */
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     final Engine aEngine = aCtx.getEngine ();

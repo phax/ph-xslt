@@ -85,6 +85,7 @@ public final class UserFunction implements IXPathFunction
     return m_aName;
   }
 
+  /** @return The number of parameters. */
   public int getArity ()
   {
     return m_aParams.size ();
@@ -124,7 +125,10 @@ public final class UserFunction implements IXPathFunction
     m_bMemoize = bMemoize;
   }
 
-  /** Identity of a node as part of a memo key. */
+  /**
+   * Identity of a node as part of a memo key: equal only to a key for the
+   * same node object, hashed by identity.
+   */
   private record NodeKey (@NonNull IXdmNode node)
   {
     @Override
@@ -141,8 +145,16 @@ public final class UserFunction implements IXPathFunction
   }
 
   /**
+   * Build the memo key of a call: one list per argument, holding for each
+   * atomic value its type name plus its map key (so values of different
+   * types never share an entry) and for each node its identity. Two calls
+   * with equal keys get the cached result.
+   *
+   * @param aArgs
+   *        The converted arguments.
    * @return The memo key of the arguments, or <code>null</code> if they cannot
-   *         be used as a key (function items).
+   *         be used as a key (an argument holds a function item, map or
+   *         array).
    */
   @Nullable
   private static ICommonsList <Object> _getMemoKey (@NonNull final List <XdmSequence> aArgs)
@@ -164,6 +176,24 @@ public final class UserFunction implements IXPathFunction
     return ret;
   }
 
+  /**
+   * Run the body: in a context without focus and without local variables
+   * (global variables stay visible), with the state reduced for a function
+   * body (no current template rule or mode, no tunnel parameters, no regex
+   * groups), each parameter bound to its argument by position. The call
+   * counts towards the nesting depth limit. The result is converted to the
+   * declared type, if any.
+   *
+   * @param aCaller
+   *        The context of the caller.
+   * @param aArgs
+   *        The arguments, already converted, one per parameter.
+   * @return The result.
+   * @throws XPathException
+   *         XTTE0780 (located at the xsl:function) if the result does not
+   *         match the declared type; XPDY0130 when nested too deeply; any
+   *         error of the body.
+   */
   @NonNull
   private XdmSequence _invoke (@NonNull final XsltContext aCaller, @NonNull final List <XdmSequence> aArgs)
   {
@@ -195,13 +225,18 @@ public final class UserFunction implements IXPathFunction
 
   /**
    * Call the function with arguments that were already converted to the
-   * parameter types.
+   * parameter types. An abstract function that was not overridden raises
+   * XTDE3052. With memoisation on, results are cached per transformation run
+   * (the run data of the engine) under the key built from the arguments;
+   * arguments that cannot form a key are evaluated without the cache.
    *
    * @param aCaller
    *        The context of the caller.
    * @param aArgs
    *        The arguments.
    * @return The converted result.
+   * @throws XPathException
+   *         XTDE3052 for an abstract function, otherwise as for the body.
    */
   @NonNull
   public XdmSequence invoke (@NonNull final XsltContext aCaller, @NonNull final List <XdmSequence> aArgs)
@@ -226,6 +261,19 @@ public final class UserFunction implements IXPathFunction
     return _invoke (aCaller, aArgs);
   }
 
+  /**
+   * The entry point of the function library: find the XSLT context of the
+   * dynamic context and {@link #invoke(XsltContext, List)}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The converted arguments.
+   * @return The converted result.
+   * @throws XPathException
+   *         XPST0017 if the call is evaluated outside a transformation (no
+   *         XSLT context, e.g. in a use-when expression).
+   */
   @NonNull
   public XdmSequence call (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {

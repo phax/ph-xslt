@@ -110,6 +110,26 @@ public final class OutputDefinition
     return m_aName;
   }
 
+  /**
+   * Resolve a whitespace-separated list of lexical QNames or EQNames against
+   * the namespaces of the element.
+   *
+   * @param aEl
+   *        The element for the namespace context and the error location.
+   * @param sAttr
+   *        The attribute name, for the error message.
+   * @param sValue
+   *        The attribute value.
+   * @param bDefaultNamespace
+   *        <code>true</code> if an unprefixed name takes the default
+   *        namespace (element names in cdata-section-elements and
+   *        suppress-indentation), <code>false</code> if it is in no
+   *        namespace.
+   * @return The resolved names in order; empty for an empty value.
+   * @throws XsltException
+   *         XTSE0280 for a token that is not a valid QName or has an unbound
+   *         prefix.
+   */
   @NonNull
   private static ICommonsList <XdmQName> _resolveNames (@NonNull final XslElement aEl,
                                                          @NonNull final String sAttr,
@@ -129,7 +149,20 @@ public final class OutputDefinition
 
   /**
    * Merge one xsl:output declaration (or the attributes of
-   * xsl:result-document evaluated at run time).
+   * xsl:result-document evaluated at run time, merged with a precedence above
+   * all declarations). cdata-section-elements and suppress-indentation add
+   * their resolved element names, use-character-maps adds the names
+   * qualified for the package of the element, regardless of precedence. Every
+   * other attribute is trimmed (except item-separator, doctype-public and
+   * doctype-system, which are kept as given) and replaces the stored value
+   * unless that came from a higher precedence. A prefixed method name is
+   * resolved and stored as an EQName. Attributes not in {@link #ATTRIBUTES}
+   * are ignored.
+   * <p>
+   * A different value at the same precedence as the stored one raises
+   * XTSE1560 at once. XSLT 3.0 section 26 exempts the conflict if a
+   * declaration of higher precedence specifies the attribute; that is only
+   * honoured if the higher declaration is merged first.
    *
    * @param aEl
    *        The declaration, for namespaces and error locations.
@@ -137,6 +170,10 @@ public final class OutputDefinition
    *        Its import precedence.
    * @param aAttrs
    *        Attribute name to value.
+   * @throws XsltException
+   *         XTSE0280 for an invalid or unbound name in a name list, XTSE1570
+   *         for a method with an unbound prefix, XTSE1560 for conflicting
+   *         values at the same precedence.
    */
   public void merge (@NonNull final XslElement aEl, final int nPrecedence, @NonNull final ICommonsMap <String, String> aAttrs)
   {
@@ -239,6 +276,16 @@ public final class OutputDefinition
   }
 
   /**
+   * Build the serialisation parameters for one result. They start with the
+   * given method, omit-xml-declaration="no" and, for the html method,
+   * indent="yes"; then every stored attribute is applied: boolean values via
+   * the XSLT yes/no forms, a zero-length doctype-public or doctype-system
+   * counts as absent, an html-version that is not a decimal number is
+   * ignored, item-separator "#absent" means none, standalone "omit" means
+   * omit. method and build-tree are not applied here, use-character-maps
+   * neither. The inline character mappings, cdata-section-elements and
+   * suppress-indentation are added last.
+   *
    * @param sMethod
    *        The effective method.
    * @return New serialization parameters (character maps are applied by the

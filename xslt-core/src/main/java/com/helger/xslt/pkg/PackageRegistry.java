@@ -66,6 +66,12 @@ public final class PackageRegistry
                                  @Nullable String baseUri)
   {}
 
+  /**
+   * One configured package source, loaded lazily on the first lookup: its
+   * document element if that is an xsl:package (else
+   * <code>m_bNotPackage</code> when something else was parsed), and its name
+   * and version.
+   */
   private static final class Entry
   {
     private final XsltCompileOptions.PackageSource m_aSource;
@@ -86,6 +92,14 @@ public final class PackageRegistry
   private final XsltCompileOptions m_aOptions;
   private final ICommonsList <Entry> m_aEntries = new CommonsArrayList <> ();
 
+  /**
+   * Register the package sources of the options in their order; nothing is
+   * parsed yet.
+   *
+   * @param aOptions
+   *        The compile options with the package sources, the resolver and the
+   *        external entity setting.
+   */
   public PackageRegistry (@NonNull final XsltCompileOptions aOptions)
   {
     m_aOptions = aOptions;
@@ -94,6 +108,12 @@ public final class PackageRegistry
       m_aEntries.add (new Entry (aSource, i++));
   }
 
+  /**
+   * @param aNode
+   *        A parsed document or an element, may be <code>null</code>.
+   * @return The element itself, the first element child of a document, or
+   *         <code>null</code>.
+   */
   @Nullable
   private static IXdmNode _getDocumentElement (@Nullable final IXdmNode aNode)
   {
@@ -105,6 +125,19 @@ public final class PackageRegistry
     return null;
   }
 
+  /**
+   * Get the document element of a package source, from the first of: the
+   * supplied node, the supplied text (parsed with the source's base URI as
+   * system ID and document URI), or the base URI resolved through the
+   * configured resolver (a {@link FileResourceResolver} if none). Parse and
+   * resolution failures are swallowed, so a broken source simply provides no
+   * package.
+   *
+   * @param aSource
+   *        The package source.
+   * @return The document element or <code>null</code> if there is none or it
+   *         cannot be read.
+   */
   @Nullable
   private IXdmNode _parse (final XsltCompileOptions.@NonNull PackageSource aSource)
   {
@@ -144,6 +177,15 @@ public final class PackageRegistry
     }
   }
 
+  /**
+   * Load an entry once. An xsl:package document element is kept with its
+   * trimmed name and package-version attributes; any other document element
+   * marks the entry as "not a package". A name given with the source replaces
+   * the attribute, and so does a non-blank version.
+   *
+   * @param aEntry
+   *        The entry to load.
+   */
   private void _load (@NonNull final Entry aEntry)
   {
     if (aEntry.m_bLoaded)
@@ -176,8 +218,12 @@ public final class PackageRegistry
    *        The package name.
    * @param aRanges
    *        The acceptable versions.
-   * @return The package with the highest version that matches or
-   *         <code>null</code> if none matches.
+   * @return The package with the highest version that matches (the first
+   *         registered one among equal versions) or <code>null</code> if none
+   *         matches. A package without a version counts as
+   *         {@link PackageVersion#DEFAULT_VERSION}; one with an unparsable
+   *         version never matches. The key is the source's base URI, else the
+   *         document URI of the package, else "#package" and its index.
    */
   @Nullable
   public ResolvedPackage find (@NonNull final String sName, @NonNull final PackageVersionRanges aRanges)

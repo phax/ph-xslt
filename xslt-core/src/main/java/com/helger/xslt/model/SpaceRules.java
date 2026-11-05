@@ -24,7 +24,7 @@ import com.helger.xpath.xdm.XdmQName;
 
 /**
  * The xsl:strip-space and xsl:preserve-space declarations of a stylesheet
- * (XSLT 3.0 section 4.3). For an element name the matching rule with the
+ * (XSLT 3.0 section 4.4.2). For an element name the matching rule with the
  * highest import precedence, then the highest priority, then the last one
  * wins.
  *
@@ -32,7 +32,13 @@ import com.helger.xpath.xdm.XdmQName;
  */
 public final class SpaceRules
 {
-  /** One name test. */
+  /**
+   * One name test of an elements attribute: a QName, <code>*</code>
+   * (both wildcard flags set), <code>prefix:*</code> / <code>Q{uri}*</code>
+   * (any local name) or <code>*:local</code> (any namespace), whether it comes
+   * from xsl:strip-space (<code>strip</code>) or xsl:preserve-space, and the
+   * import precedence of the declaration.
+   */
   public record Rule (@NonNull String namespaceUri,
                       @NonNull String localName,
                       boolean anyNamespace,
@@ -40,7 +46,11 @@ public final class SpaceRules
                       boolean strip,
                       int precedence)
   {
-    /** @return The default priority of the name test. */
+    /**
+     * @return The default priority of the name test as for a pattern (XSLT 3.0
+     *         section 6.5): -0.5 for <code>*</code>, -0.25 for a test with
+     *         one wildcard part, 0 for a QName.
+     */
     public double priority ()
     {
       if (anyNamespace && anyLocalName)
@@ -50,6 +60,13 @@ public final class SpaceRules
       return 0;
     }
 
+    /**
+     * @param aName
+     *        An element name.
+     * @return <code>true</code> if the namespace URI matches (or any namespace
+     *         is allowed) and the local name matches (or any local name is
+     *         allowed).
+     */
     public boolean matches (@NonNull final XdmQName aName)
     {
       return (anyNamespace || namespaceUri.equals (aName.namespaceUri ())) &&
@@ -81,9 +98,20 @@ public final class SpaceRules
   }
 
   /**
+   * Find the rule that decides for an element name: among the matching rules
+   * the one with the highest import precedence, then the highest default
+   * priority; on a tie the later rule wins (the <code>&gt;=</code>
+   * comparison). The compiler reports a strip/preserve conflict between
+   * otherwise equal name tests at the same precedence (XTSE0270), so the tie
+   * break only matters between equal rules. xml:space on the source is not
+   * looked at here; the caller ({@link
+   * com.helger.xslt.runtime.WhitespaceStripper}) handles it.
+   *
    * @param aElementName
    *        Name of the parent element of a whitespace text node.
-   * @return <code>true</code> if whitespace-only text children are stripped.
+   * @return <code>true</code> if whitespace-only text children are stripped,
+   *         <code>false</code> if the winning rule is a preserve rule or no
+   *         rule matches (preserving is the default).
    */
   public boolean isStripped (@NonNull final XdmQName aElementName)
   {

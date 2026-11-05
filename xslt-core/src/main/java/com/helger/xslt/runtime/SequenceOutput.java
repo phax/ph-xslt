@@ -40,6 +40,11 @@ public final class SequenceOutput implements IXsltOutput
     m_aItems.add (aItem);
   }
 
+  /**
+   * Finish the new node right away (namespace fixup and document order
+   * numbering via {@link NamespaceFixup#finish(IXdmNode)}) and keep it as an
+   * item.
+   */
   public void appendNew (@NonNull final IXdmNode aNode)
   {
     NamespaceFixup.finish (aNode);

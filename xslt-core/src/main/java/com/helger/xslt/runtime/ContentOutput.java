@@ -68,6 +68,10 @@ public final class ContentOutput implements IXsltOutput
   }
 
   /**
+   * Start filling a node. Existing children count as content, so attributes
+   * and namespaces can no longer be added (XTDE0410) and a trailing text child
+   * is extended by further text.
+   *
    * @param aParent
    *        The element or document node to fill. It may already have content.
    * @param aDrain
@@ -97,6 +101,14 @@ public final class ContentOutput implements IXsltOutput
     return m_aParent;
   }
 
+  /**
+   * Add text content: an empty string adds nothing, otherwise it is appended
+   * to the last text child built here (merging adjacent text) or becomes a new
+   * text child.
+   *
+   * @param s
+   *        The text.
+   */
   private void _addText (@NonNull final String s)
   {
     if (s.isEmpty ())
@@ -115,6 +127,13 @@ public final class ContentOutput implements IXsltOutput
     m_bHasChildren = true;
   }
 
+  /**
+   * @param sWhat
+   *        "attribute" or "namespace", for the message.
+   * @throws XPathException
+   *         XTDE0420 if the node being filled is a document node, XTDE0410 if
+   *         the element already has children
+   */
   private void _checkAttributeOrNamespace (@NonNull final String sWhat)
   {
     if (m_bDocument)
@@ -124,6 +143,23 @@ public final class ContentOutput implements IXsltOutput
                                 "A " + sWhat + " node cannot be added to an element after its children");
   }
 
+  /**
+   * Attach an attribute to the element (after the checks of
+   * {@link #_checkAttributeOrNamespace(String)}). An existing attribute with
+   * the same expanded name is overwritten in place: it takes the new value and
+   * annotations and keeps its own name and position. Otherwise the name may
+   * get another prefix by {@link NamespaceFixup#getAttributeNameFor} when its
+   * prefix is bound differently on the element. A new, parentless attribute
+   * whose name needs no change is adopted as it is, except for
+   * <code>xml:id</code>; in all other cases a copy is attached (an
+   * <code>xml:id</code> copy is whitespace normalised and an ID) that keeps the
+   * type annotation of the original.
+   *
+   * @param aAttr
+   *        The attribute.
+   * @param bNew
+   *        <code>true</code> if it was just constructed and may be adopted.
+   */
   private void _addAttribute (@NonNull final IXdmNode aAttr, final boolean bNew)
   {
     _checkAttributeOrNamespace ("attribute");
@@ -152,7 +188,11 @@ public final class ContentOutput implements IXsltOutput
   /**
    * Namespace fixup: a namespace node claims the prefix of the element name, so
    * the element gets another prefix. It has no children yet (namespaces come
-   * before them), so it is rebuilt with its attributes and namespaces.
+   * before them), so it is rebuilt with its attributes and namespaces. The
+   * new prefix is the old one (or "ns" for the default namespace) followed by
+   * "_" and the first number whose prefix is not declared on the element; the
+   * old prefix's declaration is dropped and the new one declared. Attribute
+   * copies lose their type annotations; the base URI is carried over.
    */
   private void _renameElementPrefix ()
   {
@@ -179,6 +219,20 @@ public final class ContentOutput implements IXsltOutput
     m_aParent = aNew;
   }
 
+  /**
+   * Add a namespace node to the element as a namespace declaration (after the
+   * checks of {@link #_checkAttributeOrNamespace(String)}). The
+   * <code>xml</code> binding to its own URI is ignored. If the prefix of the
+   * element name is bound to another URI by the new node, the element is
+   * renamed by {@link #_renameElementPrefix()}.
+   *
+   * @param aNS
+   *        The namespace node; no name means the default namespace.
+   * @throws XPathException
+   *         XTDE0440 for a non-empty default namespace on an element in no
+   *         namespace; XTDE0430 if the element already declares the prefix
+   *         with another non-empty URI
+   */
   private void _addNamespace (@NonNull final IXdmNode aNS)
   {
     _checkAttributeOrNamespace ("namespace");
@@ -201,6 +255,21 @@ public final class ContentOutput implements IXsltOutput
     m_aParent.declareNamespace (sPrefix, sUri);
   }
 
+  /**
+   * Add a node as content: a document node is replaced by its children (each
+   * copied) and passes its unparsed entities on; attributes and namespaces are
+   * attached; text is merged with adjacent text, except that text with
+   * disable-output-escaping stays a node of its own (zero-length text is
+   * dropped either way). Any other node is adopted if it is new and
+   * parentless, otherwise deep copied with namespaces and annotations; an
+   * element loses its explicit base URI so that it follows from the new
+   * position.
+   *
+   * @param aNode
+   *        The node.
+   * @param bNew
+   *        <code>true</code> if it was just constructed and may be adopted.
+   */
   private void _appendNode (@NonNull final IXdmNode aNode, final boolean bNew)
   {
     switch (aNode.getKind ())
@@ -249,6 +318,17 @@ public final class ContentOutput implements IXsltOutput
     }
   }
 
+  /**
+   * Add one item that is not an array. An atomic value becomes its lexical
+   * form as text, preceded by a single space if the previous item was atomic
+   * as well; a node goes to {@link #_appendNode(IXdmNode, boolean)} as an
+   * existing node (copied).
+   *
+   * @param aItem
+   *        The item.
+   * @throws XPathException
+   *         XTDE0450 for a function item or map
+   */
   private void _appendFlat (@NonNull final IXdmItem aItem)
   {
     if (aItem instanceof final XdmAtomic aAtomic)
@@ -268,6 +348,15 @@ public final class ContentOutput implements IXsltOutput
     throw new XPathException ("XTDE0450", "A function item or map cannot be added to the content of a node");
   }
 
+  /**
+   * Push the items of all members of an array onto a stack so that they are
+   * popped in array order.
+   *
+   * @param aArray
+   *        The array.
+   * @param aStack
+   *        The stack.
+   */
   private static void _pushMembers (@NonNull final XdmArray aArray, @NonNull final ArrayDeque <IXdmItem> aStack)
   {
     for (int i = aArray.size () - 1; i >= 0; --i)
@@ -287,6 +376,13 @@ public final class ContentOutput implements IXsltOutput
     m_aLastText = null;
   }
 
+  /**
+   * Add an existing item; an array is flattened (nested arrays as well) with
+   * an explicit stack and its items added one by one.
+   *
+   * @param aItem
+   *        The item.
+   */
   private void _append (@NonNull final IXdmItem aItem)
   {
     if (aItem instanceof final XdmArray aArray)
@@ -307,6 +403,14 @@ public final class ContentOutput implements IXsltOutput
     _appendFlat (aItem);
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * In a drained principal result the item is first offered to
+   * {@link ResultDrain#beforeAppend(ContentOutput, IXdmItem)}, which may drop
+   * it after a SENR0001 error, and the drain writes completed content
+   * afterwards.
+   */
   public void append (@NonNull final IXdmItem aItem)
   {
     if (m_aDrain == null)
@@ -319,6 +423,12 @@ public final class ContentOutput implements IXsltOutput
       }
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The node ends a run of atomic values (no separating space). The drain is
+   * involved as in {@link #append(IXdmItem)}.
+   */
   public void appendNew (@NonNull final IXdmNode aNode)
   {
     if (m_aDrain != null && !m_aDrain.beforeAppend (this, aNode))
@@ -329,6 +439,13 @@ public final class ContentOutput implements IXsltOutput
       m_aDrain.afterAppend (this);
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * The text is merged with adjacent text (an empty string adds nothing) and
+   * ends a run of atomic values. The drain is involved as in
+   * {@link #append(IXdmItem)}.
+   */
   @Override
   public void appendText (@NonNull final String sText)
   {
@@ -355,6 +472,18 @@ public final class ContentOutput implements IXsltOutput
       return ContentOutput.this;
     }
 
+    /**
+     * Append to the enclosing content, with the atomic-value spacing of this
+     * document node rather than of the enclosing content: an atomic value is
+     * separated by a space only from a directly preceding atomic value of the
+     * same document content, and after it the enclosing content does not
+     * count as following an atomic value.
+     *
+     * @param aItem
+     *        The item.
+     * @throws XPathException
+     *         XTDE0420 for an attribute or namespace node
+     */
     public void append (@NonNull final IXdmItem aItem)
     {
       if (aItem instanceof final IXdmNode aNode && (aNode.isAttribute () || aNode.getKind () == ENodeKind.NAMESPACE))
@@ -381,6 +510,13 @@ public final class ContentOutput implements IXsltOutput
     }
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * Always possible here: the returned output writes into this content, and a
+   * following atomic value is not separated from one before the document
+   * node.
+   */
   @Override
   @Nullable
   public IXsltOutput getDocumentContentOutput ()
@@ -433,8 +569,8 @@ public final class ContentOutput implements IXsltOutput
   }
 
   /**
-   * Finish the tree rooted at the parent: namespace fixup and document order.
-   * Call this only for a tree root (document nodes, parentless elements kept
+   * Finish the tree rooted at the parent: namespace fixup and document order
+   * (via {@link NamespaceFixup#finish(IXdmNode)}). Call this only for a tree root (document nodes, parentless elements kept
    * as items).
    */
   public void finishTree ()

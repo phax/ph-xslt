@@ -47,6 +47,15 @@ public final class PackageUnit
   private final ICommonsList <Use> m_aUses = new CommonsArrayList <> ();
   private final ICommonsSet <String> m_aHidden = new CommonsHashSet <> ();
 
+  /**
+   * Create an empty unit; the modules and uses are added while the package is
+   * loaded.
+   *
+   * @param sKey
+   *        The identity of the package source.
+   * @param bPrincipal
+   *        <code>true</code> for the principal package.
+   */
   public PackageUnit (@NonNull final String sKey, final boolean bPrincipal)
   {
     m_sKey = sKey;
@@ -96,7 +105,8 @@ public final class PackageUnit
 
   /**
    * @return The symbolic names of used-package components that code in this
-   *         package cannot see (modifiable).
+   *         package cannot see (modifiable). Filled by
+   *         {@link PackageModel#analyse()}; read when names are resolved.
    */
   @NonNull
   public ICommonsSet <String> hidden ()

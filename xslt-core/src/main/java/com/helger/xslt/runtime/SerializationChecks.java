@@ -32,7 +32,8 @@ import com.helger.xpath.xdm.IXdmNode;
 /**
  * Serialization errors that depend on the result tree and that the serializer
  * does not detect itself (a port of go-xslt's checkSerializationErrors):
- * SEPM0004, SESU0013 for the html method, SERE0014 and SERE0015.
+ * SEPM0004, SESU0013 for the html method, SEPM0016 for doctype-public,
+ * SERE0014 and SERE0015.
  *
  * @author Philip Helger
  */
@@ -45,6 +46,14 @@ public final class SerializationChecks
   private SerializationChecks ()
   {}
 
+  /**
+   * The requested HTML version (Serialization 3.1 section 7.4.1): html-version
+   * if present, else version.
+   *
+   * @return <code>true</code> if it is 5.0 or above, or if neither parameter
+   *         is set; <code>false</code> for a lower version and for a version
+   *         that is not a decimal number.
+   */
   private static boolean _isHtml5 (@NonNull final SerializationParams aParams)
   {
     BigDecimal aVersion = aParams.getHtmlVersion ();
@@ -60,6 +69,10 @@ public final class SerializationChecks
     return aVersion == null || aVersion.compareTo (BigDecimal.valueOf (5)) >= 0;
   }
 
+  /**
+   * @return <code>true</code> if the string contains a character in
+   *         #x7F-#x9F, which HTML before HTML5 does not permit.
+   */
   private static boolean _hasC1 (@NonNull final String s)
   {
     for (int i = 0; i < s.length (); ++i)
@@ -73,7 +86,12 @@ public final class SerializationChecks
 
   /**
    * The checks of the html output method on the content of a result tree
-   * (SERE0014, SERE0015).
+   * (SERE0014, SERE0015; Serialization 3.1 section 7.3). The tree is walked
+   * iteratively: a processing instruction whose value contains
+   * <code>&gt;</code> raises SERE0015; for a requested HTML version below 5.0
+   * a text node or an attribute value with a character in #x7F-#x9F raises
+   * SERE0014 (comments and processing instructions are not checked for
+   * these characters).
    *
    * @param aParams
    *        The serialization parameters of the html method.
@@ -110,6 +128,24 @@ public final class SerializationChecks
   }
 
   /**
+   * Check the serialisation parameters and the result tree before the result
+   * is serialised:
+   * <ul>
+   * <li>html method with a version that is not a decimal number of at least
+   * 1.0: SESU0013;</li>
+   * <li>xml or xhtml method with a doctype-public that contains a character
+   * outside the XML <code>PubidChar</code> production: SEPM0016;</li>
+   * <li>xml or xhtml method with standalone other than <code>omit</code> or
+   * with doctype-system, and more than one element child of the tree root:
+   * SEPM0004 (Serialization 3.1 section 5; text children of the root are not
+   * counted);</li>
+   * <li>html method: the content checks of
+   * {@link #checkHtmlContent(SerializationParams, IXdmNode, boolean)} on the
+   * whole tree.</li>
+   * </ul>
+   * The parameter checks run even without a tree; the tree checks are skipped
+   * for <code>null</code>.
+   *
    * @param aParams
    *        The effective parameters.
    * @param aTree

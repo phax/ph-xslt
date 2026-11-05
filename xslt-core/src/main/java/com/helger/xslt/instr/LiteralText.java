@@ -56,6 +56,12 @@ public final class LiteralText implements IInstruction
     return m_sText;
   }
 
+  /**
+   * Append a new text node with the fixed text, marked for disabled output
+   * escaping if the instruction asked for it. The text node is appended even
+   * if the text is empty; zero-length text nodes are dropped later when the
+   * content is constructed (XSLT 3.0 section 5.7.1).
+   */
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     final IXdmNode aText = IXdmNode.createText (m_sText);
