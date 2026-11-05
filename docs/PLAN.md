@@ -426,3 +426,30 @@ small elements, which are linear in the document.
 Not done: the per-line child scans walk object graphs (node, name, string) where an integer name code per node would
 be one comparison; that changes the node model and is left for the general performance work. The rule tests that
 evaluate `../../../cac:InvoiceLine[...]` once per tax subtotal still evaluate their predicates on every line.
+
+## Empty paths, interned names and numbering while building (sch2java S4 to S6)
+
+Done (2026-11-05). Reported by ph-sch2java on `Large_Invoice_sample2.xml` (Peppol BIS Billing 3.0, 63,404 lines,
+61 MB) with the Peppol 2026.5 rules: 54.6 % of CEN-EN16931-UBL in 131 asserts of the form
+`not((cac:InvoiceLine|cac:CreditNoteLine)/cbc:UUID)` whose last element does not occur, `XdmQName.equals` and
+`String.equals` at 15 % and 13 % from child steps, and 12 % of the parse in the second numbering pass.
+
+* S4: `XPathEvaluator._isEmptyByNameIndex` answers a path as empty without evaluating its prefix when the last step
+  (or the fused `//N` step) is a child, descendant or descendant-or-self step with an exact element name that the
+  document's element index does not contain. Only for prefixes that cannot raise an error: axis steps without
+  predicates, unions or parenthesised groups of such paths, a context node whose root is a document node; anything
+  else is evaluated as before (XPDY0002, XPTY0020, XPDY0050 stay). Used by the early exit and the complete path
+  evaluation; unnumbered and streamed trees have no index. Measured: the `UBL-CR` asserts from 12 to 67 ms to about
+  0.01 ms each. Trade-off: the first such path on a numbered document builds the element index.
+* S5: the names of compiled node tests are interned (`NodeTest`, `XdmQName.getInterned`), as the JDK parsers already
+  do for parsed names (the tree builder and stream reader intern on a cache miss as a safeguard), so a matching name
+  is decided by identity. The JVM string table is the pool: thread-safe and garbage-collected. Measured 3 to 5 % on
+  child steps; the remaining string comparisons are of names that differ.
+* S6: `XdmTreeBuilder` numbers nodes as it creates them (`internalAppendNumbered`, as `XdmStreamReader`), so a parsed
+  document needs no second `assignDocumentOrder` pass; a structural change while building (`JaxpTypeAnnotator` with
+  Xerces-J) drops the numbering and the pass runs at the end as before. `XdmTreeBuilderNumberingTest` checks that the
+  numbering equals the second pass. Measured: parse 8 to 10 % faster.
+
+Seen in the profile, left for the performance phase: `FunctionLibrary.getFunction` builds the key
+`{ns}local#arity` on every static function call (15 to 20 % of the per-line samples), and every axis step allocates an
+`ArrayList` that is then copied into an `XdmSequence` (about 13 % of the child-step profile).
