@@ -74,8 +74,9 @@ import com.helger.xslt.tree.XsltNames;
  * Errors: XTDE1480 in temporary output state, XTDE1490 for two results with
  * the same URI (also for content added to the principal result next to an
  * xsl:result-document without href), XTDE1500 for writing a URI that was read
- * with fn:doc or document(), XTDE1460 for an unknown format, SEPM0016 for an
- * invalid serialization parameter value.
+ * with fn:doc or document(), XTDE1460 for an unknown format, XTDE0030 for an
+ * href that is not a URI reference, SEPM0016 for an invalid serialization
+ * parameter value.
  *
  * @author Philip Helger
  */
@@ -450,9 +451,11 @@ public final class ResultDocumentExtension implements IXsltExtension
      * The effective output definition is computed first; an absent or empty
      * href writes the principal result ({@link #_writePrincipal}).
      * <p>
-     * Otherwise the href is resolved against the base output URI of the
-     * request (a resolution failure is reported as XTDE1460); without a base
-     * output URI only an already absolute href counts as absolute. The URI
+     * Otherwise the href must be a URI reference, else XTDE0030 is raised
+     * (XSLT 3.0 section 25.1); it is resolved against the base output URI of
+     * the request (a resolution failure is reported as XTDE0030 as well);
+     * without a base output URI only an already absolute href counts as
+     * absolute. The URI
      * (absolute, or the href as written) must not have been read with
      * fn:doc/document() before (XTDE1500) nor written before (XTDE1490). The
      * body runs into a buffer with current-output-uri set to the absolute URI
@@ -484,6 +487,8 @@ public final class ResultDocumentExtension implements IXsltExtension
 
       // The absolute URI of the result
       final String sBaseOutputUri = aEngine.getRequest ().getBaseOutputUri ();
+      if (!FnUri.isValidUriReference (sHref))
+        throw new XPathException ("XTDE0030", "The href '" + sHref + "' of xsl:result-document is not a valid URI reference");
       String sAbsolute = "";
       if (sBaseOutputUri != null && !sBaseOutputUri.isEmpty ())
         try
@@ -492,7 +497,7 @@ public final class ResultDocumentExtension implements IXsltExtension
         }
         catch (final XPathException ex)
         {
-          throw new XPathException ("XTDE1460", "The href '" + sHref + "' cannot be resolved: " + ex.getMessage ());
+          throw new XPathException ("XTDE0030", "The href '" + sHref + "' cannot be resolved: " + ex.getMessage ());
         }
       else
         if (FnUri.isAbsoluteUri (sHref))

@@ -90,6 +90,14 @@ public final class ResultDocumentExtensionTest
                                             "</xsl:template>" +
                                             XsltTestHelper.END,
                                             null));
+    // An href that is not a URI reference
+    assertEquals ("XTDE0030",
+                  XsltTestHelper.errorCode (XsltTestHelper.SHEET +
+                                            "<xsl:template name='xsl:initial-template'>" +
+                                            "<xsl:result-document href='{\"a#b#c\"}'><a/></xsl:result-document>" +
+                                            "</xsl:template>" +
+                                            XsltTestHelper.END,
+                                            null));
     // Invalid boolean
     assertEquals ("SEPM0016",
                   XsltTestHelper.errorCode (XsltTestHelper.SHEET +
