@@ -668,8 +668,8 @@ public final class XsltTransformer
    * initial named template (it must exist and be public, XTDE0040), else
    * apply-templates of the initial mode to the initial match selection
    * (falling back to the global context item); without any selection
-   * xsl:initial-template is called (XTDE0040 if not public, XTDE0044 if
-   * absent).</li>
+   * xsl:initial-template is called (XTDE0040 if it is absent or not public;
+   * XTDE0044 if an initial mode was requested).</li>
    * <li>Post-processing: with a drain only the rest is written. Otherwise
    * XTDE1490 if content followed an xsl:result-document that wrote the
    * principal result; the output definition of that xsl:result-document or
@@ -810,8 +810,11 @@ public final class XsltTransformer
           final Template aInitial = m_aSheet.getNamedTemplate (INITIAL_TEMPLATE);
           if (aInitial != null && !_isPublic (aInitial))
             throw new XsltException ("XTDE0040", "The template xsl:initial-template is not public", null, 0, 0);
+          // XSLT 3.0 section 2.3.3: an initial mode needs a match selection
+          if (m_aRequest.getInitialMode () != null)
+            throw new XsltException ("XTDE0044", "An initial mode is requested, but there is no initial match selection", null, 0, 0);
           if (aInitial == null)
-            throw new XsltException ("XTDE0044", "There is no initial match selection and no xsl:initial-template", null, 0, 0);
+            throw new XsltException ("XTDE0040", "There is no initial match selection and no xsl:initial-template", null, 0, 0);
           aEngine.callTemplate (aCtx, aInitial, _getTemplateParams (m_aRequest), aPrincipal);
         }
         else
