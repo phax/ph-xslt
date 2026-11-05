@@ -73,6 +73,7 @@ public final class OutputDefinition
   private final XdmQName m_aName;
   private final ICommonsOrderedMap <String, String> m_aValues = new CommonsLinkedHashMap <> ();
   private final ICommonsMap <String, Integer> m_aPrecedences = new CommonsHashMap <> ();
+  private final ICommonsOrderedMap <String, XsltException> m_aConflicts = new CommonsLinkedHashMap <> ();
   private final ICommonsList <XdmQName> m_aCdataSectionElements = new CommonsArrayList <> ();
   private final ICommonsList <XdmQName> m_aSuppressIndentation = new CommonsArrayList <> ();
   private final ICommonsList <XdmQName> m_aUseCharacterMaps = new CommonsArrayList <> ();
@@ -97,6 +98,7 @@ public final class OutputDefinition
     final OutputDefinition ret = new OutputDefinition (m_aName);
     ret.m_aValues.putAll (m_aValues);
     ret.m_aPrecedences.putAll (m_aPrecedences);
+    ret.m_aConflicts.putAll (m_aConflicts);
     ret.m_aCdataSectionElements.addAll (m_aCdataSectionElements);
     ret.m_aSuppressIndentation.addAll (m_aSuppressIndentation);
     ret.m_aUseCharacterMaps.addAll (m_aUseCharacterMaps);
@@ -159,10 +161,11 @@ public final class OutputDefinition
    * resolved and stored as an EQName. Attributes not in {@link #ATTRIBUTES}
    * are ignored.
    * <p>
-   * A different value at the same precedence as the stored one raises
-   * XTSE1560 at once. XSLT 3.0 section 26 exempts the conflict if a
-   * declaration of higher precedence specifies the attribute; that is only
-   * honoured if the higher declaration is merged first.
+   * A different value at the same precedence as the stored one is a conflict
+   * (XTSE1560), unless a declaration of higher precedence specifies the
+   * attribute (XSLT 3.0 section 26). The conflict is therefore only noted and
+   * dropped when a higher precedence value is merged;
+   * {@link #checkConflicts()} raises it once all declarations are merged.
    *
    * @param aEl
    *        The declaration, for namespaces and error locations.
@@ -172,8 +175,7 @@ public final class OutputDefinition
    *        Attribute name to value.
    * @throws XsltException
    *         XTSE0280 for an invalid or unbound name in a name list, XTSE1570
-   *         for a method with an unbound prefix, XTSE1560 for conflicting
-   *         values at the same precedence.
+   *         for a method with an unbound prefix.
    */
   public void merge (@NonNull final XslElement aEl, final int nPrecedence, @NonNull final ICommonsMap <String, String> aAttrs)
   {
@@ -210,13 +212,40 @@ public final class OutputDefinition
           throw XsltException.at (aEl, "XTSE1570", "The output method '" + sNorm + "' has an unbound prefix");
         sNorm = aMethod.getEQName ();
       }
-      if (aPrev != null && aPrev.intValue () == nPrecedence && !m_aValues.get (sAttr).equals (sNorm))
-        throw XsltException.at (aEl,
-                                "XTSE1560",
-                                "Conflicting values '" + m_aValues.get (sAttr) + "' and '" + sNorm + "' for xsl:output/@" + sAttr);
+      if (aPrev != null && aPrev.intValue () == nPrecedence)
+      {
+        if (!m_aValues.get (sAttr).equals (sNorm) && !m_aConflicts.containsKey (sAttr))
+          m_aConflicts.put (sAttr,
+                            XsltException.at (aEl,
+                                              "XTSE1560",
+                                              "Conflicting values '" +
+                                                          m_aValues.get (sAttr) +
+                                                          "' and '" +
+                                                          sNorm +
+                                                          "' for xsl:output/@" +
+                                                          sAttr));
+        // The first value stays until a higher precedence replaces it
+        continue;
+      }
+      m_aConflicts.remove (sAttr);
       m_aValues.put (sAttr, sNorm);
       m_aPrecedences.put (sAttr, Integer.valueOf (nPrecedence));
     }
+  }
+
+  /**
+   * Raise the first conflict noted by
+   * {@link #merge(XslElement, int, ICommonsMap)} that no declaration of a
+   * higher precedence resolved.
+   *
+   * @throws XsltException
+   *         XTSE1560 for two different values of one attribute at the highest
+   *         precedence that specifies it.
+   */
+  public void checkConflicts ()
+  {
+    if (m_aConflicts.isNotEmpty ())
+      throw m_aConflicts.getFirstValue ();
   }
 
   /**

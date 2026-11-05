@@ -27,6 +27,7 @@ import com.helger.xpath.xdm.IXdmNode;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests of xsl:include, xsl:import and import precedence.
@@ -179,5 +180,20 @@ public final class XsltModulesTest
                                  aEmpty));
     // The duplicates of the imported module alone, with nothing overriding them
     assertNotNull (_compileError (sHead + sStart + XsltTestHelper.END, aModules));
+  }
+
+  @Test
+  public void testOutputConflictOverriddenByHigherPrecedence ()
+  {
+    final String sImported = XsltTestHelper.SHEET +
+                             "<xsl:output indent='yes'/><xsl:output indent='no'/>" +
+                             XsltTestHelper.END;
+    final String sHead = XsltTestHelper.SHEET + "<xsl:import href='imp.xsl'/>";
+    final String sStart = "<xsl:template name='xsl:initial-template'><a><b/></a></xsl:template>" + XsltTestHelper.END;
+    final Map <String, String> aModules = Map.of ("http://example.org/imp.xsl", sImported);
+    // The higher precedence declaration resolves the conflict
+    assertTrue (_run (sHead + "<xsl:output omit-xml-declaration='yes' indent='yes'/>" + sStart, aModules, null).contains ("\n  <b/>"));
+    // Without it, it remains
+    assertEquals ("XTSE1560", _compileError (sHead + "<xsl:output omit-xml-declaration='yes'/>" + sStart, aModules));
   }
 }

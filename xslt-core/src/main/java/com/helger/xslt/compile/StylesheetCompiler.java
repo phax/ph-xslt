@@ -207,6 +207,7 @@ public final class StylesheetCompiler
   private final DuplicateTracker m_aDuplicateFunctions = new DuplicateTracker ();
   private final DuplicateTracker m_aDuplicateTemplates = new DuplicateTracker ();
   private final DuplicateTracker m_aDuplicateAliases = new DuplicateTracker ();
+  private final ICommonsOrderedSet <OutputDefinition> m_aMergedOutputs = new CommonsLinkedHashSet <> ();
   private int m_nOrder;
   private final ICommonsSet <XslModule> m_aGlobalContextItemModules = new CommonsHashSet <> ();
   private final ICommonsList <XslElement> m_aExposes = new CommonsArrayList <> ();
@@ -1573,7 +1574,8 @@ public final class StylesheetCompiler
    * unnamed declaration in a used package is ignored. The parameters from a
    * parameter document come first and are overridden by the attributes; the
    * merge by import precedence is done by
-   * {@link OutputDefinition#merge(XslElement, int, ICommonsMap)}.
+   * {@link OutputDefinition#merge(XslElement, int, ICommonsMap)}; its
+   * conflicts are checked once all declarations are compiled.
    *
    * @param aEl
    *        The xsl:output element.
@@ -1599,6 +1601,7 @@ public final class StylesheetCompiler
         aAttrs.put (sAttr, v);
     }
     aDef.merge (aEl, aEl.getPrecedence (), aAttrs);
+    m_aMergedOutputs.add (aDef);
   }
 
   /**
@@ -2208,6 +2211,8 @@ public final class StylesheetCompiler
     for (final XslElement aEl : aAll)
       _compileDeclaration (aEl);
     m_aDuplicateTemplates.check ("XTSE0660");
+    for (final OutputDefinition aDef : m_aMergedOutputs)
+      aDef.checkConflicts ();
 
     if (m_aStylesheet.getNamedTemplate (INITIAL_TEMPLATE) == null)
     {
