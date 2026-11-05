@@ -808,9 +808,10 @@ public final class StylesheetCompiler
    *         XTSE1290 if two declarations with that highest precedence give
    *         different values for one attribute; XTSE1295 if zero-digit is not
    *         a digit with numeric value zero; XTSE1300 if the decimal
-   *         separator, grouping separator, percent, per-mille, digit, pattern
-   *         separator and exponent separator are not distinct or one of them
-   *         is among the ten digits starting at zero-digit
+   *         separator, grouping separator, percent, per-mille, digit and
+   *         pattern separator are not distinct or one of them is among the ten
+   *         digits starting at zero-digit (XSLT 3.0 section 5.4 does not list
+   *         the exponent separator)
    */
   private void _prepareDecimalFormats (@NonNull final ICommonsList <XslElement> aDecls)
   {
@@ -888,8 +889,7 @@ public final class StylesheetCompiler
                              aFormat.getPercent (),
                              aFormat.getPerMille (),
                              aFormat.getDigit (),
-                             aFormat.getPatternSeparator (),
-                             aFormat.getExponentSeparator () };
+                             aFormat.getPatternSeparator () };
       final ICommonsSet <Integer> aSeen = new CommonsHashSet <> ();
       for (final int c : aSyms)
       {

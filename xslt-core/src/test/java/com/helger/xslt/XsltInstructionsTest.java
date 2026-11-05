@@ -437,4 +437,17 @@ public final class XsltInstructionsTest
     aSets.append ("<xsl:attribute-set name='s1100'><xsl:attribute name='a'/></xsl:attribute-set>");
     assertEquals ("XPDY0130", errorCode (SHEET + aSets + IT + "<e xsl:use-attribute-sets='s0'/>" + TE + END, null));
   }
+
+  @Test
+  public void testDecimalFormatExponentSeparator ()
+  {
+    // XSLT 3.0 section 5.4: the exponent separator need not be distinct from
+    // the other picture characters (XTSE1300 does not list it)
+    assertEquals ("1,5", text ("<xsl:decimal-format decimal-separator=',' grouping-separator='.' exponent-separator='.'/>" +
+                               IT +
+                               "<xsl:value-of select=\"format-number(1.5, '0,0')\"/>" +
+                               TE,
+                               null));
+    assertEquals ("XTSE1300", errorCode (SHEET + "<xsl:decimal-format decimal-separator=',' grouping-separator=','/>" + IT + TE + END, null));
+  }
 }
