@@ -590,4 +590,30 @@ public final class XsdBridgeTest
     assertEquals (EIDKind.ID, aEl.getChildAtIndex (0).getIDKind ());
     assertEquals (EIDKind.IDREF, aEl.getChildAtIndex (1).getIDKind ());
   }
+
+  @Test
+  public void testValidateNestingWithoutVerdict ()
+  {
+    // Anonymous unions nested deeper than the token walk follows: no verdict
+    // is reported as an XdmValidationException, never as a runtime exception
+    final StringBuilder aSB = new StringBuilder ("<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' targetNamespace='urn:c'>" +
+                                                 "<xs:simpleType name='Deep'>");
+    final int nDepth = 100;
+    for (int i = 0; i < nDepth; i++)
+      aSB.append ("<xs:union><xs:simpleType>");
+    aSB.append ("<xs:restriction base='xs:int'/>");
+    for (int i = 0; i < nDepth; i++)
+      aSB.append ("</xs:simpleType></xs:union>");
+    aSB.append ("</xs:simpleType></xs:schema>");
+    final IXdmTypeDefinition aDeep = _type (_compile (aSB.toString ()), "urn:c", "Deep");
+    try
+    {
+      aDeep.validate ("5", null);
+      fail ("expected XdmValidationException");
+    }
+    catch (final XdmValidationException ex)
+    {
+      assertTrue (ex.getCause () instanceof XsdUnsupportedException);
+    }
+  }
 }

@@ -598,7 +598,9 @@ final class XsdBridge implements IXdmSchemaSet
    *        report an IDREF to an ID outside the subtree.
    * @return <code>true</code> if the structure of the tree changed.
    * @throws XdmValidationException
-   *         if it is not valid; nothing is changed then
+   *         if it is not valid, or if the validator has no verdict (an
+   *         XsdUnsupportedException, e.g. elements nested too deeply);
+   *         nothing is changed then
    */
   private boolean _validateInPlace (@NonNull final IXdmNode aElement,
                                     @Nullable final IXsdType aType,
@@ -631,6 +633,12 @@ final class XsdBridge implements IXdmSchemaSet
     catch (final XsdInvalidException ex)
     {
       throw new XdmValidationException (ex.getError ().toString (), ex, ex.getError ().code ().startsWith ("cvc-id."));
+    }
+    catch (final XsdUnsupportedException ex)
+    {
+      // No verdict (e.g. elements nested beyond the depth bound): the SPI
+      // knows only valid or not
+      throw new XdmValidationException ("cannot be validated: " + ex.getMessage (), ex);
     }
     _annotate (aCloned, aRun);
     final boolean bAdded = _supplyDefaults (aCloned, aRun);
