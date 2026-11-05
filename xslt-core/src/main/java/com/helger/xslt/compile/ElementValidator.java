@@ -375,11 +375,10 @@ public final class ElementValidator
    * 7.2): it must be in a tail position of the body of an xsl:iterate. Walking
    * up from the element, it must be the last instruction of each parent (see
    * {@link #_isLastInstruction(XslElement, XslElement)}), and the walk may
-   * pass through xsl:if, xsl:try, xsl:catch and xsl:fork, and through
+   * pass through xsl:if, xsl:try and xsl:catch, and through
    * xsl:when/xsl:otherwise to their xsl:choose, until it reaches the
-   * xsl:iterate. The spec's definition of tail position does not mention
-   * xsl:fork; its content model only allows xsl:sequence, xsl:for-each-group
-   * and xsl:fallback, through which the walk does not pass. For
+   * xsl:iterate; these are the constructs of the spec's definition of tail
+   * position. For
    * xsl:next-iteration every xsl:with-param must name a parameter declared
    * on that xsl:iterate.
    *
@@ -413,7 +412,7 @@ public final class ElementValidator
           aIterate = aParent;
           break;
         }
-        if ("if".equals (sLocal) || "try".equals (sLocal) || "catch".equals (sLocal) || "fork".equals (sLocal))
+        if ("if".equals (sLocal) || "try".equals (sLocal) || "catch".equals (sLocal))
         {
           aCur = aParent;
           continue;
