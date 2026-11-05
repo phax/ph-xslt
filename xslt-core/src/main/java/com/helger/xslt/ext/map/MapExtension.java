@@ -40,12 +40,21 @@ import com.helger.xslt.tree.XslText;
 
 /**
  * The map construction instructions xsl:map and xsl:map-entry (XSLT 3.0
- * section 21.4).
+ * section 21.3).
  *
  * @author Philip Helger
  */
 public final class MapExtension implements IXsltExtension
 {
+  /**
+   * Check whether an element has content in the sense of the XTSE3280 rule
+   * of xsl:map-entry: any element child (including xsl:fallback) or any text
+   * child that is not whitespace only counts.
+   *
+   * @param aEl
+   *        The element to check.
+   * @return <code>true</code> if there is at least one such child.
+   */
   private static boolean _hasContent (@NonNull final XslElement aEl)
   {
     for (final XslNode aNode : aEl.getChildren ())
@@ -54,6 +63,17 @@ public final class MapExtension implements IXsltExtension
     return false;
   }
 
+  /**
+   * Run a sequence constructor into a fresh {@link SequenceOutput} and return
+   * the raw sequence it produced, without building a document node or
+   * merging adjacent text.
+   *
+   * @param aBody
+   *        The sequence constructor to run.
+   * @param aCtx
+   *        The run-time context.
+   * @return The produced sequence. Never <code>null</code>, may be empty.
+   */
   @NonNull
   private static XdmSequence _evaluateContent (@NonNull final SequenceConstructor aBody, @NonNull final XsltContext aCtx)
   {
@@ -62,6 +82,20 @@ public final class MapExtension implements IXsltExtension
     return aOut.getSequence ();
   }
 
+  /**
+   * Compile xsl:map (XSLT 3.0 section 21.3). At run time the content is
+   * evaluated and every item must be a map, otherwise the type error XTTE3375
+   * is raised. The entries of all maps are merged in order into one new map,
+   * like <code>map:merge($maps, map{"duplicates":"reject"})</code>: a key
+   * that is already present by the op:same-key rule raises XTDE3365. An empty
+   * content gives the empty map.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:map element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compileMap (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -81,6 +115,22 @@ public final class MapExtension implements IXsltExtension
     });
   }
 
+  /**
+   * Compile xsl:map-entry (XSLT 3.0 section 21.3). The key attribute is
+   * required; a select attribute together with content (see
+   * {@link #_hasContent}) is the static error XTSE3280. At run time the key
+   * is atomized and must be exactly one atomic value, otherwise XPTY0004 is
+   * raised; the atomic value is used as it is (an <code>xs:untypedAtomic</code>
+   * key is not cast to <code>xs:string</code>). The value is the result of
+   * select, or of the content, without any conversion. The result is a
+   * singleton map.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:map-entry element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compileMapEntry (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {

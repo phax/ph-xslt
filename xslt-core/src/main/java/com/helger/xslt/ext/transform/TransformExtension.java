@@ -48,6 +48,11 @@ public final class TransformExtension implements IXsltExtension
     return aSheet.getExtensionData (KEY_OPTIONS) instanceof final XsltCompileOptions aOptions ? aOptions : null;
   }
 
+  /**
+   * Register a compile finisher that stores the options of the compiler as
+   * extension data of each compiled stylesheet, for
+   * {@link #getCompileOptions(CompiledStylesheet)}.
+   */
   public void register (@NonNull final XsltExtensionRegistry aRegistry)
   {
     aRegistry.registerCompileFinisher (aCtx -> aCtx.getStylesheet ()

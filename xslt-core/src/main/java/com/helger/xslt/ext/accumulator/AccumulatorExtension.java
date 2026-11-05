@@ -95,12 +95,25 @@ public final class AccumulatorExtension implements IXsltExtension
   /** Run data: the computed values. */
   private static final Object KEY_RUN = new Object ();
 
+  /**
+   * One compiled xsl:accumulator-rule: the match pattern, whether it fires at
+   * the end event (phase="end") instead of the start event, and either the
+   * select expression or the contained sequence constructor (exactly one of
+   * the two is non-<code>null</code>).
+   */
   private record Rule (@NonNull CompiledPattern match,
                        boolean end,
                        @Nullable XPathExpr select,
                        @Nullable SequenceConstructor body)
   {}
 
+  /**
+   * One compiled xsl:accumulator declaration (XSLT 3.0 section 18.2.1): its
+   * element (for the import precedence and error locations), the qualified
+   * name, the initial-value expression, the optional declared type
+   * (<code>null</code> means item()*), the streamable attribute and the rules
+   * in document order.
+   */
   private record Accumulator (@NonNull XslElement element,
                               @NonNull XdmQName name,
                               @NonNull XPathExpr initial,
@@ -109,6 +122,12 @@ public final class AccumulatorExtension implements IXsltExtension
                               @NonNull ICommonsList <Rule> rules)
   {}
 
+  /**
+   * A use-accumulators attribute seen during compilation: the element that
+   * carries it and the names it lists (a <code>null</code> entry for #all),
+   * checked against the declared accumulators in
+   * {@link #_finish(CompileContext)}.
+   */
   private record UseRef (@NonNull XslElement element, @NonNull ICommonsList <XdmQName> names)
   {}
 
@@ -131,7 +150,7 @@ public final class AccumulatorExtension implements IXsltExtension
 
   /**
    * The accumulator values of a node of a streamed document, taken when a copy
-   * of it was made (XSLT 3.0 section 18.2.9): the original is dropped while
+   * of it was made (XSLT 3.0 section 18.2.10): the original is dropped while
    * the copy may live on. A value not yet known then (the post-descent value
    * of an open ancestor of a snapshot) is asked from the original, which is
    * kept for that.
@@ -140,6 +159,16 @@ public final class AccumulatorExtension implements IXsltExtension
                                @NonNull Map <Accumulator, XdmSequence []> values,
                                @Nullable IXdmNode live)
   {
+    /**
+     * @param aAcc
+     *        The accumulator.
+     * @param bAfter
+     *        <code>true</code> for the post-descent value, <code>false</code>
+     *        for the pre-descent value.
+     * @return The value frozen at copy time, or <code>null</code> if the
+     *         accumulator had no value for the original then (not computed
+     *         for its document, or not yet known).
+     */
     @Nullable
     XdmSequence get (@NonNull final Accumulator aAcc, final boolean bAfter)
     {
@@ -163,6 +192,12 @@ public final class AccumulatorExtension implements IXsltExtension
     private final Map <IXdmNode, Object> m_aOrigins = new WeakHashMap <> ();
   }
 
+  /**
+   * @param aEl
+   *        An xsl:accumulator-rule element.
+   * @return <code>true</code> if it has a child element or a text child that
+   *         is not whitespace only, i.e. a non-empty sequence constructor.
+   */
   private static boolean _hasContent (@NonNull final XslElement aEl)
   {
     for (final XslNode aNode : aEl.getChildren ())
@@ -171,6 +206,21 @@ public final class AccumulatorExtension implements IXsltExtension
     return false;
   }
 
+  /**
+   * Compile one xsl:accumulator-rule (XSLT 3.0 section 18.2.1): the match
+   * pattern, the phase (trimmed; absent means start) and the select
+   * expression or, without select, the contained sequence constructor. Both
+   * are compiled with the extra variable <code>$value</code> in scope.
+   *
+   * @param aCtx
+   *        Compile context of the declaration.
+   * @param aEl
+   *        The xsl:accumulator-rule element.
+   * @return The compiled rule.
+   * @throws XsltException
+   *         XTSE0020 if phase is neither start nor end; XTSE3300 if both a
+   *         select attribute and non-whitespace content are present.
+   */
   @NonNull
   private static Rule _compileRule (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -194,6 +244,10 @@ public final class AccumulatorExtension implements IXsltExtension
     return new Rule (aMatch, bEnd, aSelect, aBody);
   }
 
+  /**
+   * @return The list stored as extension data of the stylesheet under the
+   *         key, created and stored empty on first access.
+   */
   @SuppressWarnings ("unchecked")
   @NonNull
   private static <T> ICommonsList <T> _getList (@NonNull final CompiledStylesheet aSheet, @NonNull final Object aKey)
@@ -207,6 +261,21 @@ public final class AccumulatorExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * The declaration compiler of xsl:accumulator (XSLT 3.0 section 18.2.1):
+   * compiles the name (qualified for its package), initial-value, as,
+   * streamable and the rules, and appends the result to the list of all
+   * declarations of the stylesheet. Which declaration of a name wins is
+   * decided later by {@link #_finish(CompileContext)}.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:accumulator element.
+   * @throws XsltException
+   *         XTSE0020 if streamable is not an XSLT boolean; XTSE0010 if there
+   *         is no xsl:accumulator-rule child.
+   */
   private static void _compileAccumulator (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
     final XdmQName aName = PackageModel.qualify (aEl, aCtx.resolveQName (aEl, aEl.getAttr ("name"), false));
@@ -239,6 +308,27 @@ public final class AccumulatorExtension implements IXsltExtension
     return aNames.contains (null) ? null : new CommonsHashSet <> (aNames);
   }
 
+  /**
+   * Compile finisher, run after all declarations are compiled:
+   * <ol>
+   * <li>picks the effective declaration per name, the one with the highest
+   * import precedence (XSLT 3.0 section 18.2.8), and raises XTSE3350 if
+   * another declaration of that name has the same precedence;</li>
+   * <li>registers the use-accumulators attribute of every declared xsl:mode
+   * and raises XTSE3300 for any name in any registered use-accumulators
+   * (modes, xsl:source-document, xsl:merge-source) that names no
+   * accumulator;</li>
+   * <li>stores per mode with a use-accumulators attribute the applicable
+   * names (all effective names for #all). A mode without the attribute gets
+   * no entry, which means no accumulator applies to the initial match
+   * selection in that mode (section 18.2.2).</li>
+   * </ol>
+   * Neither duplicates in a use-accumulators list nor the streamable="yes"
+   * requirement of section 18.2.2 are checked here.
+   *
+   * @param aCtx
+   *        Compile context.
+   */
   private static void _finish (@NonNull final CompileContext aCtx)
   {
     final CompiledStylesheet aSheet = aCtx.getStylesheet ();
@@ -289,13 +379,17 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
-   * Parse a use-accumulators attribute.
+   * Parse a use-accumulators attribute: whitespace-separated EQNames, each
+   * resolved and qualified for the package of the element, or the token
+   * #all. An absent attribute gives an empty list (no accumulator applies).
    *
    * @param aCtx
    *        Compile context.
    * @param aEl
    *        The element (xsl:mode, xsl:source-document, xsl:merge-source).
    * @return The names; a <code>null</code> entry stands for #all.
+   * @throws XsltException
+   *         XTSE0020 if #all is combined with other tokens.
    */
   @NonNull
   public static ICommonsList <XdmQName> parseUseAccumulators (@NonNull final CompileContext aCtx,
@@ -346,6 +440,10 @@ public final class AccumulatorExtension implements IXsltExtension
 
   /**
    * Restrict the accumulators applicable to a tree (use-accumulators of xsl:source-document).
+   * Until {@link #restoreTree(Engine, IXdmNode, Object)}, accumulator-before()
+   * and accumulator-after() raise XTDE3362 for a node of this tree when the
+   * accumulator is not among the names, or when the tree is streamed and the
+   * accumulator is not declared streamable (XSLT 3.0 section 18.2.2).
    *
    * @param aEngine
    *        The transformation.
@@ -369,6 +467,10 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
+   * Undo {@link #restrictTree(Engine, IXdmNode, ICommonsList, boolean)}:
+   * reinstate the previous restriction of the tree, or remove the restriction
+   * if there was none.
+   *
    * @param aEngine
    *        The transformation.
    * @param aRoot
@@ -388,6 +490,16 @@ public final class AccumulatorExtension implements IXsltExtension
       aData.m_aRestrictions.put (aRoot, (TreeRestriction) aPrevious);
   }
 
+  /**
+   * Convert a value of the initial-value expression or of a rule to the type
+   * of the as attribute with the function conversion rules (XSLT 3.0 section
+   * 18.2.1); without as the value is returned unchanged.
+   *
+   * @return The converted value.
+   * @throws XsltException
+   *         XPTY0004 (or another conversion error) located at the
+   *         xsl:accumulator element.
+   */
   @NonNull
   private static XdmSequence _coerce (@NonNull final Accumulator aAcc,
                                       @NonNull final XdmSequence aValue,
@@ -405,6 +517,27 @@ public final class AccumulatorExtension implements IXsltExtension
     }
   }
 
+  /**
+   * The delta function of the formal model (XSLT 3.0 section 18.2.4) for one
+   * traversal event: among the rules of the given phase whose pattern matches
+   * the node, the last one in document order is evaluated with a singleton
+   * focus on the node and <code>$value</code> bound to the previous value,
+   * and its result converted to the declared type. Without a matching rule
+   * the previous value is returned unchanged.
+   *
+   * @param aAcc
+   *        The accumulator.
+   * @param aNode
+   *        The node of the event.
+   * @param aValue
+   *        The value before the event.
+   * @param bEnd
+   *        <code>true</code> for the end event, <code>false</code> for the
+   *        start event.
+   * @param aBase
+   *        The context to evaluate in.
+   * @return The value after the event.
+   */
   @NonNull
   private static XdmSequence _applyRule (@NonNull final Accumulator aAcc,
                                          @NonNull final IXdmNode aNode,
@@ -499,6 +632,21 @@ public final class AccumulatorExtension implements IXsltExtension
     private boolean m_bEnd;
     private final int [] m_aState;
 
+    /**
+     * Set up the live computation: per accumulator a {@link TreeValues}
+     * marked done and streamed, registered in the run data for the document
+     * node so that lookups find it, and the current value set to the
+     * initial value. An error of the initial-value expression is kept and
+     * raised by the lookups (XSLT 3.0 section 18.2.5). Finally the start
+     * event of the document node is applied.
+     *
+     * @param aCaller
+     *        Context.
+     * @param aRoot
+     *        The live document node.
+     * @param aAccumulators
+     *        The applicable accumulators, in declaration order.
+     */
     StreamedValues (@NonNull final XsltContext aCaller,
                     @NonNull final IXdmNode aRoot,
                     @NonNull final ICommonsList <Accumulator> aAccumulators)
@@ -534,6 +682,20 @@ public final class AccumulatorExtension implements IXsltExtension
       enter (aRoot);
     }
 
+    /**
+     * Apply the rules of one accumulator to the current node and phase, once:
+     * an accumulator already applied is skipped, and one reached again while
+     * its own rule runs (through accumulator-before/after on the same node)
+     * is a cycle. An accumulator that has failed before stays failed; a new
+     * failure is stored and from then on raised by every lookup (XSLT 3.0
+     * section 18.2.5) instead of being thrown here. On success the value is
+     * recorded as the pre- or post-descent value of the node.
+     *
+     * @param nIndex
+     *        Index of the accumulator.
+     * @throws XPathException
+     *         XTDE3400 for a cyclic dependency.
+     */
     private void _applyOne (final int nIndex)
     {
       if (m_aState[nIndex] == 2)
@@ -566,6 +728,15 @@ public final class AccumulatorExtension implements IXsltExtension
       }
     }
 
+    /**
+     * Apply one traversal event to all accumulators, in declaration order,
+     * with the node and phase as the current ones while the rules run.
+     *
+     * @param aNode
+     *        The node.
+     * @param bEnd
+     *        <code>true</code> for the end event.
+     */
     private void _apply (@NonNull final IXdmNode aNode, final boolean bEnd)
     {
       m_aNode = aNode;
@@ -609,6 +780,10 @@ public final class AccumulatorExtension implements IXsltExtension
       _apply (aNode, true);
     }
 
+    /**
+     * Remove the pre- and post-descent values of the node and of every node
+     * of its subtree, for all accumulators (iterative walk).
+     */
     public void forget (@NonNull final IXdmNode aNode)
     {
       final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
@@ -646,6 +821,11 @@ public final class AccumulatorExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * @return The accumulator names applicable in the mode by its
+   *         use-accumulators, or an empty set if it has none (or the
+   *         stylesheet has no accumulator data).
+   */
   @SuppressWarnings ("unchecked")
   @NonNull
   private static ICommonsSet <XdmQName> _getModeAccumulators (@NonNull final CompiledStylesheet aSheet,
@@ -656,6 +836,20 @@ public final class AccumulatorExtension implements IXsltExtension
     return ret == null ? new CommonsHashSet <> () : ret;
   }
 
+  /**
+   * Decide whether a document with the given applicable accumulators can be
+   * read as a stream: never without streamability verdicts (streaming not
+   * claimed); always if no accumulator applies; never for a multi-package
+   * stylesheet that has applicable accumulators (their names are qualified
+   * per package scope); otherwise only if every applicable accumulator is
+   * declared streamable and proven streamable by the analysis.
+   *
+   * @param aSheet
+   *        The stylesheet.
+   * @param aNames
+   *        The applicable names, <code>null</code> for all.
+   * @return <code>true</code> if the document can be streamed.
+   */
   private static boolean _isStreamable (@NonNull final CompiledStylesheet aSheet,
                                         @Nullable final ICommonsSet <XdmQName> aNames)
   {
@@ -750,6 +944,10 @@ public final class AccumulatorExtension implements IXsltExtension
     return aAccs.isEmpty () ? null : new StreamedValues (aCaller, aRoot, aAccs);
   }
 
+  /**
+   * @return <code>true</code> if the stylesheet declares at least one
+   *         accumulator, so that copies need to be recorded.
+   */
   private static boolean _hasAccumulators (@NonNull final CompiledStylesheet aSheet)
   {
     final Object aDecls = aSheet.getExtensionData (KEY_DECLS);
@@ -784,7 +982,7 @@ public final class AccumulatorExtension implements IXsltExtension
   }
 
   /**
-   * Remember that a copy keeps the accumulator values of its original (XSLT 3.0 section 18.2.9):
+   * Remember that a copy keeps the accumulator values of its original (XSLT 3.0 section 18.2.10):
    * the subtree pairwise, and the ancestors of a snapshot.
    */
   private static void _recordCopy (@NonNull final Engine aEngine,
@@ -852,6 +1050,20 @@ public final class AccumulatorExtension implements IXsltExtension
         _recordCopy (aCtx.getEngine (), aCopy, aOriginal);
   }
 
+  /**
+   * Replace a built-in fn:copy-of or fn:snapshot of the given arity in the
+   * library by a wrapper that calls the original and then records the
+   * resulting copies (the context item as input for arity 0), so that the
+   * copies keep the accumulator values of their originals (XSLT 3.0 section
+   * 18.2.10). Does nothing if the function is not in the library.
+   *
+   * @param aLib
+   *        The function library of the stylesheet.
+   * @param sLocalName
+   *        "copy-of" or "snapshot".
+   * @param nArity
+   *        0 or 1.
+   */
   private static void _wrapCopyFunction (@NonNull final FunctionLibrary aLib,
                                          @NonNull final String sLocalName,
                                          final int nArity)
@@ -870,6 +1082,24 @@ public final class AccumulatorExtension implements IXsltExtension
     }, aDef.isFocusDependent ());
   }
 
+  /**
+   * The replacement compiler of xsl:copy-of. Without
+   * copy-accumulators="yes" the core compiler is used unchanged. With it the
+   * instruction is compiled here: each selected node is deep-copied (with
+   * copy-namespaces and the validation of the core xsl:copy-of, including
+   * the XTTE0950 check of validation="preserve"), a copied element
+   * without base URI gets the static base URI of the instruction, and the
+   * copy is recorded to keep the accumulator values of its original (XSLT
+   * 3.0 section 18.2.10). Atomic and function items are appended unchanged.
+   *
+   * @param aCore
+   *        The core xsl:copy-of compiler.
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:copy-of element.
+   * @return The compiled instruction.
+   */
   @NonNull
   private static IInstruction _compileCopyOf (@NonNull final IInstructionCompiler aCore,
                                               @NonNull final CompileContext aCtx,
@@ -904,6 +1134,21 @@ public final class AccumulatorExtension implements IXsltExtension
     });
   }
 
+  /**
+   * Resolve the name argument of accumulator-before()/accumulator-after()
+   * (XSLT 3.0 section 18.2.6): after trimming XML whitespace, a URI-qualified
+   * name <code>Q{uri}local</code>, an unprefixed name (no namespace), or a
+   * prefixed name resolved against the static namespaces of the call.
+   *
+   * @param aDyn
+   *        Dynamic context of the call.
+   * @param sName
+   *        The argument string.
+   * @return The expanded name, not yet qualified for a package.
+   * @throws XPathException
+   *         XTDE3340 if the string is not a lexical QName or EQName or its
+   *         prefix is not bound.
+   */
   @NonNull
   private static XdmQName _resolveName (@NonNull final DynamicContext aDyn, @NonNull final String sName)
   {
@@ -925,6 +1170,12 @@ public final class AccumulatorExtension implements IXsltExtension
     return new XdmQName (sUri, s.substring (nColon + 1), sPrefix);
   }
 
+  /**
+   * @return The initial mode of the run: the default mode of the stylesheet
+   *         when the request names none or #default, the unnamed mode for
+   *         #unnamed, otherwise the named mode; <code>null</code> if no such
+   *         mode exists.
+   */
   @Nullable
   private static Mode _getInitialMode (@NonNull final Engine aEngine)
   {
@@ -937,6 +1188,13 @@ public final class AccumulatorExtension implements IXsltExtension
     return aSheet.getMode (aName);
   }
 
+  /**
+   * @return <code>true</code> if the tree with this root holds nodes of the
+   *         initial match selection: never when the run starts with an
+   *         initial template; otherwise if an item of the explicit initial
+   *         match selection is a node of the tree, or, without one, if the
+   *         global context item is a node of the tree.
+   */
   private static boolean _isInitialMatchTree (@NonNull final Engine aEngine, @NonNull final IXdmNode aRoot)
   {
     final XsltTransformRequest aRequest = aEngine.getRequest ();
@@ -953,6 +1211,48 @@ public final class AccumulatorExtension implements IXsltExtension
     return aEngine.getGlobalContextItem () instanceof final IXdmNode aGlobal && aGlobal.getRoot () == aRoot;
   }
 
+  /**
+   * The implementation of accumulator-before() and accumulator-after() (XSLT
+   * 3.0 sections 18.2.6 and 18.2.7): the pre- or post-descent value of the
+   * named accumulator at the context node.
+   * <ol>
+   * <li>The name is resolved (qualified for the package scope in a
+   * multi-package stylesheet) and must name an effective accumulator.</li>
+   * <li>A node made by copying (copy-of, snapshot, xsl:copy-of with
+   * copy-accumulators) stands for its original (section 18.2.10); for a
+   * copy of a streamed node the values frozen at copy time are used.</li>
+   * <li>Applicability (section 18.2.2): a tree restricted by
+   * {@link #restrictTree(Engine, IXdmNode, ICommonsList, boolean)} allows
+   * only its names, and only streamable accumulators when streamed; an
+   * unrestricted tree of the initial match selection allows the
+   * use-accumulators of the initial mode (none without one); any other tree
+   * allows all.</li>
+   * <li>For an unstreamed tree all values of the accumulator are computed
+   * on first use with
+   * {@link #_computeTree(Accumulator, IXdmNode, TreeValues, XsltContext)}
+   * and kept for the run; a failed computation is discarded and the error
+   * propagated. For a streamed tree only the values computed while reading
+   * exist; the value of the node whose rules are running is computed on
+   * demand.</li>
+   * </ol>
+   *
+   * @param aDyn
+   *        Dynamic context of the call.
+   * @param sName
+   *        The accumulator name argument.
+   * @param bAfter
+   *        <code>true</code> for accumulator-after().
+   * @return The value, empty if the node has none in an unstreamed tree.
+   * @throws XPathException
+   *         XTDE3340 for an unknown name (also outside an XSLT context);
+   *         XTDE3350 without context item; XTTE3360 if the context item is
+   *         not a node or is an attribute or namespace node; XTDE3362 if the
+   *         accumulator is not applicable or not computed for a streamed
+   *         document; the stored error of a failed initial-value or rule
+   *         (section 18.2.5); XTSE3430 if a streamed node has no such value
+   *         (it was not available while reading); XTDE3400 if the value is
+   *         requested while its own computation runs.
+   */
   @SuppressWarnings ("unchecked")
   @NonNull
   private static XdmSequence _lookup (@NonNull final DynamicContext aDyn,
@@ -1068,6 +1368,12 @@ public final class AccumulatorExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * Register xsl:accumulator, the functions accumulator-before() and
+   * accumulator-after(), the wrappers of fn:copy-of and fn:snapshot (both
+   * arities) that record copies, the replacement of the core xsl:copy-of
+   * compiler for copy-accumulators="yes", and the compile finisher.
+   */
   public void register (@NonNull final XsltExtensionRegistry aRegistry)
   {
     aRegistry.registerDeclaration ("accumulator", AccumulatorExtension::_compileAccumulator);

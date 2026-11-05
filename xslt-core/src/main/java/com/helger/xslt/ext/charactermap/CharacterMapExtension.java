@@ -67,6 +67,15 @@ public final class CharacterMapExtension implements IXsltExtension
                                @NonNull ICommonsOrderedMap <Integer, String> mappings)
   {}
 
+  /**
+   * Get the character maps of a stylesheet from its extension data, creating
+   * and storing an empty map on first access.
+   *
+   * @param aSheet
+   *        The stylesheet.
+   * @return The mutable map from the package-qualified name to the winning
+   *         declaration. Never <code>null</code>.
+   */
   @NonNull
   @SuppressWarnings ("unchecked")
   private static ICommonsMap <XdmQName, CharacterMap> _getMaps (@NonNull final CompiledStylesheet aSheet)
@@ -80,6 +89,21 @@ public final class CharacterMapExtension implements IXsltExtension
     return (ICommonsMap <XdmQName, CharacterMap>) aData;
   }
 
+  /**
+   * Resolve the whitespace-separated names of a use-character-maps attribute
+   * against the in-scope namespaces of the element (an unprefixed name is in
+   * no namespace) and qualify each with the package of the element.
+   *
+   * @param aEl
+   *        The element carrying the attribute.
+   * @param sValue
+   *        The attribute value, may be <code>null</code>.
+   * @return The names in attribute order; empty for a <code>null</code>
+   *         value. Never <code>null</code>.
+   * @throws XsltException
+   *         XTSE0280 if a token is not a valid QName or EQName or its prefix
+   *         is unbound.
+   */
   @NonNull
   private static ICommonsList <XdmQName> _resolveNames (@NonNull final XslElement aEl, @Nullable final String sValue)
   {
@@ -97,6 +121,22 @@ public final class CharacterMapExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * Compile one xsl:character-map declaration (XSLT 3.0 section 26.1) into
+   * the per-stylesheet table. A declaration of the same name with the same
+   * import precedence as an already registered one raises XTSE1580; one with
+   * a lower precedence is ignored; one with a higher precedence replaces the
+   * registered one. Every xsl:output-character child must have a character
+   * attribute of exactly one code point (XTSE0020 otherwise); its string
+   * (empty if absent) becomes the replacement, a later child for the same
+   * character replacing an earlier one. Unknown and circular references are
+   * only checked in {@link #_finish}.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:character-map element.
+   */
   private static void _compileCharacterMap (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
     final XdmQName aName = PackageModel.qualify (aEl, aCtx.resolveQNameAttr (aEl, "name", false));
@@ -169,6 +209,18 @@ public final class CharacterMapExtension implements IXsltExtension
     }
   }
 
+  /**
+   * Check that every name refers to a declared character map.
+   *
+   * @param aMaps
+   *        The character maps of the stylesheet.
+   * @param aEl
+   *        The referencing element, for the error location.
+   * @param aNames
+   *        The package-qualified names to check.
+   * @throws XsltException
+   *         XTSE1590 for the first unknown name.
+   */
   private static void _checkKnown (@NonNull final ICommonsMap <XdmQName, CharacterMap> aMaps,
                                    @NonNull final XslElement aEl,
                                    @NonNull final List <XdmQName> aNames)

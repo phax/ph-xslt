@@ -50,6 +50,17 @@ public final class AssertExtension implements IXsltExtension
 {
   private static final XdmQName XTMM9001 = new XdmQName (XPathException.ERR_NAMESPACE, "XTMM9001", "err");
 
+  /**
+   * Build the text of the assertion message from its value: adjacent atomic
+   * values are joined with a single space (their lexical forms); attribute
+   * and namespace nodes contribute their string value; other nodes are
+   * serialised as XML without an XML declaration; any other item (maps,
+   * arrays, functions) is serialised with the adaptive method.
+   *
+   * @param aValue
+   *        The value of select followed by the result of the content.
+   * @return The message text. Never <code>null</code>, may be empty.
+   */
   @NonNull
   private static String _messageText (@NonNull final XdmSequence aValue)
   {
@@ -85,6 +96,27 @@ public final class AssertExtension implements IXsltExtension
     return aSB.toString ();
   }
 
+  /**
+   * Compile xsl:assert (XSLT 3.0 section 23.2). At run time the test is
+   * evaluated for its effective boolean value; if true, nothing happens and
+   * the result is empty. Otherwise the value of select (if present) and the
+   * result of the content are collected in that order, the message text
+   * (see {@link #_messageText}) is recorded with the engine like an
+   * xsl:message, and a dynamic error is raised whose error object is the
+   * collected value and whose description is the message text (or
+   * "xsl:assert failed" when it is empty). The error code is XTMM9001 unless
+   * error-code is given: its value is whitespace-trimmed and resolved as an
+   * EQName against the in-scope namespaces of the instruction; a value that
+   * is not a valid EQName or uses an undeclared prefix raises XTDE0030. A
+   * dynamic error while evaluating the test propagates unchanged; it is not
+   * turned into XTMM9001.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:assert element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compileAssert (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {

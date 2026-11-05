@@ -42,7 +42,7 @@ import com.helger.xslt.tree.XslNode;
 
 /**
  * xsl:iterate with its parameters and xsl:on-completion, plus xsl:break and
- * xsl:next-iteration (XSLT 3.0 section 7.1). xsl:break and
+ * xsl:next-iteration (XSLT 3.0 section 7.2). xsl:break and
  * xsl:next-iteration may only appear in tail position (checked statically by
  * the core), so they leave the current iteration by an exception that the
  * innermost xsl:iterate catches.
@@ -94,6 +94,16 @@ public final class IterateInstruction
     m_aCompletionBody = aCompletionBody;
   }
 
+  /**
+   * Bind the current values of the iteration parameters, in declaration
+   * order, as variables of a context.
+   *
+   * @param aCtx
+   *        The context to extend.
+   * @param aValues
+   *        The current values, parallel to the parameters.
+   * @return The derived context. Never <code>null</code>.
+   */
   @NonNull
   private XsltContext _bindParams (@NonNull final XsltContext aCtx, @NonNull final XdmSequence [] aValues)
   {
@@ -176,6 +186,15 @@ public final class IterateInstruction
     private final XdmSequence [] m_aValues;
     private boolean m_bDone;
 
+    /**
+     * Evaluate the initial parameter values and clear the current template
+     * rule (as for the buffered execution), keeping the current mode.
+     *
+     * @param aCtx
+     *        Context of the xsl:iterate instruction.
+     * @param aOut
+     *        Where the iteration writes its result.
+     */
     StreamedIteration (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
     {
       m_aValues = _initParams (aCtx);
@@ -183,6 +202,17 @@ public final class IterateInstruction
       m_aOut = aOut;
     }
 
+    /**
+     * Run the body for one streamed record with the record as context item
+     * and position, and the current parameter values bound; the context size
+     * is set to the position because the size is unknown. An xsl:break marks
+     * the iteration as done. Checks for an interrupt afterwards.
+     *
+     * @param aRecord
+     *        The record node.
+     * @param nPosition
+     *        Its 1-based position.
+     */
     public void handle (@NonNull final IXdmNode aRecord, @Nonnegative final int nPosition)
     {
       // The size is not known while streaming; fn:last is not streamable
@@ -196,12 +226,34 @@ public final class IterateInstruction
       return m_bDone;
     }
 
+    /**
+     * Run xsl:on-completion after the last record with the final parameter
+     * values. Only called by the driver when no xsl:break ended the
+     * iteration.
+     */
     public void complete ()
     {
       _complete (m_aBase, m_aValues, m_aOut);
     }
   }
 
+  /**
+   * The buffered execution of xsl:iterate (XSLT 3.0 section 7.2). The select
+   * expression is evaluated in full, the initial parameter values are
+   * computed, and the current template rule is cleared. The body then runs
+   * for each item in turn with that item as context item (position i, size
+   * of the whole sequence) and the current parameter values bound; values
+   * passed by xsl:next-iteration replace those of the named parameters for
+   * the following items. An xsl:break ends the iteration immediately,
+   * without xsl:on-completion; otherwise xsl:on-completion runs after the
+   * last item (also for an empty sequence). Checks for an interrupt after
+   * every item.
+   *
+   * @param aCtx
+   *        Context of the instruction.
+   * @param aOut
+   *        Where the result is written.
+   */
   private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     final XdmSequence aItems = m_aSelect.evaluate (aCtx);

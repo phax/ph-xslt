@@ -94,12 +94,33 @@ public final class EvaluateExtension implements IXsltExtension
                                                                                         "unparsed-entity-uri",
                                                                                         "unparsed-entity-public-id");
 
+  /**
+   * Check whether a stylesheet function may be called from a dynamic
+   * expression (XSLT 3.0 section 10.4.1): only functions with visibility
+   * public or final are in its static context.
+   *
+   * @param aFunc
+   *        The stylesheet function.
+   * @return <code>true</code> if the visibility is public or final.
+   */
   private static boolean _isPublic (@NonNull final UserFunction aFunc)
   {
     final String s = aFunc.getVisibility ();
     return "public".equals (s) || "final".equals (s);
   }
 
+  /**
+   * Build the function library of dynamic expressions from the library of
+   * the stylesheet: start with the default XPath library and add every
+   * function of the stylesheet library that is not already there by name and
+   * arity, except the context-dependent XSLT functions of
+   * {@link #EXCLUDED_FUNCTIONS} (in the fn namespace) and stylesheet
+   * functions that are not public or final.
+   *
+   * @param aSheetLib
+   *        The function library of the stylesheet.
+   * @return A new library. Never <code>null</code>.
+   */
   @NonNull
   private static FunctionLibrary _createLibrary (@NonNull final FunctionLibrary aSheetLib)
   {
@@ -118,6 +139,30 @@ public final class EvaluateExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * Create the static context of the target expression (XSLT 3.0 section
+   * 10.4.1). It starts from the static context of the xsl:evaluate element
+   * with the reduced function library built at compile time (or the full
+   * stylesheet library if that is missing), the given variables, and the
+   * default decimal formats. If a namespace-context node is given, all
+   * namespaces except <code>xml</code> are replaced by the in-scope
+   * namespaces of that node, and its default namespace (or none) becomes the
+   * default element namespace. A non-<code>null</code> base URI replaces the
+   * static base URI.
+   *
+   * @param aCtx
+   *        Run-time context, for the stylesheet.
+   * @param aEl
+   *        The xsl:evaluate element.
+   * @param aNamespaceNode
+   *        The node selected by namespace-context, or <code>null</code>.
+   * @param sBaseUri
+   *        The resolved base-uri, or <code>null</code> to keep the static
+   *        base URI of the element.
+   * @param aVariables
+   *        The names of the variables in scope of the target expression.
+   * @return A new static context. Never <code>null</code>.
+   */
   @NonNull
   private static StaticContext _createStaticContext (@NonNull final XsltContext aCtx,
                                                      @NonNull final XslElement aEl,
@@ -149,6 +194,40 @@ public final class EvaluateExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * Compile xsl:evaluate (XSLT 3.0 section 10.4) and mark the stylesheet as
+   * needing the dynamic function library (built by the compile finisher in
+   * {@link #register}). At run time:
+   * <ol>
+   * <li>the xpath expression is evaluated to a string (items joined with a
+   * space);</li>
+   * <li>schema-aware must be yes/no (or the boolean synonyms), otherwise
+   * XTDE0030;</li>
+   * <li>the variables are the xsl:with-param values, overridden by the
+   * entries of the with-params map; a with-params value that is not a single
+   * map, or a key that is not an <code>xs:QName</code>, raises XPTY0004;</li>
+   * <li>namespace-context must select exactly one node, otherwise
+   * XTTE3170;</li>
+   * <li>base-uri is resolved against the static base URI of the
+   * instruction;</li>
+   * <li>the target expression is parsed with the static context of
+   * {@link #_createStaticContext}, including the schema components of the
+   * stylesheet if schema-aware is yes; any parse or static error becomes
+   * XTDE3160;</li>
+   * <li>context-item selecting more than one item raises XTTE3210; an empty
+   * result or no attribute leaves the focus absent;</li>
+   * <li>the expression is evaluated with only that focus, no current item
+   * and only the supplied variables;
+   * the result is converted to the as type, a failure being reported as
+   * XTTE3165, and appended to the output.</li>
+   * </ol>
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:evaluate element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compileEvaluate (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {

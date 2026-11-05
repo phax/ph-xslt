@@ -28,6 +28,12 @@ import com.helger.xslt.compile.XsltExtensionRegistry;
  */
 public final class NumberExtension implements IXsltExtension
 {
+  /**
+   * Register the compiler of the xsl:number instruction.
+   *
+   * @param aRegistry
+   *        The extension registry to register with.
+   */
   public void register (@NonNull final XsltExtensionRegistry aRegistry)
   {
     aRegistry.registerInstruction ("number", NumberInstruction::compile);

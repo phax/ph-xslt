@@ -51,6 +51,20 @@ public final class GroupingExtension implements IXsltExtension
   public static final XsltStateKey <XdmSequence> CURRENT_GROUPING_KEY = new XsltStateKey <> ("current-grouping-key",
                                                                                             XsltStateKey.EScope.CLEARED_IN_FUNCTIONS);
 
+  /**
+   * <code>fn:current-group()</code> (XSLT 3.0 section 14.2.1): the items of
+   * the group currently processed by xsl:for-each-group. The value is kept in
+   * templates called from the body, but not in stylesheet functions.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        Unused (no arguments).
+   * @return The items of the current group.
+   * @throws XPathException
+   *         XTDE1061 if the context is no XSLT context or there is no current
+   *         group.
+   */
   @NonNull
   private static XdmSequence _currentGroup (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -61,6 +75,21 @@ public final class GroupingExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * <code>fn:current-grouping-key()</code> (XSLT 3.0 section 14.2.2): the
+   * grouping key of the current group, a sequence of atomic values for a
+   * composite key. It is absent with group-starting-with and
+   * group-ending-with.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        Unused (no arguments).
+   * @return The current grouping key.
+   * @throws XPathException
+   *         XTDE1071 if the context is no XSLT context or there is no current
+   *         grouping key.
+   */
   @NonNull
   private static XdmSequence _currentGroupingKey (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -71,6 +100,17 @@ public final class GroupingExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * Register the xsl:for-each-group instruction compiler and the functions
+   * <code>current-group#0</code> and <code>current-grouping-key#0</code> in
+   * the fn namespace. A static call reads the current group or key; a dynamic
+   * call (e.g. through <code>current-group#0</code>) always raises XTDE1061 or
+   * XTDE1071, because the current group is not part of a function item's
+   * closure.
+   *
+   * @param aRegistry
+   *        The extension registry to register with.
+   */
   public void register (@NonNull final XsltExtensionRegistry aRegistry)
   {
     aRegistry.registerInstruction ("for-each-group", ForEachGroupInstruction::compile);

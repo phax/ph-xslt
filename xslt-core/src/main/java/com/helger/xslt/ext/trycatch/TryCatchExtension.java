@@ -82,6 +82,10 @@ public final class TryCatchExtension implements IXsltExtension
     }
   }
 
+  /**
+   * One compiled xsl:catch: the name tests of its errors attribute and either
+   * its select expression or its content (never both).
+   */
   private record Catch (@NonNull ICommonsList <NameTest> tests,
                         @Nullable XPathExpr select,
                         @Nullable SequenceConstructor body)
@@ -95,6 +99,24 @@ public final class TryCatchExtension implements IXsltExtension
     }
   }
 
+  /**
+   * Parse one token of xsl:catch/@errors as a NameTest (XSLT 3.0 section
+   * 8.3): <code>*</code>, <code>*:local</code>, <code>Q{uri}local</code>,
+   * <code>Q{uri}*</code>, <code>prefix:*</code> or a lexical QName. Prefixes
+   * are resolved against the in-scope namespaces of the xsl:catch; an
+   * unprefixed name is in no namespace (the default namespace does not
+   * apply).
+   *
+   * @param aEl
+   *        The xsl:catch element, for namespace resolution and the error
+   *        location.
+   * @param sToken
+   *        One whitespace-separated token of the attribute.
+   * @return The name test. Never <code>null</code>.
+   * @throws XsltException
+   *         XTSE0020 if the token is not a valid name test, XTSE0280 if its
+   *         prefix is not bound.
+   */
   @NonNull
   private static NameTest _parseNameTest (@NonNull final XslElement aEl, @NonNull final String sToken)
   {
@@ -139,6 +161,19 @@ public final class TryCatchExtension implements IXsltExtension
     return new NameTest (aName.namespaceUri (), aName.localName ());
   }
 
+  /**
+   * Compile one xsl:catch. A missing errors attribute matches every error
+   * (like <code>errors="*"</code>). The select expression or the content is
+   * compiled in a context in which the err:* variables (code, description,
+   * value, module, line-number, column-number, additional) are in scope; the
+   * content is compiled only when there is no select.
+   *
+   * @param aCtx
+   *        Compile context of the enclosing xsl:try.
+   * @param aEl
+   *        The xsl:catch element.
+   * @return The compiled catch clause. Never <code>null</code>.
+   */
   @NonNull
   private static Catch _compileCatch (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
@@ -161,6 +196,24 @@ public final class TryCatchExtension implements IXsltExtension
     return new Catch (aTests, aSelect, aBody);
   }
 
+  /**
+   * Bind the err:* variables of XSLT 3.0 section 8.3 for a caught error.
+   * err:code is the error QName; err:description and err:value are empty if
+   * the error has none. err:module, err:line-number and err:column-number
+   * come from the error location if the error is an {@link XsltException}
+   * with a location, otherwise from the xsl:try element itself; a line or
+   * column of 0 or less gives the empty sequence. err:additional is always
+   * empty.
+   *
+   * @param aCtx
+   *        The context of the xsl:try instruction.
+   * @param aEx
+   *        The caught error.
+   * @param aTryEl
+   *        The xsl:try element, the fallback location.
+   * @return A derived context with the seven variables bound. Never
+   *         <code>null</code>.
+   */
   @NonNull
   private static XsltContext _bindErrorVariables (@NonNull final XsltContext aCtx,
                                                   @NonNull final XPathException aEx,
@@ -193,6 +246,18 @@ public final class TryCatchExtension implements IXsltExtension
                .withVariable (VAR_ADDITIONAL, XdmSequence.EMPTY);
   }
 
+  /**
+   * Build the key that identifies a source location, as used by
+   * {@link #_collectGlobalLocations} and {@link #_isGlobalVariableError}.
+   *
+   * @param sModuleUri
+   *        Module URI, may be <code>null</code> (then "null" is used).
+   * @param nLine
+   *        Line number.
+   * @param nColumn
+   *        Column number.
+   * @return The key <code>module#line#column</code>. Never <code>null</code>.
+   */
   @NonNull
   private static String _locationKey (@Nullable final String sModuleUri, final int nLine, final int nColumn)
   {
@@ -234,6 +299,37 @@ public final class TryCatchExtension implements IXsltExtension
     return aKeys != null && aKeys.contains (_locationKey (aXEx.getModuleUri (), aXEx.getLine (), aXEx.getColumn ()));
   }
 
+  /**
+   * Compile xsl:try (XSLT 3.0 section 8.3). The children before the first
+   * xsl:catch form the try body (children after it other than xsl:catch,
+   * i.e. xsl:fallback, are ignored); without any xsl:catch child the static
+   * error XTSE0010 is raised. rollback-output defaults to yes.
+   * <p>
+   * At run time the select expression or the body is evaluated in a new
+   * {@link TryScope} into a {@link BufferedOutput}; on success the buffer is
+   * replayed into the real output. On a dynamic error:
+   * </p>
+   * <ul>
+   * <li>an error raised while evaluating a global variable or a variable
+   * declared outside this xsl:try is rethrown unchanged;</li>
+   * <li>with rollback-output="no" and some output already buffered, the
+   * dynamic error XTDE3530 is raised with the original error as cause;</li>
+   * <li>otherwise the first xsl:catch (in document order) whose name tests
+   * match the error code supplies the result, evaluated with the err:*
+   * variables bound and written directly to the real output; the buffered
+   * output of the try body is discarded;</li>
+   * <li>if no xsl:catch matches, the error is rethrown.</li>
+   * </ul>
+   * Any other runtime exception (the non-local exits of xsl:break and
+   * xsl:next-iteration) first replays the buffered output and is then
+   * rethrown.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:try element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compileTry (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
