@@ -19,7 +19,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children)
   used by `AxisNavigator.collectNamedDescendants`/`collectNamedSubtreeAttributes`/`collectNamedChildren`. Every
   structural change to a numbered tree must go through `appendChild`/`removeChild`/`addAttribute`, which drop numbering
-  and indexes.
+  and indexes. `XdmTreeBuilder` and `XdmStreamReader` number nodes as they create them (`internalAppendNumbered`,
+  `internalStamp`), with the numbers `assignDocumentOrder` would give; a change from a wrapping handler while building
+  drops that numbering and `XdmTreeBuilder.endDocument` numbers the finished tree.
 - Hosts that evaluate their own XPath against a stylesheet's declarations (Schematron) use
   `XsltExecutable.createStaticContext`/`createEvaluation`, never `Engine` directly; the start-up of a run lives in
   `XsltTransformer.initGlobalContextItem` and is shared by both. `CompiledXPath.evaluate` uses its own static context.
@@ -74,7 +76,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `fn:empty`, `fn:boolean`, `fn:not` resolved to their built-in implementation, `and`/`or`, `if`, `satisfies`,
   predicates, `XPathEvaluator.evaluateEffectiveBooleanValue`), paths ending in an axis step and filter expressions
   stop at the first decisive item; only the last predicate of the last step is short-circuited. Any other shape falls
-  back to the complete evaluation. `and`/`or` operands stay left to right.
+  back to the complete evaluation. `and`/`or` operands stay left to right. A path whose last child/descendant step
+  names an element the document's index does not contain is empty without evaluating its prefix
+  (`XPathEvaluator._isEmptyByNameIndex`, also in the complete evaluation), but only for prefixes that cannot raise an
+  error (axis steps without predicates, unions of such paths, a node as context item in a tree with a document root).
+- Node test names hold interned strings (`NodeTest` constructor, `XdmQName.getInterned`), like the names the JDK
+  parsers report and the tree builders keep, so a matching name test is decided by identity.
 - `XPathOperators` (`xpath-core`, package `eval`) is the one place for the semantics of comparisons, arithmetic,
   cast/castable and the static function call with argument conversion; `XPathEvaluator` calls it. Change these
   operators there, never in a copy (it is the public API for generated code such as ph-sch2java's).
