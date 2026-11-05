@@ -55,6 +55,11 @@ public final class FnUri
     private String m_sQuery;
     private String m_sFragment;
 
+    /**
+     * @return The components recomposed per RFC 3986 section 5.3: absent
+     *         components (and their delimiters) are left out, empty ones are
+     *         kept.
+     */
     @NonNull
     String getAsString ()
     {
@@ -80,6 +85,16 @@ public final class FnUri
   private FnUri ()
   {}
 
+  /**
+   * @param s
+   *        The string to search.
+   * @param sChars
+   *        The characters to look for.
+   * @param nFrom
+   *        The index to start at.
+   * @return The index of the first character of <code>s</code> from
+   *         <code>nFrom</code> on that occurs in <code>sChars</code>, or -1.
+   */
   private static int _indexOfAny (@NonNull final String s, @NonNull final String sChars, final int nFrom)
   {
     for (int i = nFrom; i < s.length (); ++i)
@@ -137,6 +152,13 @@ public final class FnUri
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
   }
 
+  /**
+   * @param s
+   *        A scheme without the colon.
+   * @return <code>true</code> if it matches the RFC 3986 production
+   *         <code>scheme</code>: an ASCII letter followed by ASCII letters,
+   *         digits, <code>+</code>, <code>-</code> or <code>.</code>.
+   */
   private static boolean _isSchemeValid (@NonNull final String s)
   {
     if (s.isEmpty () || !_isAsciiLetter (s.charAt (0)))
@@ -150,6 +172,12 @@ public final class FnUri
     return true;
   }
 
+  /**
+   * @param s
+   *        A URI component, <code>null</code> if absent.
+   * @return <code>true</code> if every <code>%</code> is followed by two hex
+   *         digits; also for <code>null</code>.
+   */
   private static boolean _hasValidEscapes (@Nullable final String s)
   {
     if (s != null)
@@ -338,6 +366,15 @@ public final class FnUri
     return aTarget.getAsString ();
   }
 
+  /**
+   * Append a code point as the percent-encoded bytes of its UTF-8 form, with
+   * upper-case hex digits.
+   *
+   * @param aSB
+   *        The target.
+   * @param nCodePoint
+   *        The code point.
+   */
   private static void _appendEscaped (@NonNull final StringBuilder aSB, final int nCodePoint)
   {
     final byte [] aBytes = new String (Character.toChars (nCodePoint)).getBytes (StandardCharsets.UTF_8);
@@ -345,6 +382,13 @@ public final class FnUri
       aSB.append ('%').append (HEX[(b >> 4) & 0xf]).append (HEX[b & 0xf]);
   }
 
+  /**
+   * @param c
+   *        A code point.
+   * @return <code>true</code> for the RFC 3986 unreserved characters: ASCII
+   *         letters, digits, <code>-</code>, <code>_</code>, <code>.</code>
+   *         and <code>~</code>.
+   */
   private static boolean _isUnreserved (final int c)
   {
     return (c >= 'A' && c <= 'Z') ||
@@ -415,12 +459,35 @@ public final class FnUri
     return aSB.toString ();
   }
 
+  /**
+   * @param aSeq
+   *        An <code>xs:string?</code> argument.
+   * @return Its string value, the empty string for the empty sequence.
+   */
   @NonNull
   private static String _getOptionalString (@NonNull final XdmSequence aSeq)
   {
     return aSeq.isEmpty () ? "" : ((XdmAtomic) aSeq.get (0)).getString ();
   }
 
+  /**
+   * <code>fn:resolve-uri($relative as xs:string?[, $base as xs:string]) as
+   * xs:anyURI?</code> (F&amp;O 3.1 section 6.1). Without <code>$base</code>
+   * the static base URI is used. An absolute <code>$relative</code> is
+   * returned with its dot segments removed, without looking at the base;
+   * otherwise it is resolved with {@link #resolveUri(String, String)}.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The empty sequence for an empty <code>$relative</code>, the
+   *         resolved URI otherwise.
+   * @throws XPathException
+   *         FORG0002 if the reference or the base is invalid (the base also if
+   *         it is relative or has a fragment), FONS0005 if a relative
+   *         reference has to be resolved and the static base URI is absent.
+   */
   @NonNull
   private static XdmSequence _resolveUri (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -443,6 +510,15 @@ public final class FnUri
     return XdmSequence.of (XdmAtomic.anyUri (resolveUri (sRelative, sBase)));
   }
 
+  /**
+   * Register <code>fn:resolve-uri</code> (arity 1 and 2),
+   * <code>fn:encode-for-uri</code>, <code>fn:iri-to-uri</code> and
+   * <code>fn:escape-html-uri</code> (F&amp;O 3.1 section 6). The last three
+   * return the zero-length string for an empty argument.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

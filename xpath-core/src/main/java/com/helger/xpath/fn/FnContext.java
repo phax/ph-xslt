@@ -50,12 +50,30 @@ public final class FnContext
   private FnContext ()
   {}
 
+  /**
+   * @param aCtx
+   *        The dynamic context.
+   * @throws XPathException
+   *         XPDY0002 if the context item is absent.
+   */
   private static void _requireFocus (@NonNull final DynamicContext aCtx)
   {
     if (aCtx.getContextItem () == null)
       throw XPathException.noContext ("The focus is absent");
   }
 
+  /**
+   * Append an integer in decimal, padded with leading zeros to at least the
+   * given number of digits; a negative value gets a minus sign in front of the
+   * padded digits.
+   *
+   * @param aSB
+   *        The target.
+   * @param nValue
+   *        The value.
+   * @param nDigits
+   *        The minimum number of digits.
+   */
   private static void _appendPadded (@NonNull final StringBuilder aSB, final int nValue, final int nDigits)
   {
     final String s = Integer.toString (Math.abs (nValue));
@@ -66,6 +84,15 @@ public final class FnContext
     aSB.append (s);
   }
 
+  /**
+   * Append the date part <code>YYYY-MM-DD</code> (the year has at least four
+   * digits and a minus sign if negative).
+   *
+   * @param aSB
+   *        The target.
+   * @param aDT
+   *        The date/time.
+   */
   private static void _appendDate (@NonNull final StringBuilder aSB, @NonNull final OffsetDateTime aDT)
   {
     _appendPadded (aSB, aDT.getYear (), 4);
@@ -75,6 +102,15 @@ public final class FnContext
     _appendPadded (aSB, aDT.getDayOfMonth (), 2);
   }
 
+  /**
+   * Append the time part <code>hh:mm:ss</code>, followed by a fraction of the
+   * second with the trailing zeros removed if the nanoseconds are not zero.
+   *
+   * @param aSB
+   *        The target.
+   * @param aDT
+   *        The date/time.
+   */
   private static void _appendTime (@NonNull final StringBuilder aSB, @NonNull final OffsetDateTime aDT)
   {
     _appendPadded (aSB, aDT.getHour (), 2);
@@ -94,6 +130,15 @@ public final class FnContext
     }
   }
 
+  /**
+   * Append the offset as <code>Z</code> for zero, else as <code>+hh:mm</code>
+   * or <code>-hh:mm</code>; seconds of the offset are cut off.
+   *
+   * @param aSB
+   *        The target.
+   * @param aDT
+   *        The date/time.
+   */
   private static void _appendTimezone (@NonNull final StringBuilder aSB, @NonNull final OffsetDateTime aDT)
   {
     final int nMinutes = aDT.getOffset ().getTotalSeconds () / 60;
@@ -144,6 +189,22 @@ public final class FnContext
     return XdmSequence.of (XdmAtomic.of (eType, XdmDateTimeValue.parse (eType, sLexical)));
   }
 
+  /**
+   * Register the context functions of F&amp;O 3.1 section 15:
+   * <code>fn:position()</code> and <code>fn:last()</code> (focus-dependent,
+   * XPDY0002 without a context item), <code>fn:current-dateTime()</code> (as
+   * xs:dateTimeStamp), <code>fn:current-date()</code> and
+   * <code>fn:current-time()</code> from the fixed date/time of the run
+   * ({@link DynamicContext#getCurrentDateTime()}),
+   * <code>fn:implicit-timezone()</code> from the implicit timezone of the run,
+   * <code>fn:default-collation()</code> which is always the codepoint
+   * collation, <code>fn:default-language()</code> from the dynamic context and
+   * <code>fn:static-base-uri()</code> (empty if the static context has no base
+   * URI).
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

@@ -50,8 +50,11 @@ import com.helger.xpath.xdm.XdmQName;
 @ThreadSafe
 public final class FunctionLibrary
 {
+  /** The namespace of the <code>math:</code> functions. */
   public static final String NS_MATH = "http://www.w3.org/2005/xpath-functions/math";
+  /** The namespace of the <code>map:</code> functions. */
   public static final String NS_MAP = "http://www.w3.org/2005/xpath-functions/map";
+  /** The namespace of the <code>array:</code> functions. */
   public static final String NS_ARRAY = "http://www.w3.org/2005/xpath-functions/array";
 
   /** A registered function with its parsed signature. */
@@ -65,6 +68,14 @@ public final class FunctionLibrary
     private volatile List <SeqType> m_aParamTypes;
     private volatile SeqType m_aReturnType;
 
+    /**
+     * @param aParamTypes
+     *        The parameter types.
+     * @param aReturnType
+     *        The return type.
+     * @return The signature in the notation of {@link #getSignature()}, e.g.
+     *         <code>(xs:string?, xs:integer) as xs:string</code>.
+     */
     @NonNull
     private static String _signatureText (@NonNull final List <SeqType> aParamTypes, @NonNull final SeqType aReturnType)
     {
@@ -78,6 +89,19 @@ public final class FunctionLibrary
       return aSB.append (") as ").append (SequenceTypeMatcher.getAsString (aReturnType)).toString ();
     }
 
+    /**
+     * Create a definition from a signature text, which is parsed only when the
+     * types are first needed.
+     *
+     * @param aName
+     *        Expanded function name.
+     * @param sSignature
+     *        Signature as in the F&amp;O spec, without parameter names.
+     * @param aImpl
+     *        Implementation for static (and, by default, dynamic) calls.
+     * @param bFocusDependent
+     *        <code>true</code> if the implementation reads the focus.
+     */
     FunctionDef (@NonNull final XdmQName aName,
                  @NonNull final String sSignature,
                  @NonNull final IXPathFunction aImpl,
@@ -89,6 +113,21 @@ public final class FunctionLibrary
       m_bFocusDependent = bFocusDependent;
     }
 
+    /**
+     * Create a definition from already parsed types. The signature text is built
+     * from them for {@link #getSignature()}; it is never parsed again.
+     *
+     * @param aName
+     *        Expanded function name.
+     * @param aParamTypes
+     *        The parameter types (copied).
+     * @param aReturnType
+     *        The return type.
+     * @param aImpl
+     *        Implementation.
+     * @param bFocusDependent
+     *        <code>true</code> if the implementation reads the focus.
+     */
     FunctionDef (@NonNull final XdmQName aName,
                  @NonNull final List <SeqType> aParamTypes,
                  @NonNull final SeqType aReturnType,
@@ -100,6 +139,11 @@ public final class FunctionLibrary
       m_aReturnType = aReturnType;
     }
 
+    /**
+     * Parse the signature text into the parameter and return types on first use,
+     * with a fresh {@link StaticContext} (so only the standard prefixes are
+     * known). Concurrent first calls may parse twice, with the same result.
+     */
     private void _parse ()
     {
       if (m_aReturnType == null)
@@ -117,11 +161,17 @@ public final class FunctionLibrary
       return m_aName;
     }
 
+    /**
+     * @return The number of parameters. Parses the signature on first use.
+     */
     public int getArity ()
     {
       return getParamTypes ().size ();
     }
 
+    /**
+     * @return The parameter types in order. Parses the signature on first use.
+     */
     @NonNull
     public List <SeqType> getParamTypes ()
     {
@@ -129,6 +179,9 @@ public final class FunctionLibrary
       return m_aParamTypes;
     }
 
+    /**
+     * @return The declared return type. Parses the signature on first use.
+     */
     @NonNull
     public SeqType getReturnType ()
     {
@@ -188,22 +241,50 @@ public final class FunctionLibrary
   // means it finds nothing
   private final ICommonsMap <String, FunctionDef> m_aLookup = new CommonsHashMap <> ();
 
+  /**
+   * Create an empty library without parent. Use {@link #createDefault()} for
+   * one with the built-in functions.
+   */
   public FunctionLibrary ()
   {
     this (null);
   }
 
+  /**
+   * @param aParent
+   *        The library whose functions this one sees, or <code>null</code> for
+   *        a root library. See {@link #createChild()}.
+   */
   private FunctionLibrary (@Nullable final FunctionLibrary aParent)
   {
     m_aParent = aParent;
   }
 
+  /**
+   * @param sNamespaceUri
+   *        Function namespace.
+   * @param sLocalName
+   *        Local name.
+   * @param nArity
+   *        Arity.
+   * @return The map key <code>{uri}local#arity</code>.
+   */
   @NonNull
   private static String _key (@NonNull final String sNamespaceUri, @NonNull final String sLocalName, final int nArity)
   {
     return "{" + sNamespaceUri + "}" + sLocalName + "#" + nArity;
   }
 
+  /**
+   * Count the parameters of a signature text: the commas at nesting depth zero
+   * inside the outer parentheses, plus one if the parentheses contain anything
+   * other than whitespace. Nested parentheses such as in <code>map(*)</code>
+   * or <code>function(item()) as item()</code> are skipped.
+   *
+   * @param sSignature
+   *        Signature as in the F&amp;O spec, starting with the parameter list.
+   * @return The arity.
+   */
   private static int _countParams (@NonNull final String sSignature)
   {
     // Count top-level commas inside the outer parameter parentheses
@@ -496,6 +577,14 @@ public final class FunctionLibrary
     return false;
   }
 
+  /**
+   * @return All functions registered in this library and, for a child library,
+   *         those of the parent chain that are neither redefined (same name
+   *         and arity) nor hidden here. The functions of a variadic
+   *         registration are only included for the arities that
+   *         {@link #getFunction(XdmQName, int)} has already created. Never
+   *         <code>null</code>; a new list.
+   */
   @NonNull
   public ICommonsList <FunctionDef> getAllFunctions ()
   {

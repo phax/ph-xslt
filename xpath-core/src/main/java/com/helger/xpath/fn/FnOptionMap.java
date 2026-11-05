@@ -42,8 +42,14 @@ import com.helger.xpath.value.XdmSequence;
 @Immutable
 public final class FnOptionMap
 {
+  /** The required type <code>xs:string</code> of a string option. */
   public static final SeqType STRING = _type ("xs:string");
+  /** The required type <code>xs:boolean</code> of a boolean option. */
   public static final SeqType BOOLEAN = _type ("xs:boolean");
+  /**
+   * The required type <code>function(xs:string) as xs:string</code>, e.g. of
+   * the <code>fallback</code> option of <code>fn:parse-json</code>.
+   */
   public static final SeqType FUNCTION_1 = _type ("function(xs:string) as xs:string");
 
   @PresentForCodeCoverage
@@ -52,6 +58,12 @@ public final class FnOptionMap
   private FnOptionMap ()
   {}
 
+  /**
+   * @param sType
+   *        A SequenceType in XPath syntax that only uses the standard
+   *        prefixes.
+   * @return The type, parsed against a fresh {@link StaticContext}.
+   */
   @NonNull
   private static SeqType _type (@NonNull final String sType)
   {

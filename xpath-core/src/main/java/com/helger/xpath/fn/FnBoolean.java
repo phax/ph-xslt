@@ -60,6 +60,16 @@ public final class FnBoolean
   private FnBoolean ()
   {}
 
+  /**
+   * Register <code>fn:true()</code>, <code>fn:false()</code> (F&amp;O 3.1
+   * section 7.1), <code>fn:boolean($arg as item()*) as xs:boolean</code> and
+   * <code>fn:not($arg as item()*) as xs:boolean</code> (section 7.3), the last
+   * two as {@link #BOOLEAN} and {@link #NOT}. The effective boolean value
+   * raises FORG0006 for a sequence that has none.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

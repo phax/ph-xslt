@@ -47,6 +47,11 @@ public final class FnQName
   private FnQName ()
   {}
 
+  /**
+   * @param aSeq
+   *        An <code>xs:QName?</code> argument.
+   * @return The QName, or <code>null</code> for the empty sequence.
+   */
   @Nullable
   private static XdmQName _getOptionalQName (@NonNull final XdmSequence aSeq)
   {
@@ -72,6 +77,19 @@ public final class FnQName
     return new String [] { sPrefix, sLocal };
   }
 
+  /**
+   * <code>fn:QName($paramURI as xs:string?, $paramQName as xs:string) as
+   * xs:QName</code> (F&amp;O 3.1 section 10.1.2): build a QName from a
+   * namespace URI (empty sequence or empty string for no namespace) and a
+   * lexical QName, keeping the prefix.
+   *
+   * @param aArgs
+   *        The URI and the lexical QName.
+   * @return The QName.
+   * @throws XPathException
+   *         FOCA0002 if the second argument is not a lexical QName, or if it
+   *         has a prefix but the URI is empty.
+   */
   @NonNull
   private static XdmSequence _qname (@NonNull final List <XdmSequence> aArgs)
   {
@@ -86,6 +104,21 @@ public final class FnQName
     return XdmSequence.of (XdmAtomic.qname (new XdmQName (sUri, aParts[1], aParts[0])));
   }
 
+  /**
+   * <code>fn:resolve-QName($qname as xs:string?, $element as element()) as
+   * xs:QName?</code> (F&amp;O 3.1 section 10.1.1): resolve the prefix of a
+   * lexical QName against the in-scope namespaces of the element. An
+   * unprefixed name takes the default namespace of the element, or no
+   * namespace if it has none.
+   *
+   * @param aArgs
+   *        The lexical QName and the element.
+   * @return The empty sequence if the first argument is empty, the resolved
+   *         QName otherwise.
+   * @throws XPathException
+   *         FOCA0002 if the string is not a lexical QName, FONS0004 if its
+   *         prefix is not bound on the element.
+   */
   @NonNull
   private static XdmSequence _resolveQName (@NonNull final List <XdmSequence> aArgs)
   {
@@ -102,6 +135,18 @@ public final class FnQName
     return XdmSequence.of (XdmAtomic.qname (new XdmQName (sUri == null ? "" : sUri, aParts[1], aParts[0])));
   }
 
+  /**
+   * Register the QName functions of F&amp;O 3.1 section 10:
+   * <code>fn:resolve-QName</code>, <code>fn:QName</code>, and the accessors
+   * <code>fn:prefix-from-QName</code> (empty for an empty argument or a QName
+   * without prefix), <code>fn:local-name-from-QName</code> (both as xs:NCName)
+   * and <code>fn:namespace-uri-from-QName</code> (as xs:anyURI, the empty
+   * string for no namespace). The accessors return the empty sequence for an
+   * empty argument.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

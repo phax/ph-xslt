@@ -67,6 +67,14 @@ public final class FnString
   {
     static final BitSet SECOND_OF_COMPOSITION = _build ();
 
+    /**
+     * Scan all defined code points below U+30000 for primary composites: a
+     * character whose canonical decomposition has exactly two code points and
+     * composes back to it under NFC. The second code point of each such
+     * decomposition is set. Runs once, on first use of the holder.
+     *
+     * @return The set of composing second characters.
+     */
     @NonNull
     private static BitSet _build ()
     {
@@ -94,12 +102,23 @@ public final class FnString
     }
   }
 
+  /**
+   * @param aSeq
+   *        An <code>xs:string?</code> argument.
+   * @return Its string value, the empty string for the empty sequence.
+   */
   @NonNull
   private static String _optString (@NonNull final XdmSequence aSeq)
   {
     return aSeq.isEmpty () ? "" : ((XdmAtomic) aSeq.get (0)).getString ();
   }
 
+  /**
+   * @param s
+   *        A string.
+   * @return It as a single xs:string; the shared instance for the empty
+   *         string.
+   */
   @NonNull
   private static XdmSequence _str (@NonNull final String s)
   {
@@ -112,6 +131,12 @@ public final class FnString
     return b ? TRUE_SEQ : FALSE_SEQ;
   }
 
+  /**
+   * @param c
+   *        A character.
+   * @return <code>true</code> for XML whitespace: space, tab, line feed and
+   *         carriage return.
+   */
   private static boolean _isXmlSpace (final int c)
   {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
@@ -155,6 +180,15 @@ public final class FnString
     return d - dFloor >= 0.5 ? dFloor + 1 : dFloor;
   }
 
+  /**
+   * @param nCP
+   *        A code point, or -1 for a value out of range.
+   * @param eXmlVersion
+   *        The XML version of the static context.
+   * @return <code>true</code> if it matches the <code>Char</code> production
+   *         of that XML version: XML 1.1 also allows the C0 controls except
+   *         NUL.
+   */
   private static boolean _isXmlChar (final long nCP, @NonNull final EXmlVersion eXmlVersion)
   {
     // Char production of XML 1.1 (any C0 control but NUL) or XML 1.0
@@ -168,6 +202,19 @@ public final class FnString
            (nCP >= 0x10000 && nCP <= 0x10FFFF);
   }
 
+  /**
+   * <code>fn:codepoints-to-string($arg as xs:integer*) as xs:string</code>
+   * (F&amp;O 3.1 section 5.2.1).
+   *
+   * @param aCtx
+   *        The dynamic context of the call (for the XML version).
+   * @param aArgs
+   *        The code points.
+   * @return The string; the empty string for no code point.
+   * @throws XPathException
+   *         FOCH0001 for a code point that is not a valid XML character of the
+   *         XML version of the static context.
+   */
   @NonNull
   private static XdmSequence _codepointsToString (@NonNull final DynamicContext aCtx,
                                                   @NonNull final List <XdmSequence> aArgs)
@@ -185,6 +232,15 @@ public final class FnString
     return _str (aSB.toString ());
   }
 
+  /**
+   * <code>fn:string-to-codepoints($arg as xs:string?) as xs:integer*</code>
+   * (F&amp;O 3.1 section 5.2.2).
+   *
+   * @param aArgs
+   *        The string.
+   * @return One integer per code point (a surrogate pair counts once); the
+   *         empty sequence for an empty argument or string.
+   */
   @NonNull
   private static XdmSequence _stringToCodepoints (@NonNull final List <XdmSequence> aArgs)
   {
@@ -194,6 +250,20 @@ public final class FnString
     return aBuilder.build ();
   }
 
+  /**
+   * <code>fn:compare($comparand1 as xs:string?, $comparand2 as xs:string?[,
+   * $collation as xs:string]) as xs:integer?</code> (F&amp;O 3.1 section
+   * 5.3.6). The collation is resolved first, so an unknown collation is an
+   * error even for empty arguments.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return -1, 0 or 1; the empty sequence if either string is empty.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _compare (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -204,6 +274,15 @@ public final class FnString
     return XdmSequence.of (XdmAtomic.integer (Integer.signum (nCmp)));
   }
 
+  /**
+   * <code>fn:codepoint-equal($comparand1 as xs:string?, $comparand2 as
+   * xs:string?) as xs:boolean?</code> (F&amp;O 3.1 section 5.3.7).
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return Whether both are equal code point by code point; the empty
+   *         sequence if either is empty.
+   */
   @NonNull
   private static XdmSequence _codepointEqual (@NonNull final List <XdmSequence> aArgs)
   {
@@ -212,6 +291,15 @@ public final class FnString
     return _bool (_optString (aArgs.get (0)).equals (_optString (aArgs.get (1))));
   }
 
+  /**
+   * <code>fn:concat($arg1 as xs:anyAtomicType?, $arg2 as xs:anyAtomicType?,
+   * ...) as xs:string</code> (F&amp;O 3.1 section 5.4.1), for any arity of at
+   * least two: the string values of the non-empty arguments joined.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The concatenation.
+   */
   @NonNull
   private static XdmSequence _concat (@NonNull final List <XdmSequence> aArgs)
   {
@@ -222,6 +310,15 @@ public final class FnString
     return _str (aSB.toString ());
   }
 
+  /**
+   * <code>fn:string-join($arg1 as xs:anyAtomicType*[, $arg2 as xs:string]) as
+   * xs:string</code> (F&amp;O 3.1 section 5.4.2): the string values joined
+   * with the separator, the empty string if there is none.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The joined string.
+   */
   @NonNull
   private static XdmSequence _stringJoin (@NonNull final List <XdmSequence> aArgs)
   {
@@ -239,6 +336,19 @@ public final class FnString
     return _str (aSB.toString ());
   }
 
+  /**
+   * <code>fn:substring($sourceString as xs:string?, $start as xs:double[,
+   * $length as xs:double]) as xs:string</code> (F&amp;O 3.1 section 5.4.3):
+   * the code points at the 1-based positions <code>p</code> with
+   * <code>round($start) &lt;= p &lt; round($start) + round($length)</code> (no
+   * upper limit without <code>$length</code>), with the rounding of
+   * {@link #_round(double)}. A NaN bound, also from <code>-INF + INF</code>,
+   * gives the empty string.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The substring.
+   */
   @NonNull
   private static XdmSequence _substring (@NonNull final List <XdmSequence> aArgs)
   {
@@ -261,12 +371,33 @@ public final class FnString
     return _str (s.substring (nBegin, nFinish));
   }
 
+  /**
+   * @param s
+   *        A string.
+   * @return Its length in code points (<code>fn:string-length</code>, F&amp;O
+   *         3.1 section 5.4.4).
+   */
   @NonNull
   private static XdmSequence _stringLength (@NonNull final String s)
   {
     return XdmSequence.of (XdmAtomic.integer (s.codePointCount (0, s.length ())));
   }
 
+  /**
+   * <code>fn:normalize-unicode($arg as xs:string?[, $normalizationForm as
+   * xs:string]) as xs:string</code> (F&amp;O 3.1 section 5.4.6). The form is
+   * trimmed and upper-cased; the default is NFC, an empty form returns the
+   * string unchanged. NFC, NFD, NFKC and NFKD use {@link Normalizer};
+   * FULLY-NORMALIZED is NFC after a space has been put in front of a string
+   * that starts with a composing character (a non-spacing or enclosing mark,
+   * or the second character of a primary composite).
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The normalised string.
+   * @throws XPathException
+   *         FOCH0003 for any other form.
+   */
   @NonNull
   private static XdmSequence _normalizeUnicode (@NonNull final List <XdmSequence> aArgs)
   {
@@ -335,6 +466,17 @@ public final class FnString
     return aSB.toString ();
   }
 
+  /**
+   * <code>fn:translate($arg as xs:string?, $mapString as xs:string,
+   * $transString as xs:string) as xs:string</code> (F&amp;O 3.1 section
+   * 5.4.9): replace every code point that occurs in the map string (its first
+   * occurrence counts) by the code point at the same position of the
+   * translation string, or drop it if the translation string is shorter.
+   *
+   * @param aArgs
+   *        The arguments.
+   * @return The translated string.
+   */
   @NonNull
   private static XdmSequence _translate (@NonNull final List <XdmSequence> aArgs)
   {
@@ -359,6 +501,20 @@ public final class FnString
     return _str (aSB.toString ());
   }
 
+  /**
+   * <code>fn:contains($arg1 as xs:string?, $arg2 as xs:string?[, $collation as
+   * xs:string]) as xs:boolean</code> (F&amp;O 3.1 section 5.5.1): an empty
+   * search string is contained in anything; otherwise the collation looks for
+   * a match.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The result.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _contains (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -369,6 +525,19 @@ public final class FnString
     return _bool (aCollation.findSubstring (_optString (aArgs.get (0)), sSearch) != null);
   }
 
+  /**
+   * <code>fn:starts-with($arg1 as xs:string?, $arg2 as xs:string?[, $collation
+   * as xs:string]) as xs:boolean</code> (F&amp;O 3.1 section 5.5.2):
+   * <code>true</code> for an empty search string.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The result.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _startsWith (@NonNull final DynamicContext aCtx,
                                           @NonNull final List <XdmSequence> aArgs)
@@ -380,6 +549,19 @@ public final class FnString
     return _bool (aCollation.startsWith (_optString (aArgs.get (0)), sSearch));
   }
 
+  /**
+   * <code>fn:ends-with($arg1 as xs:string?, $arg2 as xs:string?[, $collation
+   * as xs:string]) as xs:boolean</code> (F&amp;O 3.1 section 5.5.3):
+   * <code>true</code> for an empty search string.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The result.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _endsWith (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -390,6 +572,20 @@ public final class FnString
     return _bool (aCollation.endsWith (_optString (aArgs.get (0)), sSearch));
   }
 
+  /**
+   * <code>fn:substring-before($arg1 as xs:string?, $arg2 as xs:string?[,
+   * $collation as xs:string]) as xs:string</code> (F&amp;O 3.1 section 5.5.4):
+   * the part before the first match of the collation.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The part before the match; the empty string for an empty search
+   *         string or if there is no match.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _substringBefore (@NonNull final DynamicContext aCtx,
                                                @NonNull final List <XdmSequence> aArgs)
@@ -403,6 +599,20 @@ public final class FnString
     return aMatch == null ? EMPTY_STRING_SEQ : _str (s.substring (0, aMatch[0]));
   }
 
+  /**
+   * <code>fn:substring-after($arg1 as xs:string?, $arg2 as xs:string?[,
+   * $collation as xs:string]) as xs:string</code> (F&amp;O 3.1 section 5.5.5):
+   * the part after the first match of the collation.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The part after the match; the whole string for an empty search
+   *         string, the empty string if there is no match.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _substringAfter (@NonNull final DynamicContext aCtx,
                                               @NonNull final List <XdmSequence> aArgs)
@@ -416,6 +626,21 @@ public final class FnString
     return aMatch == null ? EMPTY_STRING_SEQ : _str (s.substring (aMatch[1]));
   }
 
+  /**
+   * <code>fn:contains-token($input as xs:string*, $token as xs:string[,
+   * $collation as xs:string]) as xs:boolean</code> (F&amp;O 3.1 section
+   * 5.3.9): the token (with whitespace normalised) is compared under the
+   * collation with every whitespace-separated token of every input string.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return <code>true</code> on the first equal token; <code>false</code> if
+   *         there is none or the token is empty or whitespace only.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _containsToken (@NonNull final DynamicContext aCtx,
                                              @NonNull final List <XdmSequence> aArgs)
@@ -436,6 +661,19 @@ public final class FnString
     return FALSE_SEQ;
   }
 
+  /**
+   * <code>fn:collation-key($key as xs:string[, $collation as xs:string]) as
+   * xs:base64Binary</code> (F&amp;O 3.1 section 5.3.8): the key bytes of the
+   * collation, so that keys compare like the strings do under it.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The key.
+   * @throws XPathException
+   *         FOCH0002 for an unsupported collation.
+   */
   @NonNull
   private static XdmSequence _collationKey (@NonNull final DynamicContext aCtx,
                                             @NonNull final List <XdmSequence> aArgs)
@@ -474,6 +712,26 @@ public final class FnString
     return aSB.toString ();
   }
 
+  /**
+   * Register the string functions of F&amp;O 3.1 section 5 apart from the
+   * regular expression ones (see {@link FnRegex}):
+   * <code>fn:codepoints-to-string</code>,
+   * <code>fn:string-to-codepoints</code>, <code>fn:compare</code>,
+   * <code>fn:codepoint-equal</code>, <code>fn:concat</code> (variadic from
+   * arity 2), <code>fn:string-join</code>, <code>fn:substring</code>,
+   * <code>fn:string-length</code> and <code>fn:normalize-space</code> (arity 0
+   * reads the string value of the context item, XPDY0002 if absent),
+   * <code>fn:normalize-unicode</code>, <code>fn:upper-case</code>,
+   * <code>fn:lower-case</code>, <code>fn:translate</code>,
+   * <code>fn:contains</code>, <code>fn:starts-with</code>,
+   * <code>fn:ends-with</code>, <code>fn:substring-before</code>,
+   * <code>fn:substring-after</code>, <code>fn:contains-token</code> and
+   * <code>fn:collation-key</code>. Functions without collation argument use
+   * the default collation of the static context.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

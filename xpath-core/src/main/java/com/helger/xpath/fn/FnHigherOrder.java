@@ -58,6 +58,19 @@ public final class FnHigherOrder
   private FnHigherOrder ()
   {}
 
+  /**
+   * Call a function item (or map or array) with one argument through
+   * {@link XPathEvaluator#callFunction}, which applies the function conversion
+   * rules of its signature.
+   *
+   * @param aCtx
+   *        The dynamic context of the caller.
+   * @param aFunc
+   *        The function item.
+   * @param aArg
+   *        The argument.
+   * @return The result.
+   */
   @NonNull
   private static XdmSequence _call1 (@NonNull final DynamicContext aCtx,
                                      @NonNull final IXdmItem aFunc,
@@ -66,6 +79,20 @@ public final class FnHigherOrder
     return XPathEvaluator.callFunction (aCtx, aFunc, List.of (aArg));
   }
 
+  /**
+   * Call a function item with two arguments, like
+   * {@link #_call1(DynamicContext, IXdmItem, XdmSequence)}.
+   *
+   * @param aCtx
+   *        The dynamic context of the caller.
+   * @param aFunc
+   *        The function item.
+   * @param aArg1
+   *        The first argument.
+   * @param aArg2
+   *        The second argument.
+   * @return The result.
+   */
   @NonNull
   private static XdmSequence _call2 (@NonNull final DynamicContext aCtx,
                                      @NonNull final IXdmItem aFunc,
@@ -96,6 +123,22 @@ public final class FnHigherOrder
     }
   }
 
+  /**
+   * <code>fn:function-lookup($name as xs:QName, $arity as xs:integer) as
+   * function(*)?</code> (F&amp;O 3.1 section 16.1.1): find the function
+   * through {@link FunctionLibrary#getFunctionForLookup(XdmQName, int)} of the
+   * static context and return it as a function item that keeps the dynamic
+   * context of this call (so a focus-dependent function such as
+   * <code>position#0</code> sees the focus of the lookup). A negative arity or
+   * one that does not fit in 31 bits gives the empty sequence, as does an
+   * unknown function.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The name and the arity.
+   * @return The function item or the empty sequence.
+   */
   @NonNull
   private static XdmSequence _functionLookup (@NonNull final DynamicContext aCtx,
                                               @NonNull final List <XdmSequence> aArgs)
@@ -111,6 +154,17 @@ public final class FnHigherOrder
     return XdmSequence.of (new BuiltInFunctionItem (aDef, aCtx));
   }
 
+  /**
+   * <code>fn:function-name($func as function(*)) as xs:QName?</code> (F&amp;O
+   * 3.1 section 16.1.2). Maps, arrays and anonymous functions give the empty
+   * sequence. A name without prefix in one of the standard namespaces (fn, xs,
+   * math, map, array) gets its conventional prefix; other names are returned
+   * as they are.
+   *
+   * @param aArgs
+   *        The function item.
+   * @return The name or the empty sequence.
+   */
   @NonNull
   private static XdmSequence _functionName (@NonNull final List <XdmSequence> aArgs)
   {
@@ -129,6 +183,18 @@ public final class FnHigherOrder
     return XdmSequence.of (XdmAtomic.qname (aName));
   }
 
+  /**
+   * <code>fn:for-each($seq as item()*, $action as function(item()) as item()*)
+   * as item()*</code> (F&amp;O 3.1 section 16.2.1): call the function for
+   * every item in order and concatenate the results. Checks for interruption
+   * before every call.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The sequence and the function.
+   * @return The concatenated results.
+   */
   @NonNull
   private static XdmSequence _forEach (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -142,6 +208,20 @@ public final class FnHigherOrder
     return aBuilder.build ();
   }
 
+  /**
+   * <code>fn:filter($seq as item()*, $f as function(item()) as xs:boolean) as
+   * item()*</code> (F&amp;O 3.1 section 16.2.2): keep the items for which the
+   * function returns <code>true</code>, in order. Checks for interruption
+   * before every call.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The sequence and the predicate.
+   * @return The items that pass.
+   * @throws XPathException
+   *         XPTY0004 if a call does not return exactly one xs:boolean.
+   */
   @NonNull
   private static XdmSequence _filter (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -161,6 +241,18 @@ public final class FnHigherOrder
     return aBuilder.build ();
   }
 
+  /**
+   * <code>fn:fold-left($seq as item()*, $zero as item()*, $f as
+   * function(item()*, item()) as item()*) as item()*</code> (F&amp;O 3.1
+   * section 16.2.3): starting with the zero value, call the function with the
+   * accumulator and each item from first to last.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The sequence, the zero value and the function.
+   * @return The final accumulator; the zero value for an empty sequence.
+   */
   @NonNull
   private static XdmSequence _foldLeft (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -174,6 +266,19 @@ public final class FnHigherOrder
     return aAcc;
   }
 
+  /**
+   * <code>fn:fold-right($seq as item()*, $zero as item()*, $f as
+   * function(item(), item()*) as item()*) as item()*</code> (F&amp;O 3.1
+   * section 16.2.4): starting with the zero value, call the function with each
+   * item from last to first and the accumulator. Iterative, so a long sequence
+   * cannot overflow the Java stack.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The sequence, the zero value and the function.
+   * @return The final accumulator; the zero value for an empty sequence.
+   */
   @NonNull
   private static XdmSequence _foldRight (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -188,6 +293,19 @@ public final class FnHigherOrder
     return aAcc;
   }
 
+  /**
+   * <code>fn:for-each-pair($seq1 as item()*, $seq2 as item()*, $action as
+   * function(item(), item()) as item()*) as item()*</code> (F&amp;O 3.1
+   * section 16.2.5): call the function with the items at the same position of
+   * both sequences, up to the length of the shorter one, and concatenate the
+   * results.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The two sequences and the function.
+   * @return The concatenated results.
+   */
   @NonNull
   private static XdmSequence _forEachPair (@NonNull final DynamicContext aCtx,
                                            @NonNull final List <XdmSequence> aArgs)
@@ -205,6 +323,16 @@ public final class FnHigherOrder
     return aBuilder.build ();
   }
 
+  /**
+   * Prepare a sort key of <code>fn:sort</code>: atomise the value unless it
+   * consists of atomic values only, then replace every xs:untypedAtomic value
+   * by an xs:string with the same string value, so untyped keys compare as
+   * strings.
+   *
+   * @param aValue
+   *        The key value, the item itself or the result of the key function.
+   * @return The atomic key sequence.
+   */
   @NonNull
   private static XdmSequence _getSortKey (@NonNull final XdmSequence aValue)
   {
@@ -230,6 +358,26 @@ public final class FnHigherOrder
     return aBuilder.build ();
   }
 
+  /**
+   * Compare two sort keys of <code>fn:sort</code> item by item with
+   * {@link AtomicComparator#compareForOrder}; the first difference decides. If
+   * one key is a prefix of the other, the shorter one comes first (so an empty
+   * key sorts before every other key).
+   *
+   * @param aLeft
+   *        The left key.
+   * @param aRight
+   *        The right key.
+   * @param aCollation
+   *        The collation for strings, <code>null</code> for the codepoint
+   *        collation.
+   * @param aCtx
+   *        The dynamic context (implicit timezone).
+   * @return Negative, 0 or positive.
+   * @throws XPathException
+   *         XPTY0004 if two key values at the same position are not
+   *         comparable.
+   */
   private static int _compareKeys (@NonNull final XdmSequence aLeft,
                                    @NonNull final XdmSequence aRight,
                                    @Nullable final ICollation aCollation,
@@ -248,9 +396,27 @@ public final class FnHigherOrder
     return Integer.compare (aLeft.size (), aRight.size ());
   }
 
+  /** An item of the <code>fn:sort</code> input with its prepared sort key. */
   private record SortEntry (IXdmItem item, XdmSequence key)
   {}
 
+  /**
+   * <code>fn:sort($input as item()*[, $collation as xs:string?[, $key as
+   * function(item()) as xs:anyAtomicType*]]) as item()*</code> (F&amp;O 3.1
+   * section 16.2.6). The key of every item is the item itself or the result of
+   * the key function, prepared by {@link #_getSortKey(XdmSequence)}; an empty
+   * collation argument means the codepoint collation. The sort is stable, so
+   * items with equal keys keep their input order. All keys are computed before
+   * sorting, checking for interruption before each.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The sorted items.
+   * @throws XPathException
+   *         FOCH0002 for an unknown collation, XPTY0004 for incomparable keys.
+   */
   @NonNull
   private static XdmSequence _sort (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -281,6 +447,20 @@ public final class FnHigherOrder
     return aBuilder.build ();
   }
 
+  /**
+   * <code>fn:apply($function as function(*), $array as array(*)) as
+   * item()*</code> (F&amp;O 3.1 section 16.2.7): call the function with the
+   * members of the array as arguments.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The function and the array.
+   * @return The result of the call.
+   * @throws XPathException
+   *         FOAP0001 if the arity of the function differs from the size of the
+   *         array.
+   */
   @NonNull
   private static XdmSequence _apply (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -303,6 +483,19 @@ public final class FnHigherOrder
     throw XPathException.of ("FOQM0006", "No XQuery processor is available to load a library module");
   }
 
+  /**
+   * Register the higher-order functions of F&amp;O 3.1 section 16:
+   * <code>fn:function-lookup</code> (focus-dependent, since the function items
+   * it returns keep the focus of the call), <code>fn:function-name</code>,
+   * <code>fn:function-arity</code>, <code>fn:for-each</code>,
+   * <code>fn:filter</code>, <code>fn:fold-left</code>,
+   * <code>fn:fold-right</code>, <code>fn:for-each-pair</code>,
+   * <code>fn:sort</code> (arity 1 to 3), <code>fn:apply</code> and
+   * <code>fn:load-xquery-module</code> (arity 1 and 2, always FOQM0006).
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;

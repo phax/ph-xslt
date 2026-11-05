@@ -101,12 +101,19 @@ final class JsonParser
     m_nPos = sInput.startsWith ("﻿") ? 1 : 0;
   }
 
+  /**
+   * @param sMessage
+   *        What is wrong.
+   * @return A FOJS0001 error that names the current offset in the input; the
+   *         caller throws it.
+   */
   @NonNull
   private XPathException _error (@NonNull final String sMessage)
   {
     return XPathException.of ("FOJS0001", "Invalid JSON at offset " + m_nPos + ": " + sMessage);
   }
 
+  /** Advance over JSON whitespace (space, tab, line feed, carriage return). */
   private void _skipWhitespace ()
   {
     while (m_nPos < m_sInput.length ())
@@ -119,6 +126,13 @@ final class JsonParser
     }
   }
 
+  /**
+   * Skip whitespace and look at the next character without consuming it.
+   *
+   * @return The next non-whitespace character.
+   * @throws XPathException
+   *         FOJS0001 at the end of the input.
+   */
   private char _peek ()
   {
     _skipWhitespace ();
@@ -127,6 +141,15 @@ final class JsonParser
     return m_sInput.charAt (m_nPos);
   }
 
+  /**
+   * Skip whitespace and consume the given character.
+   *
+   * @param c
+   *        The required character.
+   * @throws XPathException
+   *         FOJS0001 if the next non-whitespace character is another one or
+   *         the input ends.
+   */
   private void _expect (final char c)
   {
     if (_peek () != c)
@@ -134,6 +157,16 @@ final class JsonParser
     m_nPos++;
   }
 
+  /**
+   * Consume a keyword at the current position, which must be written exactly
+   * (case-sensitive). The characters after it are not checked here; trailing
+   * garbage is found by the caller as an unexpected character.
+   *
+   * @param sLiteral
+   *        <code>true</code>, <code>false</code> or <code>null</code>.
+   * @throws XPathException
+   *         FOJS0001 if the input does not continue with it.
+   */
   private void _literal (@NonNull final String sLiteral)
   {
     if (!m_sInput.startsWith (sLiteral, m_nPos))
@@ -146,6 +179,18 @@ final class JsonParser
     return c >= '0' && c <= '9';
   }
 
+  /**
+   * Consume a number per the RFC 7159 grammar: an optional minus, either a
+   * single <code>0</code> or a digit sequence without leading zero, an
+   * optional fraction with at least one digit and an optional exponent with at
+   * least one digit. A leading zero followed by more digits ends the number
+   * after the zero, so the rest is rejected by the caller.
+   *
+   * @return The number exactly as written.
+   * @throws XPathException
+   *         FOJS0001 if no digit follows the minus sign, the point or the
+   *         exponent marker.
+   */
   @NonNull
   private String _number ()
   {
@@ -181,6 +226,13 @@ final class JsonParser
     return s.substring (nStart, m_nPos);
   }
 
+  /**
+   * @param cp
+   *        A code point.
+   * @return <code>true</code> if it matches the XML 1.0 production
+   *         <code>Char</code>: tab, line feed, carriage return, U+0020 to
+   *         U+D7FF, U+E000 to U+FFFD or U+10000 to U+10FFFF.
+   */
   static boolean isXmlChar (final int cp)
   {
     return cp == 0x9 ||
@@ -191,6 +243,15 @@ final class JsonParser
            (cp >= 0x10000 && cp <= 0x10FFFF);
   }
 
+  /**
+   * Append <code>&#92;uXXXX</code> with four upper-case hex digits.
+   *
+   * @param aSB
+   *        The target.
+   * @param c
+   *        A UTF-16 code unit (a supplementary character must be passed as its
+   *        two surrogates).
+   */
   private static void _appendHex (@NonNull final StringBuilder aSB, final int c)
   {
     aSB.append ("\\u").append (String.format (Locale.ROOT, "%04X", Integer.valueOf (c)));
@@ -255,6 +316,15 @@ final class JsonParser
       }
   }
 
+  /**
+   * @param nStart
+   *        The index of the first of four hex digits of a <code>&#92;u</code>
+   *        escape.
+   * @return Their value (0 to 0xFFFF), which may be a lone surrogate.
+   * @throws XPathException
+   *         FOJS0001 if the input ends before four characters or one of them
+   *         is no hex digit.
+   */
   private int _hex4 (final int nStart)
   {
     if (nStart + 4 > m_sInput.length ())

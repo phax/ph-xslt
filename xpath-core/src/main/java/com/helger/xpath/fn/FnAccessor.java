@@ -56,6 +56,13 @@ public final class FnAccessor
   private FnAccessor ()
   {}
 
+  /**
+   * @param aCtx
+   *        The dynamic context.
+   * @return The context item, never <code>null</code>.
+   * @throws XPathException
+   *         XPDY0002 if the context item is absent.
+   */
   @NonNull
   private static IXdmItem _getContextItem (@NonNull final DynamicContext aCtx)
   {
@@ -185,6 +192,13 @@ public final class FnAccessor
     };
   }
 
+  /**
+   * @param aNode
+   *        A node, <code>null</code> for an empty argument.
+   * @return The lexical name (with prefix) for <code>fn:name</code> (F&amp;O
+   *         3.1 section 13.1); the empty string for an empty argument or a
+   *         node without name.
+   */
   @NonNull
   private static String _getName (@Nullable final IXdmNode aNode)
   {
@@ -194,6 +208,13 @@ public final class FnAccessor
     return aName == null ? "" : aName.getLexicalName ();
   }
 
+  /**
+   * @param aNode
+   *        A node, <code>null</code> for an empty argument.
+   * @return The local part of the name for <code>fn:local-name</code> (F&amp;O
+   *         3.1 section 13.2); the empty string for an empty argument or a
+   *         node without name.
+   */
   @NonNull
   private static String _getLocalName (@Nullable final IXdmNode aNode)
   {
@@ -203,6 +224,14 @@ public final class FnAccessor
     return aName == null ? "" : aName.localName ();
   }
 
+  /**
+   * @param aNode
+   *        A node, <code>null</code> for an empty argument.
+   * @return The namespace URI of an element or attribute name for
+   *         <code>fn:namespace-uri</code> (F&amp;O 3.1 section 13.3); the
+   *         empty string for any other node, an empty argument or a name in no
+   *         namespace.
+   */
   @NonNull
   private static String _getNamespaceUri (@Nullable final IXdmNode aNode)
   {
@@ -229,6 +258,18 @@ public final class FnAccessor
     private int m_nLast;
   }
 
+  /**
+   * <code>fn:generate-id</code> (F&amp;O 3.1 section 14.5.4): give every node
+   * a stable identifier of the form <code>id</code> followed by a counter,
+   * kept in the run cache in a {@link GeneratedIDs}; the same node gets the
+   * same identifier for the whole run.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aNode
+   *        The node, <code>null</code> for an empty argument.
+   * @return The identifier, the empty string for <code>null</code>.
+   */
   @NonNull
   private static String _generateId (@NonNull final DynamicContext aCtx, @Nullable final IXdmNode aNode)
   {
@@ -238,6 +279,15 @@ public final class FnAccessor
     return aIDs.m_aIDs.computeIfAbsent (aNode, k -> "id" + Integer.toString (++aIDs.m_nLast));
   }
 
+  /**
+   * @param aLeft
+   *        A node.
+   * @param aRight
+   *        Another node.
+   * @return <code>true</code> if both have the same kind and, for elements and
+   *         processing instructions, the same name, i.e. they count for the
+   *         same positional predicate in an <code>fn:path</code> step.
+   */
   private static boolean _isSameStep (@NonNull final IXdmNode aLeft, @NonNull final IXdmNode aRight)
   {
     if (aLeft.getKind () != aRight.getKind ())
@@ -249,6 +299,14 @@ public final class FnAccessor
     };
   }
 
+  /**
+   * @param aNode
+   *        A child node.
+   * @return The 1-based position of the node among the children of its parent
+   *         that match the same step (see
+   *         {@link #_isSameStep(IXdmNode, IXdmNode)}); 1 for a node without
+   *         parent.
+   */
   private static int _getSiblingPosition (@NonNull final IXdmNode aNode)
   {
     final IXdmNode aParent = aNode.getParent ();
@@ -266,6 +324,18 @@ public final class FnAccessor
     return nPos;
   }
 
+  /**
+   * The step of <code>fn:path</code> (F&amp;O 3.1 section 13.6) for one node:
+   * <code>Q{uri}local[n]</code> for an element, <code>@local</code> or
+   * <code>@Q{uri}local</code> for an attribute, <code>text()[n]</code>,
+   * <code>comment()[n]</code>, <code>processing-instruction(name)[n]</code>,
+   * <code>namespace::prefix</code>, or for the default namespace
+   * <code>namespace::*[Q{http://www.w3.org/2005/xpath-functions}local-name()=""]</code>.
+   *
+   * @param aNode
+   *        A node that is not a document node.
+   * @return The step, the empty string for any other kind.
+   */
   @NonNull
   private static String _getStepLabel (@NonNull final IXdmNode aNode)
   {
@@ -320,12 +390,33 @@ public final class FnAccessor
     return XdmSequence.of (XdmAtomic.string (s));
   }
 
+  /**
+   * @param s
+   *        A URI or <code>null</code>.
+   * @return The URI as xs:anyURI, or the empty sequence for <code>null</code>.
+   */
   @NonNull
   private static XdmSequence _anyUriOrEmpty (@Nullable final String s)
   {
     return s == null ? XdmSequence.EMPTY : XdmSequence.of (XdmAtomic.anyUri (s));
   }
 
+  /**
+   * Register a function with an optional node or item argument twice: with
+   * arity 0 as focus-dependent (the implementation then reads the context
+   * item) and with arity 1.
+   *
+   * @param aLib
+   *        The library to register into.
+   * @param sLocalName
+   *        Local name in the fn namespace.
+   * @param sParamType
+   *        The type of the parameter of the 1-argument form.
+   * @param sReturnType
+   *        The return type of both forms.
+   * @param aImpl
+   *        The implementation, called with 0 or 1 arguments.
+   */
   private static void _register01 (@NonNull final FunctionLibrary aLib,
                                    @NonNull final String sLocalName,
                                    @NonNull final String sParamType,
@@ -337,6 +428,21 @@ public final class FnAccessor
     aLib.register (sNS, sLocalName, "(" + sParamType + ") as " + sReturnType, aImpl);
   }
 
+  /**
+   * Register the accessor and node functions <code>fn:data</code>,
+   * <code>fn:string</code>, <code>fn:node-name</code>, <code>fn:nilled</code>
+   * (empty for anything but an element), <code>fn:base-uri</code>,
+   * <code>fn:document-uri</code> (empty for anything but a document node),
+   * <code>fn:name</code>, <code>fn:local-name</code>,
+   * <code>fn:namespace-uri</code>, <code>fn:root</code>,
+   * <code>fn:has-children</code>, <code>fn:path</code> and
+   * <code>fn:generate-id</code> (F&amp;O 3.1 sections 2, 13 and 14.5.4), each
+   * with arity 0 (the context item, XPDY0002 if absent and XPTY0004 if a node
+   * is needed and it is none) and 1.
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     _register01 (aLib, "data", "item()*", "xs:anyAtomicType*", (aCtx, aArgs) -> {

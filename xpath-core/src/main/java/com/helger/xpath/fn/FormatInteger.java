@@ -340,6 +340,12 @@ public final class FormatInteger
     return ret;
   }
 
+  /**
+   * @param bUpper
+   *        Upper or lower case.
+   * @return The 24 letters of the Greek alphabet, alpha to omega (U+0391 to
+   *         U+03A9 or U+03B1 to U+03C9), without the final sigma.
+   */
   @NonNull
   private static int [] _greekAlphabet (final boolean bUpper)
   {
@@ -354,6 +360,17 @@ public final class FormatInteger
     return ret;
   }
 
+  /**
+   * Write a number in Japanese kanji numerals, for the format token U+4E00:
+   * thousands, hundreds and tens as the digit (left out if it is one) followed
+   * by the unit character, then the units digit; zero digits are left out
+   * entirely.
+   *
+   * @param n
+   *        A number from 1 to 9999 (the caller ensures the range; 10000 or
+   *        more would index past the digit table).
+   * @return The kanji numeral.
+   */
   @NonNull
   private static String _kanji (final long n)
   {

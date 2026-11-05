@@ -193,6 +193,12 @@ public final class FormatDateTime
   private FormatDateTime ()
   {}
 
+  /**
+   * @param sMsg
+   *        What is wrong.
+   * @return A FOFD1340 error (invalid picture or calendar); the caller throws
+   *         it.
+   */
   @NonNull
   private static XPathException _err (@NonNull final String sMsg)
   {
@@ -239,6 +245,12 @@ public final class FormatDateTime
     throw _err ("Unknown calendar '" + sCalendar + "'");
   }
 
+  /**
+   * @param aOpts
+   *        The options of the call.
+   * @return The twelve month names in the language of the call: English
+   *         without a native language, else German, French or Italian.
+   */
   @NonNull
   private static String [] _monthNames (@NonNull final Options aOpts)
   {
@@ -255,6 +267,12 @@ public final class FormatDateTime
     }
   }
 
+  /**
+   * @param aOpts
+   *        The options of the call.
+   * @return The seven day names, Monday first, in the language of the call:
+   *         English without a native language, else German, French or Italian.
+   */
   @NonNull
   private static String [] _dayNames (@NonNull final Options aOpts)
   {
@@ -271,6 +289,12 @@ public final class FormatDateTime
     }
   }
 
+  /**
+   * @param s
+   *        A width value.
+   * @return Its value if it consists of one to nine ASCII digits, -1
+   *         otherwise.
+   */
   private static int _parsePositiveInt (@NonNull final String s)
   {
     if (s.isEmpty () || s.length () > 9)
@@ -315,6 +339,13 @@ public final class FormatDateTime
     return new Width (sRest.substring (0, k), nMin, nMax);
   }
 
+  /**
+   * @param s
+   *        A string.
+   * @param nMin
+   *        The minimum length in code points.
+   * @return The string padded with spaces on the right to that length.
+   */
   @NonNull
   private static String _padRight (@NonNull final String s, final int nMin)
   {
@@ -322,11 +353,23 @@ public final class FormatDateTime
     return n < nMin ? s + " ".repeat (nMin - n) : s;
   }
 
+  /**
+   * @param s
+   *        A presentation modifier.
+   * @return The number of Unicode decimal digits in it.
+   */
   private static int _countDigits (@NonNull final String s)
   {
     return (int) s.codePoints ().filter (FormatInteger::isDigit).count ();
   }
 
+  /**
+   * @param s
+   *        A string.
+   * @param c
+   *        A character.
+   * @return How often it occurs.
+   */
   private static int _countChar (@NonNull final String s, final char c)
   {
     int ret = 0;
@@ -351,6 +394,15 @@ public final class FormatDateTime
     return new int [] { nMin, nMax };
   }
 
+  /**
+   * @param sName
+   *        A month or day name or am/pm marker.
+   * @param sMod
+   *        The presentation modifier: <code>N</code> for upper case,
+   *        <code>n</code> for lower case, <code>Nn</code> (and anything else)
+   *        for title case.
+   * @return The name in that case.
+   */
   @NonNull
   private static String _applyNameModifier (@NonNull final String sName, @NonNull final String sMod)
   {
@@ -363,6 +415,46 @@ public final class FormatDateTime
     return FormatWords.titleCase (sName);
   }
 
+  /**
+   * Present a component value per the presentation modifier (F&amp;O 3.1
+   * sections 9.8.4.1 to 9.8.4.4). A second modifier <code>o</code> (ordinal)
+   * is taken off; <code>t</code> and <code>c</code> are ignored, and so is
+   * <code>a</code> after a digit or <code>#</code>. A maximum width below 10
+   * on the year first reduces the value to that many low-order digits. Then: a
+   * modifier containing <code>N</code> or <code>n</code> on a component with a
+   * name gives the name in that case, shortened to the conventional three
+   * letters (if the width range allows) or truncated if it exceeds the maximum
+   * width, and for months and days padded with spaces to the minimum width;
+   * <code>I</code>/<code>i</code> give Roman and <code>a</code>/<code>A</code>
+   * alphabetic numbering for values above 0, padded with spaces;
+   * <code>w</code>, <code>W</code> and <code>Ww</code> spell the number in
+   * words. Anything else is a decimal digit pattern (default <code>1</code>; a
+   * modifier that is no valid pattern and does not look like one falls back to
+   * <code>1</code>): the number is padded with zeros to the minimum width,
+   * only the year is cut to the maximum width, the digits are rendered in the
+   * pattern's digit family and grouping, then the ordinal suffix and a minus
+   * sign are added. Using names, words or ordinals marks the language as used,
+   * for the "[Language: en]" fallback marker.
+   *
+   * @param cComp
+   *        The component specifier.
+   * @param nNum
+   *        The numeric value.
+   * @param sName
+   *        The name of the value (month, day, am/pm), or <code>null</code>.
+   * @param sModifier
+   *        The presentation modifier without the width.
+   * @param nWMin
+   *        The minimum width, 0 if unspecified.
+   * @param nWMax
+   *        The maximum width, 0 if unspecified.
+   * @param aOpts
+   *        The options of the call; updated.
+   * @return The presentation.
+   * @throws XPathException
+   *         FOFD1340 for a modifier that looks like a digit pattern but is not
+   *         a valid one.
+   */
   @NonNull
   private static String _presentNumberOrName (final char cComp,
                                               final long nNum,
@@ -472,6 +564,17 @@ public final class FormatDateTime
     return bNeg ? "-" + s : s;
   }
 
+  /**
+   * Parse the digit pattern of a fractional seconds presentation modifier:
+   * mandatory digits, optional <code>#</code> signs and grouping separators.
+   *
+   * @param sPattern
+   *        The modifier.
+   * @return The pattern, or <code>null</code> if it is not a valid one: no
+   *         digit sign at all, a mandatory digit after an optional one, digits
+   *         of different families, or a separator at either end, next to
+   *         another separator or that is a letter or number.
+   */
   @Nullable
   private static FracPattern _parseFracPattern (@NonNull final String sPattern)
   {
@@ -604,6 +707,13 @@ public final class FormatDateTime
     return new TzPattern (nH, nM, nM > 0 ? aSep.toString () : "", nZero < 0 ? '0' : nZero);
   }
 
+  /**
+   * @param n
+   *        A non-negative number.
+   * @param nWidth
+   *        The minimum number of digits.
+   * @return The number in ASCII digits, padded with zeros on the left.
+   */
   @NonNull
   private static String _pad (final int n, final int nWidth)
   {
@@ -611,7 +721,7 @@ public final class FormatDateTime
     return s.length () < nWidth ? "0".repeat (nWidth - s.length ()) + s : s;
   }
 
-  /** Render [Z]/[z] per F&amp;O 9.8.4.4. */
+  /** Render [Z]/[z] per F&amp;O 3.1 section 9.8.4.6. */
   @NonNull
   private static String _formatTimezone (@NonNull final XdmDateTimeValue aValue,
                                          final char cComp,
@@ -674,6 +784,31 @@ public final class FormatDateTime
     return cComp == 'z' ? "GMT" + s : s;
   }
 
+  /**
+   * Format one variable marker (F&amp;O 3.1 section 9.8.4.1): check the
+   * component specifier, split off the width modifier, take the value of the
+   * component (year without sign, month, day, day in year, ISO day of week,
+   * hour 0-23 or 1-12, am/pm, minute, second, fractional seconds, timezone,
+   * era "AD"/"BC", calendar "Gregorian", ISO week of year, week of month) and
+   * present it. Defaults where no modifier is given: <code>n</code> for the
+   * day name and am/pm, <code>01</code> for minutes and seconds,
+   * <code>1</code> otherwise. <code>[ZN]</code>/<code>[zN]</code> give the
+   * zone abbreviation when a <code>$place</code> moved the value.
+   *
+   * @param aValue
+   *        The value.
+   * @param eType
+   *        Its type, which restricts the components.
+   * @param sMarker
+   *        The marker without brackets and whitespace.
+   * @param aOpts
+   *        The options of the call; updated.
+   * @return The formatted component.
+   * @throws XPathException
+   *         FOFD1340 for an empty marker, an unknown component, an invalid
+   *         width or modifier, FOFD1350 for a time component on an xs:date or
+   *         a date component on an xs:time.
+   */
   @NonNull
   private static String _formatComponent (@NonNull final XdmDateTimeValue aValue,
                                           @NonNull final EAtomicType eType,
@@ -771,6 +906,12 @@ public final class FormatDateTime
     return _presentNumberOrName (cComp, nNum, sName, sMod, nWMin, nWMax, aOpts);
   }
 
+  /**
+   * @param s
+   *        The content of a variable marker.
+   * @return It without any whitespace or space characters (F&amp;O 3.1 section
+   *         9.8.4.1: whitespace inside a variable marker is ignored).
+   */
   @NonNull
   private static String _stripWhitespace (@NonNull final String s)
   {
@@ -781,6 +922,28 @@ public final class FormatDateTime
     return aSB.toString ();
   }
 
+  /**
+   * Process the picture string: the calendar prefix of the options first, then
+   * literal text as it is, <code>[[</code> and <code>]]</code> as single
+   * brackets, and every <code>[...]</code> marker through
+   * {@link #_formatComponent(XdmDateTimeValue, EAtomicType, String, Options)}.
+   * A lone <code>]</code> is copied as it is. If the language fell back to
+   * English and some name, word or ordinal was used, the result starts with
+   * "[Language: en]".
+   *
+   * @param aValue
+   *        The value.
+   * @param eType
+   *        Its type.
+   * @param sPicture
+   *        The picture string.
+   * @param aOpts
+   *        The options of the call.
+   * @return The formatted string.
+   * @throws XPathException
+   *         FOFD1340 for an unclosed <code>[</code> or an invalid marker,
+   *         FOFD1350 for a component the type does not have.
+   */
   @NonNull
   private static String _formatPicture (@NonNull final XdmDateTimeValue aValue,
                                         @NonNull final EAtomicType eType,

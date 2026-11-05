@@ -59,6 +59,11 @@ public final class FnResource
   private FnResource ()
   {}
 
+  /**
+   * @param aSeq
+   *        An <code>xs:string?</code> argument.
+   * @return Its string value, or <code>null</code> for the empty sequence.
+   */
   @Nullable
   private static String _getOptionalString (@NonNull final XdmSequence aSeq)
   {
@@ -92,6 +97,23 @@ public final class FnResource
     return FnUri.resolveUri (sHref, sBase);
   }
 
+  /**
+   * The common part of <code>fn:doc</code> and <code>fn:doc-available</code>
+   * (F&amp;O 3.1 sections 14.6.1 and 14.6.2): resolve the reference against
+   * the static base URI and return the document the resource resolver delivers
+   * for it. A document is cached in the run cache under its absolute URI, so
+   * the same URI gives the same node within a run; failures are not cached.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param sHref
+   *        The URI reference as given.
+   * @return The document node.
+   * @throws XPathException
+   *         FODC0005 if the reference is not a valid URI, FODC0002 if a
+   *         relative reference has no usable base URI or the resolver delivers
+   *         nothing (and any error the resolver raises itself).
+   */
   @NonNull
   private static IXdmNode _doc (@NonNull final DynamicContext aCtx, @NonNull final String sHref)
   {
@@ -107,6 +129,13 @@ public final class FnResource
     return aDoc;
   }
 
+  /**
+   * @param s
+   *        An encoding name.
+   * @return <code>true</code> if it matches the XML production
+   *         <code>EncName</code>: an ASCII letter followed by ASCII letters,
+   *         digits, <code>.</code>, <code>_</code> or <code>-</code>.
+   */
   private static boolean _isEncodingName (@NonNull final String s)
   {
     // XML EncName: [A-Za-z] ([A-Za-z0-9._] | '-')*
@@ -122,6 +151,12 @@ public final class FnResource
     return true;
   }
 
+  /**
+   * @param s
+   *        An encoding name from an <code>$encoding</code> argument.
+   * @return <code>true</code> if it is a syntactically valid XML encoding name
+   *         that the Java runtime supports as a {@link Charset}.
+   */
   private static boolean _isSupportedEncoding (@NonNull final String s)
   {
     if (!_isEncodingName (s))
@@ -136,6 +171,13 @@ public final class FnResource
     }
   }
 
+  /**
+   * @param c
+   *        A code point.
+   * @return <code>true</code> if it matches the XML 1.0 production
+   *         <code>Char</code>: tab, line feed, carriage return, U+0020 to
+   *         U+D7FF, U+E000 to U+FFFD or U+10000 to U+10FFFF.
+   */
   private static boolean _isXmlChar (final int c)
   {
     return c == 0x9 ||
@@ -146,6 +188,12 @@ public final class FnResource
            (c >= 0x10000 && c <= 0x10FFFF);
   }
 
+  /**
+   * @param s
+   *        A text read by <code>fn:unparsed-text</code>.
+   * @return <code>true</code> if every code point is an XML character; an
+   *         unpaired surrogate counts as invalid.
+   */
   private static boolean _hasOnlyXmlChars (@NonNull final String s)
   {
     int i = 0;
@@ -177,7 +225,7 @@ public final class FnResource
    *
    * @return The text, never <code>null</code>.
    * @throws XPathException
-   *         FOUT1170, FOUT1190 or FOUT1200.
+   *         FOUT1170 or FOUT1190.
    */
   @NonNull
   private static String _unparsedText (@NonNull final DynamicContext aCtx,
@@ -202,6 +250,23 @@ public final class FnResource
     return sText;
   }
 
+  /**
+   * <code>fn:unparsed-text-lines($href as xs:string?[, $encoding as
+   * xs:string]) as xs:string*</code> (F&amp;O 3.1 section 14.6.6): read the
+   * text like <code>fn:unparsed-text</code> and split it into lines at line
+   * feed, carriage return or carriage return plus line feed. A line terminator
+   * at the very end does not start another, empty line. An empty
+   * <code>$href</code> gives the empty sequence, but the encoding is still
+   * checked.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The lines without their terminators.
+   * @throws XPathException
+   *         FOUT1170 or FOUT1190 as for <code>fn:unparsed-text</code>.
+   */
   @NonNull
   private static XdmSequence _unparsedTextLines (@NonNull final DynamicContext aCtx,
                                                  @NonNull final List <XdmSequence> aArgs)
@@ -250,6 +315,22 @@ public final class FnResource
     return _resolve (aCtx, sHref, "FODC0004", "FODC0002");
   }
 
+  /**
+   * <code>fn:collection([$arg as xs:string?]) as item()*</code> (F&amp;O 3.1
+   * section 14.6.3): the items the resource resolver delivers for the absolute
+   * collection URI, or for the default collection (empty string) if the
+   * argument is absent or empty. The result is cached per URI in the run
+   * cache.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        No argument or the collection URI.
+   * @return The items of the collection.
+   * @throws XPathException
+   *         FODC0004 for an invalid URI, FODC0002 if a relative URI cannot be
+   *         resolved or the resolver knows no such collection.
+   */
   @NonNull
   private static XdmSequence _collection (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -268,6 +349,22 @@ public final class FnResource
     return ret;
   }
 
+  /**
+   * <code>fn:uri-collection([$arg as xs:string?]) as xs:anyURI*</code>
+   * (F&amp;O 3.1 section 14.6.4): the URIs the resource resolver delivers for
+   * the absolute collection URI, or for the default collection (empty string)
+   * if the argument is absent or empty. The result is cached per URI in the
+   * run cache.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        No argument or the collection URI.
+   * @return The URIs as xs:anyURI.
+   * @throws XPathException
+   *         FODC0004 for an invalid URI, FODC0002 if a relative URI cannot be
+   *         resolved or the resolver knows no such URI collection.
+   */
   @NonNull
   private static XdmSequence _uriCollection (@NonNull final DynamicContext aCtx,
                                              @NonNull final List <XdmSequence> aArgs)
@@ -290,6 +387,19 @@ public final class FnResource
     return ret;
   }
 
+  /**
+   * <code>fn:doc-available</code>: <code>true</code> if
+   * {@link #_doc(DynamicContext, String)} succeeds. A successfully loaded
+   * document stays in the run cache, so a following <code>fn:doc</code>
+   * returns the same node.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param sHref
+   *        The URI reference, <code>null</code> for the empty sequence.
+   * @return <code>false</code> for <code>null</code> or if loading raises any
+   *         {@link XPathException}.
+   */
   private static boolean _isDocAvailable (@NonNull final DynamicContext aCtx, @Nullable final String sHref)
   {
     if (sHref == null)
@@ -305,6 +415,19 @@ public final class FnResource
     }
   }
 
+  /**
+   * <code>fn:unparsed-text-available($href as xs:string?[, $encoding as
+   * xs:string]) as xs:boolean</code> (F&amp;O 3.1 section 14.6.7):
+   * <code>true</code> if the text can be read and decoded. A text that is read
+   * stays in the run cache.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return <code>false</code> for an empty <code>$href</code> or if reading
+   *         raises any {@link XPathException}.
+   */
   private static boolean _isUnparsedTextAvailable (@NonNull final DynamicContext aCtx,
                                                    @NonNull final List <XdmSequence> aArgs)
   {
@@ -322,6 +445,21 @@ public final class FnResource
     }
   }
 
+  /**
+   * <code>fn:unparsed-text($href as xs:string?[, $encoding as xs:string]) as
+   * xs:string?</code> (F&amp;O 3.1 section 14.6.5). An empty
+   * <code>$href</code> gives the empty sequence, but the encoding is still
+   * checked.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        The arguments.
+   * @return The text or the empty sequence.
+   * @throws XPathException
+   *         FOUT1170 if the text cannot be retrieved, FOUT1190 for an
+   *         unsupported encoding or a character that is not allowed in XML.
+   */
   @NonNull
   private static XdmSequence _unparsedTextCall (@NonNull final DynamicContext aCtx,
                                                 @NonNull final List <XdmSequence> aArgs)
@@ -337,6 +475,21 @@ public final class FnResource
     return XdmSequence.of (XdmAtomic.string (_unparsedText (aCtx, sHref, sEncoding)));
   }
 
+  /**
+   * Register the resource functions of F&amp;O 3.1 section 14.6:
+   * <code>fn:doc</code> (empty for an empty argument),
+   * <code>fn:doc-available</code>, <code>fn:unparsed-text</code>,
+   * <code>fn:unparsed-text-lines</code> and
+   * <code>fn:unparsed-text-available</code> (arity 1 and 2),
+   * <code>fn:collection</code> and <code>fn:uri-collection</code> (arity 0 and
+   * 1), <code>fn:environment-variable</code> and
+   * <code>fn:available-environment-variables</code>, which read the
+   * environment variables of the dynamic context (not necessarily those of the
+   * process).
+   *
+   * @param aLib
+   *        The library to register into.
+   */
   public static void register (@NonNull final FunctionLibrary aLib)
   {
     final String sNS = XdmConstants.NS_FN;
