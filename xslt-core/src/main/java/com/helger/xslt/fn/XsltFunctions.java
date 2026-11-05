@@ -117,6 +117,12 @@ public final class XsltFunctions
     return new XdmQName (sUri, s.substring (n + 1), sPrefix);
   }
 
+  /**
+   * @param aSeq
+   *        An <code>xs:string?</code> argument.
+   * @return The string value of its first item, or the empty string for an
+   *         empty sequence.
+   */
   @NonNull
   private static String _getString (@NonNull final XdmSequence aSeq)
   {
@@ -147,6 +153,27 @@ public final class XsltFunctions
     };
   }
 
+  /**
+   * fn:system-property (XSLT 3.0 section 20.4.4). The argument is resolved as
+   * a QName or EQName (an unprefixed name is in no namespace). A property in
+   * the XSLT namespace gets its value from {@link #getSystemProperty}, with
+   * two overrides that depend on the stylesheet: is-schema-aware is "yes"
+   * exactly when the static context has a schema set, and supports-streaming
+   * is "yes" when the stylesheet was compiled with the streaming claim. Any
+   * other name gives the empty string.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The property name.
+   * @param bStreamingClaim
+   *        <code>true</code> for a stylesheet compiled with the streaming
+   *        claim.
+   * @return The property value as a single <code>xs:string</code>.
+   * @throws XPathException
+   *         XTDE1390 if the name is not a valid QName or its prefix is
+   *         unbound.
+   */
   @NonNull
   private static XdmSequence _systemProperty (@NonNull final DynamicContext aCtx,
                                               @NonNull final List <XdmSequence> aArgs,
@@ -167,6 +194,22 @@ public final class XsltFunctions
     return XdmSequence.of (XdmAtomic.string (sValue));
   }
 
+  /**
+   * fn:function-available (XSLT 3.0 section 24.1.1). An unprefixed name is in
+   * the default function namespace. With an arity argument the function is
+   * looked up by name and arity in the function library of the static
+   * context (a negative arity or one of 10000 or more is never available);
+   * without it, any arity counts.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The function name and the optional arity.
+   * @return <code>true</code> if such a function is in the library.
+   * @throws XPathException
+   *         XTDE1400 if the name is not a valid EQName or its prefix is
+   *         unbound.
+   */
   @NonNull
   private static XdmSequence _functionAvailable (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -187,6 +230,23 @@ public final class XsltFunctions
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }
 
+  /**
+   * fn:element-available (XSLT 3.0 section 24.2.2). An unprefixed name is in
+   * the default namespace in scope (xmlns). Only names in the XSLT namespace
+   * can be available: every element known to {@link XsltElementSpecs}
+   * (declarations and other non-instructions included) except
+   * xsl:import-schema when the stylesheet is not schema-aware, and every
+   * instruction or declaration registered by an extension.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The element name.
+   * @return <code>true</code> if the element is available.
+   * @throws XPathException
+   *         XTDE1440 if the name is not a valid EQName or its prefix is
+   *         unbound.
+   */
   @NonNull
   private static XdmSequence _elementAvailable (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -208,6 +268,24 @@ public final class XsltFunctions
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }
 
+  /**
+   * fn:type-available (XSLT 3.0 section 24.1.4). An unprefixed name is in the
+   * default element/type namespace. In the XML Schema namespace, the built-in
+   * atomic types (not the internal numeric and error pseudo types) and
+   * xs:anyType, xs:anySimpleType, xs:untyped, xs:NMTOKENS, xs:ENTITIES and
+   * xs:IDREFS are available. A name in any other namespace is available if
+   * the stylesheet is schema-aware and its imported schemas define a type of
+   * that name.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The type name.
+   * @return <code>true</code> if the type is available.
+   * @throws XPathException
+   *         XTDE1428 if the name is not a valid EQName or its prefix is
+   *         unbound.
+   */
   @NonNull
   private static XdmSequence _typeAvailable (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -237,6 +315,17 @@ public final class XsltFunctions
     return XdmSequence.of (XdmAtomic.bool (bRet));
   }
 
+  /**
+   * fn:available-system-properties (XSLT 3.0 section 20.4.5).
+   *
+   * @param aCtx
+   *        Dynamic context of the call (unused).
+   * @param aArgs
+   *        No arguments.
+   * @return The names of {@link #SYSTEM_PROPERTIES} as
+   *         <code>xs:QName</code> values in the XSLT namespace with the prefix
+   *         xsl.
+   */
   @NonNull
   private static XdmSequence _availableSystemProperties (@NonNull final DynamicContext aCtx,
                                                          @NonNull final List <XdmSequence> aArgs)
@@ -267,6 +356,19 @@ public final class XsltFunctions
     aLib.register (NS, "available-system-properties", "() as xs:QName*", XsltFunctions::_availableSystemProperties);
   }
 
+  /**
+   * Get the XSLT context behind a dynamic context, for the functions that
+   * need the running transformation.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param sFunction
+   *        Local name of the function, for the error message.
+   * @return The XSLT context. Never <code>null</code>.
+   * @throws XPathException
+   *         XPST0017 if the call is not evaluated during a transformation
+   *         (e.g. in a static expression).
+   */
   @NonNull
   private static XsltContext _xslt (@NonNull final DynamicContext aCtx, @NonNull final String sFunction)
   {
@@ -276,6 +378,19 @@ public final class XsltFunctions
     return ret;
   }
 
+  /**
+   * fn:current (XSLT 3.0 section 20.4.1): the item that was the context item
+   * when the outermost XPath expression of the instruction or pattern
+   * started.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        No arguments.
+   * @return The current item.
+   * @throws XPathException
+   *         XTDE1360 if the current item is absent.
+   */
   @NonNull
   private static XdmSequence _current (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -285,6 +400,25 @@ public final class XsltFunctions
     return XdmSequence.of (aItem);
   }
 
+  /**
+   * fn:key (XSLT 3.0 section 20.2.2). The key name is resolved as a QName or
+   * EQName (an unprefixed name is in no namespace). The tree searched is
+   * that of the third argument, of which only the descendants-or-self are
+   * returned, or with two arguments the whole tree of the context node. The
+   * lookup itself, including the error for an undeclared key, is done by
+   * {@link Engine#findKeyNodes}.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        Key name, key values and the optional top node.
+   * @return The matching nodes in document order.
+   * @throws XPathException
+   *         XTDE1260 if the name is not a valid QName or its prefix is
+   *         unbound; XTDE1270 if the tree is not rooted at a document node or
+   *         (two arguments) the context item is absent; XPTY0004 if the
+   *         context item is not a node.
+   */
   @NonNull
   private static XdmSequence _key (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -312,6 +446,29 @@ public final class XsltFunctions
     return aXCtx.getEngine ().findKeyNodes (aXCtx, aName, aArgs.get (1), aTop);
   }
 
+  /**
+   * fn:document (XSLT 3.0 section 20.1). Each item of the first argument
+   * gives URI references: a node is atomized and each atomic value is one
+   * reference, resolved against the base URI of that node; any other item
+   * is one reference, resolved against the static base URI. A second
+   * argument replaces these bases with its base URI. A reference is trimmed
+   * and converted from an IRI; it is resolved only when the base is
+   * absolute, otherwise used as it is. Each URI is loaded through the
+   * document cache of the engine (so repeated calls return the same node);
+   * a fragment identifier that selects nothing contributes no node. The
+   * result is in document order without duplicates.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The URI references and the optional base node.
+   * @return The documents (or fragment nodes), sorted and deduplicated.
+   * @throws XPathException
+   *         XTDE1162 if the base node has no base URI (even when all
+   *         references are absolute); FODC0005 if a reference cannot be
+   *         resolved; FODC0002 from the engine if a document cannot be
+   *         retrieved.
+   */
   @NonNull
   private static XdmSequence _document (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -360,6 +517,18 @@ public final class XsltFunctions
     return NodeSorter.sortAndDeduplicate (aResult.build ());
   }
 
+  /**
+   * fn:regex-group (XSLT 3.0 section 17.2): the captured substring of group
+   * n of the current xsl:analyze-string match; group 0 is the whole match.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The group number.
+   * @return The captured substring, or the empty string outside a
+   *         transformation, outside xsl:matching-substring, for a group
+   *         number out of range or for a group that did not participate.
+   */
   @NonNull
   private static XdmSequence _regexGroup (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -371,6 +540,19 @@ public final class XsltFunctions
     return XdmSequence.of (XdmAtomic.string (aGroups[(int) n]));
   }
 
+  /**
+   * fn:current-output-uri (XSLT 3.0 section 25.3.1): the absolute URI of the
+   * result being written, as set by xsl:result-document or the transformation
+   * start.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        No arguments.
+   * @return The URI as <code>xs:anyURI</code>, or the empty sequence outside a
+   *         transformation or when the current output URI is absent or empty
+   *         (e.g. in temporary output state).
+   */
   @NonNull
   private static XdmSequence _currentOutputUri (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -381,6 +563,27 @@ public final class XsltFunctions
     return sUri == null || sUri.isEmpty () ? XdmSequence.EMPTY : XdmSequence.of (XdmAtomic.anyUri (sUri));
   }
 
+  /**
+   * fn:unparsed-entity-uri and fn:unparsed-entity-public-id (XSLT 3.0
+   * sections 20.4.2 and 20.4.3): look up an unparsed entity declared in the
+   * DTD of the document that contains the given node (or the context node).
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The entity name and the optional node.
+   * @param bPublicId
+   *        <code>true</code> for unparsed-entity-public-id,
+   *        <code>false</code> for unparsed-entity-uri.
+   * @return The system identifier as <code>xs:anyURI</code>, or the public
+   *         identifier as <code>xs:string</code>; a zero-length value if
+   *         there is no such entity or (public ID) it has no public
+   *         identifier.
+   * @throws XPathException
+   *         XTDE1370 (uri) or XTDE1380 (public ID) if the node is not in a
+   *         tree rooted at a document node, and also, with one argument, if
+   *         the context item is not a node or is absent.
+   */
   @NonNull
   private static XdmSequence _unparsedEntity (@NonNull final DynamicContext aCtx,
                                               @NonNull final List <XdmSequence> aArgs,
@@ -407,6 +610,21 @@ public final class XsltFunctions
     return XdmSequence.of (XdmAtomic.anyUri (aEntity[0]));
   }
 
+  /**
+   * fn:copy-of (XSLT 3.0 section 18.3): every node of the input (or of the
+   * context item without an argument) is replaced by a deep copy that keeps
+   * namespaces and type annotations and becomes the root of a new tree with
+   * fixed-up namespaces and fresh document order; other items are returned
+   * unchanged. Copying an attribute checks XTTE0950 first.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The optional input sequence.
+   * @return The copied sequence, in input order.
+   * @throws XPathException
+   *         XPDY0002 if there is no argument and the context item is absent.
+   */
   @NonNull
   private static XdmSequence _copyOf (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -434,6 +652,23 @@ public final class XsltFunctions
     return ret.build ();
   }
 
+  /**
+   * Snapshot one node (XSLT 3.0 section 18.4): the node is copied deeply and
+   * its ancestors shallowly (each with its attributes and namespaces, the
+   * document node with its unparsed entities), so that the copy keeps its
+   * ancestry. For an attribute or namespace node, its parent element is
+   * copied without children but with all its attributes and namespaces and
+   * its base URI, and the matching attribute (by name) or namespace node (by
+   * name and value) of that copy is returned. A parentless node is simply
+   * copied deeply. The new tree gets fixed-up namespaces and fresh document
+   * order.
+   *
+   * @param aNode
+   *        The node to snapshot.
+   * @return The copy of the node inside the new tree. Never
+   *         <code>null</code> (falls back to the parent copy if the namespace
+   *         node is not found).
+   */
   @NonNull
   private static IXdmNode _snapshotNode (@NonNull final IXdmNode aNode)
   {
@@ -500,6 +735,19 @@ public final class XsltFunctions
     return aStartCopy;
   }
 
+  /**
+   * fn:snapshot (XSLT 3.0 section 18.4): every node of the input (or of the
+   * context item without an argument) is replaced by its snapshot (see
+   * {@link #_snapshotNode}); other items are returned unchanged.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aArgs
+   *        The optional input sequence.
+   * @return The snapshot sequence, in input order.
+   * @throws XPathException
+   *         XPDY0002 if there is no argument and the context item is absent.
+   */
   @NonNull
   private static XdmSequence _snapshot (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {

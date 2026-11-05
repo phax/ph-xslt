@@ -134,6 +134,22 @@ public final class ResultDocumentExtension implements IXsltExtension
       m_aValidation = aValidation;
     }
 
+    /**
+     * Determine the output definition the instruction starts from. If the
+     * format AVT gives a non-empty value, it is resolved as a QName against
+     * the in-scope namespaces of the instruction (unprefixed means no
+     * namespace), qualified with the package and looked up among the named
+     * xsl:output declarations; otherwise the unnamed output definition of
+     * the stylesheet is used.
+     *
+     * @param aCtx
+     *        The run-time context.
+     * @return A clone of the selected definition, safe to modify. Never
+     *         <code>null</code>.
+     * @throws XPathException
+     *         XTDE1460 if the format is not a valid QName with a bound prefix
+     *         or names no output definition.
+     */
     @NonNull
     private OutputDefinition _getBaseDefinition (@NonNull final XsltContext aCtx)
     {
@@ -156,6 +172,29 @@ public final class ResultDocumentExtension implements IXsltExtension
       return aSheet.getOutput ().getClone ();
     }
 
+    /**
+     * Apply the serialization parameter document named by parameter-document
+     * (Serialization 3.1 section 3.1), if the attribute is present and not
+     * empty. The URI is resolved against the static base URI of the
+     * instruction when that is absolute and loaded through the resource
+     * resolver. The last element child of the document must be in the output
+     * namespace (its local name is not checked). Of its children in that
+     * namespace, the value attribute of each becomes the parameter of the
+     * element's local name, and the element children (character and
+     * map-string attributes) of <code>output:use-character-maps</code> are
+     * added as inline character mappings; entries without both attributes or
+     * whose character is not a single code point are skipped silently. The
+     * parameters are merged with a precedence just below that of the
+     * attributes of the instruction.
+     *
+     * @param aCtx
+     *        The run-time context.
+     * @param aDef
+     *        The definition to modify.
+     * @throws XPathException
+     *         SEPM0017 if the document cannot be retrieved or its root element
+     *         is not in the output namespace.
+     */
     private void _readParameterDocument (@NonNull final XsltContext aCtx, @NonNull final OutputDefinition aDef)
     {
       if (m_aParameterDocument == null)
@@ -202,6 +241,15 @@ public final class ResultDocumentExtension implements IXsltExtension
       aDef.merge (aEl, Integer.MAX_VALUE - 1, aAttrs);
     }
 
+    /**
+     * Check the lexical form of an <code>xs:decimal</code> (optional sign,
+     * digits with an optional fraction or a fraction only), as required for
+     * html-version.
+     *
+     * @param s
+     *        The trimmed value.
+     * @return <code>true</code> if it matches.
+     */
     private static boolean _isDecimal (@NonNull final String s)
     {
       return s.matches ("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)");
@@ -245,6 +293,19 @@ public final class ResultDocumentExtension implements IXsltExtension
       return ret;
     }
 
+    /**
+     * Choose the default output method from the result tree (XSLT 3.0
+     * section 26): if the first element child of the document node is named
+     * <code>html</code> (compared case insensitively) in no namespace, html;
+     * in the XHTML namespace, xhtml (also compared case insensitively,
+     * although the spec asks for lower case there).
+     * Any other first element, non-whitespace text before the first element,
+     * or no tree at all gives xml.
+     *
+     * @param aTree
+     *        The result tree, or <code>null</code> if none was built.
+     * @return The method name. Never <code>null</code>.
+     */
     @NonNull
     private static String _detectMethod (@Nullable final IXdmNode aTree)
     {
@@ -270,12 +331,41 @@ public final class ResultDocumentExtension implements IXsltExtension
       return SerializationParams.METHOD_XML;
     }
 
+    /**
+     * @param aEngine
+     *        The transformation.
+     * @return The mutable per-run set of the URIs (absolute if resolvable,
+     *         else as written) secondary results were written to, created on
+     *         first access.
+     */
     @NonNull
     private static ICommonsSet <String> _getWrittenUris (@NonNull final Engine aEngine)
     {
       return aEngine.getRunData (RUN_DATA_URIS, CommonsHashSet::new);
     }
 
+    /**
+     * Write the content as the principal result (xsl:result-document without
+     * href). The target is the principal output of the engine, or the
+     * current output if the engine has none. This is only allowed at the top
+     * level of the principal output or directly inside the body of a
+     * secondary result, when nothing has been written to the principal
+     * output yet and no earlier xsl:result-document has sealed it; otherwise
+     * XTDE1490 is raised. The effective output definition becomes the
+     * principal one. With validation requested, the content is buffered,
+     * assembled into a document (with the item-separator as text between
+     * items, unless absent) that is validated, and then replayed into the
+     * target; the validated tree itself is not used for the output.
+     * Afterwards the principal output is sealed at its current size, so that
+     * later content counts as a second principal result.
+     *
+     * @param aCtx
+     *        The run-time context.
+     * @param aOut
+     *        The current output of the instruction.
+     * @param aDef
+     *        The effective output definition.
+     */
     private void _writePrincipal (@NonNull final XsltContext aCtx,
                                   @NonNull final IXsltOutput aOut,
                                   @NonNull final OutputDefinition aDef)
@@ -317,6 +407,28 @@ public final class ResultDocumentExtension implements IXsltExtension
       aEngine.sealPrincipalOutput (aTarget instanceof final BufferedOutput aBuffer ? aBuffer.size () : 0);
     }
 
+    /**
+     * Serialise a secondary result. The serialization parameters are built
+     * from the definition for the method, adjusted by every registered output
+     * customizer (e.g. character maps) and checked against the tree
+     * ({@link SerializationChecks}). The raw sequence is serialised instead of
+     * the tree when no tree was built or an item-separator other than
+     * <code>#absent</code> is set.
+     *
+     * @param aSheet
+     *        The stylesheet.
+     * @param aDef
+     *        The effective output definition.
+     * @param sMethod
+     *        The effective method.
+     * @param aRaw
+     *        The raw result sequence.
+     * @param aTree
+     *        The result tree, or <code>null</code> with build-tree="no".
+     * @return The serialised text. Never <code>null</code>.
+     * @throws XPathException
+     *         with the serialization error code of an invalid combination.
+     */
     @NonNull
     private static String _serialize (@NonNull final CompiledStylesheet aSheet,
                                       @NonNull final OutputDefinition aDef,
@@ -333,6 +445,30 @@ public final class ResultDocumentExtension implements IXsltExtension
       return XdmSerializer.serialize (bSerializeRaw ? aRaw : XdmSequence.of (aTree), aParams);
     }
 
+    /**
+     * Evaluate the instruction. In temporary output state XTDE1480 is raised.
+     * The effective output definition is computed first; an absent or empty
+     * href writes the principal result ({@link #_writePrincipal}).
+     * <p>
+     * Otherwise the href is resolved against the base output URI of the
+     * request (a resolution failure is reported as XTDE1460); without a base
+     * output URI only an already absolute href counts as absolute. The URI
+     * (absolute, or the href as written) must not have been read with
+     * fn:doc/document() before (XTDE1500) nor written before (XTDE1490). The
+     * body runs into a buffer with current-output-uri set to the absolute URI
+     * (empty if there is none). Unless build-tree is off (by default it is
+     * off only for the json and adaptive methods), the items are assembled
+     * into a document node, with the absolute URI as base URI, and validated
+     * if requested. The method is the declared one or detected from the tree
+     * ({@link #_detectMethod}). The serialised result is recorded with the
+     * engine under the href as written.
+     * </p>
+     *
+     * @param aCtx
+     *        The run-time context.
+     * @param aOut
+     *        The current output (only used for the principal result).
+     */
     public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
     {
       if (Engine.isTemporaryOutputState (aCtx))
@@ -402,6 +538,23 @@ public final class ResultDocumentExtension implements IXsltExtension
     }
   }
 
+  /**
+   * Compile xsl:result-document. Every serialization attribute of
+   * {@link OutputDefinition#ATTRIBUTES} except version and use-character-maps
+   * is compiled as an AVT; output-version supplies the version parameter. A
+   * constant value of a boolean parameter that is not an XSLT boolean, or of
+   * html-version that is not a decimal, is the static error XTSE0020. Each
+   * name in use-character-maps (not an AVT) must be a valid QName with a
+   * bound prefix (XTSE0280); whether the maps exist is checked by the
+   * character map family. href, format and parameter-document are AVTs
+   * evaluated at run time.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:result-document element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compile (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {

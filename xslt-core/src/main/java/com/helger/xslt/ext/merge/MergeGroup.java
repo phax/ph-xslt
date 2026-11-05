@@ -23,7 +23,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.xpath.value.XdmSequence;
 
 /**
- * The current merge group (XSLT 3.0 section 15.5): all items of the group and
+ * The current merge group (XSLT 3.0 section 15.6): all items of the group and
  * the items per named merge source.
  *
  * @param items

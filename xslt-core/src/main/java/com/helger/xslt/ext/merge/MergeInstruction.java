@@ -130,6 +130,18 @@ public final class MergeInstruction
     m_aAction = aAction;
   }
 
+  /**
+   * Compute the merge key values of one item. A key that evaluates to more
+   * than one item is reported as XTTE2230 instead of the XTTE1020 the sort key
+   * evaluation raises; every other error passes unchanged.
+   *
+   * @param aKeys
+   *        The evaluated merge keys of the item's merge source.
+   * @param aItemCtx
+   *        The context with the item as singleton focus.
+   * @return One value per merge key; an entry is <code>null</code> for an
+   *         empty key value.
+   */
   @NonNull
   private static XdmAtomic [] _computeKeys (final SortKeyDef.@NonNull Evaluated aKeys,
                                             @NonNull final XsltContext aItemCtx)
@@ -146,6 +158,20 @@ public final class MergeInstruction
     }
   }
 
+  /**
+   * Compare two merge key tuples with the settings of the given keys. Values
+   * that are not comparable (XTDE1030 of the sort key comparison) are reported
+   * as XTTE2230.
+   *
+   * @param aKeys
+   *        The evaluated merge keys whose order, collation and data type
+   *        apply.
+   * @param a
+   *        First key tuple.
+   * @param b
+   *        Second key tuple.
+   * @return negative, 0 or positive, honouring the order of each key.
+   */
   private static int _compare (final SortKeyDef.@NonNull Evaluated aKeys,
                                @NonNull final XdmAtomic [] a,
                                @NonNull final XdmAtomic [] b)
@@ -274,6 +300,14 @@ public final class MergeInstruction
                   .call (aAnchor.getDynamicContext (), aArgs);
   }
 
+  /**
+   * Create the dynamic error XTDE2220 for an input sequence that is not in the
+   * order of its merge keys, located at the xsl:merge-source.
+   *
+   * @param aSource
+   *        The merge source whose input is out of order.
+   * @return The exception to throw.
+   */
   @NonNull
   private static XPathException _notSorted (@NonNull final Source aSource)
   {
@@ -373,9 +407,10 @@ public final class MergeInstruction
   }
 
   /**
-   * @return <code>true</code> if the source is read as a stream: it is declared streamable (and
-   *         proven guaranteed streamable), selects a record path, is not validated and only
-   *         streamable accumulators apply to it.
+   * @return <code>true</code> if the source is read as a stream: it has a record path (declared
+   *         streamable under the streaming claim, with for-each-source and without
+   *         sort-before-merge, see {@link #_compileSource(CompileContext, XslElement)}), is not
+   *         validated and only streamable accumulators apply to it.
    */
   private static boolean _isStreamed (@NonNull final Source aSource, @NonNull final XsltContext aCtx)
   {
@@ -499,6 +534,25 @@ public final class MergeInstruction
     }
   }
 
+  /**
+   * Run xsl:merge (XSLT 3.0 section 15). If the stream analysis classified this
+   * xsl:merge as a streamed merge and a source has a record path, the streamed
+   * run is tried first; it falls back to the buffered run only when a document
+   * cannot be opened as a stream. The buffered run evaluates the merge keys
+   * (XTDE2210 if corresponding keys differ), collects the entries of every
+   * input sequence of every merge source (sorted with sort-before-merge,
+   * otherwise checked: XTDE2220), sorts all of them stably by the keys of the
+   * first source (so equal keys keep merge source, input sequence and input
+   * order), splits them into groups of equal keys and runs the merge action
+   * once per group, with the group's first item as context item, the group
+   * number as position and the number of groups as size. The current template
+   * rule is cleared for the action.
+   *
+   * @param aCtx
+   *        The context of the xsl:merge instruction.
+   * @param aOut
+   *        The output that receives the result of the merge actions.
+   */
   private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     // With the streaming claim: the streamable merge sources as streams
@@ -541,6 +595,26 @@ public final class MergeInstruction
       _executeGroup (aBase, aGroups.get (g), g + 1, nGroups, aOut);
   }
 
+  /**
+   * Compile one xsl:merge-source (XSLT 3.0 section 15.3) with its
+   * xsl:merge-key children (section 15.5). The streamable flag is only taken
+   * when the streaming claim is on; a record path for reading as a stream is
+   * derived from the select expression only for a streamable source with
+   * for-each-source and without sort-before-merge.
+   *
+   * @param aCtx
+   *        The compile context.
+   * @param aEl
+   *        The xsl:merge-source element.
+   * @return The compiled merge source.
+   * @throws XsltException
+   *         XTSE3195 for both for-each-item and for-each-source, XTSE0020 for a
+   *         name that is no NCName, an invalid boolean in sort-before-merge or
+   *         streamable or an invalid validation value, XTSE1660 for
+   *         validation strict/lax or a type attribute without a schema-aware
+   *         processor, XTSE0010 for a child other than xsl:merge-key or for no
+   *         xsl:merge-key at all.
+   */
   @NonNull
   private static Source _compileSource (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {

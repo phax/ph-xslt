@@ -72,6 +72,7 @@ import com.helger.xslt.tree.XsltNames;
 @Immutable
 public final class ForEachGroupInstruction
 {
+  /** The grouping attribute in use (XSLT 3.0 section 14.1). */
   private enum EMode
   {
     BY,
@@ -130,6 +131,18 @@ public final class ForEachGroupInstruction
     m_aBody = aBody;
   }
 
+  /**
+   * Reject the XSLT functions that are not allowed in a pattern: a static call
+   * of fn:current-group (XTSE1060), fn:current-grouping-key (XTSE1070),
+   * fn:current-merge-group (XTSE3470) or fn:current-merge-key (XTSE3500)
+   * anywhere in the group-starting-with or group-ending-with pattern. Patterns
+   * that are no {@link CompiledXsltPattern} are not checked.
+   *
+   * @param aEl
+   *        The xsl:for-each-group element, for the error location.
+   * @param aPattern
+   *        The parsed pattern.
+   */
   private static void _checkPatternFunctions (@NonNull final XslElement aEl, @NonNull final XsltPattern aPattern)
   {
     if (!(aPattern instanceof final CompiledXsltPattern aCP))
@@ -146,6 +159,18 @@ public final class ForEachGroupInstruction
     }
   }
 
+  /**
+   * Determine the collation for comparing grouping keys: the collation
+   * attribute (an AVT, trimmed and resolved against the static base URI) if
+   * present, otherwise the default collation of the element.
+   *
+   * @param aCtx
+   *        The context the collation AVT is evaluated in.
+   * @return <code>null</code> for the Unicode codepoint collation, otherwise
+   *         the collation.
+   * @throws XPathException
+   *         XTDE1110 if the collation URI is not supported.
+   */
   @Nullable
   private ICollation _resolveCollation (@NonNull final XsltContext aCtx)
   {
@@ -160,6 +185,15 @@ public final class ForEachGroupInstruction
     return ret;
   }
 
+  /**
+   * Evaluate the group-by or group-adjacent expression for one item and
+   * atomize the result. No cardinality check is made here.
+   *
+   * @param aItemCtx
+   *        The context with the item as focus (its position in the
+   *        population).
+   * @return The atomized key values, possibly empty.
+   */
   @NonNull
   private XdmAtomic [] _computeKey (@NonNull final XsltContext aItemCtx)
   {
@@ -170,6 +204,22 @@ public final class ForEachGroupInstruction
     return ret;
   }
 
+  /**
+   * Compare two grouping keys (single or composite) for equality: equal length
+   * and every pair of values equal by the rules of fn:distinct-values (so NaN
+   * equals NaN and values of incomparable types are just unequal), with the
+   * given collation for strings.
+   *
+   * @param a
+   *        First key.
+   * @param b
+   *        Second key.
+   * @param aCollation
+   *        The collation, <code>null</code> for codepoints.
+   * @param aDyn
+   *        The dynamic context (implicit time zone).
+   * @return <code>true</code> if the keys are equal.
+   */
   private static boolean _sameKey (@NonNull final XdmAtomic [] a,
                                    @NonNull final XdmAtomic [] b,
                                    @Nullable final ICollation aCollation,
@@ -202,6 +252,18 @@ public final class ForEachGroupInstruction
       m_aCollation = aCollation;
     }
 
+    /**
+     * Find the first group (in creation order) whose single key value equals
+     * the given value by the rules of fn:distinct-values. Only the groups of
+     * the value's bucket are compared; values without a bucket key are
+     * compared with the groups that have none either.
+     *
+     * @param aValue
+     *        One key value of the current item.
+     * @param aDyn
+     *        The dynamic context of the comparison.
+     * @return The matching group, <code>null</code> if there is none yet.
+     */
     @Nullable
     private Group _find (@NonNull final XdmAtomic aValue, @NonNull final DynamicContext aDyn)
     {
@@ -214,6 +276,13 @@ public final class ForEachGroupInstruction
       return null;
     }
 
+    /**
+     * File a group (with a single key value) under the bucket key of that
+     * value, or in the list of groups without bucket key.
+     *
+     * @param aGroup
+     *        The new group.
+     */
     private void _add (@NonNull final Group aGroup)
     {
       final Object aBucketKey = AtomicComparator.getDistinctBucketKey (aGroup.m_aKey[0], m_aCollation, m_bNarrow);
@@ -234,6 +303,26 @@ public final class ForEachGroupInstruction
     }
   }
 
+  /**
+   * Form the groups of group-by (XSLT 3.0 section 14.1). The key is evaluated
+   * for every item of the population with that item as focus. Without
+   * composite, the item is added to one group per distinct key value (once
+   * even if two of its values fall into the same group), and an item with an
+   * empty key joins no group; groups are looked up through a
+   * {@link GroupIndex}, which is rebuilt with coarser buckets when the first
+   * xs:float value is seen. With composite, the whole key sequence is the key
+   * and the item joins exactly one group, found by a linear scan over the
+   * groups (an empty key is a key like any other). Groups are returned in the
+   * order of first appearance.
+   *
+   * @param aPop
+   *        The population.
+   * @param aCtx
+   *        The context of the instruction.
+   * @param aCollation
+   *        The collation for string keys, <code>null</code> for codepoints.
+   * @return The groups, each with its items in population order.
+   */
   @NonNull
   private ICommonsList <Group> _formByGroups (@NonNull final XdmSequence aPop,
                                               @NonNull final XsltContext aCtx,
@@ -290,6 +379,22 @@ public final class ForEachGroupInstruction
     return ret;
   }
 
+  /**
+   * Form the groups of group-adjacent (XSLT 3.0 section 14.1): a new group
+   * starts whenever an item's key differs from the key of the group before it
+   * (compared with {@link #_sameKey(XdmAtomic[], XdmAtomic[], ICollation, DynamicContext)}).
+   *
+   * @param aPop
+   *        The population.
+   * @param aCtx
+   *        The context of the instruction.
+   * @param aCollation
+   *        The collation for string keys, <code>null</code> for codepoints.
+   * @return The groups in population order.
+   * @throws XPathException
+   *         XTTE1100 if, without composite, the key of an item is empty or
+   *         has more than one value.
+   */
   @NonNull
   private ICommonsList <Group> _formAdjacentGroups (@NonNull final XdmSequence aPop,
                                                     @NonNull final XsltContext aCtx,
@@ -316,6 +421,17 @@ public final class ForEachGroupInstruction
     return ret;
   }
 
+  /**
+   * Match the group-starting-with or group-ending-with pattern against an
+   * item, with the item as current item (for <code>current()</code> in the
+   * pattern).
+   *
+   * @param aItem
+   *        The item to test.
+   * @param aPatternDyn
+   *        The pattern context from {@link #_getPatternContext(XsltContext)}.
+   * @return <code>true</code> if the item matches.
+   */
   private boolean _matches (@NonNull final IXdmItem aItem, @NonNull final DynamicContext aPatternDyn)
   {
     return m_aPattern.matches (aItem, aPatternDyn.withCurrentItem (aItem));
@@ -331,6 +447,19 @@ public final class ForEachGroupInstruction
     return aCtx.getDynamicContext ().withStaticContext (m_aPatternSC).withHostState (aCtx.getState ().forFunctionCall ());
   }
 
+  /**
+   * Form the groups of group-starting-with or group-ending-with (XSLT 3.0
+   * section 14.1). With group-starting-with, a new group starts at the first
+   * item and at every item that matches the pattern. With group-ending-with,
+   * every item that matches the pattern closes its group, and the next item
+   * starts a new one. The groups have no grouping key.
+   *
+   * @param aPop
+   *        The population.
+   * @param aCtx
+   *        The context of the instruction.
+   * @return The groups in population order; empty for an empty population.
+   */
   @NonNull
   private ICommonsList <Group> _formPatternGroups (@NonNull final XdmSequence aPop, @NonNull final XsltContext aCtx)
   {
@@ -367,6 +496,22 @@ public final class ForEachGroupInstruction
     return aGroup.m_aKey == null ? null : XdmSequence.of (aGroup.m_aKey);
   }
 
+  /**
+   * Build the context in which the body (or a group sort key) runs for one
+   * group: the current group is the group's items, the current grouping key
+   * its key (absent for pattern based grouping), and the focus is the first
+   * item of the group at the given position and size.
+   *
+   * @param aBase
+   *        The instruction context with the current template rule cleared.
+   * @param aGroup
+   *        The group.
+   * @param nPosition
+   *        The context position (1-based).
+   * @param nSize
+   *        The context size.
+   * @return The new context.
+   */
   @NonNull
   private XsltContext _groupContext (@NonNull final XsltContext aBase,
                                      @NonNull final Group aGroup,
@@ -378,6 +523,24 @@ public final class ForEachGroupInstruction
                 .withFocus (aGroup.m_aItems.getFirstOrNull (), nPosition, nSize);
   }
 
+  /**
+   * Put the groups into the processing order defined by the xsl:sort children
+   * (XSLT 3.0 section 14.3). The sort key attributes are evaluated once in the
+   * instruction context; the key values of each group are computed in its
+   * group context (current group set, first item as focus, position in the
+   * order of first appearance). The sort is stable, so groups with equal sort
+   * keys keep the order of first appearance.
+   *
+   * @param aGroups
+   *        The groups in order of first appearance.
+   * @param aCtx
+   *        The context of the instruction.
+   * @param aBase
+   *        The base context for the group contexts.
+   * @return A new list with the sorted groups.
+   * @throws XPathException
+   *         XTDE1030 if sort key values are not comparable.
+   */
   @NonNull
   private ICommonsList <Group> _sortGroups (@NonNull final ICommonsList <Group> aGroups,
                                             @NonNull final XsltContext aCtx,
@@ -421,6 +584,18 @@ public final class ForEachGroupInstruction
     private Group m_aOpen;
     private int m_nGroups;
 
+    /**
+     * Prepare a streamed grouping: clear the current template rule for the
+     * body, resolve the collation (group-by and group-adjacent only) and the
+     * pattern context (pattern based grouping only) once.
+     *
+     * @param aCtx
+     *        The context of the instruction.
+     * @param aOut
+     *        The output the body writes to.
+     * @param aRun
+     *        The streamed run that delivers the records and releases them.
+     */
     StreamedGrouping (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut, @NonNull final StreamedRun aRun)
     {
       m_aCtx = aCtx;
@@ -451,6 +626,20 @@ public final class ForEachGroupInstruction
       _release (aGroup.m_aItems);
     }
 
+    /**
+     * Take one record. With group-by it is only collected. With
+     * group-adjacent, its key (computed with the record as focus, the size
+     * being unknown and set to the position) closes the open group if it
+     * differs (XTTE1100 for a key that is not one value without composite).
+     * With group-starting-with, a matching record closes the open group; with
+     * group-ending-with, a matching record closes the group it was added to.
+     * Closing a group runs the body for it at once.
+     *
+     * @param aRecord
+     *        The record node.
+     * @param nPosition
+     *        Its 1-based position among the records.
+     */
     public void handle (@NonNull final IXdmNode aRecord, @Nonnegative final int nPosition)
     {
       switch (m_eMode)
@@ -496,6 +685,12 @@ public final class ForEachGroupInstruction
       return true;
     }
 
+    /**
+     * End of the records: close the last open group, or with group-by form
+     * the groups of all collected records as the buffered execution does,
+     * run the body for each (with the real number of groups as size) and
+     * release the records.
+     */
     public void complete ()
     {
       if (m_eMode != EMode.BY)
@@ -511,6 +706,17 @@ public final class ForEachGroupInstruction
     }
   }
 
+  /**
+   * The buffered execution: evaluate the population, form the groups by the
+   * grouping mode, sort them if there are xsl:sort children and run the body
+   * once per group in processing order, with the current template rule
+   * cleared (XSLT 3.0 section 14.1).
+   *
+   * @param aCtx
+   *        The context of the instruction.
+   * @param aOut
+   *        The output the body writes to.
+   */
   private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     final XdmSequence aPop = m_aSelect.evaluate (aCtx);
@@ -535,6 +741,17 @@ public final class ForEachGroupInstruction
       m_aBody.execute (_groupContext (aBase, aGroups.get (i), i + 1, nSize), aOut);
   }
 
+  /**
+   * Create the record handler for one streamed execution of this instruction.
+   *
+   * @param aCtx
+   *        The context of the instruction.
+   * @param aOut
+   *        The output the body writes to.
+   * @param aRun
+   *        The streamed run.
+   * @return A new {@link StreamedGrouping}.
+   */
   @NonNull
   private IStreamRecordHandler _createStreamed (@NonNull final XsltContext aCtx,
                                                 @NonNull final IXsltOutput aOut,

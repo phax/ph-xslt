@@ -64,6 +64,7 @@ import com.helger.xslt.tree.XslElement;
 @Immutable
 public final class NumberInstruction extends AbstractInstruction
 {
+  /** The value of the level attribute (XSLT 3.0 section 12.3). */
   private enum ELevel
   {
     SINGLE,
@@ -83,6 +84,16 @@ public final class NumberInstruction extends AbstractInstruction
    */
   private record NumberPattern (@NonNull XsltPattern pattern, @NonNull StaticContext staticContext)
   {
+    /**
+     * Match the pattern against a node in the run-time context of the
+     * xsl:number instruction, with the pattern's own static context.
+     *
+     * @param aNode
+     *        The node to test.
+     * @param aCtx
+     *        The run-time context of the instruction (local variables).
+     * @return <code>true</code> if the node matches.
+     */
     boolean matches (@NonNull final IXdmNode aNode, @NonNull final XsltContext aCtx)
     {
       return pattern.matches (aNode, aCtx.getDynamicContext ().withStaticContext (staticContext));
@@ -153,6 +164,14 @@ public final class NumberInstruction extends AbstractInstruction
     }
   }
 
+  /**
+   * Check whether a node is on no preceding-sibling axis: a parentless node,
+   * an attribute or a namespace node.
+   *
+   * @param aNode
+   *        The node.
+   * @return <code>true</code> if the node has no siblings to count.
+   */
   private static boolean _hasNoSiblings (@NonNull final IXdmNode aNode)
   {
     return aNode.getParent () == null ||
@@ -160,6 +179,17 @@ public final class NumberInstruction extends AbstractInstruction
            aNode.getKind () == ENodeKind.NAMESPACE;
   }
 
+  /**
+   * Find the index of a child among the children of its parent, by identity
+   * and with a linear scan.
+   *
+   * @param aParent
+   *        The parent.
+   * @param aChild
+   *        The child to find.
+   * @return The 0-based index, or -1 if the node is no child of the parent
+   *         (e.g. an attribute).
+   */
   private static int _indexInParent (@NonNull final IXdmNode aParent, @NonNull final IXdmNode aChild)
   {
     final int nCount = aParent.getChildCount ();
@@ -186,6 +216,19 @@ public final class NumberInstruction extends AbstractInstruction
     return ret;
   }
 
+  /**
+   * <code>matches-count($node)</code> of XSLT 3.0 section 12.3: the count
+   * pattern if present, otherwise the default of the same node kind and
+   * expanded name as the selected node.
+   *
+   * @param aCtx
+   *        The run-time context of the instruction.
+   * @param aNode
+   *        The node to test.
+   * @param aTarget
+   *        The selected node (for the default pattern).
+   * @return <code>true</code> if the node is counted.
+   */
   private boolean _matchesCount (@NonNull final XsltContext aCtx,
                                  @NonNull final IXdmNode aNode,
                                  @NonNull final IXdmNode aTarget)
@@ -195,6 +238,18 @@ public final class NumberInstruction extends AbstractInstruction
     return m_aCount.matches (aNode, aCtx);
   }
 
+  /**
+   * The from pattern part of <code>matches-from($node)</code> (XSLT 3.0
+   * section 12.3). The spec also makes every root node match; the callers get
+   * that effect by stopping their upward walk at the root.
+   *
+   * @param aCtx
+   *        The run-time context of the instruction.
+   * @param aNode
+   *        The node to test.
+   * @return <code>true</code> if there is a from pattern and the node matches
+   *         it.
+   */
   private boolean _matchesFrom (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aNode)
   {
     return m_aFrom != null && m_aFrom.matches (aNode, aCtx);
@@ -219,6 +274,18 @@ public final class NumberInstruction extends AbstractInstruction
     return ret;
   }
 
+  /**
+   * level="single" (XSLT 3.0 section 12.3): walk up the ancestor-or-self axis
+   * to the innermost node matching count; if a node matching from (but not
+   * count) is reached first, nothing is numbered. The number is the sibling
+   * index of the counted node.
+   *
+   * @param aCtx
+   *        The run-time context of the instruction.
+   * @param aTarget
+   *        The selected node.
+   * @return The number, or 0 for the empty place marker.
+   */
   private long _countSingle (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
   {
     // count is tested before from: a node matching both is still numbered
@@ -234,6 +301,17 @@ public final class NumberInstruction extends AbstractInstruction
     return 0;
   }
 
+  /**
+   * level="multiple" (XSLT 3.0 section 12.3): the ancestor-or-self nodes
+   * matching count, up to and including the innermost node matching from (or
+   * the root), each numbered by its sibling index, outermost first.
+   *
+   * @param aCtx
+   *        The run-time context of the instruction.
+   * @param aTarget
+   *        The selected node.
+   * @return The place marker, possibly empty.
+   */
   @NonNull
   private ICommonsList <BigInteger> _countMultiple (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
   {
@@ -417,6 +495,18 @@ public final class NumberInstruction extends AbstractInstruction
     return true;
   }
 
+  /**
+   * Parse the effective value of start-at (XSLT 3.0 section 12.1) into its
+   * whitespace-separated integers. More lenient than the spec's
+   * <code>-?[0-9]+(\s+-?[0-9]+)*</code>: a leading plus sign is accepted, and
+   * an empty or all-whitespace value means 1.
+   *
+   * @param s
+   *        The effective start-at value.
+   * @return The integers, never empty.
+   * @throws XPathException
+   *         XTDE0030 if a part is no integer.
+   */
   @NonNull
   private static ICommonsList <BigInteger> _parseStartAt (@NonNull final String s)
   {
@@ -439,6 +529,23 @@ public final class NumberInstruction extends AbstractInstruction
     return ret;
   }
 
+  /**
+   * Run xsl:number (XSLT 3.0 section 12): compute the place marker, re-base it
+   * by start-at (only evaluated for a non-empty place marker; the last
+   * start-at value applies to the surplus numbers), evaluate the conversion
+   * attributes of section 12.4 and format with {@link NumberFormatter}. A
+   * grouping-size that is no integer disables grouping silently. The result
+   * is written as one text node, nothing for an empty string.
+   *
+   * @param aCtx
+   *        The run-time context.
+   * @param aOut
+   *        The output that receives the text node.
+   * @throws XPathException
+   *         XTDE0030 for an invalid start-at or a lang value that is no
+   *         language tag, plus the errors of the place marker computation
+   *         (XTDE0980, XTTE0990, XTTE1000).
+   */
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     final ICommonsList <BigInteger> aNums = _compute (aCtx);
@@ -481,6 +588,22 @@ public final class NumberInstruction extends AbstractInstruction
       aOut.appendNew (IXdmNode.createText (sText));
   }
 
+  /**
+   * Compile the count or from attribute as a pattern with the full static
+   * context of the element (so it may use local variables), register it with
+   * the streamability index if there is one, and reject static calls of
+   * fn:current-group (XTSE1060), fn:current-grouping-key (XTSE1070),
+   * fn:current-merge-group (XTSE3470) and fn:current-merge-key (XTSE3500).
+   *
+   * @param aCtx
+   *        The compile context.
+   * @param aEl
+   *        The xsl:number element.
+   * @param sAttr
+   *        "count" or "from".
+   * @return The compiled pattern, <code>null</code> if the attribute is
+   *         absent.
+   */
   @Nullable
   private static NumberPattern _compilePattern (@NonNull final CompileContext aCtx,
                                                 @NonNull final XslElement aEl,

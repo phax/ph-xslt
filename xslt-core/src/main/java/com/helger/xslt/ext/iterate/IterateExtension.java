@@ -22,7 +22,7 @@ import com.helger.xslt.compile.IXsltExtension;
 import com.helger.xslt.compile.XsltExtensionRegistry;
 
 /**
- * The iteration family (XSLT 3.0 section 7.1): xsl:iterate, xsl:break,
+ * The iteration family (XSLT 3.0 section 7.2): xsl:iterate, xsl:break,
  * xsl:next-iteration and xsl:on-completion.
  *
  * @author Philip Helger

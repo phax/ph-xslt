@@ -52,6 +52,17 @@ public final class MergeExtension implements IXsltExtension
   public static final XsltStateKey <XdmSequence> CURRENT_MERGE_KEY = new XsltStateKey <> ("current-merge-key",
                                                                                          XsltStateKey.EScope.CLEARED_IN_CALLS);
 
+  /**
+   * Read the current merge group from the XSLT state of the dynamic context.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @return The current merge group, never <code>null</code>.
+   * @throws XPathException
+   *         XTDE3480 if the context is no XSLT context or no merge group is
+   *         current (outside xsl:merge-action, or in a template or function
+   *         called from it).
+   */
   @NonNull
   private static MergeGroup _getGroup (@NonNull final DynamicContext aCtx)
   {
@@ -62,6 +73,24 @@ public final class MergeExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * <code>fn:current-merge-group()</code> and
+   * <code>fn:current-merge-group($source as xs:string)</code> (XSLT 3.0
+   * section 15.6.1). Without an argument it returns all items of the current
+   * merge group, in merge source order; with an argument only the items
+   * contributed by the merge source of that name. The argument is used as its
+   * string value without trimming; a named source that contributed nothing to
+   * this group yields the empty sequence.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        Empty, or the merge source name.
+   * @return The items of the group, or of the named source within it.
+   * @throws XPathException
+   *         XTDE3480 if there is no current merge group, XTDE3490 if no merge
+   *         source of the xsl:merge has the given name.
+   */
   @NonNull
   private static XdmSequence _currentMergeGroup (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -75,6 +104,19 @@ public final class MergeExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * <code>fn:current-merge-key()</code> (XSLT 3.0 section 15.6.2): the merge
+   * key values shared by the items of the current merge group, one per
+   * xsl:merge-key whose value is not empty.
+   *
+   * @param aCtx
+   *        The dynamic context of the call.
+   * @param aArgs
+   *        Unused (no arguments).
+   * @return The atomic key values.
+   * @throws XPathException
+   *         XTDE3510 if there is no current merge key.
+   */
   @NonNull
   private static XdmSequence _currentMergeKey (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
@@ -85,6 +127,14 @@ public final class MergeExtension implements IXsltExtension
     return ret;
   }
 
+  /**
+   * Register the xsl:merge instruction compiler and the functions
+   * <code>current-merge-group#0</code>, <code>current-merge-group#1</code>
+   * and <code>current-merge-key#0</code> in the fn namespace.
+   *
+   * @param aRegistry
+   *        The extension registry to register with.
+   */
   public void register (@NonNull final XsltExtensionRegistry aRegistry)
   {
     aRegistry.registerInstruction ("merge", MergeInstruction::compile);

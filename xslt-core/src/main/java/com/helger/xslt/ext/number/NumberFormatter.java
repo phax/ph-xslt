@@ -191,6 +191,15 @@ public final class NumberFormatter
   private NumberFormatter ()
   {}
 
+  /**
+   * Check whether a code point belongs to a format token: alphanumeric as
+   * defined in XSLT 3.0 section 12.4, i.e. Unicode category Nd, Nl, No, Lu,
+   * Ll, Lt, Lm or Lo.
+   *
+   * @param c
+   *        The code point.
+   * @return <code>true</code> if it is alphanumeric.
+   */
   private static boolean _isAlnum (final int c)
   {
     return Character.isLetter (c) || FormatInteger.isNumber (c);
@@ -280,6 +289,21 @@ public final class NumberFormatter
     return aSB.toString ();
   }
 
+  /**
+   * Pad ASCII digits with leading zeros to the given width, then insert the
+   * grouping separator (only if it is not empty and the size is positive).
+   * The padding zeros take part in the grouping.
+   *
+   * @param sDigits
+   *        The ASCII digits of the absolute value.
+   * @param nWidth
+   *        The minimum number of digits (the token length).
+   * @param sGroupSep
+   *        The grouping separator, possibly empty.
+   * @param nGroupSize
+   *        The grouping size, 0 or less for none.
+   * @return The padded and grouped digits.
+   */
   @NonNull
   private static String _padAndGroup (@NonNull final String sDigits,
                                       final int nWidth,
@@ -294,6 +318,22 @@ public final class NumberFormatter
     return s;
   }
 
+  /**
+   * Format an integer outside the <code>long</code> range in decimal notation.
+   * If the token is made of decimal digits of one family, its length is the
+   * minimum width and the digits are mapped to that family; any other token
+   * gives plain ASCII digits. No ordinal suffix is added.
+   *
+   * @param aValue
+   *        The value.
+   * @param sToken
+   *        The format token.
+   * @param sGroupSep
+   *        The grouping separator, possibly empty.
+   * @param nGroupSize
+   *        The grouping size, 0 for none.
+   * @return The formatted value, with a leading "-" if negative.
+   */
   @NonNull
   private static String _formatBigDecimal (@NonNull final BigInteger aValue,
                                            @NonNull final String sToken,
@@ -307,6 +347,14 @@ public final class NumberFormatter
     return aFamily != null ? FormatInteger.mapDigitsToFamily (s, aFamily[0]) : s;
   }
 
+  /**
+   * Check for a words token: one or more characters, all of them 'w' or 'W'
+   * (so "w", "W" and "Ww", but also e.g. "wW" or "www").
+   *
+   * @param sToken
+   *        The format token.
+   * @return <code>true</code> if the number is to be spelled out.
+   */
   private static boolean _isWordToken (@NonNull final String sToken)
   {
     if (sToken.isEmpty ())
@@ -317,6 +365,14 @@ public final class NumberFormatter
     return true;
   }
 
+  /**
+   * Check whether the lang value selects English: absent, empty, "en" or
+   * starting with "en-", ignoring case and surrounding whitespace.
+   *
+   * @param sLang
+   *        The effective lang value, may be <code>null</code>.
+   * @return <code>true</code> for English, the default language.
+   */
   private static boolean _isEnglish (@Nullable final String sLang)
   {
     if (sLang == null)
@@ -325,6 +381,14 @@ public final class NumberFormatter
     return s.isEmpty () || s.equals ("en") || s.startsWith ("en-");
   }
 
+  /**
+   * Spell a group of three digits in English lower case words, e.g. 342 is
+   * "three hundred forty two" (no "and", no hyphen).
+   *
+   * @param n
+   *        The value, 1 to 999.
+   * @return The words separated by single spaces.
+   */
   @NonNull
   private static String _spellHundreds (final long n)
   {
@@ -411,6 +475,42 @@ public final class NumberFormatter
     return String.join (" ", aParts);
   }
 
+  /**
+   * Format one number with one format token (XSLT 3.0 section 12.4). An empty
+   * token means "1". Values outside the <code>long</code> range are always
+   * decimal. Otherwise, by token:
+   * <ul>
+   * <li>"a"/"A": Latin alphabetic numbering (a, ..., z, aa, ...), decimal for
+   * 0 and below;</li>
+   * <li>"i"/"I": Roman numerals for 1 to 3999, decimal otherwise;</li>
+   * <li>a words token ("w", "W", "Ww", ...): English cardinal or ordinal words
+   * for English (or no) lang; for another language that {@link FormatWords}
+   * supports, its words within <code>FormatWords.LANG_MAX</code>, with the
+   * ordinal value passed on as the variant unless it is "yes"; otherwise it
+   * falls through to the rules below and ends as decimal;</li>
+   * <li>decimal digits of one family: zero-padded to the token length,
+   * grouped, mapped to that family, with an English ordinal suffix ("st",
+   * "nd", ...) if ordinal is set and the language is English;</li>
+   * <li>a single character of a numbering family (circled digits, ...): that
+   * family's glyph if the value is in its range, decimal otherwise;</li>
+   * <li>a single Greek letter: Greek alphabetic numbering;</li>
+   * <li>anything else: plain decimal.</li>
+   * </ul>
+   *
+   * @param aValue
+   *        The number.
+   * @param sTokenIn
+   *        The format token, possibly empty.
+   * @param sGroupSep
+   *        The grouping separator, possibly empty.
+   * @param nGroupSize
+   *        The grouping size, 0 for none.
+   * @param sLang
+   *        The language, may be <code>null</code>.
+   * @param sOrdinal
+   *        The ordinal attribute value, empty for cardinal numbers.
+   * @return The formatted number.
+   */
   @NonNull
   private static String _formatOne (@NonNull final BigInteger aValue,
                                     @NonNull final String sTokenIn,

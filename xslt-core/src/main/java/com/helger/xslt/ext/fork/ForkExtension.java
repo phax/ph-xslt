@@ -39,6 +39,22 @@ import com.helger.xslt.tree.XslElement;
  */
 public final class ForkExtension implements IXsltExtension
 {
+  /**
+   * Compile xsl:fork. The content is compiled as an ordinary sequence
+   * constructor, so outside streaming the prongs run one after the other and
+   * their results are concatenated in order. If the streaming analysis made
+   * this xsl:fork the consumer of a streamed document
+   * ({@link StreamConsumer#createFork} returns non-<code>null</code>), the
+   * instruction first tries to drive all prongs over one pass of the live
+   * stream and falls back to the buffered sequence constructor only when the
+   * records are not consumed that way at run time.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:fork element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compileFork (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {

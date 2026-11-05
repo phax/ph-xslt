@@ -121,6 +121,11 @@ public final class XsltTransformHandler implements ITransformHandler
     private OptionTypes ()
     {}
 
+    /**
+     * @return The sequence type of every option fn:transform knows (F&amp;O
+     *         3.1 section 16.3.2), by option name, parsed against a default
+     *         static context.
+     */
     @NonNull
     private static ICommonsMap <String, SeqType> _create ()
     {
@@ -199,6 +204,20 @@ public final class XsltTransformHandler implements ITransformHandler
   {
     private final ICommonsMap <String, XdmSequence> m_aValues = new CommonsHashMap <> ();
 
+    /**
+     * Read the options map: entries with a non-string key or an unknown
+     * option name are ignored; every known option is converted to its
+     * declared type with the function conversion rules (option parameter
+     * conventions, F&amp;O 3.1 section 1.5).
+     *
+     * @param aMap
+     *        The options argument of fn:transform.
+     * @param aCtx
+     *        Dynamic context of the call.
+     * @throws XPathException
+     *         XPTY0004 (or another conversion error) if a value does not
+     *         match the type of its option.
+     */
     Options (@NonNull final XdmMap aMap, @NonNull final DynamicContext aCtx)
     {
       for (final XdmMap.Entry aEntry : aMap.entries ())
@@ -253,7 +272,13 @@ public final class XsltTransformHandler implements ITransformHandler
     }
   }
 
-  /** What fn:transform needs from its caller. */
+  /**
+   * What fn:transform needs from its caller: the static base URI of the call
+   * (for relative locations), the resolver to load and compile the
+   * stylesheet with, the resolver for the nested run, the compile options of
+   * the calling stylesheet (<code>null</code> outside a transformation) and
+   * the calling engine (<code>null</code> outside a transformation).
+   */
   private record Host (@Nullable String staticBaseUri,
                        @NonNull IResourceResolver compileResolver,
                        @Nullable IResourceResolver runResolver,
@@ -273,6 +298,19 @@ public final class XsltTransformHandler implements ITransformHandler
     return new XPathException ("FOXT0002", "fn:transform: " + sMessage);
   }
 
+  /**
+   * Determine the {@link Host} of a call. Inside a transformation the compile
+   * resolver is the one of the calling stylesheet's compile options (a
+   * {@link FileResourceResolver} honouring its load-external-entities setting
+   * if it has none or the options are unknown) and the run resolver is the
+   * one of the calling request. Otherwise (plain XPath, or a static
+   * expression during compilation) the resolver of the dynamic context
+   * serves both.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @return The host description.
+   */
   @NonNull
   private static Host _getHost (@NonNull final DynamicContext aCtx)
   {
@@ -292,6 +330,15 @@ public final class XsltTransformHandler implements ITransformHandler
     return new Host (sBaseUri, aResolver, aResolver, null, null);
   }
 
+  /**
+   * @param sUri
+   *        A URI reference.
+   * @param sBase
+   *        The base URI, may be <code>null</code>.
+   * @return The URI itself if it is absolute, else resolved against the base;
+   *         <code>null</code> if it is relative and there is no base or the
+   *         resolution fails.
+   */
   @Nullable
   private static String _resolve (@NonNull final String sUri, @Nullable final String sBase)
   {
@@ -360,6 +407,21 @@ public final class XsltTransformHandler implements ITransformHandler
     }
   }
 
+  /**
+   * Parse a stylesheet given as text. The base URI, if any, becomes the system
+   * ID of the parse and the document URI of the result if the parser did not
+   * set one.
+   *
+   * @param sText
+   *        The XML text.
+   * @param sBaseUri
+   *        The base URI, may be <code>null</code>.
+   * @param bExternal
+   *        Whether external entities are loaded.
+   * @return The document node.
+   * @throws XPathException
+   *         FOXT0002 if the text is not well-formed.
+   */
   @NonNull
   private static IXdmNode _parse (@NonNull final String sText, @Nullable final String sBaseUri, final boolean bExternal)
   {
@@ -416,6 +478,20 @@ public final class XsltTransformHandler implements ITransformHandler
     return aPackage.root ();
   }
 
+  /**
+   * Build the compile options of the nested stylesheet: the given base URI,
+   * the compile resolver of the host, the load-external-entities setting and
+   * the library packages of the calling stylesheet if known, and the values
+   * of the static-params option as static parameters.
+   *
+   * @param aOpts
+   *        The options.
+   * @param aHost
+   *        The caller.
+   * @param sBaseUri
+   *        The static base URI of the stylesheet, may be <code>null</code>.
+   * @return New compile options.
+   */
   @NonNull
   private static XsltCompileOptions _createCompileOptions (@NonNull final Options aOpts,
                                                            @NonNull final Host aHost,
@@ -484,6 +560,27 @@ public final class XsltTransformHandler implements ITransformHandler
     throw _invalid ("no stylesheet is supplied");
   }
 
+  /**
+   * Build the request of the nested run from the options. It uses the run
+   * resolver and the current date and time of the caller, and inside a
+   * transformation
+   * shares the caller's execution budget and interrupt. It sets the initial
+   * template, mode and function (with function-params as arguments),
+   * stylesheet-params, template-params and tunnel-params. source-node becomes
+   * the initial match selection and the root of its tree the global context
+   * item (F&amp;O 3.1 section 16.3.2); otherwise initial-match-selection is
+   * used as given. An explicit global-context-item overrides both.
+   * base-output-uri is resolved against the static base URI of the call, and
+   * kept as given if that fails.
+   *
+   * @param aOpts
+   *        The options.
+   * @param aHost
+   *        The caller.
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @return The request.
+   */
   @NonNull
   private static XsltTransformRequest _createRequest (@NonNull final Options aOpts,
                                                       @NonNull final Host aHost,
@@ -633,6 +730,13 @@ public final class XsltTransformHandler implements ITransformHandler
     }
   }
 
+  /**
+   * Apply the post-process function, if any, to one result document: it is
+   * called with the key of the result in the result map and the delivered
+   * value, and its result replaces the value.
+   *
+   * @return The value to store in the result map.
+   */
   @NonNull
   private static XdmSequence _postProcess (@Nullable final IXdmFunction aFunc,
                                            @NonNull final String sKey,
@@ -647,6 +751,29 @@ public final class XsltTransformHandler implements ITransformHandler
     return aFunc.call (aCtx, aArgs);
   }
 
+  /**
+   * One fn:transform call (F&amp;O 3.1 section 16.3.2): read and check the
+   * options, compile the stylesheet, run it and build the result map.
+   * <p>
+   * The checks raise FOXT0002 when more than one way of supplying the
+   * stylesheet is given, when initial-template and initial-mode or
+   * source-node and initial-match-selection are combined, or when
+   * delivery-format is not document, serialized or raw; requested properties
+   * that cannot be met raise FOXT0001. Inside a transformation the nested
+   * run counts as one level of the caller's depth budget.
+   * <p>
+   * The principal result is stored under the base output URI, or "output"
+   * without one, and only if it is not empty. Each secondary result is
+   * stored under its href resolved against the base output URI (the href
+   * as given if that fails). Each value is shaped by delivery-format and
+   * then passed through post-process.
+   *
+   * @param aCtx
+   *        Dynamic context of the call.
+   * @param aOptions
+   *        The options map.
+   * @return The result map.
+   */
   @NonNull
   private static XdmMap _run (@NonNull final DynamicContext aCtx, @NonNull final XdmMap aOptions)
   {
@@ -727,6 +854,11 @@ public final class XsltTransformHandler implements ITransformHandler
     return aOut.build ();
   }
 
+  /**
+   * Run fn:transform, guarding against runaway recursion: the number of
+   * nested calls on the current thread is counted and a call beyond
+   * {@link #MAX_NESTING} raises XPDY0130.
+   */
   @NonNull
   public XdmMap transform (@NonNull final DynamicContext aCtx, @NonNull final XdmMap aOptions)
   {

@@ -103,6 +103,34 @@ public final class SourceDocumentExtension implements IXsltExtension
     return true;
   }
 
+  /**
+   * Compile xsl:source-document (XSLT 3.0 section 18.1). Static checks:
+   * streamable must be an XSLT boolean (XTSE0020); validation must be one of
+   * strict, lax, preserve or strip (XTSE0020), and strict or lax as well as a
+   * type attribute need a schema-aware stylesheet (XTSE1660). The
+   * use-accumulators names are registered with the accumulator family.
+   * <p>
+   * At run time the href AVT is trimmed, converted from an IRI and resolved
+   * against the static base URI if that is absolute (a resolution failure is
+   * FODC0005). The document is streamed through {@link #_runStreamed} only if
+   * streamable is yes, no validation is requested, the streamability verdicts
+   * say the instruction is guaranteed streamable, the {@link StreamPlanner}
+   * finds a consumer that is registered as one, and all used accumulators
+   * are streamable. Otherwise the document is loaded in full through the
+   * document cache of the engine (a <code>null</code> result, i.e. a fragment
+   * identifier that selects nothing, is FODC0002); with validation other than
+   * preserve a deep copy (type annotations dropped for strip) is validated
+   * and used instead, so the cached document stays unchanged. The body runs
+   * with the loaded node as context item (position and size 1) while the
+   * accumulators applicable to the tree are restricted to the
+   * use-accumulators names.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The xsl:source-document element.
+   * @return The compiled instruction. Never <code>null</code>.
+   */
   @NonNull
   private static IInstruction _compileSourceDocument (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
