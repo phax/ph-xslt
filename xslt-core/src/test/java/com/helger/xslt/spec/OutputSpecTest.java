@@ -192,6 +192,10 @@ public final class OutputSpecTest
           <output:method value="text"/>
           <output:item-separator value="|"/>
         </output:serialization-parameters>""");
+    specWrite (aDir, "wrong.xml", """
+        <output:parameters xmlns:output="http://www.w3.org/2010/xslt-xquery-serialization">
+          <output:method value="text"/>
+        </output:parameters>""");
     specRunAll (aDir,
                 ok ("xsl:output parameter document",
                     _outSheet ("parameter-document=\"params.xml\"", "<xsl:sequence select=\"1, 2\"/>"),
@@ -204,9 +208,14 @@ public final class OutputSpecTest
                                                           "<xsl:template match=\"/\"><xsl:result-document href=\"out.txt\" parameter-document=\"params.xml\"><xsl:sequence select=\"1, 2\"/></xsl:result-document></xsl:template></xsl:stylesheet>",
                     null,
                     ""),
-                ok ("attribute overrides the parameter document",
+                // XSLT 3.0 section 26.1: the parameter document takes precedence
+                ok ("parameter document overrides the attribute",
                     _outSheet ("parameter-document=\"params.xml\" item-separator=\";\"", "<xsl:sequence select=\"1, 2\"/>"),
                     null,
-                    "1;2"));
+                    "1|2"),
+                err ("parameter document with another document element",
+                     _outSheet ("parameter-document=\"wrong.xml\"", "<xsl:sequence select=\"1, 2\"/>"),
+                     null,
+                     "SEPM0017"));
   }
 }

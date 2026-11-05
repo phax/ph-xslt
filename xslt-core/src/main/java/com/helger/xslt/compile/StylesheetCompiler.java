@@ -1495,21 +1495,21 @@ public final class StylesheetCompiler
    * in the output namespace contributes its <code>value</code> attribute under
    * its local name; <code>output:use-character-maps</code> adds its
    * <code>output:character-map</code> entries as inline character mappings.
-   * The document element is only checked for its namespace, not its local
-   * name. Nothing happens without the attribute.
+   * The document element must be <code>output:serialization-parameters</code>.
+   * Nothing happens without the attribute.
    *
    * @param aEl
    *        The xsl:output element.
    * @param aAttrs
-   *        Receives the parameters by name; the attributes of the xsl:output
-   *        itself are added later and win.
+   *        Receives the parameters by name, replacing the attributes of the
+   *        xsl:output itself (the parameter document takes precedence).
    * @param aDef
    *        Receives the character mappings.
    * @throws XsltException
-   *         XTSE0020 if the URI is invalid, the document cannot be retrieved
-   *         or its document element is not in the output namespace;
-   *         SEPM0017 if a character map entry has a character that is not a
-   *         single character
+   *         XTSE0020 if the URI is invalid or the document cannot be
+   *         retrieved; SEPM0017 if its document element is not
+   *         output:serialization-parameters or a character map entry has a
+   *         character that is not a single character
    */
   private void _readParameterDocument (@NonNull final XslElement aEl,
                                        @NonNull final ICommonsMap <String, String> aAttrs,
@@ -1538,8 +1538,10 @@ public final class StylesheetCompiler
     for (int i = 0; i < aDoc.getChildCount (); ++i)
       if (aDoc.getChildAtIndex (i).isElement ())
         aRoot = aDoc.getChildAtIndex (i);
-    if (aRoot == null || !SerializationParams.NS_OUTPUT.equals (aRoot.getName ().namespaceUri ()))
-      throw XsltException.at (aEl, "XTSE0020", "'" + sUri + "' is not a serialization parameter document");
+    if (aRoot == null ||
+        !SerializationParams.NS_OUTPUT.equals (aRoot.getName ().namespaceUri ()) ||
+        !"serialization-parameters".equals (aRoot.getName ().localName ()))
+      throw XsltException.at (aEl, "SEPM0017", "'" + sUri + "' is not a serialization parameter document");
     for (int i = 0; i < aRoot.getChildCount (); ++i)
     {
       final IXdmNode aParam = aRoot.getChildAtIndex (i);
@@ -1572,8 +1574,8 @@ public final class StylesheetCompiler
    * section 26): the named one (package qualified) or, for an unnamed
    * declaration of the principal package, the principal output definition. An
    * unnamed declaration in a used package is ignored. The parameters from a
-   * parameter document come first and are overridden by the attributes; the
-   * merge by import precedence is done by
+   * parameter document take precedence over the attributes (XSLT 3.0 section
+   * 26.1); the merge by import precedence is done by
    * {@link OutputDefinition#merge(XslElement, int, ICommonsMap)}; its
    * conflicts are checked once all declarations are compiled.
    *
@@ -1593,13 +1595,13 @@ public final class StylesheetCompiler
                                                                                                                                                   sName,
                                                                                                                                                   false)))
                                                 : m_aStylesheet.getOutput ();
-    _readParameterDocument (aEl, aAttrs, aDef);
     for (final String sAttr : OutputDefinition.ATTRIBUTES)
     {
       final String v = aEl.getAttr (sAttr);
       if (v != null)
         aAttrs.put (sAttr, v);
     }
+    _readParameterDocument (aEl, aAttrs, aDef);
     aDef.merge (aEl, aEl.getPrecedence (), aAttrs);
     m_aMergedOutputs.add (aDef);
   }
