@@ -82,6 +82,11 @@ public final class FnSequenceTest
     assertLex ("", "subsequence(1 to 5, xs:double('-INF'), xs:double('INF'))");
     assertLex ("1 2 3 4 5", "subsequence(1 to 5, -3, xs:double('INF'))");
     assertLex ("99 100", "subsequence(1 to 100, 99, 2147483648)");
+    // Rounded like fn:round: just below a half rounds down
+    assertLex ("0", "count(subsequence(('a', 'b'), 0.49999999999999994, 1))");
+    assertLex ("a", "subsequence(('a', 'b'), 1.4999999999999998, 1)");
+    assertLex ("b", "subsequence(('a', 'b'), 1.5, 1)");
+    assertLex ("a b", "subsequence(('a', 'b'), -0.5, 3)");
   }
 
   @Test
@@ -95,6 +100,8 @@ public final class FnSequenceTest
     assertLex ("1.2", "distinct-values((1.2, xs:float('1.2')))");
     assertLex ("true 1", "distinct-values((true(), 1, true()))");
     assertLex ("1.2", "distinct-values((1.2, 1.2e0))");
+    // eq rounds the decimal to xs:float once: equal to the float
+    assertLex ("1", "count(distinct-values((xs:float('1.0000001'), 1.000000059604644775390625000001)))");
     assertLex ("10000", "count(distinct-values((1 to 10000, 1 to 10000)))");
     assertXPathError ("FOCH0002", "distinct-values(('a'), 'http://example.org/nope')");
   }
