@@ -20,6 +20,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.xpath.XPathException;
 import com.helger.xpath.ops.Atomizer;
+import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmMap;
 import com.helger.xpath.value.XdmSequence;
@@ -48,7 +49,7 @@ public final class MapExtension implements IXsltExtension
 {
   /**
    * Check whether an element has content in the sense of the XTSE3280 rule
-   * of xsl:map-entry: any element child (including xsl:fallback) or any text
+   * of xsl:map-entry: any element child other than xsl:fallback or any text
    * child that is not whitespace only counts.
    *
    * @param aEl
@@ -58,8 +59,14 @@ public final class MapExtension implements IXsltExtension
   private static boolean _hasContent (@NonNull final XslElement aEl)
   {
     for (final XslNode aNode : aEl.getChildren ())
-      if (aNode instanceof XslElement || !((XslText) aNode).isWhitespaceOnly ())
-        return true;
+      if (aNode instanceof final XslElement aChild)
+      {
+        if (!aChild.isXsl ("fallback"))
+          return true;
+      }
+      else
+        if (!((XslText) aNode).isWhitespaceOnly ())
+          return true;
     return false;
   }
 
@@ -117,11 +124,12 @@ public final class MapExtension implements IXsltExtension
 
   /**
    * Compile xsl:map-entry (XSLT 3.0 section 21.3). The key attribute is
-   * required; a select attribute together with content (see
-   * {@link #_hasContent}) is the static error XTSE3280. At run time the key
-   * is atomized and must be exactly one atomic value, otherwise XPTY0004 is
-   * raised; the atomic value is used as it is (an <code>xs:untypedAtomic</code>
-   * key is not cast to <code>xs:string</code>). The value is the result of
+   * required; a select attribute together with content other than
+   * xsl:fallback (see {@link #_hasContent}) is the static error XTSE3280. At
+   * run time the key is atomized and must be exactly one atomic value,
+   * otherwise XPTY0004 is raised; an <code>xs:untypedAtomic</code> key is cast
+   * to <code>xs:string</code>, any other atomic value is used as it is. The
+   * value is the result of
    * select, or of the content, without any conversion. The result is a
    * singleton map.
    *
@@ -144,7 +152,10 @@ public final class MapExtension implements IXsltExtension
       if (aKeys.size () != 1)
         throw new XPathException ("XPTY0004", "The key of xsl:map-entry must be a single atomic value, but " + aKeys.size () + " were supplied");
       final XdmSequence aValue = aSelect != null ? aSelect.evaluate (aRtCtx) : _evaluateContent (aBody, aRtCtx);
-      aRtOut.append (XdmMap.of ((XdmAtomic) aKeys.get (0), aValue));
+      XdmAtomic aKeyAtom = (XdmAtomic) aKeys.get (0);
+      if (aKeyAtom.getType () == EAtomicType.UNTYPED_ATOMIC)
+        aKeyAtom = XdmAtomic.string (aKeyAtom.getString ());
+      aRtOut.append (XdmMap.of (aKeyAtom, aValue));
     });
   }
 
