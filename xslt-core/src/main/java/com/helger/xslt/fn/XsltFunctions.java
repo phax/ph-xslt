@@ -148,7 +148,7 @@ public final class XsltFunctions
                                                                                                                                                                                 : "no";
       case "supports-serialization", "supports-namespace-axis", "supports-higher-order-functions" -> "yes";
       case "xpath-version" -> "3.1";
-      case "xsd-version" -> "1.0";
+      case "xsd-version" -> StaticContext.DEFAULT_XSD_VERSION.getID ();
       default -> "";
     };
   }
@@ -157,9 +157,12 @@ public final class XsltFunctions
    * fn:system-property (XSLT 3.0 section 20.4.4). The argument is resolved as
    * a QName or EQName (an unprefixed name is in no namespace). A property in
    * the XSLT namespace gets its value from {@link #getSystemProperty}, with
-   * two overrides that depend on the stylesheet: is-schema-aware is "yes"
-   * exactly when the static context has a schema set, and supports-streaming
-   * is "yes" when the stylesheet was compiled with the streaming claim. Any
+   * three overrides that depend on the stylesheet: is-schema-aware is "yes"
+   * exactly when the static context has a schema set, xsd-version is the XSD
+   * version of the built-in datatypes of the static context (the native schema
+   * provider still compiles imported schemas as XSD 1.1), and
+   * supports-streaming is "yes" when the stylesheet was compiled with the
+   * streaming claim. Any
    * other name gives the empty string.
    *
    * @param aCtx
@@ -188,6 +191,10 @@ public final class XsltFunctions
     // carry the in-scope schema definitions
     if (XsltNames.NS_XSL.equals (aName.namespaceUri ()) && "is-schema-aware".equals (aName.localName ()))
       sValue = aCtx.getStaticContext ().getSchemaSet () != null ? "yes" : "no";
+    // The XSD version of the built-in datatypes is the one of the static
+    // context (schemas compiled by the schema provider may use another one)
+    if (XsltNames.NS_XSL.equals (aName.namespaceUri ()) && "xsd-version".equals (aName.localName ()))
+      sValue = aCtx.getStaticContext ().getXsdVersion ().getID ();
     // So is the streaming claim (XsltCompileOptions.setStreamingClaim)
     if (bStreamingClaim && XsltNames.NS_XSL.equals (aName.namespaceUri ()) && "supports-streaming".equals (aName.localName ()))
       sValue = "yes";

@@ -27,6 +27,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import com.helger.xpath.context.StaticContext;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltCompiler;
 import com.helger.xslt.XsltExecutable;
@@ -95,5 +96,15 @@ public final class XsltFunctionsTest
                                             "<xsl:template name='xsl:initial-template'><xsl:for-each select='1'><xsl:sequence select=\"unparsed-entity-public-id('e')\"/></xsl:for-each></xsl:template>" +
                                             XsltTestHelper.END,
                                             null));
+  }
+
+  @Test
+  public void testXsdVersion ()
+  {
+    // The XSD version of the built-in datatypes, not of compiled schemas
+    assertEquals (StaticContext.DEFAULT_XSD_VERSION.getID (),
+                  XsltTestHelper.text ("<xsl:template name='xsl:initial-template'><xsl:value-of select=\"system-property('xsl:xsd-version')\"/></xsl:template>",
+                                       null));
+    assertEquals (StaticContext.DEFAULT_XSD_VERSION.getID (), XsltFunctions.getSystemProperty ("xsd-version"));
   }
 }
