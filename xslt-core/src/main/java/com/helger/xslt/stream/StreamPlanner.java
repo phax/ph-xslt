@@ -23,6 +23,8 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
@@ -34,13 +36,18 @@ import com.helger.xslt.tree.XsltNames;
  * a chain of literal result elements around exactly one consuming instruction
  * (<code>xsl:for-each</code> without sort keys,
  * <code>xsl:apply-templates</code> without sort keys and parameters,
- * <code>xsl:copy-of</code> without <code>copy-accumulators</code>). A port of
- * go-xslt's <code>strbFindConsumer</code>.
+ * <code>xsl:copy-of</code> without <code>copy-accumulators</code>,
+ * <code>xsl:iterate</code>, <code>xsl:for-each-group</code> without sort
+ * keys, <code>xsl:fork</code>). A port of go-xslt's
+ * <code>strbFindConsumer</code>.
  * <p>
  * The wrappers run with the live document node as context item before any
- * record is read, so they must not read it: a wrapper with an attribute value
- * template or <code>xsl:use-attribute-sets</code> is not accepted, nor is any
- * other sibling of the consumer than whitespace. Whether the consumer's select
+ * record is read, so they must not read it: a wrapper with
+ * <code>xsl:use-attribute-sets</code> is not accepted, and one with attribute
+ * value templates only if the streamability analysis proved every expression
+ * in them motionless with the document node as context item
+ * ({@link StreamVerdicts#isMotionlessWrapper(XslElement)}); no other sibling
+ * of the consumer than whitespace is accepted. Whether the consumer's select
  * expression is a record path is decided by the consumer itself
  * ({@link StreamConsumer}). Anything else runs buffered.
  *
@@ -58,16 +65,26 @@ public final class StreamPlanner
   private StreamPlanner ()
   {}
 
-  private static boolean _isSafeWrapper (@NonNull final XslElement aEl)
+  /**
+   * @param aEl
+   *        A literal result element.
+   * @return <code>true</code> if it has attribute value templates (and needs
+   *         a verdict to be a wrapper).
+   */
+  public static boolean hasAvt (@NonNull final XslElement aEl)
   {
     for (final Map.Entry <XdmQName, String> aEntry : aEl.getAllAttributes ().entrySet ())
-    {
+      if (!XsltNames.NS_XSL.equals (aEntry.getKey ().namespaceUri ()) && aEntry.getValue ().indexOf ('{') >= 0)
+        return true;
+    return false;
+  }
+
+  private static boolean _isSafeWrapper (@NonNull final XslElement aEl, @Nullable final StreamVerdicts aVerdicts)
+  {
+    for (final Map.Entry <XdmQName, String> aEntry : aEl.getAllAttributes ().entrySet ())
       if (aEntry.getKey ().isSameName (XsltNames.NS_XSL, "use-attribute-sets"))
         return false;
-      if (aEntry.getValue ().indexOf ('{') >= 0)
-        return false;
-    }
-    return true;
+    return !hasAvt (aEl) || aVerdicts != null && aVerdicts.isMotionlessWrapper (aEl);
   }
 
   private static boolean _isConsumer (@NonNull final XslElement aEl)
@@ -84,6 +101,10 @@ public final class StreamPlanner
         return !XsltNames.isXsltTrue (aEl.getAttr ("copy-accumulators")) &&
                !aEl.hasAttr ("validation") &&
                !aEl.hasAttr ("type");
+      case "iterate", "fork":
+        return true;
+      case "for-each-group":
+        return aEl.getXslChildren ("sort").isEmpty ();
       default:
         return false;
     }
@@ -127,11 +148,36 @@ public final class StreamPlanner
    * @param aHost
    *        The <code>xsl:source-document</code> or <code>xsl:template</code>
    *        whose sequence constructor runs over the streamed document.
+   * @return The literal result elements around the only significant
+   *         instruction, outermost first, as long as each has one significant
+   *         child. Whether they are acceptable wrappers is not checked.
+   */
+  @NonNull
+  public static ICommonsList <XslElement> getWrapperCandidates (@NonNull final XslElement aHost)
+  {
+    final ICommonsList <XslElement> ret = new CommonsArrayList <> ();
+    XslElement aCur = _getOnlyChild (aHost, aHost.isXsl ("template"));
+    for (int i = 0; aCur != null && !aCur.isXsl () && i < MAX_WRAPPERS; ++i)
+    {
+      ret.add (aCur);
+      aCur = _getOnlyChild (aCur, false);
+    }
+    return ret;
+  }
+
+  /**
+   * @param aHost
+   *        The <code>xsl:source-document</code> or <code>xsl:template</code>
+   *        whose sequence constructor runs over the streamed document.
+   * @param aVerdicts
+   *        What the streamability analysis proved, or <code>null</code> if it
+   *        did not run (then no wrapper with an attribute value template is
+   *        accepted).
    * @return The consuming instruction, or <code>null</code> if the sequence
    *         constructor does not have the shape.
    */
   @Nullable
-  public static XslElement findConsumer (@NonNull final XslElement aHost)
+  public static XslElement findConsumer (@NonNull final XslElement aHost, @Nullable final StreamVerdicts aVerdicts)
   {
     final boolean bTemplate = aHost.isXsl ("template");
     XslElement aCur = _getOnlyChild (aHost, bTemplate);
@@ -139,7 +185,7 @@ public final class StreamPlanner
     {
       if (aCur.isXsl ())
         return _isConsumer (aCur) ? aCur : null;
-      if (!_isSafeWrapper (aCur))
+      if (!_isSafeWrapper (aCur, aVerdicts))
         return null;
       aCur = _getOnlyChild (aCur, false);
     }

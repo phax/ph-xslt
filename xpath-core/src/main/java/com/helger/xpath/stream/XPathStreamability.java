@@ -2563,6 +2563,21 @@ public final class XPathStreamability
   }
 
   /**
+   * @param aPredicate
+   *        A predicate. May not be <code>null</code>.
+   * @return <code>true</code> if it passes the non-positional test of section
+   *         19.8.10: no call to <code>position</code>, <code>last</code> or
+   *         <code>function-lookup</code> outside a nested predicate, and no
+   *         static type that is (loosely) numeric. A caller that needs the
+   *         value never to be numeric has to check the type itself.
+   */
+  public static boolean isNonPositionalPredicate (@NonNull final IExpr aPredicate)
+  {
+    ValueEnforcer.notNull (aPredicate, "Predicate");
+    return _isNonPositional (aPredicate);
+  }
+
+  /**
    * @param aPatternExpr
    *        The pattern AST, as {@link CompiledXsltPattern#getPatternExpr()}
    *        returns it.

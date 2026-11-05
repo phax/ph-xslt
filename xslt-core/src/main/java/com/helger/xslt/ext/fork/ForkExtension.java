@@ -24,13 +24,16 @@ import com.helger.xslt.compile.XsltExtensionRegistry;
 import com.helger.xslt.instr.CompiledInstruction;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.instr.SequenceConstructor;
+import com.helger.xslt.stream.StreamConsumer;
 import com.helger.xslt.tree.XslElement;
 
 /**
  * xsl:fork (XSLT 3.0 section 16). Without streaming the result is the
  * concatenation of the results of its xsl:sequence (or single
  * xsl:for-each-group) children, which is what evaluating the content as a
- * sequence constructor gives. The content model is checked by the core.
+ * sequence constructor gives. Over the records of a streamed document every
+ * prong reads the same pass ({@link StreamConsumer#createFork}). The content
+ * model is checked by the core.
  *
  * @author Philip Helger
  */
@@ -40,7 +43,14 @@ public final class ForkExtension implements IXsltExtension
   private static IInstruction _compileFork (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
-    return new CompiledInstruction (aEl, aBody::execute);
+    // Over the records of a streamed document, if it is the consumer
+    final StreamConsumer aStreamed = StreamConsumer.createFork (aCtx, aEl);
+    if (aStreamed == null)
+      return new CompiledInstruction (aEl, aBody::execute);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      if (!aStreamed.drive (aRtCtx, aRtOut))
+        aBody.execute (aRtCtx, aRtOut);
+    });
   }
 
   public void register (@NonNull final XsltExtensionRegistry aRegistry)

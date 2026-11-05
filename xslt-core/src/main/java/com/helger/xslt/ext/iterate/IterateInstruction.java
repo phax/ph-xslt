@@ -19,11 +19,13 @@ package com.helger.xslt.ext.iterate;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.value.XdmSequence;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.compile.CompileContext;
 import com.helger.xslt.compile.XPathExpr;
@@ -33,6 +35,8 @@ import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.model.VariableDef;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.stream.IStreamRecordHandler;
+import com.helger.xslt.stream.StreamConsumer;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 
@@ -99,53 +103,118 @@ public final class IterateInstruction
     return ret;
   }
 
-  private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
+  /** @return The initial parameter values, each in the scope of the preceding ones. */
+  @NonNull
+  private XdmSequence [] _initParams (@NonNull final XsltContext aCtx)
   {
-    final XdmSequence aItems = m_aSelect.evaluate (aCtx);
-    // Initial parameter values, each in the scope of the preceding ones
-    final XdmSequence [] aValues = new XdmSequence [m_aParams.size ()];
+    final XdmSequence [] ret = new XdmSequence [m_aParams.size ()];
     XsltContext aInit = aCtx;
-    for (int i = 0; i < aValues.length; ++i)
+    for (int i = 0; i < ret.length; ++i)
     {
       final VariableDef aParam = m_aParams.get (i);
       if (aParam.isRequired ())
         throw new XPathException ("XTDE0700", "The parameter $" + aParam.getName ().getEQName () + " of xsl:iterate has no value");
-      aValues[i] = aParam.evaluate (aInit);
-      aInit = aInit.withVariable (aParam.getName (), aValues[i]);
+      ret[i] = aParam.evaluate (aInit);
+      aInit = aInit.withVariable (aParam.getName (), ret[i]);
     }
-    final XsltContext aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
-    final int nSize = aItems.size ();
-    for (int i = 0; i < nSize; ++i)
+    return ret;
+  }
+
+  /**
+   * Run the body for one item.
+   *
+   * @return <code>true</code> if xsl:break ended the iteration.
+   */
+  private boolean _iterate (@NonNull final XsltContext aIterCtx,
+                            @NonNull final XdmSequence [] aValues,
+                            @NonNull final IXsltOutput aOut)
+  {
+    try
     {
-      final XsltContext aIterCtx = _bindParams (aBase.withFocus (aItems.get (i), i + 1, nSize), aValues);
-      try
-      {
-        m_aBody.execute (aIterCtx, aOut);
-      }
-      catch (final NextIterationSignal ex)
-      {
-        for (int n = 0; n < ex.m_aNames.size (); ++n)
-        {
-          final XdmQName aName = ex.m_aNames.get (n);
-          for (int p = 0; p < aValues.length; ++p)
-            if (m_aParams.get (p).getName ().equals (aName))
-              aValues[p] = m_aParams.get (p).convert (ex.m_aValues.get (n), aIterCtx);
-        }
-      }
-      catch (final BreakSignal ex)
-      {
-        return;
-      }
-      aCtx.getDynamicContext ().checkInterrupt ();
+      m_aBody.execute (aIterCtx, aOut);
     }
+    catch (final NextIterationSignal ex)
+    {
+      for (int n = 0; n < ex.m_aNames.size (); ++n)
+      {
+        final XdmQName aName = ex.m_aNames.get (n);
+        for (int p = 0; p < aValues.length; ++p)
+          if (m_aParams.get (p).getName ().equals (aName))
+            aValues[p] = m_aParams.get (p).convert (ex.m_aValues.get (n), aIterCtx);
+      }
+    }
+    catch (final BreakSignal ex)
+    {
+      return true;
+    }
+    return false;
+  }
+
+  /** Run xsl:on-completion, without a focus. */
+  private void _complete (@NonNull final XsltContext aBase,
+                          @NonNull final XdmSequence [] aValues,
+                          @NonNull final IXsltOutput aOut)
+  {
     if (m_aCompletionSelect == null && m_aCompletionBody == null)
       return;
-    // xsl:on-completion runs without a focus
     final XsltContext aDoneCtx = _bindParams (aBase.withFocus (null, 0, 0), aValues);
     if (m_aCompletionSelect != null)
       aOut.appendAll (m_aCompletionSelect.evaluate (aDoneCtx));
     else
       m_aCompletionBody.execute (aDoneCtx, aOut);
+  }
+
+  /**
+   * The streamed execution: the records arrive one at a time, the parameters
+   * are carried from one to the next (XSLT 3.0 section 19.8.4.22). A port of
+   * go-xslt's <code>strbIterState</code>.
+   */
+  private final class StreamedIteration implements IStreamRecordHandler
+  {
+    private final XsltContext m_aBase;
+    private final IXsltOutput m_aOut;
+    private final XdmSequence [] m_aValues;
+    private boolean m_bDone;
+
+    StreamedIteration (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
+    {
+      m_aValues = _initParams (aCtx);
+      m_aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
+      m_aOut = aOut;
+    }
+
+    public void handle (@NonNull final IXdmNode aRecord, @Nonnegative final int nPosition)
+    {
+      // The size is not known while streaming; fn:last is not streamable
+      // there (section 19.8.9.14)
+      m_bDone = _iterate (_bindParams (m_aBase.withFocus (aRecord, nPosition, nPosition), m_aValues), m_aValues, m_aOut);
+      m_aBase.getDynamicContext ().checkInterrupt ();
+    }
+
+    public boolean isDone ()
+    {
+      return m_bDone;
+    }
+
+    public void complete ()
+    {
+      _complete (m_aBase, m_aValues, m_aOut);
+    }
+  }
+
+  private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
+  {
+    final XdmSequence aItems = m_aSelect.evaluate (aCtx);
+    final XdmSequence [] aValues = _initParams (aCtx);
+    final XsltContext aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
+    final int nSize = aItems.size ();
+    for (int i = 0; i < nSize; ++i)
+    {
+      if (_iterate (_bindParams (aBase.withFocus (aItems.get (i), i + 1, nSize), aValues), aValues, aOut))
+        return;
+      aCtx.getDynamicContext ().checkInterrupt ();
+    }
+    _complete (aBase, aValues, aOut);
   }
 
   /**
@@ -191,7 +260,18 @@ public final class IterateInstruction
         aCompletionBody = aScope.compileContent (aCompletion);
     }
     final IterateInstruction aInstr = new IterateInstruction (aSelect, aParams, aBody, aCompletionSelect, aCompletionBody);
-    return new CompiledInstruction (aEl, aInstr::_execute);
+    // Over the records of a streamed document, if it is the consumer
+    final StreamConsumer aStreamed = StreamConsumer.create (aCtx,
+                                                            aEl,
+                                                            aSelect,
+                                                            (aRtCtx, aRtOut, aRun) -> aInstr.new StreamedIteration (aRtCtx,
+                                                                                                                    aRtOut));
+    if (aStreamed == null)
+      return new CompiledInstruction (aEl, aInstr::_execute);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      if (!aStreamed.drive (aRtCtx, aRtOut))
+        aInstr._execute (aRtCtx, aRtOut);
+    });
   }
 
   /**

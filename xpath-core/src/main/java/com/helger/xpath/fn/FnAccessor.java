@@ -16,8 +16,9 @@
  */
 package com.helger.xpath.fn;
 
-import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -214,16 +215,27 @@ public final class FnAccessor
     };
   }
 
+  /**
+   * The identifiers fn:generate-id gave out in one run. Nodes are compared by
+   * identity, and a node no longer referenced anywhere is forgotten, so that a
+   * streamed document does not make the run keep every node it saw. The
+   * counter never goes back: an identifier is not given out twice, even after
+   * its node was forgotten.
+   */
+  private static final class GeneratedIDs
+  {
+    // IXdmNode does not override equals and hashCode: identity semantics
+    private final Map <IXdmNode, String> m_aIDs = new WeakHashMap <> ();
+    private int m_nLast;
+  }
+
   @NonNull
   private static String _generateId (@NonNull final DynamicContext aCtx, @Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
-    @SuppressWarnings ("unchecked")
-    final IdentityHashMap <IXdmNode, String> aIDs = (IdentityHashMap <IXdmNode, String>) aCtx.getRunCache ()
-                                                                                         .computeIfAbsent (RUN_CACHE_GENERATE_ID,
-                                                                                                           k -> new IdentityHashMap <> ());
-    return aIDs.computeIfAbsent (aNode, k -> "id" + Integer.toString (aIDs.size () + 1));
+    final GeneratedIDs aIDs = (GeneratedIDs) aCtx.getRunCache ().computeIfAbsent (RUN_CACHE_GENERATE_ID, k -> new GeneratedIDs ());
+    return aIDs.m_aIDs.computeIfAbsent (aNode, k -> "id" + Integer.toString (++aIDs.m_nLast));
   }
 
   private static boolean _isSameStep (@NonNull final IXdmNode aLeft, @NonNull final IXdmNode aRight)

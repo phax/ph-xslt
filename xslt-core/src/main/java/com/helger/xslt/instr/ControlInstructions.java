@@ -53,6 +53,7 @@ import com.helger.xslt.runtime.ParamValue;
 import com.helger.xslt.runtime.SequenceOutput;
 import com.helger.xslt.runtime.XsltContext;
 import com.helger.xslt.runtime.XsltState;
+import com.helger.xslt.stream.IStreamHandlerFactory;
 import com.helger.xslt.stream.StreamConsumer;
 import com.helger.xslt.stream.StreamedGroupScope;
 import com.helger.xslt.tree.XslElement;
@@ -134,15 +135,18 @@ public final class ControlInstructions
     final XPathExpr aSelect = aCtx.compileRequiredExpression (aEl, "select");
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
-    // Over the records of a streamed document, if it is the consumer
-    final StreamConsumer aStreamed = aSorts.isEmpty () ? StreamConsumer.create (aCtx, aEl, aSelect) : null;
-    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+    // Over the records of a streamed document, if it is the consumer. The
+    // size is not known while streaming; fn:last is not streamable there
+    // (XSLT 3.0 section 19.8.9.14)
+    final IStreamHandlerFactory aFactory = (aRtCtx, aRtOut, aRun) -> {
       final XsltContext aBase = aRtCtx.withState (aRtCtx.getState ().withCurrentRule (null, aRtCtx.getState ().getCurrentMode ()));
-      // The size is not known while streaming; fn:last is not streamable
-      // there (XSLT 3.0 section 19.8.9.14)
-      if (aStreamed != null &&
-          aStreamed.drive (aRtCtx, (aRecord, nPosition) -> aBody.execute (aBase.withFocus (aRecord, nPosition, nPosition), aRtOut)))
+      return (aRecord, nPosition) -> aBody.execute (aBase.withFocus (aRecord, nPosition, nPosition), aRtOut);
+    };
+    final StreamConsumer aStreamed = aSorts.isEmpty () ? StreamConsumer.create (aCtx, aEl, aSelect, aFactory) : null;
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      if (aStreamed != null && aStreamed.drive (aRtCtx, aRtOut))
         return;
+      final XsltContext aBase = aRtCtx.withState (aRtCtx.getState ().withCurrentRule (null, aRtCtx.getState ().getCurrentMode ()));
       XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
         aItems = SortKeyDef.sort (aSorts, aItems, aRtCtx);
@@ -204,31 +208,25 @@ public final class ControlInstructions
     final ICommonsList <SortKeyDef> aSorts = aCtx.compileSortKeys (aEl);
     final ICommonsList <VariableDef> aParams = aCtx.compileWithParams (aEl);
     final boolean bDefaultSelect = !aEl.hasAttr ("select");
-    // Over the records of a streamed document, if it is the consumer
-    final StreamConsumer aStreamed = aSorts.isEmpty () && aParams.isEmpty () ? StreamConsumer.create (aCtx, aEl, aSelect)
-                                                                             : null;
     final StreamedGroupScope aGroupScope = StreamedGroupScope.create (aCtx, aEl);
+    // Over the records of a streamed document, if it is the consumer. The
+    // size is not known while streaming; fn:last is not streamable there
+    // (XSLT 3.0 section 19.8.9.14)
+    final IStreamHandlerFactory aFactory = (aRtCtx, aRtOut, aRun) -> {
+      final XsltContext aInvokeCtx = aGroupScope != null ? aGroupScope.apply (aRtCtx) : aRtCtx;
+      final Mode aRealMode = aMode != null ? aMode : getCurrentMode (aRtCtx);
+      final ICommonsList <ParamValue> aNoParams = new CommonsArrayList <> ();
+      return (aRecord, nPosition) -> aRtCtx.getEngine ()
+                                           .applyTemplates (aInvokeCtx, aRecord, nPosition, nPosition, aRealMode, aNoParams, aRtOut);
+    };
+    final StreamConsumer aStreamed = aSorts.isEmpty () && aParams.isEmpty () ? StreamConsumer.create (aCtx, aEl, aSelect, aFactory)
+                                                                             : null;
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final XsltContext aInvokeCtx = aGroupScope != null ? aGroupScope.apply (aRtCtx) : aRtCtx;
       if (bDefaultSelect && aRtCtx.getContextItem () != null && !(aRtCtx.getContextItem () instanceof IXdmNode))
         throw new XPathException ("XTTE0510", "xsl:apply-templates without select needs a node as context item");
-      if (aStreamed != null)
-      {
-        final Mode aRealMode = aMode != null ? aMode : getCurrentMode (aRtCtx);
-        final ICommonsList <ParamValue> aNoParams = new CommonsArrayList <> ();
-        // The size is not known while streaming; fn:last is not streamable
-        // there (XSLT 3.0 section 19.8.9.14)
-        if (aStreamed.drive (aRtCtx,
-                             (aRecord, nPosition) -> aRtCtx.getEngine ()
-                                                           .applyTemplates (aInvokeCtx,
-                                                                            aRecord,
-                                                                            nPosition,
-                                                                            nPosition,
-                                                                            aRealMode,
-                                                                            aNoParams,
-                                                                            aRtOut)))
-          return;
-      }
+      if (aStreamed != null && aStreamed.drive (aRtCtx, aRtOut))
+        return;
       XdmSequence aItems = aSelect.evaluate (aRtCtx);
       if (aSorts.isNotEmpty ())
         aItems = SortKeyDef.sort (aSorts, aItems, aRtCtx);

@@ -21,6 +21,7 @@ import java.util.function.Predicate;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
@@ -40,6 +41,7 @@ import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.IXdmItem;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
@@ -53,7 +55,10 @@ import com.helger.xslt.instr.SequenceConstructor;
 import com.helger.xslt.instr.SortKeyDef;
 import com.helger.xslt.runtime.IXsltOutput;
 import com.helger.xslt.runtime.XsltContext;
+import com.helger.xslt.stream.IStreamRecordHandler;
+import com.helger.xslt.stream.StreamConsumer;
 import com.helger.xslt.stream.StreamabilityIndex;
+import com.helger.xslt.stream.StreamedRun;
 import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XsltNames;
 
@@ -316,14 +321,20 @@ public final class ForEachGroupInstruction
     return m_aPattern.matches (aItem, aPatternDyn.withCurrentItem (aItem));
   }
 
+  /**
+   * Patterns see the local variables, but no current group, captured
+   * substrings or other XSLT state.
+   */
+  @NonNull
+  private DynamicContext _getPatternContext (@NonNull final XsltContext aCtx)
+  {
+    return aCtx.getDynamicContext ().withStaticContext (m_aPatternSC).withHostState (aCtx.getState ().forFunctionCall ());
+  }
+
   @NonNull
   private ICommonsList <Group> _formPatternGroups (@NonNull final XdmSequence aPop, @NonNull final XsltContext aCtx)
   {
-    // Patterns see the local variables, but no current group, captured
-    // substrings or other XSLT state
-    final DynamicContext aPatternDyn = aCtx.getDynamicContext ()
-                                           .withStaticContext (m_aPatternSC)
-                                           .withHostState (aCtx.getState ().forFunctionCall ());
+    final DynamicContext aPatternDyn = _getPatternContext (aCtx);
     final ICommonsList <Group> ret = new CommonsArrayList <> ();
     Group aCur = null;
     for (final IXdmItem aItem : aPop)
@@ -387,6 +398,119 @@ public final class ForEachGroupInstruction
     return ret;
   }
 
+  /**
+   * The streamed execution (XSLT 3.0 section 19.8.4.19): the records arrive
+   * one at a time. With group-adjacent, group-starting-with and
+   * group-ending-with a group is complete when the record that opens the next
+   * one arrives (or ends it), so only the open group is retained: the current
+   * group is consumed once, but as a sequence of nodes the body may read, it
+   * is kept until the body ran. With group-by (only as the child of
+   * xsl:fork) the first and the last record can belong to one group, so every
+   * record is retained and the groups are formed at the end of the document,
+   * exactly as the buffered execution forms them.
+   */
+  private final class StreamedGrouping implements IStreamRecordHandler
+  {
+    private final XsltContext m_aCtx;
+    private final XsltContext m_aBase;
+    private final IXsltOutput m_aOut;
+    private final StreamedRun m_aRun;
+    private final ICollation m_aStreamCollation;
+    private final DynamicContext m_aPatternDyn;
+    private final ICommonsList <IXdmItem> m_aPopulation = new CommonsArrayList <> ();
+    private Group m_aOpen;
+    private int m_nGroups;
+
+    StreamedGrouping (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut, @NonNull final StreamedRun aRun)
+    {
+      m_aCtx = aCtx;
+      m_aBase = aCtx.withState (aCtx.getState ().withCurrentRule (null, aCtx.getState ().getCurrentMode ()));
+      m_aOut = aOut;
+      m_aRun = aRun;
+      m_aStreamCollation = m_eMode == EMode.BY || m_eMode == EMode.ADJACENT ? _resolveCollation (aCtx) : null;
+      m_aPatternDyn = m_aPattern != null ? _getPatternContext (aCtx) : null;
+    }
+
+    private void _release (@NonNull final ICommonsList <IXdmItem> aItems)
+    {
+      for (final IXdmItem aItem : aItems)
+        m_aRun.release ((IXdmNode) aItem);
+    }
+
+    /** Run the body for the open group and let go of its records. */
+    private void _close ()
+    {
+      final Group aGroup = m_aOpen;
+      if (aGroup == null)
+        return;
+      m_aOpen = null;
+      ++m_nGroups;
+      // The number of groups is not known while streaming; fn:last is not
+      // streamable in the body (section 19.8.9.14)
+      m_aBody.execute (_groupContext (m_aBase, aGroup, m_nGroups, m_nGroups), m_aOut);
+      _release (aGroup.m_aItems);
+    }
+
+    public void handle (@NonNull final IXdmNode aRecord, @Nonnegative final int nPosition)
+    {
+      switch (m_eMode)
+      {
+        case BY:
+          m_aPopulation.add (aRecord);
+          break;
+        case ADJACENT:
+        {
+          final XdmAtomic [] aKey = _computeKey (m_aCtx.withFocus (aRecord, nPosition, nPosition));
+          if (!m_bComposite && aKey.length != 1)
+            throw new XPathException ("XTTE1100",
+                                      "The group-adjacent key of an item must be a single atomic value, but has " +
+                                                  aKey.length +
+                                                  " items");
+          if (m_aOpen != null && !_sameKey (aKey, m_aOpen.m_aKey, m_aStreamCollation, m_aCtx.getDynamicContext ()))
+            _close ();
+          if (m_aOpen == null)
+            m_aOpen = new Group (aKey);
+          m_aOpen.m_aItems.add (aRecord);
+          break;
+        }
+        case STARTING_WITH:
+          if (m_aOpen != null && _matches (aRecord, m_aPatternDyn))
+            _close ();
+          if (m_aOpen == null)
+            m_aOpen = new Group (null);
+          m_aOpen.m_aItems.add (aRecord);
+          break;
+        default:
+          if (m_aOpen == null)
+            m_aOpen = new Group (null);
+          m_aOpen.m_aItems.add (aRecord);
+          if (_matches (aRecord, m_aPatternDyn))
+            _close ();
+          break;
+      }
+      m_aCtx.getDynamicContext ().checkInterrupt ();
+    }
+
+    public boolean isRetaining ()
+    {
+      return true;
+    }
+
+    public void complete ()
+    {
+      if (m_eMode != EMode.BY)
+      {
+        _close ();
+        return;
+      }
+      final ICommonsList <Group> aGroups = _formByGroups (XdmSequence.of (m_aPopulation), m_aCtx, m_aStreamCollation);
+      final int nSize = aGroups.size ();
+      for (int i = 0; i < nSize; ++i)
+        m_aBody.execute (_groupContext (m_aBase, aGroups.get (i), i + 1, nSize), m_aOut);
+      _release (m_aPopulation);
+    }
+  }
+
   private void _execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
     final XdmSequence aPop = m_aSelect.evaluate (aCtx);
@@ -409,6 +533,14 @@ public final class ForEachGroupInstruction
     final int nSize = aGroups.size ();
     for (int i = 0; i < nSize; ++i)
       m_aBody.execute (_groupContext (aBase, aGroups.get (i), i + 1, nSize), aOut);
+  }
+
+  @NonNull
+  private IStreamRecordHandler _createStreamed (@NonNull final XsltContext aCtx,
+                                                @NonNull final IXsltOutput aOut,
+                                                @NonNull final StreamedRun aRun)
+  {
+    return new StreamedGrouping (aCtx, aOut, aRun);
   }
 
   /**
@@ -480,6 +612,17 @@ public final class ForEachGroupInstruction
                                                                         StaticContexts.getDefaultCollation (aEl),
                                                                         aSorts,
                                                                         aBody);
-    return new CompiledInstruction (aEl, aInstr::_execute);
+    // Over the records of a streamed document, if it is the consumer:
+    // without sort keys, and with group-by only as the child of xsl:fork
+    // (section 19.8.4.19)
+    final XslElement aParent = aEl.getParent ();
+    final boolean bStreamable = aSorts.isEmpty () && (eMode != EMode.BY || aParent != null && aParent.isXsl ("fork"));
+    final StreamConsumer aStreamed = bStreamable ? StreamConsumer.create (aCtx, aEl, aSelect, aInstr::_createStreamed) : null;
+    if (aStreamed == null)
+      return new CompiledInstruction (aEl, aInstr::_execute);
+    return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+      if (!aStreamed.drive (aRtCtx, aRtOut))
+        aInstr._execute (aRtCtx, aRtOut);
+    });
   }
 }

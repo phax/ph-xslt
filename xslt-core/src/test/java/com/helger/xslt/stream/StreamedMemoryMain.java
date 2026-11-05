@@ -41,8 +41,10 @@ import com.helger.xslt.XsltTransformRequest;
 /**
  * The forked process of {@link StreamedMemoryTest}: transforms a generated
  * document, which never exists as a whole (neither on disk nor in memory),
- * with a streamable stylesheet. Arguments: the number of records and
- * <code>streamed</code> or <code>buffered</code>. Prints the result, the
+ * with a streamable stylesheet. Arguments: the number of records,
+ * <code>streamed</code> or <code>buffered</code>, and optionally the shape of
+ * the stylesheet ({@link #SHAPES}, default <code>for-each</code>). Prints the
+ * result, the
  * document size, the peak heap use and whether the streamed path ran; exits
  * with 3 on an OutOfMemoryError.
  *
@@ -51,6 +53,8 @@ import com.helger.xslt.XsltTransformRequest;
 public final class StreamedMemoryMain
 {
   static final String DOC_URI = "file:/generated/big.xml";
+  /** A second document with the same content, for xsl:merge. */
+  static final String DOC2_URI = "file:/generated/big2.xml";
 
   /** Every this many records is reported by the stylesheet. */
   static final int HIT_EVERY = 250_000;
@@ -82,6 +86,8 @@ public final class StreamedMemoryMain
         ++m_nNext;
         aSB.append ("  <rec id='r")
            .append (m_nNext)
+           .append ("' g='")
+           .append (m_nNext / 4)
            .append ("'><v>")
            .append (m_nNext % 7)
            .append ("</v><pad>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</pad></rec>\n");
@@ -148,7 +154,7 @@ public final class StreamedMemoryMain
     @Nullable
     public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
     {
-      if (!DOC_URI.equals (sAbsoluteUri))
+      if (!DOC_URI.equals (sAbsoluteUri) && !DOC2_URI.equals (sAbsoluteUri))
         return null;
       try
       {
@@ -171,7 +177,7 @@ public final class StreamedMemoryMain
     public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
                                                @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
     {
-      if (!DOC_URI.equals (sAbsoluteUri))
+      if (!DOC_URI.equals (sAbsoluteUri) && !DOC2_URI.equals (sAbsoluteUri))
         return null;
       return XdmStreamReader.open (_source (), false, XdmParser.DEFAULT_MAX_ELEMENT_DEPTH, aStripWhitespace);
     }
@@ -182,20 +188,150 @@ public final class StreamedMemoryMain
     }
   }
 
-  static final String SHEET = XsltTestHelper.SHEET +
-                              "<xsl:output method='text'/>" +
-                              "<xsl:template name='xsl:initial-template'>" +
-                              "<xsl:source-document href='" +
-                              DOC_URI +
-                              "' streamable='yes'>" +
-                              "<xsl:for-each select='data/rec'>" +
-                              "<xsl:if test='position() mod " +
-                              HIT_EVERY +
-                              " = 0'><xsl:value-of select='@id'/>,</xsl:if>" +
-                              "</xsl:for-each>" +
-                              "</xsl:source-document>" +
-                              "</xsl:template>" +
-                              XsltTestHelper.END;
+  /** Every this many groups of four records is reported by the grouping stylesheet. */
+  static final int HIT_EVERY_GROUP = HIT_EVERY / 4;
+
+  /** The stylesheet shapes, each streaming another construct. */
+  static final String [] SHAPES = { "for-each", "iterate", "group", "fork", "merge", "generate-id", "snapshot" };
+
+  private static final String HITS = "<xsl:for-each select='data/rec'>" +
+                                     "<xsl:if test='position() mod " +
+                                     HIT_EVERY +
+                                     " = 0'><xsl:value-of select='@id'/>,</xsl:if>" +
+                                     "</xsl:for-each>";
+  private static final String SUM = "<xsl:iterate select='data/rec'><xsl:param name='s' select='0'/>" +
+                                    "<xsl:on-completion><xsl:value-of select='$s'/></xsl:on-completion>" +
+                                    "<xsl:next-iteration><xsl:with-param name='s' select='$s + xs:integer(v)'/></xsl:next-iteration>" +
+                                    "</xsl:iterate>";
+
+  @NonNull
+  private static String _sheet (@NonNull final String sDecls, @NonNull final String sBody)
+  {
+    return XsltTestHelper.SHEET +
+           "<xsl:output method='text'/>" +
+           sDecls +
+           "<xsl:template name='xsl:initial-template'>" +
+           sBody +
+           "</xsl:template>" +
+           XsltTestHelper.END;
+  }
+
+  @NonNull
+  private static String _sourceDocument (@NonNull final String sAttrs, @NonNull final String sBody)
+  {
+    return "<xsl:source-document href='" + DOC_URI + "' streamable='yes'" + sAttrs + ">" + sBody + "</xsl:source-document>";
+  }
+
+  /**
+   * @param sShape
+   *        One of {@link #SHAPES}.
+   * @return The stylesheet.
+   */
+  @NonNull
+  static String getSheet (@NonNull final String sShape)
+  {
+    return switch (sShape)
+    {
+      case "for-each" -> _sheet ("", _sourceDocument ("", HITS));
+      case "iterate" -> _sheet ("", _sourceDocument ("", SUM));
+      case "group" -> _sheet ("",
+                              _sourceDocument ("",
+                                               "<xsl:for-each-group select='data/rec' group-adjacent='@g'>" +
+                                                   "<xsl:if test='position() mod " +
+                                                   HIT_EVERY_GROUP +
+                                                   " = 0'><xsl:value-of select='current-grouping-key()'/>,</xsl:if>" +
+                                                   "</xsl:for-each-group>"));
+      case "fork" -> _sheet ("",
+                             _sourceDocument ("",
+                                              "<xsl:fork><xsl:sequence>" +
+                                                  HITS +
+                                                  "</xsl:sequence><xsl:sequence>" +
+                                                  SUM +
+                                                  "</xsl:sequence></xsl:fork>"));
+      case "merge" -> _sheet ("",
+                              "<xsl:merge>" +
+                                  "<xsl:merge-source for-each-source=\"'" +
+                                  DOC_URI +
+                                  "', '" +
+                                  DOC2_URI +
+                                  "'\" streamable='yes' select='data/rec'><xsl:merge-key select='xs:integer(substring(@id, 2))'/></xsl:merge-source>" +
+                                  "<xsl:merge-action><xsl:if test='position() mod " +
+                                  HIT_EVERY +
+                                  " = 0'><xsl:value-of select='current-merge-key()'/>:<xsl:value-of select='count(current-merge-group())'/>,</xsl:if></xsl:merge-action>" +
+                                  "</xsl:merge>");
+      // Every record gets an identifier; the predicate and the wrapper do not
+      // read the document
+      case "generate-id" -> _sheet ("<xsl:param name='p' select='1'/>",
+                                    _sourceDocument ("",
+                                                     "<out a='{$p + 1}'><xsl:for-each select=\"data/rec[@g != '-1']\">" +
+                                                         "<xsl:if test='string-length(generate-id()) gt 0 and position() mod " +
+                                                         HIT_EVERY +
+                                                         " = 0'><xsl:value-of select='@id'/>,</xsl:if>" +
+                                                         "</xsl:for-each></out>"));
+      // A snapshot of every record keeps its accumulator values after the
+      // record is dropped
+      case "snapshot" -> _sheet ("<xsl:accumulator name='total' initial-value='0' streamable='yes'>" +
+                                 "<xsl:accumulator-rule match='v/text()' select='$value + xs:integer(.)'/>" +
+                                 "</xsl:accumulator>",
+                                 _sourceDocument (" use-accumulators='total'",
+                                                  "<xsl:iterate select='data/rec'><xsl:param name='prev' select='()'/>" +
+                                                      "<xsl:if test='position() mod " +
+                                                      HIT_EVERY +
+                                                      " = 0'><xsl:value-of select=\"$prev/accumulator-after('total')\"/>,</xsl:if>" +
+                                                      "<xsl:next-iteration><xsl:with-param name='prev' select='snapshot(.)'/></xsl:next-iteration>" +
+                                                      "</xsl:iterate>"));
+      default -> throw new IllegalArgumentException ("Unknown shape " + sShape);
+    };
+  }
+
+  private static long _sum (final long nRecords)
+  {
+    long ret = 0;
+    for (long i = 1; i <= nRecords; ++i)
+      ret += i % 7;
+    return ret;
+  }
+
+  /**
+   * @param sShape
+   *        One of {@link #SHAPES}.
+   * @param nRecords
+   *        The number of records.
+   * @return The result the stylesheet of the shape must give.
+   */
+  @NonNull
+  static String getExpected (@NonNull final String sShape, final long nRecords)
+  {
+    final StringBuilder aSB = new StringBuilder ();
+    switch (sShape)
+    {
+      case "for-each", "fork", "generate-id":
+        for (long i = HIT_EVERY; i <= nRecords; i += HIT_EVERY)
+          aSB.append ('r').append (i).append (',');
+        if ("fork".equals (sShape))
+          aSB.append (_sum (nRecords));
+        break;
+      case "iterate":
+        aSB.append (_sum (nRecords));
+        break;
+      case "group":
+        // Group p (1-based) has the key p - 1; keys 0 to nRecords / 4
+        for (long p = HIT_EVERY_GROUP; p <= nRecords / 4 + 1; p += HIT_EVERY_GROUP)
+          aSB.append (p - 1).append (',');
+        break;
+      case "merge":
+        for (long i = HIT_EVERY; i <= nRecords; i += HIT_EVERY)
+          aSB.append (i).append (":2,");
+        break;
+      case "snapshot":
+        for (long i = HIT_EVERY; i <= nRecords; i += HIT_EVERY)
+          aSB.append (_sum (i - 1)).append (',');
+        break;
+      default:
+        throw new IllegalArgumentException ("Unknown shape " + sShape);
+    }
+    return aSB.toString ();
+  }
 
   private StreamedMemoryMain ()
   {}
@@ -213,13 +349,16 @@ public final class StreamedMemoryMain
   {
     final long nRecords = Long.parseLong (aArgs[0]);
     final boolean bStreamed = "streamed".equals (aArgs[1]);
+    final String sShape = aArgs.length > 2 ? aArgs[2] : "for-each";
     final GeneratorResolver aResolver = new GeneratorResolver (nRecords);
     final long nStart = System.nanoTime ();
     try
     {
       final long nRunsBefore = StreamedRun.getStreamedRunCount ();
-      final String sResult = XsltCompiler.compile (SHEET, new XsltCompileOptions ().setStreamingClaim (bStreamed))
-                                         .transform (new XsltTransformRequest ().setResolver (aResolver))
+      final String sResult = XsltCompiler.compile (getSheet (sShape), new XsltCompileOptions ().setStreamingClaim (bStreamed))
+                                         .transform (new XsltTransformRequest ().setResolver (aResolver)
+                                                                                 // An accumulator rule per node
+                                                                                 .setMaxSteps (Long.MAX_VALUE))
                                          .principalSerialized ();
       System.out.println ("result=" + sResult);
       System.out.println ("streamed-runs=" + (StreamedRun.getStreamedRunCount () - nRunsBefore));

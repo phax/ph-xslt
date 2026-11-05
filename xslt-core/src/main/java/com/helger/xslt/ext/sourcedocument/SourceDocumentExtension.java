@@ -132,9 +132,7 @@ public final class SourceDocumentExtension implements IXsltExtension
     // Streamed execution: a body of the shape the dispatcher runs, without
     // validation; whether it and the accumulators are guaranteed streamable is
     // known at the end of compilation
-    final XslElement aConsumer = bStreamable && (aValidation == null || !aValidation.isValidating ())
-                                                                                               ? StreamPlanner.findConsumer (aEl)
-                                                                                               : null;
+    final boolean bStreamCandidate = bStreamable && (aValidation == null || !aValidation.isValidating ());
     final CompiledStylesheet aSheet = aCtx.getStylesheet ();
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final String sHref = FnUri.iriToUri (aHref.evaluate (aRtCtx).trim ());
@@ -148,9 +146,13 @@ public final class SourceDocumentExtension implements IXsltExtension
         throw new XPathException ("FODC0005", "Invalid URI '" + sHref + "' in xsl:source-document");
       }
       final Engine aEngine = aRtCtx.getEngine ();
+      final XslElement aConsumer = bStreamCandidate &&
+                                   aSheet.getStreamVerdicts () != null &&
+                                   aSheet.getStreamVerdicts ().isSourceDocumentStreamable (aEl)
+                                                                                                ? StreamPlanner.findConsumer (aEl,
+                                                                                                                              aSheet.getStreamVerdicts ())
+                                                                                                : null;
       if (aConsumer != null &&
-          aSheet.getStreamVerdicts () != null &&
-          aSheet.getStreamVerdicts ().isSourceDocumentStreamable (aEl) &&
           StreamConsumer.isConsumer (aSheet, aConsumer) &&
           AccumulatorExtension.isStreamable (aSheet, aAccumulators) &&
           _runStreamed (aRtCtx, aRtOut, sUri, aConsumer, aBody, aAccumulators))

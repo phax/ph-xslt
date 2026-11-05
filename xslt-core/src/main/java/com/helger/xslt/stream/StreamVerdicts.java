@@ -49,6 +49,8 @@ public final class StreamVerdicts
   private final ICommonsSet <XdmQName> m_aStreamableModes = new CommonsHashSet <> ();
   private final ICommonsSet <XdmQName> m_aStreamableAccumulators = new CommonsHashSet <> ();
   private final Set <XslElement> m_aSourceDocuments = Collections.newSetFromMap (new IdentityHashMap <> ());
+  private final Set <XslElement> m_aMotionlessWrappers = Collections.newSetFromMap (new IdentityHashMap <> ());
+  private final Set <XslElement> m_aStreamedMerges = Collections.newSetFromMap (new IdentityHashMap <> ());
   private boolean m_bDeclarationsFailed;
 
   void addStreamableMode (@NonNull final XdmQName aMode)
@@ -64,6 +66,16 @@ public final class StreamVerdicts
   void addSourceDocument (@NonNull final XslElement aEl)
   {
     m_aSourceDocuments.add (aEl);
+  }
+
+  void addMotionlessWrapper (@NonNull final XslElement aEl)
+  {
+    m_aMotionlessWrappers.add (aEl);
+  }
+
+  void addStreamedMerge (@NonNull final XslElement aEl)
+  {
+    m_aStreamedMerges.add (aEl);
   }
 
   void setDeclarationsFailed ()
@@ -102,5 +114,32 @@ public final class StreamVerdicts
   public boolean isSourceDocumentStreamable (@Nullable final XslElement aEl)
   {
     return !m_bDeclarationsFailed && aEl != null && m_aSourceDocuments.contains (aEl);
+  }
+
+  /**
+   * @param aEl
+   *        A literal result element.
+   * @return <code>true</code> if it is a wrapper around the consumer of a
+   *         streamed body and every expression in its attribute value
+   *         templates is motionless with the document node as context item:
+   *         evaluated before any record is read, it gives the answer of the
+   *         complete document.
+   */
+  public boolean isMotionlessWrapper (@Nullable final XslElement aEl)
+  {
+    return !m_bDeclarationsFailed && aEl != null && m_aMotionlessWrappers.contains (aEl);
+  }
+
+  /**
+   * @param aEl
+   *        An <code>xsl:merge</code> element.
+   * @return <code>true</code> if its streamable merge sources (proven
+   *         guaranteed streamable, section 15.4) may be read as streams: the
+   *         merge action does not call <code>fn:last</code>, since the number
+   *         of merge groups is not known while the inputs are read.
+   */
+  public boolean isStreamedMerge (@Nullable final XslElement aEl)
+  {
+    return !m_bDeclarationsFailed && aEl != null && m_aStreamedMerges.contains (aEl);
   }
 }
