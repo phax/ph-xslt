@@ -178,15 +178,16 @@ public final class ResultDocumentExtension implements IXsltExtension
      * (Serialization 3.1 section 3.1), if the attribute is present and not
      * empty. The URI is resolved against the static base URI of the
      * instruction when that is absolute and loaded through the resource
-     * resolver. The last element child of the document must be in the output
-     * namespace (its local name is not checked). Of its children in that
+     * resolver. The last element child of the document must be
+     * <code>output:serialization-parameters</code>. Of its children in that
      * namespace, the value attribute of each becomes the parameter of the
      * element's local name, and the element children (character and
      * map-string attributes) of <code>output:use-character-maps</code> are
      * added as inline character mappings; entries without both attributes or
      * whose character is not a single code point are skipped silently. The
-     * parameters are merged with a precedence just below that of the
-     * attributes of the instruction.
+     * parameters are merged with a precedence above that of the attributes of
+     * the instruction: the parameter document takes precedence (XSLT 3.0
+     * section 26.1).
      *
      * @param aCtx
      *        The run-time context.
@@ -194,7 +195,7 @@ public final class ResultDocumentExtension implements IXsltExtension
      *        The definition to modify.
      * @throws XPathException
      *         SEPM0017 if the document cannot be retrieved or its root element
-     *         is not in the output namespace.
+     *         is not output:serialization-parameters.
      */
     private void _readParameterDocument (@NonNull final XsltContext aCtx, @NonNull final OutputDefinition aDef)
     {
@@ -215,7 +216,9 @@ public final class ResultDocumentExtension implements IXsltExtension
       for (int i = 0; i < aDoc.getChildCount (); ++i)
         if (aDoc.getChildAtIndex (i).isElement ())
           aRoot = aDoc.getChildAtIndex (i);
-      if (aRoot == null || !SerializationParams.NS_OUTPUT.equals (aRoot.getName ().namespaceUri ()))
+      if (aRoot == null ||
+          !SerializationParams.NS_OUTPUT.equals (aRoot.getName ().namespaceUri ()) ||
+          !"serialization-parameters".equals (aRoot.getName ().localName ()))
         throw new XPathException ("SEPM0017", "'" + sUri + "' is not a serialization parameter document");
       final ICommonsMap <String, String> aAttrs = new CommonsHashMap <> ();
       for (int i = 0; i < aRoot.getChildCount (); ++i)
@@ -239,7 +242,7 @@ public final class ResultDocumentExtension implements IXsltExtension
         if (aValue != null)
           aAttrs.put (aParam.getName ().localName (), aValue.getValue ());
       }
-      aDef.merge (aEl, Integer.MAX_VALUE - 1, aAttrs);
+      aDef.merge (aEl, Integer.MAX_VALUE, aAttrs);
     }
 
     /**
@@ -258,14 +261,13 @@ public final class ResultDocumentExtension implements IXsltExtension
 
     /**
      * @return The effective output definition: the format (or the unnamed
-     *         output definition), the parameter document and the attributes
-     *         of the instruction.
+     *         output definition), overridden by the attributes of the
+     *         instruction, overridden by the parameter document.
      */
     @NonNull
     private OutputDefinition _getEffectiveDefinition (@NonNull final XsltContext aCtx)
     {
       final OutputDefinition ret = _getBaseDefinition (aCtx);
-      _readParameterDocument (aCtx, ret);
       final ICommonsMap <String, String> aAttrs = new CommonsHashMap <> ();
       for (final var aEntry : m_aOutputAttrs.entrySet ())
       {
@@ -284,22 +286,23 @@ public final class ResultDocumentExtension implements IXsltExtension
         aAttrs.put ("use-character-maps", m_sUseCharacterMaps);
       try
       {
-        ret.merge (getElement (), Integer.MAX_VALUE, aAttrs);
+        ret.merge (getElement (), Integer.MAX_VALUE - 1, aAttrs);
       }
       catch (final XsltException ex)
       {
         // A QName in a dynamic value that cannot be resolved
         throw new XPathException ("XTDE0030", ex.getMessage ());
       }
+      _readParameterDocument (aCtx, ret);
       return ret;
     }
 
     /**
      * Choose the default output method from the result tree (XSLT 3.0
-     * section 26): if the first element child of the document node is named
-     * <code>html</code> (compared case insensitively) in no namespace, html;
-     * in the XHTML namespace, xhtml (also compared case insensitively,
-     * although the spec asks for lower case there).
+     * section 26.1): if the first element child of the document node is
+     * named <code>html</code> (compared case insensitively) in no namespace,
+     * html; if it is named <code>html</code> in lower case in the XHTML
+     * namespace, xhtml.
      * Any other first element, non-whitespace text before the first element,
      * or no tree at all gives xml.
      *
@@ -317,13 +320,10 @@ public final class ResultDocumentExtension implements IXsltExtension
           if (aChild.isElement ())
           {
             final XdmQName aName = aChild.getName ();
-            if ("html".equals (aName.localName ().toLowerCase (Locale.ROOT)))
-            {
-              if (!aName.hasNamespace ())
-                return SerializationParams.METHOD_HTML;
-              if (NS_XHTML.equals (aName.namespaceUri ()))
-                return SerializationParams.METHOD_XHTML;
-            }
+            if (!aName.hasNamespace () && "html".equals (aName.localName ().toLowerCase (Locale.ROOT)))
+              return SerializationParams.METHOD_HTML;
+            if (NS_XHTML.equals (aName.namespaceUri ()) && "html".equals (aName.localName ()))
+              return SerializationParams.METHOD_XHTML;
             return SerializationParams.METHOD_XML;
           }
           if (aChild.isText () && !XsltNames.isWhitespaceOnly (aChild.getValue ()))

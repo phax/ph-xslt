@@ -18,10 +18,22 @@ package com.helger.xslt.ext.resultdocument;
 
 import static org.junit.Assert.assertEquals;
 
-import org.junit.Test;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import com.helger.xpath.XPathException;
+import com.helger.xslt.XsltCompileOptions;
+import com.helger.xslt.XsltCompiler;
 import com.helger.xslt.XsltTestHelper;
+import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
+import com.helger.xslt.compile.FileResourceResolver;
 
 /**
  * Test class for class {@link ResultDocumentExtension}.
@@ -30,6 +42,69 @@ import com.helger.xslt.XsltTransformResult;
  */
 public final class ResultDocumentExtensionTest
 {
+  @Rule
+  public final TemporaryFolder m_aTempFolder = new TemporaryFolder ();
+
+  private static String _secondary (final String sContent)
+  {
+    final XsltTransformResult aResult = XsltTestHelper.run (XsltTestHelper.SHEET +
+                                                            "<xsl:template name='xsl:initial-template'>" +
+                                                            "<main xsl:exclude-result-prefixes='#all'/>" +
+                                                            "<xsl:result-document href='a.out' omit-xml-declaration='yes'>" +
+                                                            sContent +
+                                                            "</xsl:result-document></xsl:template>" +
+                                                            XsltTestHelper.END,
+                                                            null,
+                                                            null);
+    return aResult.secondaryResults ().get (0).serialized ();
+  }
+
+  @Test
+  public void testDetectMethod ()
+  {
+    // html in any case without namespace, xhtml only for lower-case html
+    assertEquals ("<HTML><br></HTML>", _secondary ("<HTML xsl:exclude-result-prefixes='#all'><br/></HTML>"));
+    assertEquals ("<html xmlns=\"http://www.w3.org/1999/xhtml\"><br /></html>",
+                  _secondary ("<html xmlns='http://www.w3.org/1999/xhtml' xsl:exclude-result-prefixes='#all'><br/></html>"));
+    assertEquals ("<HTML xmlns=\"http://www.w3.org/1999/xhtml\"><br/></HTML>",
+                  _secondary ("<HTML xmlns='http://www.w3.org/1999/xhtml' xsl:exclude-result-prefixes='#all'><br/></HTML>"));
+  }
+
+  private String _withParameterDocument (final String sParamDoc) throws IOException
+  {
+    final Path aFile = m_aTempFolder.newFile ().toPath ();
+    Files.writeString (aFile, sParamDoc, StandardCharsets.UTF_8);
+    final String sSheet = XsltTestHelper.SHEET +
+                          "<xsl:template name='xsl:initial-template'>" +
+                          "<main xsl:exclude-result-prefixes='#all'/>" +
+                          "<xsl:result-document href='a.out' omit-xml-declaration='no' parameter-document='" +
+                          aFile.toUri () +
+                          "'><a xsl:exclude-result-prefixes='#all'/></xsl:result-document></xsl:template>" +
+                          XsltTestHelper.END;
+    final XsltTransformRequest aRequest = new XsltTransformRequest ();
+    aRequest.setResolver (new FileResourceResolver (false));
+    return XsltCompiler.compile (sSheet, new XsltCompileOptions ()).transform (aRequest).secondaryResults ().get (0).serialized ();
+  }
+
+  @Test
+  public void testParameterDocumentWins () throws IOException
+  {
+    // XSLT 3.0 section 26.1: the parameter document takes precedence over
+    // the attributes of the instruction
+    assertEquals ("<a/>",
+                  _withParameterDocument ("<output:serialization-parameters xmlns:output='http://www.w3.org/2010/xslt-xquery-serialization'>" +
+                                          "<output:omit-xml-declaration value='yes'/></output:serialization-parameters>"));
+    try
+    {
+      _withParameterDocument ("<output:parameters xmlns:output='http://www.w3.org/2010/xslt-xquery-serialization'>" +
+                              "<output:omit-xml-declaration value='yes'/></output:parameters>");
+      throw new IllegalStateException ("No error");
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("SEPM0017", ex.getCode ());
+    }
+  }
   @Test
   public void testSecondaryResult ()
   {
