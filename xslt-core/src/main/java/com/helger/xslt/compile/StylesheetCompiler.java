@@ -99,12 +99,25 @@ public final class StylesheetCompiler
                                   @NonNull ICommonsList <XdmQName> nonTunnelParams)
   {}
 
+  /**
+   * A reference to an attribute set ([xsl:]use-attribute-sets), checked when
+   * all attribute sets are known.
+   */
   private record AttributeSetRef (@NonNull XslElement element, @NonNull XdmQName name)
   {}
 
+  /**
+   * The xsl:function that currently wins for a name and arity, with the import
+   * precedence of its declaration.
+   */
   private record FunctionEntry (@NonNull UserFunction function, int precedence)
   {}
 
+  /**
+   * The declared signature of a stylesheet function: the parameter types and
+   * the return type, each <code>item()*</code> where no <code>as</code>
+   * attribute is given.
+   */
   private record FunctionSignature (@NonNull ICommonsList <SeqType> paramTypes, @NonNull SeqType returnType)
   {}
 
@@ -143,6 +156,15 @@ public final class StylesheetCompiler
   private int m_nOriginalCounter;
   private final StreamabilityIndex m_aStreamabilityIndex;
 
+  /**
+   * Create a compiler for one compilation. The streamability index is only
+   * created when the streamability analysis runs at the end, that is when
+   * {@link XsltCompileOptions#isEnforceStreamability()} or
+   * {@link XsltCompileOptions#isStreamingClaim()} is set.
+   *
+   * @param aOptions
+   *        The compile options.
+   */
   private StylesheetCompiler (@NonNull final XsltCompileOptions aOptions)
   {
     m_aOptions = aOptions;
@@ -212,8 +234,12 @@ public final class StylesheetCompiler
   }
 
   /**
+   * Look up the xsl:namespace-alias of the principal package for a literal
+   * namespace URI (XSLT 3.0 section 11.1.4).
+   *
    * @param sStylesheetUri
-   *        A namespace URI used in the stylesheet.
+   *        A namespace URI used in the stylesheet, the empty string for no
+   *        namespace.
    * @return The alias for it or <code>null</code>.
    */
   @Nullable
@@ -260,7 +286,9 @@ public final class StylesheetCompiler
    * @param aEl
    *        An element.
    * @return The unnamed decimal format for expressions on it (decimal formats
-   *         are local to a package).
+   *         are local to a package). Outside a multi-package compilation, or
+   *         for a package without own entry, this is the stylesheet-wide one;
+   *         <code>null</code> if no unnamed xsl:decimal-format is declared.
    */
   @Nullable
   public FormatDecimalFormat getDefaultDecimalFormat (@NonNull final XslElement aEl)
@@ -282,6 +310,16 @@ public final class StylesheetCompiler
     return aFormats == null ? m_aDecimalFormats : (ICommonsMap <XdmQName, FormatDecimalFormat>) aFormats[1];
   }
 
+  /**
+   * Walk up from an element to the declaration that contains it: the
+   * top-level element below the module root, or the element directly below an
+   * xsl:override. The module root itself and a parentless element are
+   * returned unchanged.
+   *
+   * @param aEl
+   *        An element in a stylesheet module.
+   * @return The containing declaration, never <code>null</code>.
+   */
   @NonNull
   private static XslElement _getDeclaration (@NonNull final XslElement aEl)
   {
@@ -296,7 +334,9 @@ public final class StylesheetCompiler
    *        An element.
    * @return The functions visible to expressions on that element: in a
    *         package that uses other packages without their hidden functions,
-   *         in an overriding function with xsl:original.
+   *         in an overriding function with xsl:original. The library of the
+   *         containing overriding declaration wins over the one of the
+   *         package; without either, the stylesheet-wide library is returned.
    */
   @NonNull
   public FunctionLibrary getFunctionLibraryFor (@NonNull final XslElement aEl)
@@ -332,7 +372,9 @@ public final class StylesheetCompiler
   /**
    * Map the name xsl:original in a reference to a template or attribute set
    * inside an overriding declaration to the name under which the overridden
-   * component is kept.
+   * component is kept (XSLT 3.0 section 3.5.3.4). Any other name, and
+   * xsl:original outside a declaration that registered an original name, is
+   * returned unchanged.
    *
    * @param aEl
    *        The referring element.
@@ -351,7 +393,10 @@ public final class StylesheetCompiler
 
   /**
    * Map the name in a reference to an attribute set: a private attribute set
-   * whose name is declared in several packages is local to its package.
+   * whose name is declared in several packages is local to its package. If
+   * the name, qualified by the package of the referring element
+   * ({@link PackageModel#qualify}), is one of those local attribute sets, the
+   * qualified name is returned, otherwise the name itself.
    *
    * @param aEl
    *        The referring element.
@@ -368,6 +413,16 @@ public final class StylesheetCompiler
     return m_aLocalAttributeSets.contains (aQualified) ? aQualified : aName;
   }
 
+  /**
+   * Find the attribute sets that must be kept apart per package: a
+   * non-overriding xsl:attribute-set whose name is declared in at least two
+   * packages and whose visibility (as changed by xsl:expose, else as
+   * declared) is <code>private</code>. Their package-qualified names are
+   * collected for {@link #mapAttributeSetName(XslElement, XdmQName)}.
+   *
+   * @param aDecls
+   *        All top-level declarations.
+   */
   private void _findLocalAttributeSets (@NonNull final ICommonsList <XslElement> aDecls)
   {
     final ICommonsMap <XdmQName, ICommonsSet <PackageUnit>> aUnits = new CommonsHashMap <> ();
@@ -392,6 +447,15 @@ public final class StylesheetCompiler
       }
   }
 
+  /**
+   * Create a fresh name <code>xsl:original-N</code> under which the component
+   * overridden by a declaration is kept, and remember it for
+   * {@link #mapOriginalName(XslElement, XdmQName)}.
+   *
+   * @param aDecl
+   *        The overriding declaration.
+   * @return The new name.
+   */
   @NonNull
   private XdmQName _createOriginalName (@NonNull final XslElement aDecl)
   {
@@ -429,6 +493,19 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Build the function libraries that differ from the stylesheet-wide one. In
+   * a multi-package compilation every package gets a child library, registered
+   * as its scope with the package model, in which the functions the package
+   * sees as hidden are hidden, the functions shadowed by a visible homonym
+   * that the package itself declares are registered again, and (for a used
+   * package) <code>fn:function-lookup</code> is restricted by
+   * {@link #_restrictLookupInUsedPackage(PackageUnit, FunctionLibrary)}. Then
+   * every overriding xsl:function gets a child library of its package's one in
+   * which xsl:original names the overridden function for static calls and
+   * function references, but not for <code>fn:function-lookup</code> (XSLT 3.0
+   * section 3.5.3.4).
+   */
   private void _buildPackageFunctionScopes ()
   {
     // In a compilation with several packages each package has its own
@@ -509,7 +586,12 @@ public final class StylesheetCompiler
   /**
    * @param aEl
    *        An element.
-   * @return The default mode in scope for it ([xsl:]default-mode).
+   * @return The default mode in scope for it ([xsl:]default-mode, XSLT 3.0
+   *         section 3.7.2), taken from the innermost ancestor-or-self with the
+   *         attribute; {@link Mode#UNNAMED} if there is none or the value is
+   *         empty or <code>#unnamed</code>.
+   * @throws XsltException
+   *         XTSE0020 if the value is not a valid QName
    */
   @NonNull
   public static XdmQName getDefaultMode (@NonNull final XslElement aEl)
@@ -526,6 +608,10 @@ public final class StylesheetCompiler
     return ret;
   }
 
+  /**
+   * @return <code>true</code> if the element has a child element or a text
+   *         child that is not whitespace only.
+   */
   private static boolean _hasContent (@NonNull final XslElement aEl)
   {
     for (final XslNode aNode : aEl.getChildren ())
@@ -534,6 +620,21 @@ public final class StylesheetCompiler
     return false;
   }
 
+  /**
+   * Reject a pattern that calls one of the functions that are not allowed in
+   * patterns: <code>fn:current-group</code> (XTSE1060),
+   * <code>fn:current-grouping-key</code> (XTSE1070),
+   * <code>fn:current-merge-group</code> (XTSE3470) and
+   * <code>fn:current-merge-key</code> (XTSE3500). A pattern that is not a
+   * {@link CompiledXsltPattern} is not inspected.
+   *
+   * @param aEl
+   *        The element carrying the pattern, for the error location.
+   * @param aPattern
+   *        The compiled pattern.
+   * @throws XsltException
+   *         with the code of the first forbidden function found
+   */
   private void _checkPatternFunctions (@NonNull final XslElement aEl, @NonNull final XsltPattern aPattern)
   {
     if (!(aPattern instanceof final CompiledXsltPattern aCP))
@@ -573,6 +674,24 @@ public final class StylesheetCompiler
     return ret;
   }
 
+  /**
+   * Record an xsl:namespace-alias for the package of the element (XSLT 3.0
+   * section 11.1.4), keyed by the literal namespace URI (empty for
+   * <code>#default</code> without a default namespace). The declaration with
+   * the higher import precedence wins; at equal precedence the later one
+   * wins, which also takes its result prefix.
+   * <p>
+   * Declarations are processed lowest import precedence first, so two
+   * conflicting declarations at a lower precedence raise XTSE0810 even if a
+   * declaration with a higher precedence follows, which the spec allows.
+   *
+   * @param aEl
+   *        The xsl:namespace-alias element.
+   * @throws XsltException
+   *         XTSE0812 if a prefix other than <code>#default</code> is not
+   *         bound; XTSE0810 if an earlier declaration with the same
+   *         precedence maps the same URI to a different result URI
+   */
   private void _prepareNamespaceAlias (@NonNull final XslElement aEl)
   {
     final String sStyPrefix = aEl.getAttr ("stylesheet-prefix").trim ();
@@ -593,11 +712,35 @@ public final class StylesheetCompiler
       aAliases.put (sKey, aAlias);
   }
 
+  /**
+   * @return The first code point of the string, 0 for the empty string.
+   */
   private static int _firstCodePoint (@NonNull final String s)
   {
     return s.isEmpty () ? 0 : s.codePointAt (0);
   }
 
+  /**
+   * Build the decimal formats from xsl:decimal-format declarations (XSLT 3.0
+   * section 5.4). The declarations are grouped by name (the unnamed one under
+   * an internal key); for each attribute the value of the declarations with
+   * the highest import precedence that specify it is taken, unspecified
+   * attributes keep the default of {@link FormatDecimalFormat}. Single
+   * character properties take the first code point of the value. The result is
+   * stored in the default decimal format and the named decimal formats of this
+   * compiler, which the caller resets per package in a multi-package
+   * compilation.
+   *
+   * @param aDecls
+   *        The xsl:decimal-format declarations to combine.
+   * @throws XsltException
+   *         XTSE1290 if two declarations with that highest precedence give
+   *         different values for one attribute; XTSE1295 if zero-digit is not
+   *         a digit with numeric value zero; XTSE1300 if the decimal
+   *         separator, grouping separator, percent, per-mille, digit, pattern
+   *         separator and exponent separator are not distinct or one of them
+   *         is among the ten digits starting at zero-digit
+   */
   private void _prepareDecimalFormats (@NonNull final ICommonsList <XslElement> aDecls)
   {
     final ICommonsMap <XdmQName, ICommonsList <XslElement>> aByName = new CommonsHashMap <> ();
@@ -691,6 +834,32 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Create the {@link UserFunction} for an xsl:function before any body is
+   * compiled, so that all expressions can call it (XSLT 3.0 section 10.3). The
+   * parameters and the declared types are compiled, <code>cache="yes"</code>
+   * or <code>new-each-time="no"</code> turns on memoisation (section 10.3.8),
+   * and the signature is recorded. An overriding function remembers the
+   * function it replaces as its xsl:original. A function shadowed by a visible
+   * homonym from another package is only kept for the scope of its own
+   * package. Otherwise the function is registered in the stylesheet-wide
+   * library if no function with this name and arity, or only one with a lower
+   * import precedence, is registered yet.
+   * <p>
+   * Declarations are processed lowest import precedence first, so two
+   * functions with the same name and arity at a lower precedence raise
+   * XTSE0770 even if a function with a higher precedence follows, which the
+   * spec allows.
+   *
+   * @param aEl
+   *        The xsl:function element.
+   * @throws XsltException
+   *         XTSE0770 if a schema-aware stylesheet declares a one-argument
+   *         function named like an imported simple type outside the XML
+   *         Schema namespace (it would clash with the constructor function),
+   *         or if a function with the same name, arity and import precedence
+   *         was declared before
+   */
   private void _prepareFunction (@NonNull final XslElement aEl)
   {
     final CompileContext aCtx = createGlobalContext ();
@@ -752,6 +921,22 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Make the name of a global xsl:variable or xsl:param known before any
+   * expression is compiled, and track the highest import precedence it is
+   * declared with, which decides the winning declaration in
+   * {@link #_compileGlobal(XslElement, boolean)} (XSLT 3.0 section 9.5).
+   * <p>
+   * Declarations are processed lowest import precedence first, so two
+   * bindings with the same name at a lower precedence raise XTSE0630 even if a
+   * binding with a higher precedence follows, which the spec allows.
+   *
+   * @param aEl
+   *        The global xsl:variable or xsl:param element.
+   * @throws XsltException
+   *         XTSE0630 if a binding with the same name and import precedence was
+   *         seen before
+   */
   private void _prepareGlobal (@NonNull final XslElement aEl)
   {
     final XdmQName aName = createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false);
@@ -763,6 +948,22 @@ public final class StylesheetCompiler
     m_aGlobalNames.add (aName);
   }
 
+  /**
+   * Apply an xsl:mode declaration to its mode (XSLT 3.0 section 6.6.1). The
+   * declaration with the highest import precedence (the later one at equal
+   * precedence) becomes the mode's declaration. For each attribute given, the
+   * value is normalised (booleans to <code>yes</code>/<code>no</code>,
+   * use-accumulators to the sorted expanded names) and applied if no value
+   * with a higher precedence was seen. A different value at the same
+   * precedence is only noted in <code>aSeen</code>: the caller raises XTSE0545
+   * for it unless a value with a higher precedence replaced it later.
+   *
+   * @param aEl
+   *        The xsl:mode element.
+   * @param aSeen
+   *        Per mode and attribute: the normalised value, its precedence and
+   *        the element of a conflicting declaration or <code>null</code>.
+   */
   private void _prepareMode (@NonNull final XslElement aEl, @NonNull final ICommonsMap <Mode, ICommonsMap <String, Object []>> aSeen)
   {
     final XdmQName aName = aEl.hasAttr ("name") ? createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false)
@@ -826,6 +1027,35 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Compile an xsl:template (XSLT 3.0 sections 6 and 10.1): the match pattern
+   * with the pattern function checks, the modes (<code>#all</code>,
+   * <code>#default</code>, <code>#unnamed</code> or names; the default mode
+   * without a mode attribute), the priority, the result type, an optional
+   * xsl:context-item, the parameters and the body. In a schema-aware
+   * stylesheet the pattern is rewritten for a mode with
+   * <code>typed="strict"</code> or <code>"lax"</code> (section 6.6.3; strict
+   * wins if any of the modes is strict). An overriding named template keeps
+   * the overridden one reachable under a fresh xsl:original name. The
+   * template is added to the stylesheet; a named template is also registered
+   * by name if it has the highest import precedence so far.
+   * <p>
+   * Declarations are processed lowest import precedence first, so two named
+   * templates with the same name at a lower precedence raise XTSE0660 even if
+   * a template with a higher precedence follows, which the spec allows.
+   *
+   * @param aEl
+   *        The xsl:template element.
+   * @throws XsltException
+   *         XTSE0530 for a priority that is not an <code>xs:decimal</code>;
+   *         XTSE0010 for more than one xsl:context-item or one that is not
+   *         the first child; XTSE0020 for an invalid <code>use</code> or
+   *         <code>use="absent"</code> on a template without a name; XTSE3088
+   *         for <code>use="absent"</code> together with <code>as</code>;
+   *         XTSE0660 for a second named template with the same name and
+   *         import precedence; the error of the typed-mode rewrite at the
+   *         element
+   */
   private void _compileTemplate (@NonNull final XslElement aEl)
   {
     final CompileContext aGlobal = createGlobalContext ();
@@ -950,6 +1180,14 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Compile a simplified stylesheet module (XSLT 3.0 section 3.8): the
+   * literal result element at the root becomes the body of a template rule
+   * matching <code>/</code> in the unnamed mode.
+   *
+   * @param aEl
+   *        The root element of the simplified module.
+   */
   private void _compileSimplifiedTemplate (@NonNull final XslElement aEl)
   {
     final CompileContext aGlobal = createGlobalContext ();
@@ -970,6 +1208,16 @@ public final class StylesheetCompiler
     m_aStylesheet.addTemplate (aTemplate);
   }
 
+  /**
+   * A cheap, conservative test whether a declaration may refer to
+   * xsl:original: some attribute value of the element or of a descendant
+   * element contains the text <code>original</code>. Text content is not
+   * inspected. Iterative, so deep trees cannot overflow the stack.
+   *
+   * @param aEl
+   *        The declaration.
+   * @return <code>true</code> if such an attribute value exists.
+   */
   private static boolean _mentionsOriginal (@NonNull final XslElement aEl)
   {
     final ICommonsList <XslElement> aStack = new CommonsArrayList <> (aEl);
@@ -986,6 +1234,12 @@ public final class StylesheetCompiler
     return false;
   }
 
+  /**
+   * @return The global variable or parameter with this name declared in the
+   *         package itself with the highest import precedence (the last one
+   *         compiled at equal precedence), or <code>null</code> if the package
+   *         declares none.
+   */
   @Nullable
   private VariableDef _getOwnGlobal (@NonNull final PackageUnit aUnit, @NonNull final XdmQName aName)
   {
@@ -998,6 +1252,21 @@ public final class StylesheetCompiler
     return ret;
   }
 
+  /**
+   * The declaration of a global variable a package sees looking down its
+   * xsl:use-package dependencies: its own declaration if there is one, else
+   * the first found depth first in the used packages, in the order of the
+   * xsl:use-package elements. The recursion stops once it is deeper than the
+   * number of packages, so a cycle cannot loop.
+   *
+   * @param aUnit
+   *        The package.
+   * @param aName
+   *        The variable name.
+   * @param nDepth
+   *        Current recursion depth, 0 at the start.
+   * @return The declaration found or <code>null</code>.
+   */
   @Nullable
   private VariableDef _getGlobalViewDown (@NonNull final PackageUnit aUnit, @NonNull final XdmQName aName, final int nDepth)
   {
@@ -1018,7 +1287,11 @@ public final class StylesheetCompiler
    * variable than the one with the highest import precedence: its own
    * override when two packages override one used package differently, or the
    * declaration of the package it uses when two used packages declare the same
-   * name.
+   * name. For every name declared more than once, each package's view is the
+   * one found by {@link #_getGlobalViewDown(PackageUnit, XdmQName, int)},
+   * replaced by a declaration in an xsl:override of the xsl:use-package
+   * chain above it (the outermost user wins). A view that differs from the
+   * winning global is stored in the stylesheet's package globals.
    */
   private void _computePackageGlobals ()
   {
@@ -1059,6 +1332,21 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Compile a global xsl:variable or xsl:param (XSLT 3.0 section 9.5). The
+   * variable does not see itself. An overriding declaration that may mention
+   * xsl:original (see {@link #_mentionsOriginal(XslElement)}) gets
+   * <code>$xsl:original</code> bound to the previously compiled declaration of
+   * the same name, recorded as its original variable (section 3.5.3.4). Every
+   * compiled declaration is kept for the per-package views; it becomes the
+   * stylesheet's global binding if its import precedence is the highest for
+   * the name.
+   *
+   * @param aEl
+   *        The declaration.
+   * @param bParam
+   *        <code>true</code> for xsl:param.
+   */
   private void _compileGlobal (@NonNull final XslElement aEl, final boolean bParam)
   {
     final XdmQName aOwnName = createGlobalContext ().resolveQName (aEl, aEl.getAttr ("name"), false);
@@ -1078,6 +1366,22 @@ public final class StylesheetCompiler
       m_aStylesheet.globals ().put (aVar.getName (), aVar);
   }
 
+  /**
+   * Compile an xsl:key declaration (XSLT 3.0 section 20.2.1): the match
+   * pattern with the pattern function checks, the key value from either the
+   * use attribute or the content, the effective collation (the collation
+   * attribute resolved against the static base URI, else the default
+   * collation) and the composite flag. Several declarations of one key are
+   * added side by side; only those of the same package are compared.
+   *
+   * @param aEl
+   *        The xsl:key element.
+   * @throws XsltException
+   *         XTSE1205 if both or neither of use attribute and content are
+   *         given; XTSE1210 if the collation is not supported; XTSE1220 or
+   *         XTSE1222 if another declaration of the key in the same package
+   *         has a different collation or composite value
+   */
   private void _compileKey (@NonNull final XslElement aEl)
   {
     final CompileContext aCtx = createGlobalContext ();
@@ -1122,6 +1426,31 @@ public final class StylesheetCompiler
     m_aStylesheet.addKey (new KeyDefinition (aEl, aName, aMatch, aUse, aBody, bComposite, sCollation));
   }
 
+  /**
+   * Read the serialization parameter document named by the parameter-document
+   * attribute of an xsl:output (XSLT 3.0 section 26, Serialization 3.1
+   * section 3.1) at compile time. The URI is resolved against an absolute
+   * static base URI and loaded through the configured resolver, else a
+   * {@link FileResourceResolver}. Each child element of the document element
+   * in the output namespace contributes its <code>value</code> attribute under
+   * its local name; <code>output:use-character-maps</code> adds its
+   * <code>output:character-map</code> entries as inline character mappings.
+   * The document element is only checked for its namespace, not its local
+   * name. Nothing happens without the attribute.
+   *
+   * @param aEl
+   *        The xsl:output element.
+   * @param aAttrs
+   *        Receives the parameters by name; the attributes of the xsl:output
+   *        itself are added later and win.
+   * @param aDef
+   *        Receives the character mappings.
+   * @throws XsltException
+   *         XTSE0020 if the URI is invalid, the document cannot be retrieved
+   *         or its document element is not in the output namespace;
+   *         SEPM0017 if a character map entry has a character that is not a
+   *         single character
+   */
   private void _readParameterDocument (@NonNull final XslElement aEl,
                                        @NonNull final ICommonsMap <String, String> aAttrs,
                                        @NonNull final OutputDefinition aDef)
@@ -1178,6 +1507,18 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Merge an xsl:output declaration into its output definition (XSLT 3.0
+   * section 26): the named one (package qualified) or, for an unnamed
+   * declaration of the principal package, the principal output definition. An
+   * unnamed declaration in a used package is ignored. The parameters from a
+   * parameter document come first and are overridden by the attributes; the
+   * merge by import precedence is done by
+   * {@link OutputDefinition#merge(XslElement, int, ICommonsMap)}.
+   *
+   * @param aEl
+   *        The xsl:output element.
+   */
   private void _compileOutput (@NonNull final XslElement aEl)
   {
     final ICommonsMap <String, String> aAttrs = new CommonsHashMap <> ();
@@ -1201,6 +1542,24 @@ public final class StylesheetCompiler
     aDef.merge (aEl, aEl.getPrecedence (), aAttrs);
   }
 
+  /**
+   * Add the whitespace stripping rules of an xsl:strip-space or
+   * xsl:preserve-space declaration (XSLT 3.0 section 4.4.2), one per name test
+   * in the elements attribute: <code>*</code>, <code>*:local</code>,
+   * <code>prefix:*</code>, <code>Q{uri}*</code> or an EQName. An unprefixed
+   * name is put into the namespace of an inherited xpath-default-namespace
+   * (section 5.1.2). Each rule carries the declaration's import precedence.
+   *
+   * @param aEl
+   *        The declaration.
+   * @param bStrip
+   *        <code>true</code> for xsl:strip-space.
+   * @throws XsltException
+   *         XTSE0010 for an invalid <code>*:local</code> test; XTSE0280 for an
+   *         unbound prefix in <code>prefix:*</code>; XTSE0270 if the same name
+   *         test is already given with the opposite strip setting at the same
+   *         import precedence
+   */
   private void _compileSpace (@NonNull final XslElement aEl, final boolean bStrip)
   {
     final String sXpathDefault = aEl.getInheritedStandardAttr ("xpath-default-namespace");
@@ -1246,6 +1605,18 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Compile an xsl:attribute-set declaration (XSLT 3.0 section 10.2) and add
+   * it as one more declaration of the attribute set with its (possibly
+   * package-local) name. The names in use-attribute-sets are mapped for
+   * xsl:original and package-local sets and registered for the checks at the
+   * end. An overriding declaration first moves all previous declarations of
+   * the name to a fresh xsl:original name (section 3.5.3.4), so that it
+   * replaces them instead of being merged with them.
+   *
+   * @param aEl
+   *        The xsl:attribute-set element.
+   */
   private void _compileAttributeSet (@NonNull final XslElement aEl)
   {
     final CompileContext aCtx = createGlobalContext ();
@@ -1276,6 +1647,20 @@ public final class StylesheetCompiler
     m_aStylesheet.attributeSets ().computeIfAbsent (aName, AttributeSet::new).addDecl (new AttributeSet.Decl (aEl, aUses, aBody));
   }
 
+  /**
+   * Apply an xsl:global-context-item declaration (XSLT 3.0 section 3.5.6). In
+   * a library package it is ignored unless it says
+   * <code>use="required"</code>. In the principal package it sets the
+   * stylesheet's global context item; all such declarations must agree in use
+   * and in the normalised required type.
+   *
+   * @param aEl
+   *        The xsl:global-context-item element.
+   * @throws XsltException
+   *         XTTE0590 for <code>use="required"</code> in a library package;
+   *         XTSE3087 for a second declaration in one module or declarations
+   *         that differ
+   */
   private void _compileGlobalContextItem (@NonNull final XslElement aEl)
   {
     final String sAs = aEl.getAttr ("as");
@@ -1302,6 +1687,27 @@ public final class StylesheetCompiler
     m_aStylesheet.setGlobalContextItem (aNew);
   }
 
+  /**
+   * Compile one top-level element by its kind. A non-XSLT element is the body
+   * of a simplified stylesheet if it is the root of a simplified module, else
+   * a user-defined data element that is ignored (XSLT 3.0 section 3.7.3).
+   * Static variables and parameters are compiled only if a static value was
+   * computed for them. Declarations already handled in the preparation
+   * (decimal-format, namespace-alias, mode) or by the loader (include,
+   * import) are skipped; xsl:import-schema was compiled before everything else
+   * by a schema-aware processor. xsl:expose of the principal package is kept
+   * for {@link ExposeChecker}. Other names are given to a registered
+   * {@link IDeclarationCompiler}.
+   *
+   * @param aEl
+   *        The top-level element.
+   * @throws XsltException
+   *         XTSE0130 for a user-defined data element in no namespace;
+   *         XTSE0010 for xsl:expose outside xsl:package or an unknown XSLT
+   *         declaration outside forwards compatible mode; XTSE1650 for
+   *         xsl:import-schema without schema awareness; and the errors of the
+   *         declaration compiled
+   */
   private void _compileDeclaration (@NonNull final XslElement aEl)
   {
     if (!aEl.isXsl ())
@@ -1370,6 +1776,15 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Check the syntax of a package version (XSLT 3.0 section 3.5.1): one or
+   * more dot-separated non-empty runs of ASCII digits, optionally followed by
+   * hyphen-separated NCNames.
+   *
+   * @param s
+   *        The package-version value, not trimmed.
+   * @return <code>true</code> if it is a valid package version.
+   */
   private static boolean _isPackageVersion (@NonNull final String s)
   {
     if (s.isEmpty ())
@@ -1384,6 +1799,19 @@ public final class StylesheetCompiler
     return true;
   }
 
+  /**
+   * The check for <code>declared-modes="yes"</code> (XSLT 3.0 section
+   * 3.5.4.1): every mode named or implied (the default mode) by a template
+   * rule or an xsl:apply-templates in the subtree must have an xsl:mode
+   * declaration. <code>#all</code> and <code>#current</code> name no
+   * particular mode. Recurses over the element children, so the depth follows
+   * the nesting of the stylesheet.
+   *
+   * @param aEl
+   *        The root of the subtree to check.
+   * @throws XsltException
+   *         XTSE3085 for a mode without declaration
+   */
   private void _checkDeclaredModesRecursive (@NonNull final XslElement aEl)
   {
     final boolean bTemplateRule = aEl.isXsl ("template") && aEl.hasAttr ("match");
@@ -1418,7 +1846,12 @@ public final class StylesheetCompiler
       _checkDeclaredModesRecursive (aChild);
   }
 
-  /** Checks that apply only when the principal module is an xsl:package. */
+  /**
+   * Checks that apply only when the root of a package is an xsl:package: the
+   * syntax of package-version (XTSE0020), the boolean declared-modes
+   * (XTSE0020) and, unless declared-modes is false, that all modes used are
+   * declared (XTSE3085) in all modules of the package.
+   */
   private void _checkPackage (@NonNull final XslElement aRoot, @NonNull final ICommonsList <XslModule> aModules)
   {
     final String sVersion = aRoot.getAttr ("package-version");
@@ -1433,6 +1866,15 @@ public final class StylesheetCompiler
           _checkDeclaredModesRecursive (aModule.getRoot ());
   }
 
+  /**
+   * Distribute the template rules over the modes (XSLT 3.0 section 6.4). The
+   * unnamed mode and the default mode always exist. A template with an
+   * explicit priority yields one rule; without one, each alternative of a
+   * union pattern becomes its own rule with its default priority (section
+   * 6.5). Every rule gets the next declaration order number. A template for
+   * <code>#all</code> goes into every mode known at this point, otherwise into
+   * its listed modes. Finally the rules of every mode are sorted.
+   */
   private void _buildModes ()
   {
     m_aStylesheet.getOrCreateMode (Mode.UNNAMED);
@@ -1466,6 +1908,22 @@ public final class StylesheetCompiler
       aMode.sortRules ();
   }
 
+  /**
+   * Depth first search for an attribute set that uses itself, directly or
+   * indirectly, through use-attribute-sets (XTSE0720, XSLT 3.0 section 10.2).
+   * Unknown names are ignored here (XTSE0710 is checked separately). The
+   * recursion depth is bounded by the number of distinct attribute sets on
+   * one use chain.
+   *
+   * @param aName
+   *        The attribute set to visit.
+   * @param aStack
+   *        The names on the current path.
+   * @param aDone
+   *        The names already found free of cycles.
+   * @throws XsltException
+   *         XTSE0720 at the first declaration of the set closing a cycle
+   */
   private void _checkAttributeSetCycle (@NonNull final XdmQName aName,
                                         @NonNull final ICommonsList <XdmQName> aStack,
                                         @NonNull final ICommonsSet <XdmQName> aDone)
@@ -1485,6 +1943,20 @@ public final class StylesheetCompiler
     aDone.add (aName);
   }
 
+  /**
+   * The checks across declarations once all are compiled. Each recorded
+   * xsl:call-template must find a named template not hidden from its package
+   * (XTSE0650), pass only non-tunnel parameters the template declares as
+   * non-tunnel (XTSE0680) and supply all its required non-tunnel parameters
+   * (XTSE0690). Each use-attribute-sets reference must find a non-hidden
+   * attribute set (XTSE0710); a streamable attribute set may only use
+   * attribute sets all of whose declarations are streamable (XTSE0730). Then
+   * the declarations of every attribute set are sorted by import precedence
+   * and checked for cycles (XTSE0720).
+   *
+   * @throws XsltException
+   *         for the first violation found
+   */
   private void _checkReferences ()
   {
     for (final CallTemplateRef aRef : m_aCallTemplateRefs)
@@ -1534,6 +2006,40 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * The whole compilation. In order:
+   * <ol>
+   * <li>Load the principal module and all included, imported and used
+   * modules ({@link StylesheetLoader}), arrange the declarations by import
+   * precedence (lowest first) and validate each module tree
+   * ({@link ElementValidator}); the input-type-annotations values of all
+   * modules must agree (XTSE0265). Analyse the package model.</li>
+   * <li>Create the stylesheet with the default function library plus the
+   * extension functions (and the streaming claim functions if claimed), the
+   * static values from the loader and the default mode.</li>
+   * <li>Preparation, so that expressions can refer to everything: in a
+   * schema-aware compilation the imported schemas first, then namespace
+   * aliases, global names, decimal formats (per package with several
+   * packages), stylesheet functions and modes (XTSE0545 for an unresolved
+   * conflict of mode attributes), then the per-package function libraries and
+   * package-local attribute sets.</li>
+   * <li>Compile every declaration, build the modes, the per-package views of
+   * globals and run the package checks; for a principal xsl:package also the
+   * abstract component checks, xsl:expose and the modes made private.</li>
+   * <li>The checks across declarations, the registered
+   * {@link ICompileFinisher}s, and the streamability analysis if enabled (its
+   * verdicts are kept only with the streaming claim).</li>
+   * <li>Record the host scope of the principal stylesheet element for
+   * {@link com.helger.xslt.XsltExecutable#createStaticContext}.</li>
+   * </ol>
+   *
+   * @param aSource
+   *        Document or element node of the principal module.
+   * @return The compiled stylesheet.
+   * @throws XsltException
+   *         XTSE0010 for a document without element, and any static error
+   *         found on the way
+   */
   @NonNull
   private CompiledStylesheet _compile (@NonNull final IXdmNode aSource)
   {
@@ -1708,6 +2214,9 @@ public final class StylesheetCompiler
    * @return The compiled stylesheet.
    * @throws XsltException
    *         for static errors
+   * @throws IllegalStateException
+   *         if a schema-aware compilation is requested but Apache Xerces-J is
+   *         not on the class path
    */
   @NonNull
   public static CompiledStylesheet compile (@NonNull final IXdmNode aSource, @NonNull final XsltCompileOptions aOptions)

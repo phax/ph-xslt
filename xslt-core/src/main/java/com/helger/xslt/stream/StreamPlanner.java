@@ -37,6 +37,7 @@ import com.helger.xslt.tree.XsltNames;
  * (<code>xsl:for-each</code> without sort keys,
  * <code>xsl:apply-templates</code> without sort keys and parameters,
  * <code>xsl:copy-of</code> without <code>copy-accumulators</code>,
+ * <code>validation</code> and <code>type</code>,
  * <code>xsl:iterate</code>, <code>xsl:for-each-group</code> without sort
  * keys, <code>xsl:fork</code>). A port of go-xslt's
  * <code>strbFindConsumer</code>.
@@ -79,6 +80,17 @@ public final class StreamPlanner
     return false;
   }
 
+  /**
+   * @param aEl
+   *        A literal result element around the consumer.
+   * @param aVerdicts
+   *        What the streamability analysis proved, or <code>null</code>.
+   * @return <code>true</code> if the element may be evaluated before any
+   *         record is read: it has no <code>xsl:use-attribute-sets</code>,
+   *         and either no attribute value template ({@link #hasAvt(XslElement)})
+   *         or one proven motionless
+   *         ({@link StreamVerdicts#isMotionlessWrapper(XslElement)}).
+   */
   private static boolean _isSafeWrapper (@NonNull final XslElement aEl, @Nullable final StreamVerdicts aVerdicts)
   {
     for (final Map.Entry <XdmQName, String> aEntry : aEl.getAllAttributes ().entrySet ())
@@ -87,6 +99,19 @@ public final class StreamPlanner
     return !hasAvt (aEl) || (aVerdicts != null && aVerdicts.isMotionlessWrapper (aEl));
   }
 
+  /**
+   * @param aEl
+   *        The innermost significant element.
+   * @return <code>true</code> if it is an instruction with a streamed branch
+   *         in the form described for the class: <code>xsl:for-each</code>
+   *         and <code>xsl:for-each-group</code> without
+   *         <code>xsl:sort</code>, <code>xsl:apply-templates</code> without
+   *         <code>xsl:sort</code> and <code>xsl:with-param</code>,
+   *         <code>xsl:copy-of</code> without a true
+   *         <code>copy-accumulators</code> and without <code>validation</code>
+   *         and <code>type</code>, and every <code>xsl:iterate</code> and
+   *         <code>xsl:fork</code>. Its select expression is not looked at.
+   */
   private static boolean _isConsumer (@NonNull final XslElement aEl)
   {
     if (!aEl.isXsl ())

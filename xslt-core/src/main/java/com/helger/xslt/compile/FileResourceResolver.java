@@ -60,6 +60,14 @@ public final class FileResourceResolver implements IResourceResolver
     m_bLoadExternalEntities = bLoadExternalEntities;
   }
 
+  /**
+   * @param sAbsoluteUri
+   *        An absolute URI.
+   * @return The local file a <code>file:</code> URI names, with any fragment
+   *         identifier ignored; <code>null</code> for any other scheme, a URI
+   *         that cannot be converted to a path, or a path that is not an
+   *         existing regular file.
+   */
   @Nullable
   private static Path _getPath (@NonNull final String sAbsoluteUri)
   {
@@ -80,6 +88,15 @@ public final class FileResourceResolver implements IResourceResolver
     }
   }
 
+  /**
+   * Parse the local file as an XML document. The document URI is set to the
+   * requested URI unless the parser already set one.
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @return The document node, or <code>null</code> if the URI names no
+   *         readable local file or the file is not well-formed.
+   */
   @Nullable
   public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
   {
@@ -99,6 +116,20 @@ public final class FileResourceResolver implements IResourceResolver
     }
   }
 
+  /**
+   * Open the local file for streamed reading with the default element depth
+   * limit. Unlike {@link #resolveDocument(String)}, errors while opening the
+   * stream are thrown, not turned into <code>null</code>.
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @param aStripWhitespace
+   *        Decides by element name whether whitespace-only text is stripped,
+   *        or <code>null</code> to keep all text.
+   * @return The reader, or <code>null</code> if the URI names no local file.
+   * @throws XdmParseException
+   *         if the stream cannot be opened
+   */
   @Override
   @Nullable
   public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
@@ -117,6 +148,17 @@ public final class FileResourceResolver implements IResourceResolver
     return ret;
   }
 
+  /**
+   * Read the local file as text.
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @param sEncoding
+   *        The encoding name, <code>null</code> for UTF-8.
+   * @return The text, or <code>null</code> if the URI names no local file,
+   *         the encoding is unknown or the content cannot be read or decoded
+   *         with it.
+   */
   @Nullable
   public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
   {

@@ -42,9 +42,10 @@ public final class Avt
    * @param aParts
    *        The parts: {@link String} for fixed text, {@link XPathExpr} for expressions.
    * @param bTextValueTemplate
-   *        <code>true</code> for a text value template, whose expression values are converted by
-   *        the rules for simple content (adjacent text nodes are merged before the items are joined
-   *        with spaces).
+   *        <code>true</code> for a text value template. Only recorded: attribute and text value
+   *        templates both convert expression values by the rules for simple content (XSLT 3.0
+   *        sections 5.6 and 5.7.2: adjacent text nodes are merged before the items are joined with
+   *        spaces).
    */
   public Avt (@NonNull final List <Object> aParts, final boolean bTextValueTemplate)
   {
@@ -52,6 +53,18 @@ public final class Avt
     m_bTextValueTemplate = bTextValueTemplate;
   }
 
+  /**
+   * Evaluate one expression of the template and turn its value into a
+   * string by the rules for simple content: zero-length text nodes dropped,
+   * adjacent text nodes merged, the items atomised and joined with single
+   * spaces.
+   *
+   * @param aExpr
+   *        The expression part.
+   * @param aCtx
+   *        Run-time context.
+   * @return The string value of the part, "" for an empty sequence.
+   */
   @NonNull
   private String _evaluatePart (@NonNull final XPathExpr aExpr, @NonNull final XsltContext aCtx)
   {
@@ -83,6 +96,10 @@ public final class Avt
   }
 
   /**
+   * Evaluate the template: the fixed text and the string values of the
+   * expressions (see {@link #_evaluatePart(XPathExpr, XsltContext)})
+   * concatenated in order, without separators between the parts.
+   *
    * @param aCtx
    *        Run-time context.
    * @return The value.

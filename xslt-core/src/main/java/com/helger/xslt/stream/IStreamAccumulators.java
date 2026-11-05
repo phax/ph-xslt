@@ -22,7 +22,7 @@ import com.helger.xpath.xdm.IXdmNode;
 
 /**
  * The accumulators of a streamed document, computed as the reader advances
- * (XSLT 3.0 section 18.2.8): the start-phase rules when a node is entered, the
+ * (XSLT 3.0 section 18.2.9): the start-phase rules when a node is entered, the
  * end-phase rules when it is complete. Every rule of a streamable accumulator
  * is motionless, so a node's value needs nothing but the node and its
  * ancestors. The values are kept only while the node is.

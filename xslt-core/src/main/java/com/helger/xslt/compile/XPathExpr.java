@@ -91,6 +91,9 @@ public final class XPathExpr
   }
 
   /**
+   * Evaluate the expression against the dynamic context of the run (focus,
+   * local variables), using the static context it was compiled with.
+   *
    * @param aCtx
    *        Run-time context.
    * @return The value.
@@ -114,6 +117,10 @@ public final class XPathExpr
   }
 
   /**
+   * Evaluate, atomise the result and join the string values of the atomic
+   * items with the separator. Unlike the rules for simple content, text nodes
+   * are not merged first.
+   *
    * @param aCtx
    *        Run-time context.
    * @param sSeparator

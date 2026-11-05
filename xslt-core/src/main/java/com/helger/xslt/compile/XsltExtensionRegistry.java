@@ -103,6 +103,17 @@ public final class XsltExtensionRegistry
   private XsltExtensionRegistry ()
   {}
 
+  /**
+   * Build a registry: the core instructions and run-time functions first,
+   * then each class of {@link #EXTENSION_CLASS_NAMES} in list order,
+   * instantiated through its public no-argument constructor. A class that is
+   * not on the class path is skipped silently; one that cannot be
+   * instantiated or does not implement {@link IXsltExtension} is logged as
+   * an error and skipped. Exceptions thrown by a <code>register</code>
+   * method itself (e.g. a duplicate registration) propagate.
+   *
+   * @return The filled registry.
+   */
   @NonNull
   private static XsltExtensionRegistry _create ()
   {
@@ -178,7 +189,8 @@ public final class XsltExtensionRegistry
 
   /**
    * Replace the compiler of an instruction the core provides only in a basic
-   * form.
+   * form. Unlike {@link #registerInstruction(String, IInstructionCompiler)}
+   * this never fails: an absent instruction is simply added.
    *
    * @param sLocalName
    *        Local name.
@@ -204,6 +216,8 @@ public final class XsltExtensionRegistry
    * @param aCompiler
    *        The compiler.
    * @return this for chaining
+   * @throws IllegalStateException
+   *         if the declaration is already registered
    */
   @NonNull
   public XsltExtensionRegistry registerDeclaration (@NonNull final String sLocalName,
@@ -235,6 +249,15 @@ public final class XsltExtensionRegistry
     return this;
   }
 
+  /**
+   * Register a customiser that is applied, in registration order, to the
+   * serialisation parameters built from every output definition (principal
+   * result, xsl:result-document, fn:transform).
+   *
+   * @param aCustomizer
+   *        The customiser.
+   * @return this for chaining
+   */
   @NonNull
   public XsltExtensionRegistry registerOutputCustomizer (@NonNull final IOutputCustomizer aCustomizer)
   {
@@ -243,6 +266,14 @@ public final class XsltExtensionRegistry
     return this;
   }
 
+  /**
+   * Register a check that runs once per stylesheet after all declarations
+   * were compiled; finishers run in registration order.
+   *
+   * @param aFinisher
+   *        The finisher.
+   * @return this for chaining
+   */
   @NonNull
   public XsltExtensionRegistry registerCompileFinisher (@NonNull final ICompileFinisher aFinisher)
   {
@@ -266,12 +297,25 @@ public final class XsltExtensionRegistry
     return this;
   }
 
+  /**
+   * @param sLocalName
+   *        Local name of an XSLT instruction.
+   * @return Its registered compiler, or <code>null</code> if none is
+   *         registered.
+   */
   @Nullable
   public IInstructionCompiler getInstructionCompiler (@NonNull final String sLocalName)
   {
     return m_aRWLock.readLockedGet ( () -> m_aInstructions.get (sLocalName));
   }
 
+  /**
+   * @param sLocalName
+   *        Local name of an XSLT declaration.
+   * @return Its registered compiler, or <code>null</code> if none is
+   *         registered (also for the {@link #CORE_DECLARATIONS}, which the
+   *         stylesheet compiler handles itself).
+   */
   @Nullable
   public IDeclarationCompiler getDeclarationCompiler (@NonNull final String sLocalName)
   {
@@ -281,8 +325,9 @@ public final class XsltExtensionRegistry
   /**
    * @param sLocalName
    *        Local name of an XSLT element.
-   * @return <code>true</code> if the processor implements it (instruction or
-   *         declaration), for element-available().
+   * @return <code>true</code> if the processor implements it (a registered
+   *         instruction or declaration, or one of the
+   *         {@link #CORE_DECLARATIONS}), for element-available().
    */
   public boolean isImplemented (@NonNull final String sLocalName)
   {
@@ -295,12 +340,22 @@ public final class XsltExtensionRegistry
     return false;
   }
 
+  /**
+   * @param sLocalName
+   *        Local name of a system property in the XSLT namespace.
+   * @return <code>true</code> if an extension registered it with
+   *         {@link #registerSystemPropertyYes(String)}.
+   */
   public boolean isSystemPropertyYes (@NonNull final String sLocalName)
   {
     return m_aRWLock.readLockedBoolean ( () -> m_aSystemPropertiesYes.contains (sLocalName));
   }
 
   /**
+   * Let every registered contributor add its functions to the library, in
+   * registration order. The contributors run on a snapshot of the list,
+   * without the lock held.
+   *
    * @param aLibrary
    *        The library of a new stylesheet.
    */

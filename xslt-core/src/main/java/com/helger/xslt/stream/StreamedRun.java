@@ -107,6 +107,13 @@ public final class StreamedRun
     m_aAccumulators = aAccumulators;
   }
 
+  /**
+   * @param aEngine
+   *        The engine.
+   * @return The stack of the live runs of the engine, innermost last, kept in
+   *         the per-run data of the engine and created empty on first use. A
+   *         host nested in a streamed host pushes its own run on top.
+   */
   @NonNull
   private static ArrayDeque <StreamedRun> _getStack (@NonNull final Engine aEngine)
   {
@@ -136,6 +143,14 @@ public final class StreamedRun
     _getStack (aEngine).addLast (this);
   }
 
+  /**
+   * Remove this run from the stack of live runs of the engine, if it is the
+   * innermost one. Otherwise (it was not pushed, or was already popped)
+   * nothing happens.
+   *
+   * @param aEngine
+   *        The engine.
+   */
   public void pop (@NonNull final Engine aEngine)
   {
     final ArrayDeque <StreamedRun> aStack = _getStack (aEngine);
@@ -144,7 +159,7 @@ public final class StreamedRun
   }
 
   /**
-   * @return The number of records sequences consumed streamed in this JVM,
+   * @return The number of record sequences consumed streamed in this JVM,
    *         for tests that must tell the streamed from the buffered execution.
    */
   public static long getStreamedRunCount ()
@@ -211,6 +226,12 @@ public final class StreamedRun
     return m_bDriven;
   }
 
+  /**
+   * @param ex
+   *        What the reader raised: the document is not well-formed, ends
+   *        inside a record, or exceeds a limit of the reader.
+   * @return The dynamic error FODC0002 with the message of the reader.
+   */
   @NonNull
   private static XPathException _readError (@NonNull final XdmParseException ex)
   {
@@ -258,6 +279,15 @@ public final class StreamedRun
       _drop (aNode);
   }
 
+  /**
+   * Set up the cursor over the records of the given paths, with no element
+   * on any path yet, and mark the run as driven: the document of a run is
+   * read once only, either by {@link #drive(List, List, XsltContext, String)}
+   * or with {@link #startPull(StreamRecordPath, XsltContext)}.
+   *
+   * @throws IllegalStateException
+   *         if the run was already driven or pulled
+   */
   private void _startCursor (@NonNull final List <StreamRecordPath> aPaths, @NonNull final XsltContext aPathContext)
   {
     if (m_bDriven)

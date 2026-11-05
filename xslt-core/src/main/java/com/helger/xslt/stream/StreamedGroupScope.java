@@ -55,6 +55,16 @@ public final class StreamedGroupScope
     m_aElement = aElement;
   }
 
+  /**
+   * @param aSheet
+   *        The stylesheet.
+   * @param aTemplateEl
+   *        An <code>xsl:template</code> element with a match pattern.
+   * @return <code>true</code> if a template rule compiled from that element
+   *         applies in a mode declared streamable (XSLT 3.0 section 6.6.4):
+   *         for <code>mode="#all"</code> any streamable mode of the
+   *         stylesheet, otherwise one of its listed modes.
+   */
   private static boolean _hasStreamableMode (@NonNull final CompiledStylesheet aSheet, @NonNull final XslElement aTemplateEl)
   {
     for (final Template aTemplate : aSheet.templates ())

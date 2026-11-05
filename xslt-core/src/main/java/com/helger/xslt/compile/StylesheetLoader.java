@@ -71,7 +71,12 @@ import com.helger.xslt.tree.XsltNames;
 @NotThreadSafe
 public final class StylesheetLoader
 {
-  /** The top-level declarations of one import precedence. */
+  /**
+   * The top-level declarations of one import precedence: the declarations of a
+   * module together with those of the modules it includes, in declaration
+   * order. <code>importLo</code> is the index of the lowest level that belongs
+   * to the module's import subtree (its own index if it imports nothing).
+   */
   public record Level (@NonNull ICommonsList <XslElement> declarations, int importLo)
   {}
 
@@ -93,6 +98,15 @@ public final class StylesheetLoader
   // "variable" or "param" per static name
   private final ICommonsMap <XdmQName, String> m_aStaticKinds = new CommonsHashMap <> ();
 
+  /**
+   * Create a loader. The function library for static expressions is the
+   * default library plus the XSLT functions allowed in static expressions,
+   * and the streaming-related functions when the options claim streaming.
+   *
+   * @param aOptions
+   *        The compile options (resolver, static parameter values,
+   *        schema-awareness, streaming claim).
+   */
   public StylesheetLoader (@NonNull final XsltCompileOptions aOptions)
   {
     m_aOptions = aOptions;
@@ -123,6 +137,15 @@ public final class StylesheetLoader
     return m_aAllModules;
   }
 
+  /**
+   * Create the static context for a static expression (XSLT 3.0 section 9.7)
+   * on an element: its namespaces and base URI, the static function library,
+   * the static variables declared so far and no decimal formats.
+   *
+   * @param aEl
+   *        The element carrying the expression.
+   * @return A new static context.
+   */
   @NonNull
   private StaticContext _createStaticContext (@NonNull final XslElement aEl)
   {
@@ -135,6 +158,10 @@ public final class StylesheetLoader
     return ret;
   }
 
+  /**
+   * @return The resolver of the options, or a new {@link FileResourceResolver}
+   *         that loads external entities as the options say.
+   */
   @NonNull
   private IResourceResolver _getResolver ()
   {
@@ -165,6 +192,21 @@ public final class StylesheetLoader
     }
   }
 
+  /**
+   * Evaluate an attribute value template statically, as needed for a shadow
+   * attribute (XSLT 3.0 section 3.13.2): each expression part is evaluated
+   * with {@link #_evaluateStatic(XslElement, String)}, its result atomized and
+   * the string values joined with single spaces; fixed parts are copied.
+   *
+   * @param aEl
+   *        The element carrying the attribute.
+   * @param sValue
+   *        The attribute value.
+   * @return The expanded value.
+   * @throws XsltException
+   *         for a syntax error in the template or an error evaluating one of
+   *         its expressions, located at the element
+   */
   @NonNull
   private String _evaluateStaticAvt (@NonNull final XslElement aEl, @NonNull final String sValue)
   {
@@ -195,6 +237,17 @@ public final class StylesheetLoader
     return aSB.toString ();
   }
 
+  /**
+   * Replace the shadow attributes of an XSLT element (XSLT 3.0 section
+   * 3.13.2): each attribute in no namespace whose local name starts with an
+   * underscore and has at least one more character is evaluated as a static
+   * attribute value template, removed, and its value set on the attribute
+   * named without the underscore (overwriting one that is present). Literal
+   * result elements are left alone.
+   *
+   * @param aEl
+   *        The element, changed in place.
+   */
   private void _expandShadowAttributes (@NonNull final XslElement aEl)
   {
     final boolean bXsl = aEl.isXsl ();
@@ -217,6 +270,19 @@ public final class StylesheetLoader
     }
   }
 
+  /**
+   * Conditional element inclusion (XSLT 3.0 section 3.13.1): evaluate the
+   * [xsl:]use-when attribute of the element statically and take its effective
+   * boolean value. An evaluation error of an unknown XSLT element in forwards
+   * compatible mode excludes the element instead of being raised.
+   *
+   * @param aEl
+   *        The element.
+   * @return <code>true</code> if the element is excluded, <code>false</code>
+   *         if it has no use-when attribute or the condition is true.
+   * @throws XPathException
+   *         the error of evaluating the condition otherwise
+   */
   private boolean _isUseWhenFalse (@NonNull final XslElement aEl)
   {
     final String sUseWhen = aEl.getStandardAttr ("use-when");
@@ -236,6 +302,13 @@ public final class StylesheetLoader
     }
   }
 
+  /**
+   * @param aSrc
+   *        A source element.
+   * @return <code>true</code> if it has an element child or a text child that
+   *         is not whitespace-only (comments and processing instructions do
+   *         not count).
+   */
   private static boolean _hasContent (@NonNull final IXdmNode aSrc)
   {
     final int n = aSrc.getChildCount ();
@@ -248,6 +321,29 @@ public final class StylesheetLoader
     return false;
   }
 
+  /**
+   * Process a static xsl:variable or xsl:param (XSLT 3.0 section 9.6) when it
+   * is met in tree order, so later static expressions can refer to it. The
+   * value is the externally supplied static parameter value (xsl:param only),
+   * else the value of the select expression, else the empty sequence if an
+   * <code>as</code> attribute is present, otherwise a zero-length string; it is
+   * then converted to the <code>as</code> type with the function conversion
+   * rules (error XTTE0590). A second declaration of the same name is resolved
+   * by import precedence: if the earlier one belongs to a module that imports
+   * the current one (its group is still on the stack), the earlier value
+   * stays; if it belongs to the same precedence group the new value replaces
+   * it; otherwise both must agree in kind and be deep-equal, and the new
+   * value takes over.
+   *
+   * @param aEl
+   *        The static xsl:variable or xsl:param element.
+   * @throws XsltException
+   *         XTSE0020 if the name is not a valid QName, XTSE0010 if there is
+   *         content without a select attribute, XTDE0050 for a required
+   *         static parameter without a supplied value, XTSE3450 for an
+   *         inconsistent redeclaration, or the error of evaluating or
+   *         converting the value
+   */
   private void _processStaticDeclaration (@NonNull final XslElement aEl)
   {
     final XdmQName aName = aEl.resolveQName (aEl.getAttr ("name") == null ? "" : aEl.getAttr ("name"), false);
@@ -320,6 +416,18 @@ public final class StylesheetLoader
     m_aStaticKinds.put (aName, aEl.getLocalName ());
   }
 
+  /**
+   * Find the first element in document order (depth-first, with an explicit
+   * stack) whose <code>xml:id</code> or <code>id</code> attribute, trimmed,
+   * equals the ID; used for a fragment identifier in the href of xsl:include
+   * or xsl:import (XSLT 3.0 section 3.12).
+   *
+   * @param aRoot
+   *        The node to search below (itself included).
+   * @param sID
+   *        The ID to find.
+   * @return The element or <code>null</code> if there is none.
+   */
   @NonNull
   private static IXdmNode _findById (@NonNull final IXdmNode aRoot, @NonNull final String sID)
   {
@@ -341,6 +449,12 @@ public final class StylesheetLoader
     return null;
   }
 
+  /**
+   * @param aDoc
+   *        A document or element node.
+   * @return The node itself if it is an element, else its first element
+   *         child, or <code>null</code> if there is none.
+   */
   @Nullable
   private static IXdmNode _getDocumentElement (@NonNull final IXdmNode aDoc)
   {
@@ -353,6 +467,12 @@ public final class StylesheetLoader
     return null;
   }
 
+  /**
+   * @param s
+   *        A URI.
+   * @return The URI without the fragment identifier (from the first
+   *         <code>#</code> on).
+   */
   @NonNull
   private static String _stripFragment (@NonNull final String s)
   {
@@ -360,6 +480,29 @@ public final class StylesheetLoader
     return n < 0 ? s : s.substring (0, n);
   }
 
+  /**
+   * Load the module referenced by an xsl:include or xsl:import (XSLT 3.0
+   * sections 3.11.1 to 3.11.3). The href is resolved against the static base
+   * URI of the element when that is absolute; a fragment identifier selects
+   * the element with that ID (an embedded module, section 3.12). An empty URI,
+   * or one equal to the base URI without its fragment, refers to the
+   * document of the including module itself. The referenced element must be
+   * an XSLT element other than xsl:package, or the outermost element of a
+   * simplified stylesheet (with xsl:version). An xsl:import starts a new
+   * import precedence group, an xsl:include joins the group of the including
+   * module; the module is loaded recursively with
+   * {@link #loadModule(IXdmNode, String, boolean)}.
+   *
+   * @param aIncludeEl
+   *        The xsl:include or xsl:import element.
+   * @return The loaded module.
+   * @throws XsltException
+   *         XTSE0010 without href, XTSE0180 (include) or XTSE0210 (import)
+   *         if the module is already being loaded (a cycle), XTSE0165 if the
+   *         href is invalid, the resource cannot be retrieved, has no
+   *         document element or ID-matching element, is a package, or is no
+   *         stylesheet module
+   */
   @NonNull
   private XslModule _loadReferencedModule (@NonNull final XslElement aIncludeEl)
   {
@@ -432,6 +575,19 @@ public final class StylesheetLoader
     }
   }
 
+  /**
+   * Load the package named by an xsl:use-package (XSLT 3.0 section 3.5.2)
+   * through the {@link PackageRegistry} (created on first use) as a new
+   * package unit with its own import precedence group, and record the use on
+   * the using package (the innermost one being loaded).
+   *
+   * @param aUseEl
+   *        The xsl:use-package element.
+   * @return The outermost module of the used package.
+   * @throws XsltException
+   *         XTSE3005 if the package is already being loaded (it uses itself
+   *         directly or indirectly), or the errors of resolving the package
+   */
   @NonNull
   private XslModule _loadUsedPackage (@NonNull final XslElement aUseEl)
   {
@@ -460,7 +616,13 @@ public final class StylesheetLoader
 
   /**
    * Build the processed element for a source element; <code>null</code> if
-   * use-when excludes it.
+   * use-when excludes it. The attributes are copied, the element is appended
+   * to its parent, its shadow attributes are expanded and its use-when is
+   * evaluated (an excluded element is removed again with its whole subtree,
+   * which is never built). On a top-level XSLT element a static variable or
+   * parameter is processed, and an xsl:include, xsl:import or xsl:use-package
+   * loads its target module at once, so all static processing happens in
+   * stylesheet tree order. The children are built last.
    */
   @Nullable
   private XslElement _build (@NonNull final XslModule aModule,
@@ -499,6 +661,20 @@ public final class StylesheetLoader
     return aEl;
   }
 
+  /**
+   * Build the children of an element: adjacent text nodes are merged into one
+   * {@link XslText} located at the first of them, elements are built with
+   * {@link #_build(XslModule, IXdmNode, XslElement, boolean)}, comments and
+   * processing instructions are dropped. Children of the outermost XSLT
+   * element of a module that is not simplified are top-level.
+   *
+   * @param aModule
+   *        The module being built.
+   * @param aSrc
+   *        The source element.
+   * @param aEl
+   *        The processed element the children are appended to.
+   */
   private void _buildChildren (@NonNull final XslModule aModule, @NonNull final IXdmNode aSrc, @NonNull final XslElement aEl)
   {
     final boolean bChildrenTopLevel = aEl.getParent () == null && aEl.isXsl () && !aModule.isSimplified ();
@@ -535,7 +711,15 @@ public final class StylesheetLoader
   }
 
   /**
-   * Load one module from its outermost element.
+   * Load one module from its outermost element and build its processed tree,
+   * including all modules and packages it references. For the principal
+   * module the first import precedence group and the principal package unit
+   * are started. The outermost element must be xsl:stylesheet, xsl:transform
+   * or xsl:package, or a literal result element with xsl:version (a
+   * simplified stylesheet, XSLT 3.0 section 3.8). If use-when on the
+   * outermost element is false, the module keeps the element but none of its
+   * children (XSLT 3.0 section 3.13.1); this is not checked for a simplified
+   * principal module.
    *
    * @param aRootSrc
    *        The outermost element of the module.
@@ -544,6 +728,10 @@ public final class StylesheetLoader
    * @param bPrincipal
    *        <code>true</code> for the principal module.
    * @return The module.
+   * @throws XsltException
+   *         XTSE0150 for a literal result element without xsl:version, XTSE0010
+   *         for another XSLT element as outermost element, and the errors of
+   *         static processing
    */
   @NonNull
   public XslModule loadModule (@NonNull final IXdmNode aRootSrc, @Nullable final String sUri, final boolean bPrincipal)
@@ -593,6 +781,13 @@ public final class StylesheetLoader
     return aModule;
   }
 
+  /**
+   * @param aModule
+   *        A loaded module.
+   * @return <code>true</code> if it contains an xsl:use-package declaration,
+   *         directly or in a module it includes (recursively); imported
+   *         modules are not searched.
+   */
   private boolean _containsUsePackage (@NonNull final XslModule aModule)
   {
     if (aModule.getRoot () == null || aModule.isSimplified ())
@@ -608,6 +803,23 @@ public final class StylesheetLoader
     return false;
   }
 
+  /**
+   * Collect the import precedence levels of a module recursively, lowest
+   * precedence first (XSLT 3.0 section 3.11.3). The levels of each imported
+   * module come before the module's own level, in import order; an included
+   * module contributes its imported levels likewise, while its own
+   * declarations are merged into the including module's level at the point
+   * of the xsl:include. A used package is placed like an imported module, and
+   * the declarations inside its xsl:override elements join the using
+   * module's level. The <code>importLo</code> of sub-levels is shifted by the
+   * number of levels before them.
+   *
+   * @param aModule
+   *        The module.
+   * @return The levels; the last one is the module's own.
+   * @throws XsltException
+   *         XTSE3008 if an imported module contains an xsl:use-package
+   */
   @NonNull
   private ICommonsList <Level> _gather (@NonNull final XslModule aModule)
   {
@@ -661,7 +873,9 @@ public final class StylesheetLoader
 
   /**
    * Arrange the declarations of all modules by import precedence and assign
-   * the precedence to each top-level element.
+   * the precedence to each top-level element. A declaration inside
+   * xsl:override passes its precedence on to the xsl:override and its
+   * xsl:use-package parent.
    *
    * @param aPrincipal
    *        The principal module.

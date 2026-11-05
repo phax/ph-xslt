@@ -35,7 +35,7 @@ import com.helger.xslt.tree.XsltNames;
 
 /**
  * Builds the XPath static context of an expression written on a stylesheet
- * element (XSLT 3.0 section 5.4.1).
+ * element (XSLT 3.0 section 5.3.1).
  *
  * @author Philip Helger
  */
@@ -49,6 +49,12 @@ public final class StaticContexts
   {}
 
   /**
+   * Determine the default collation from the nearest ancestor-or-self element
+   * with <code>[xsl:]default-collation</code> (XSLT 3.0 section 3.7.1): the
+   * first of its whitespace-separated URIs, resolved against that element's
+   * static base URI, that names a supported collation. Without the attribute
+   * the Unicode codepoint collation applies.
+   *
    * @param aEl
    *        The element.
    * @return The effective default collation URI of the element.
@@ -72,7 +78,12 @@ public final class StaticContexts
   }
 
   /**
-   * Create the static context of an element.
+   * Create the static context of an element (XSLT 3.0 section 5.3.1): the
+   * namespaces in scope on the element (only these, plus <code>xml</code>),
+   * the inherited <code>[xsl:]xpath-default-namespace</code> as default
+   * element and type namespace, the static base URI, the default collation,
+   * the given function library, variables and decimal formats. The XML
+   * version is always 1.1, so XML 1.1 characters are accepted.
    *
    * @param aEl
    *        The element.

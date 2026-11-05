@@ -70,24 +70,28 @@ import com.helger.xslt.tree.XsltNames;
 
 /**
  * Guaranteed-streamability analysis at the instruction level (XSLT 3.0
- * section 19.8.3 to 19.8.6, and the streamability rules of sections 6.7.1,
- * 15.4, 18.1 and 18.2.8), built on the expression-level analysis of
+ * section 19.8.3 to 19.8.6, and the streamability rules of sections 6.6.4,
+ * 15.4, 18.1 and 18.2.9), built on the expression-level analysis of
  * {@link XPathStreamability}. A port of go-xslt's
  * <code>internal/xslt/streamability.go</code>.
  * <p>
- * The compiler calls {@link #check(StylesheetCompiler, StreamabilityIndex)}
- * only when streamability declarations are binding
- * ({@link com.helger.xslt.XsltCompileOptions#isEnforceStreamability()}). It
- * raises XTSE3430 for a construct declared streamable that is not guaranteed
- * streamable, and XTSE3155 for a declared-streamable stylesheet function
- * without parameters:
+ * The compiler calls
+ * {@link #check(StylesheetCompiler, StreamabilityIndex, boolean)} only when
+ * streamability declarations are binding
+ * ({@link com.helger.xslt.XsltCompileOptions#isEnforceStreamability()}) or
+ * streaming is claimed
+ * ({@link com.helger.xslt.XsltCompileOptions#isStreamingClaim()}). When
+ * binding, it raises XTSE3430 for a construct declared streamable that is not
+ * guaranteed streamable, and XTSE3155 for a declared-streamable stylesheet
+ * function without parameters; otherwise a failure only keeps the construct
+ * from being executed streamed. It checks:
  * <ul>
  * <li>every template rule of a mode declared <code>streamable="yes"</code>:
  * motionless match pattern (section 19.8.10), a guaranteed-streamable body and
- * a grounded type-adjusted result (section 6.7.1);</li>
+ * a grounded type-adjusted result (section 6.6.4);</li>
  * <li>every stylesheet function with a streamability category other than
  * <code>unclassified</code> (section 19.8.5);</li>
- * <li>every accumulator declared streamable (section 18.2.8);</li>
+ * <li>every accumulator declared streamable (section 18.2.9);</li>
  * <li>every <code>xsl:merge-source</code> declared streamable (section
  * 15.4);</li>
  * <li>every <code>xsl:source-document</code> declared streamable (section
@@ -181,6 +185,18 @@ public final class XsltStreamability
   private final ICommonsSet <XdmQName> m_aSetsInProgress = new CommonsHashSet <> ();
   private int m_nDepth;
 
+  /**
+   * Collect what every walk needs from the compiled stylesheet: the names of
+   * the modes declared <code>streamable="yes"</code>, and per EQName and arity
+   * the stylesheet function with the highest import precedence (on equal
+   * precedence the first one in {@link CompiledStylesheet#functions()} order
+   * is kept), which is the one a static call resolves to.
+   *
+   * @param aCompiler
+   *        The compiler that just finished the stylesheet.
+   * @param aIndex
+   *        The operands the compiler recorded for the analysis.
+   */
   private XsltStreamability (@NonNull final StylesheetCompiler aCompiler, @NonNull final StreamabilityIndex aIndex)
   {
     m_aCompiler = aCompiler;
@@ -198,6 +214,11 @@ public final class XsltStreamability
     }
   }
 
+  /**
+   * @return <code>true</code> if the type has an item type (it is neither
+   *         absent nor <code>empty-sequence()</code>) whose kind is one of the
+   *         given kinds. The occurrence indicator is not looked at.
+   */
   private static boolean _isKind (@Nullable final SeqType aType, final ItemType.@NonNull Kind... aKinds)
   {
     if (aType == null || aType.empty () || aType.itemType () == null)
@@ -321,12 +342,22 @@ public final class XsltStreamability
     };
   }
 
+  /**
+   * The streamability category of a stylesheet function, read from its
+   * <code>streamability</code> attribute by
+   * {@link #getFunctionCategory(String)}.
+   */
   @NonNull
   private static EStreamFunctionCategory _getFunctionCategory (@NonNull final UserFunction aFunc)
   {
     return getFunctionCategory (aFunc.getElement ().getAttr ("streamability"));
   }
 
+  /**
+   * @return The attribute value spelling of a category, as used in the
+   *         XTSE3155 and XTSE3430 messages; every category without a name of
+   *         its own reads <code>unclassified</code>.
+   */
   @NonNull
   private static String _getCategoryName (@NonNull final EStreamFunctionCategory eCategory)
   {
@@ -379,12 +410,22 @@ public final class XsltStreamability
     };
   }
 
+  /**
+   * @return The mode name for an error message: <code>#unnamed</code> for the
+   *         unnamed mode, the EQName otherwise.
+   */
   @NonNull
   private static String _getModeName (@NonNull final XdmQName aMode)
   {
     return Mode.UNNAMED.equals (aMode) ? "#unnamed" : aMode.getEQName ();
   }
 
+  /**
+   * @return How an element is named in a rejection reason:
+   *         <code>xsl:</code> plus the local name for an XSLT element, "the
+   *         literal result element" plus the lexical name otherwise (also for
+   *         an extension instruction).
+   */
   @NonNull
   private static String _what (@NonNull final XslElement aEl)
   {
@@ -508,6 +549,23 @@ public final class XsltStreamability
     return ret;
   }
 
+  /**
+   * The {@link IStreamFunctionResolver} handed to the expression-level
+   * analysis: what section 19.8.5 needs to know about a static call to a
+   * stylesheet function. The category comes from the
+   * <code>streamability</code> attribute, each parameter usage is
+   * type-determined (section 19.4) from its declared type, and the first
+   * parameter adds its type-adjusted usage and whether it admits document or
+   * element nodes (false for a zero-arity function).
+   *
+   * @param aName
+   *        The function name.
+   * @param nArity
+   *        The number of arguments of the call.
+   * @return The signature of the function with that name and arity and the
+   *         highest import precedence, or <code>null</code> if the stylesheet
+   *         declares none (a built-in or unknown function).
+   */
   @Nullable
   private StreamFunctionSignature _resolveFunction (@NonNull final XdmQName aName, final int nArity)
   {
@@ -526,6 +584,11 @@ public final class XsltStreamability
                                         eCategory != EStreamFunctionCategory.UNCLASSIFIED);
   }
 
+  /**
+   * Clear the state of one walk before the next declaration is classified:
+   * the first failure, the "child of xsl:fork" flag, the attribute sets on
+   * the cycle guard and the nesting depth.
+   */
   private void _reset ()
   {
     m_aFailure = null;
@@ -534,6 +597,20 @@ public final class XsltStreamability
     m_nDepth = 0;
   }
 
+  /**
+   * Record that the walk failed at a construct. Only the first failure of a
+   * walk is kept, as it is the one the XTSE3430 message names; later calls
+   * only return the verdict.
+   *
+   * @param aLocation
+   *        The construct that is not streamable. May be <code>null</code>, in
+   *        which case the error is reported at the declaration being
+   *        classified.
+   * @param sReason
+   *        Why, for the error message.
+   * @return Always roaming and free-ranging, so a caller can return it
+   *         directly.
+   */
   @NonNull
   private PostureSweep _reject (@Nullable final XslNode aLocation, @NonNull final String sReason)
   {
@@ -575,6 +652,12 @@ public final class XsltStreamability
     return ret;
   }
 
+  /**
+   * @return The parsed <code>as</code> attribute of the element, or
+   *         <code>null</code> if it is absent. A type the compiler did not
+   *         record is also <code>null</code>, with no rejection, and is then
+   *         read like an absent <code>as</code>.
+   */
   @Nullable
   private SeqType _getAs (@NonNull final XslElement aEl)
   {
@@ -582,6 +665,32 @@ public final class XsltStreamability
     return s == null ? null : m_aIndex.getSequenceType (aEl, s);
   }
 
+  /**
+   * Add the expression in an attribute as an operand of the construct,
+   * classified by {@link XPathStreamability} in the given context (in its
+   * higher-order variant for a higher-order operand), together with whether
+   * its static type proves childless. An absent attribute adds nothing; an
+   * attribute the compiler did not record rejects the walk and adds a
+   * roaming, free-ranging operand.
+   *
+   * @param aOps
+   *        The operand list to add to.
+   * @param aEl
+   *        The element the attribute is written on.
+   * @param sAttr
+   *        The local name of the attribute.
+   * @param aCtx
+   *        The context the expression is evaluated in.
+   * @param eUsage
+   *        The usage of the operand role.
+   * @param bHigherOrder
+   *        Whether the operand role is higher-order (evaluated repeatedly).
+   * @param nChoice
+   *        The choice operand group, 0 for none.
+   * @param bRecUsage
+   *        Whether the usage is the one the Recommendation states for the
+   *        role, see {@link StreamOperand#recUsage()}.
+   */
   private void _addExpr (@NonNull final ICommonsList <StreamOperand> aOps,
                          @NonNull final XslElement aEl,
                          @NonNull final String sAttr,
@@ -609,6 +718,11 @@ public final class XsltStreamability
                                  bRecUsage));
   }
 
+  /**
+   * {@link #_addExpr(ICommonsList, XslElement, String, StreamContext, EStreamUsage, boolean, int, boolean)}
+   * for an operand that is not higher-order, in no choice group and with a
+   * fall-back usage.
+   */
   private void _addExpr (@NonNull final ICommonsList <StreamOperand> aOps,
                          @NonNull final XslElement aEl,
                          @NonNull final String sAttr,
@@ -654,6 +768,10 @@ public final class XsltStreamability
       }
   }
 
+  /**
+   * Add the expressions of the attribute value template in an attribute as
+   * operands (section 19.8.7); an absent attribute adds nothing.
+   */
   private void _addAvt (@NonNull final ICommonsList <StreamOperand> aOps,
                         @NonNull final XslElement aEl,
                         @NonNull final String sAttr,
@@ -665,6 +783,11 @@ public final class XsltStreamability
       _addAvtText (aOps, aEl, s, aCtx, eUsage);
   }
 
+  /**
+   * @return The parsed pattern of an attribute, or <code>null</code> if the
+   *         attribute is absent. A pattern the compiler did not record makes
+   *         the walk fail and also returns <code>null</code>.
+   */
   @Nullable
   private XsltPattern _getPattern (@NonNull final XslElement aEl, @NonNull final String sAttr)
   {
@@ -677,6 +800,14 @@ public final class XsltStreamability
     return ret;
   }
 
+  /**
+   * Add the pattern in an attribute as an operand, classified by the pattern
+   * rules of section 19.8.10 (in the higher-order variant of the context if
+   * requested). The operand is always marked childless, so an absorption
+   * usage is downgraded to inspection. An absent attribute adds nothing; a pattern the
+   * compiler did not record rejects the walk and adds a roaming,
+   * free-ranging operand.
+   */
   private void _addPattern (@NonNull final ICommonsList <StreamOperand> aOps,
                             @NonNull final XslElement aEl,
                             @NonNull final String sAttr,
@@ -751,6 +882,25 @@ public final class XsltStreamability
     return XPathStreamability.applyGeneralRules (aOps, aCtx);
   }
 
+  /**
+   * Add a contained sequence constructor as one operand, classified by
+   * {@link #_body(List, StreamContext)} (in the higher-order variant of the
+   * context for a higher-order operand). An empty sequence constructor adds
+   * nothing, since it is grounded and motionless.
+   *
+   * @param aOps
+   *        The operand list to add to.
+   * @param aChildren
+   *        The child nodes forming the sequence constructor.
+   * @param aCtx
+   *        The context the sequence constructor is evaluated in.
+   * @param eUsage
+   *        The usage of the operand role.
+   * @param bHigherOrder
+   *        Whether the operand role is higher-order.
+   * @param nChoice
+   *        The choice operand group, 0 for none.
+   */
   private void _addBody (@NonNull final ICommonsList <StreamOperand> aOps,
                          @NonNull final List <XslNode> aChildren,
                          @NonNull final StreamContext aCtx,
@@ -764,6 +914,10 @@ public final class XsltStreamability
     aOps.add (new StreamOperand (aPS.posture (), aPS.sweep (), eUsage, false, bHigherOrder, nChoice, false));
   }
 
+  /**
+   * {@link #_addBody(ICommonsList, List, StreamContext, EStreamUsage, boolean, int)}
+   * for an operand that is not higher-order and in no choice group.
+   */
   private void _addBody (@NonNull final ICommonsList <StreamOperand> aOps,
                          @NonNull final List <XslNode> aChildren,
                          @NonNull final StreamContext aCtx,
@@ -791,7 +945,7 @@ public final class XsltStreamability
   }
 
   /**
-   * xsl:sort children (sections 19.8.4.5 and 19.8.4.31): the attribute value
+   * xsl:sort children (sections 19.8.4.5 and 19.8.4.33): the attribute value
    * templates absorb, and the sort key absorbs with a grounded focus.
    */
   @NonNull
@@ -835,7 +989,7 @@ public final class XsltStreamability
    * A use-attribute-sets reference (section 19.8.6). The streamability is
    * based on the declared streamability of the named sets: a set not declared
    * <code>streamable="yes"</code> makes the referring instruction roaming and
-   * free-ranging (the Notes of sections 19.8.4.1, 19.8.4.11 and 19.8.4.15),
+   * free-ranging (the Notes of sections 19.8.4.1, 19.8.4.12 and 19.8.4.15),
    * and a set that is declared so must also be streamable. The operands are
    * the contents of every declaration of every set, with usage transmission.
    *
@@ -933,6 +1087,10 @@ public final class XsltStreamability
     return XPathStreamability.applyGeneralRules (aOps);
   }
 
+  /**
+   * {@link #_general(XslElement, ICommonsList, List, StreamContext)} for an
+   * instruction without use-attribute-sets.
+   */
   @NonNull
   private PostureSweep _general (@NonNull final XslElement aEl,
                                  @NonNull final ICommonsList <StreamOperand> aOps,
@@ -1395,7 +1553,7 @@ public final class XsltStreamability
   }
 
   /**
-   * Section 19.8.4.35: xsl:source-document opens its own stream, so with
+   * Section 19.8.4.37: xsl:source-document opens its own stream, so with
    * respect to the enclosing one it is grounded with the sweep of its href.
    * The exception is a call to a grouping function whose owning instruction is
    * outside; any such call is rejected, the conservative form of that test.
@@ -1462,7 +1620,7 @@ public final class XsltStreamability
   }
 
   /**
-   * Section 19.8.4.31: xsl:perform-sort. The population navigates, because
+   * Section 19.8.4.33: xsl:perform-sort. The population navigates, because
    * sorting does not preserve document order.
    */
   @NonNull
@@ -1502,7 +1660,7 @@ public final class XsltStreamability
   }
 
   /**
-   * Section 19.8.4.37: xsl:try. The try body and the catch bodies form a
+   * Section 19.8.4.39: xsl:try. The try body and the catch bodies form a
    * choice operand group.
    */
   @NonNull
@@ -1580,7 +1738,7 @@ public final class XsltStreamability
         case "variable", "param":
           return _localVariable (aEl, aCtx);
         case "value-of":
-          // Section 19.8.4.38
+          // Section 19.8.4.40
           _addExpr (aOps, aEl, "select", aCtx, ABSORPTION);
           _addAvt (aOps, aEl, "separator", aCtx, ABSORPTION);
           _addBody (aOps, _getContent (aEl), aCtx, ABSORPTION);
@@ -1617,7 +1775,7 @@ public final class XsltStreamability
           _addBody (aOps, _getContent (aEl), aCtx, ABSORPTION);
           return _general (aEl, aOps, _getUseAttributeSets (aEl, false), aCtx);
         case "text":
-          // Section 19.8.4.36; a text value template absorbs
+          // Section 19.8.4.38; a text value template absorbs
           if (CompileContext.isExpandText (aEl))
           {
             final StringBuilder aSB = new StringBuilder ();
@@ -1639,7 +1797,7 @@ public final class XsltStreamability
           _addBody (aOps, _getContent (aEl), aCtx, ABSORPTION);
           return _general (aEl, aOps, aCtx);
         case "processing-instruction":
-          // Section 19.8.4.32
+          // Section 19.8.4.34
           _addAvt (aOps, aEl, "name", aCtx, ABSORPTION);
           _addExpr (aOps, aEl, "select", aCtx, ABSORPTION);
           _addBody (aOps, _getContent (aEl), aCtx, ABSORPTION);
@@ -1651,7 +1809,7 @@ public final class XsltStreamability
           _addBody (aOps, _getContent (aEl), aCtx, ABSORPTION);
           return _general (aEl, aOps, aCtx);
         case "sequence", "on-empty", "on-non-empty", "break":
-          // Sections 19.8.4.34 and 19.8.4.8: the instructions that transmit
+          // Sections 19.8.4.36 and 19.8.4.8: the instructions that transmit
           // streamed nodes; xsl:on-empty and xsl:on-non-empty are ordinary
           // transmission operands of their sequence constructor (19.8.3)
           _addExpr (aOps, aEl, "select", aCtx, TRANSMISSION);
@@ -1691,7 +1849,7 @@ public final class XsltStreamability
         case "number":
           return _number (aEl, aCtx);
         case "result-document":
-          // Section 19.8.4.33
+          // Section 19.8.4.35
           for (final String sAttr : RESULT_DOCUMENT_AVTS)
             _addAvt (aOps, aEl, sAttr, aCtx, ABSORPTION);
           _addBody (aOps, _getContent (aEl), aCtx, ABSORPTION);
@@ -1785,7 +1943,7 @@ public final class XsltStreamability
    * Every template rule of a mode declared streamable: a motionless match
    * pattern (section 19.8.10), a guaranteed-streamable body assessed with a
    * striding context posture, and a grounded type-adjusted result (section
-   * 6.7.1).
+   * 6.6.4).
    */
   private void _checkModeRules ()
   {
@@ -1813,7 +1971,7 @@ public final class XsltStreamability
       if (!XPathStreamability.getPatternStreamability (aPattern, new StreamContext (EPosture.STRIDING))
                              .isStreamable ())
         throw XsltException.at (aEl, "XTSE3430", sWhat + " has a match pattern that is not motionless: " + aPattern);
-      // Section 19.3: the context item type of the body is the match type of
+      // Section 19.2: the context item type of the body is the match type of
       // the pattern, which section 19.8.1 needs to downgrade absorption to
       // inspection
       final IExpr aPatternExpr = aPattern instanceof final CompiledXsltPattern aCompiled ? aCompiled.getPatternExpr ()
@@ -1829,7 +1987,7 @@ public final class XsltStreamability
       final Verdict aVerdict = _classify (_getContent (aEl), aEl, aCtx, sWhat);
       if (!aVerdict.isStreamable ())
         throw aVerdict.error ();
-      // Section 6.7.1: the type-adjusted posture of the body, with respect to
+      // Section 6.6.4: the type-adjusted posture of the body, with respect to
       // the declared result type, must be grounded - a template rule cannot
       // hand streamed nodes back to its caller
       final PostureSweep aAdjusted = XPathStreamability.applyGeneralRules (new CommonsArrayList <> (StreamOperand.of (aVerdict.result (),
@@ -1928,7 +2086,7 @@ public final class XsltStreamability
   }
 
   /**
-   * Section 18.2.8: every accumulator declared streamable needs motionless
+   * Section 18.2.9: every accumulator declared streamable needs motionless
    * match patterns, and a grounded and motionless initial value and rule
    * values.
    */

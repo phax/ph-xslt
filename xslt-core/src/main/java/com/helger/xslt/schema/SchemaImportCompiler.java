@@ -52,7 +52,7 @@ import com.helger.xslt.tree.XslElement;
 import com.helger.xslt.tree.XslNode;
 
 /**
- * xsl:import-schema (XSLT 3.0 section 3.16), the static half of
+ * xsl:import-schema (XSLT 3.0 section 3.15), the static half of
  * schema-awareness: the declarations of all modules are compiled into one
  * schema set before any expression is parsed, so that the type and
  * declaration names of expressions, patterns and <code>as</code> attributes
@@ -67,7 +67,7 @@ public final class SchemaImportCompiler
 
   /**
    * The four attributes of the XML namespace, which this processor knows
-   * without a schema location (XSLT 3.0 section 3.16 allows components to be
+   * without a schema location (XSLT 3.0 section 3.15 allows components to be
    * known "implicitly from knowledge of the namespace").
    */
   private static final String XML_NAMESPACE_SCHEMA = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' targetNamespace='" +
@@ -93,8 +93,13 @@ public final class SchemaImportCompiler
   {}
 
   /**
+   * Parse a schema document (its inline text, else the local file its
+   * system ID names) and read the <code>targetNamespace</code> attribute of
+   * the document element.
+   *
    * @return The target namespace of a schema document ("" for none), or
-   *         <code>null</code> if it cannot be read.
+   *         <code>null</code> if it cannot be read: a parse error, a system
+   *         ID that is not a file URI, or no document element.
    */
   @Nullable
   private static String _getTargetNamespace (@NonNull final XdmSchemaSource aSource)
@@ -117,6 +122,19 @@ public final class SchemaImportCompiler
     }
   }
 
+  /**
+   * Look up a schema the host registered in the compile options for a
+   * namespace. A host schema with an explicit namespace matches by that
+   * namespace; one without is parsed to compare its target namespace. The
+   * first match in registration order wins.
+   *
+   * @param aOptions
+   *        The compile options carrying the host schemas.
+   * @param sNamespace
+   *        The imported namespace, "" for no namespace.
+   * @return A source referring to the host schema by system ID, or
+   *         <code>null</code> if the host knows no schema for the namespace.
+   */
   @Nullable
   private static XdmSchemaSource _getHostSchema (@NonNull final XsltCompileOptions aOptions, @NonNull final String sNamespace)
   {
@@ -130,6 +148,16 @@ public final class SchemaImportCompiler
     return null;
   }
 
+  /**
+   * @param aEl
+   *        The xsl:import-schema element.
+   * @param aInline
+   *        Its inline xs:schema child, or <code>null</code>.
+   * @return The namespace the declaration imports: the trimmed
+   *         <code>namespace</code> attribute, else the trimmed
+   *         <code>targetNamespace</code> of the inline schema, else "" (no
+   *         namespace).
+   */
   @NonNull
   private static String _getImportedNamespace (@NonNull final XslElement aEl, @Nullable final XslElement aInline)
   {
@@ -145,6 +173,16 @@ public final class SchemaImportCompiler
     return "";
   }
 
+  /**
+   * Serialise an inline xs:schema element (without XML declaration) so that
+   * the schema processor can read it like a schema document. The copy
+   * declares every namespace in scope on the stylesheet element, so prefixes
+   * used in QName-valued attributes stay resolvable.
+   *
+   * @param aInline
+   *        The xs:schema child of xsl:import-schema.
+   * @return The serialised schema document.
+   */
   @NonNull
   private static String _serializeInline (@NonNull final XslElement aInline)
   {
@@ -157,8 +195,36 @@ public final class SchemaImportCompiler
   }
 
   /**
+   * Determine the schema document of one xsl:import-schema declaration
+   * (XSLT 3.0 section 3.15), in this order:
+   * <ul>
+   * <li>an inline xs:schema child, serialised, with the element's static
+   * base URI as system ID;</li>
+   * <li>without (or with a blank) <code>schema-location</code>: a host
+   * schema for the namespace, else the built-in schema of the XML namespace
+   * for that namespace, else nothing;</li>
+   * <li>otherwise the location resolved against the static base URI. Only
+   * existing local <code>file:</code> resources are read (no network
+   * access). A location that cannot be read is only a hint and falls back to
+   * a host schema; one whose target namespace differs from the imported
+   * namespace also falls back to a host schema before it is an error.</li>
+   * </ul>
+   *
+   * @param aEl
+   *        The xsl:import-schema element.
+   * @param aOptions
+   *        The compile options (host schemas).
    * @return The schema document of one declaration, or <code>null</code> if it
    *         names none.
+   * @throws XsltException
+   *         XTSE0020 for a zero-length <code>namespace</code> attribute;
+   *         XTSE0010 for a child that is not xs:schema or a second xs:schema
+   *         child; XTSE0215 for an inline schema together with a
+   *         <code>schema-location</code>, or a <code>namespace</code>
+   *         attribute that differs from the inline schema's target namespace
+   *         (also when the inline schema has none); XTSE0220 for a readable
+   *         schema document whose target namespace differs from the
+   *         imported namespace and no host schema for that namespace.
    */
   @Nullable
   private static XdmSchemaSource _getSource (@NonNull final XslElement aEl, @NonNull final XsltCompileOptions aOptions)
@@ -248,6 +314,19 @@ public final class SchemaImportCompiler
    * processor reads only the first (the namespace is then known). Inline
    * schemas of the same target namespace (e.g. no-namespace schemas of
    * different packages) are therefore merged into one document.
+   * <p>
+   * The merged document is a shallow copy of the first schema's root with its
+   * namespaces and attributes; the namespaces of the following roots are
+   * declared on it where the prefix is still free, and the element children
+   * of all roots are appended in order. Attributes of the following roots
+   * (e.g. <code>elementFormDefault</code>) are not taken over. The merged
+   * source replaces the group in the list at the position of its first
+   * member and keeps that member's system ID. Sources read from a location
+   * are never merged; a parse error leaves the list as it is for the
+   * schema processor to report.
+   *
+   * @param aSources
+   *        The schema documents to compile, modified in place.
    */
   private static void _mergeInlineSchemas (@NonNull final ICommonsList <XdmSchemaSource> aSources)
   {
@@ -302,7 +381,12 @@ public final class SchemaImportCompiler
   }
 
   /**
-   * Compile the schema of a schema-aware stylesheet.
+   * Compile the schema of a schema-aware stylesheet. The declarations are
+   * grouped by package and imported namespace; within a group only those
+   * with the highest import precedence are used (XSLT 3.0 section 3.15), and
+   * the same document (same inline text or same system ID) contributes only
+   * once. Inline schemas of one target namespace are merged before the
+   * whole set is compiled together.
    *
    * @param aDeclarations
    *        All top-level declarations in import precedence order (lowest
@@ -312,14 +396,19 @@ public final class SchemaImportCompiler
    * @param aOptions
    *        The compile options (host schemas).
    * @return The in-scope schema definitions: the imported schemas, or only the
-   *         built-in types.
+   *         built-in types if no declaration names a schema document.
+   * @throws XsltException
+   *         the errors of a single declaration (see
+   *         {@link #_getSource(XslElement, XsltCompileOptions)}), and
+   *         XTSE0220, reported at the first xsl:import-schema, if the schema
+   *         processor rejects the collected documents.
    */
   @NonNull
   public static IXdmSchemaSet compile (@NonNull final Iterable <XslElement> aDeclarations,
                                        @NonNull final PackageModel aPackages,
                                        @NonNull final XsltCompileOptions aOptions)
   {
-    // Section 3.16: of several declarations for the same namespace only those
+    // Section 3.15: of several declarations for the same namespace only those
     // with the highest import precedence are used (per package)
     final ICommonsOrderedMap <String, ICommonsList <Decl>> aByNamespace = new CommonsLinkedHashMap <> ();
     XslElement aFirst = null;

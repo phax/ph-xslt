@@ -50,10 +50,25 @@ import com.helger.xslt.tree.XsltNames;
 @Immutable
 public final class ElementValidator
 {
+  /** Per XSLT element: the attributes whose value must be an EQName. */
   private static final ICommonsMap <String, ICommonsSet <String>> QNAME_ATTRS = new CommonsHashMap <> ();
+  /** Per XSLT element: the attributes whose value must be an XSLT boolean. */
   private static final ICommonsMap <String, ICommonsSet <String>> BOOL_ATTRS = new CommonsHashMap <> ();
+  /**
+   * Per XSLT element: the boolean attributes that are attribute value
+   * templates; only checked when the value contains no curly bracket.
+   */
   private static final ICommonsMap <String, ICommonsSet <String>> BOOL_AVT_ATTRS = new CommonsHashMap <> ();
+  /**
+   * Per XSLT element where a select attribute excludes content: the error code
+   * (a {@link String}) and the set of XSLT child element local names that are
+   * still allowed next to select.
+   */
   private static final ICommonsMap <String, Object []> SELECT_EXCLUSIVE = new CommonsHashMap <> ();
+  /**
+   * The XSLT elements whose name attribute must not be in a reserved namespace
+   * (XTSE0080, XSLT 3.0 section 5.1.3).
+   */
   private static final ICommonsSet <String> RESERVED_NS_NAMES = new CommonsHashSet <> ("template",
                                                                                        "mode",
                                                                                        "attribute-set",
@@ -65,6 +80,7 @@ public final class ElementValidator
                                                                                        "output",
                                                                                        "character-map",
                                                                                        "accumulator");
+  /** The attributes in the XSLT namespace allowed on a literal result element. */
   private static final ICommonsSet <String> LRE_XSL_ATTRS = new CommonsHashSet <> ("version",
                                                                                    "exclude-result-prefixes",
                                                                                    "extension-element-prefixes",
@@ -99,7 +115,13 @@ public final class ElementValidator
                                                                                            "variable",
                                                                                            "use-package",
                                                                                            "expose");
+  /**
+   * Per XSLT element: the local names of the XSLT elements it may appear in.
+   * Elements not listed may appear wherever their parent's content model
+   * allows them.
+   */
   private static final ICommonsMap <String, ICommonsSet <String>> ALLOWED_PARENTS = new CommonsHashMap <> ();
+  /** The attributes of xsl:decimal-format whose value is a single character. */
   private static final ICommonsSet <String> ONE_CHAR_ATTRS = new CommonsHashSet <> ("decimal-separator",
                                                                                     "grouping-separator",
                                                                                     "percent",
@@ -108,6 +130,11 @@ public final class ElementValidator
                                                                                     "digit",
                                                                                     "pattern-separator",
                                                                                     "exponent-separator");
+  /**
+   * XSLT elements that may follow xsl:break or xsl:next-iteration without
+   * taking away its tail position, as they are no instructions of the
+   * enclosing sequence constructor.
+   */
   private static final ICommonsSet <String> NON_INSTRUCTION_SIBLINGS = new CommonsHashSet <> ("fallback",
                                                                                               "param",
                                                                                               "on-completion",
@@ -226,12 +253,34 @@ public final class ElementValidator
   private ElementValidator ()
   {}
 
+  /**
+   * @param aEl
+   *        The element for the error location.
+   * @param sName
+   *        The attribute name, for the message.
+   * @param sValue
+   *        The attribute value.
+   * @throws XsltException
+   *         XTSE0020 if the value is not an XSLT boolean (yes, no, true, false,
+   *         1, 0, surrounding whitespace allowed)
+   */
   private static void _checkBoolean (@NonNull final XslElement aEl, @NonNull final String sName, @NonNull final String sValue)
   {
     if (!XsltNames.isXsltBooleanLexical (sValue))
       throw XsltException.at (aEl, "XTSE0020", sName + "='" + sValue + "' is not an XSLT boolean");
   }
 
+  /**
+   * Check that the prefix of a lexical QName is bound on the element. An
+   * unprefixed name or an EQName (<code>Q{...}local</code>) is not checked.
+   *
+   * @param aEl
+   *        The element.
+   * @param sQName
+   *        The name; leading and trailing whitespace is ignored.
+   * @throws XsltException
+   *         XTSE0280 if the prefix has no namespace binding
+   */
   private static void _checkPrefixBound (@NonNull final XslElement aEl, @NonNull final String sQName)
   {
     final String s = sQName.trim ();
@@ -242,6 +291,19 @@ public final class ElementValidator
       throw XsltException.at (aEl, "XTSE0280", "The prefix in '" + s + "' has no namespace binding");
   }
 
+  /**
+   * Check the tokens of [xsl:]exclude-result-prefixes (XSLT 3.0 section
+   * 11.1.3): <code>#all</code> is always fine, <code>#default</code> needs a
+   * default namespace, every other token must be a bound prefix.
+   *
+   * @param aEl
+   *        The element carrying the attribute.
+   * @param sValue
+   *        The attribute value.
+   * @throws XsltException
+   *         XTSE0809 for <code>#default</code> without default namespace,
+   *         XTSE0808 for an unbound prefix
+   */
   private static void _checkExcludeResultPrefixes (@NonNull final XslElement aEl, @NonNull final String sValue)
   {
     for (final String sToken : XsltNames.tokenize (sValue))
@@ -259,6 +321,17 @@ public final class ElementValidator
     }
   }
 
+  /**
+   * @param aParent
+   *        The parent element.
+   * @param aChild
+   *        A child of it.
+   * @return <code>true</code> if the child is the last instruction of the
+   *         parent: everything after it is whitespace-only text or an
+   *         xsl:fallback, xsl:param, xsl:on-completion, xsl:sort,
+   *         xsl:with-param or xsl:catch element. <code>false</code> if the
+   *         child is not among the children.
+   */
   private static boolean _isLastInstruction (@NonNull final XslElement aParent, @NonNull final XslElement aChild)
   {
     boolean bSeen = false;
@@ -283,6 +356,12 @@ public final class ElementValidator
     return bSeen;
   }
 
+  /**
+   * @param aEl
+   *        The element.
+   * @return <code>true</code> if an xsl:iterate is among its proper
+   *         ancestors.
+   */
   private static boolean _hasIterateAncestor (@NonNull final XslElement aEl)
   {
     for (XslElement aCur = aEl.getParent (); aCur != null; aCur = aCur.getParent ())
@@ -291,6 +370,26 @@ public final class ElementValidator
     return false;
   }
 
+  /**
+   * Check the position of xsl:break or xsl:next-iteration (XSLT 3.0 section
+   * 7.2): it must be in a tail position of the body of an xsl:iterate. Walking
+   * up from the element, it must be the last instruction of each parent (see
+   * {@link #_isLastInstruction(XslElement, XslElement)}), and the walk may
+   * pass through xsl:if, xsl:try, xsl:catch and xsl:fork, and through
+   * xsl:when/xsl:otherwise to their xsl:choose, until it reaches the
+   * xsl:iterate. The spec's definition of tail position does not mention
+   * xsl:fork; its content model only allows xsl:sequence, xsl:for-each-group
+   * and xsl:fallback, through which the walk does not pass. For
+   * xsl:next-iteration every xsl:with-param must name a parameter declared
+   * on that xsl:iterate.
+   *
+   * @param aEl
+   *        The xsl:break or xsl:next-iteration element.
+   * @throws XsltException
+   *         XTSE3120 if it is not in a tail position but has an xsl:iterate
+   *         ancestor, XTSE0010 if there is no xsl:iterate ancestor, XTSE3130
+   *         for an xsl:with-param that matches no parameter
+   */
   private static void _checkIterateExit (@NonNull final XslElement aEl)
   {
     XslElement aIterate = null;
@@ -354,6 +453,21 @@ public final class ElementValidator
     }
   }
 
+  /**
+   * Check the mode attribute of xsl:template (XSLT 3.0 section 6.6.2): a
+   * non-empty whitespace-separated list without duplicates of EQNames with
+   * bound prefixes, <code>#default</code>, <code>#unnamed</code>, or
+   * <code>#all</code> alone.
+   *
+   * @param aEl
+   *        The xsl:template element.
+   * @param sMode
+   *        The attribute value.
+   * @throws XsltException
+   *         XTSE0550 for an empty list, a duplicate token, <code>#all</code>
+   *         with other tokens or an invalid name, XTSE0280 for an unbound
+   *         prefix
+   */
   private static void _validateModeList (@NonNull final XslElement aEl, @NonNull final String sMode)
   {
     final String [] aTokens = XsltNames.tokenize (sMode);
@@ -379,6 +493,12 @@ public final class ElementValidator
     }
   }
 
+  /**
+   * @param s
+   *        A trimmed validation value.
+   * @return <code>true</code> for the values a processor without
+   *         schema-awareness accepts: strip, preserve and lax.
+   */
   private static boolean _isValidationOk (@NonNull final String s)
   {
     return "strip".equals (s) || "preserve".equals (s) || "lax".equals (s);
@@ -413,6 +533,27 @@ public final class ElementValidator
     }
   }
 
+  /**
+   * Validate the attributes in the XSLT namespace of a literal result element
+   * (XSLT 3.0 section 11.1). Without schema-awareness xsl:type and
+   * validation values other than strip, preserve and lax are rejected; with it
+   * they are checked by
+   * {@link #_checkSchemaAwareValidation(XslElement, String, String, boolean)}.
+   * An xsl:version below 2.0 is rejected, as backwards compatible processing
+   * is not supported. Unless in forwards compatible mode, only the attributes
+   * of {@link #LRE_XSL_ATTRS} may be in the XSLT namespace. The prefixes of
+   * xsl:exclude-result-prefixes and xsl:extension-element-prefixes must be
+   * bound, xsl:inherit-namespaces and xsl:expand-text must be booleans.
+   *
+   * @param aEl
+   *        The literal result element.
+   * @param bSchemaAware
+   *        <code>true</code> for a schema-aware processor.
+   * @throws XsltException
+   *         XTSE1660, XTSE1505, XTSE0020, XTSE0110 (xsl:version not a
+   *         number), XTDE0160 (xsl:version below 2.0), XTSE0805, XTSE0808,
+   *         XTSE0809, XTSE1430
+   */
   private static void _validateLiteralResultElement (@NonNull final XslElement aEl, final boolean bSchemaAware)
   {
     if (bSchemaAware)
@@ -463,6 +604,21 @@ public final class ElementValidator
       _checkBoolean (aEl, "xsl:expand-text", sExpand);
   }
 
+  /**
+   * Check that all children named <code>sFirst</code> come before the rest
+   * of the content; whitespace-only text is ignored, and so is xsl:context-item
+   * in an xsl:template.
+   *
+   * @param aEl
+   *        The parent element.
+   * @param sFirst
+   *        The local name of the XSLT element that must come first (sort or
+   *        param).
+   * @param sCode
+   *        The error code to raise.
+   * @throws XsltException
+   *         with <code>sCode</code> if such an element follows other content
+   */
   private static void _checkSortFirst (@NonNull final XslElement aEl, @NonNull final String sFirst, @NonNull final String sCode)
   {
     boolean bSeenBody = false;
@@ -487,6 +643,12 @@ public final class ElementValidator
     }
   }
 
+  /**
+   * @param aEl
+   *        The element.
+   * @return <code>true</code> if it has no element child and only
+   *         whitespace-only text.
+   */
   private static boolean _isEmptyContent (@NonNull final XslElement aEl)
   {
     for (final XslNode aNode : aEl.getChildren ())
@@ -495,6 +657,18 @@ public final class ElementValidator
     return true;
   }
 
+  /**
+   * Check that an optional attribute, trimmed, has one of the allowed values.
+   *
+   * @param aEl
+   *        The element.
+   * @param sAttr
+   *        The attribute name (no namespace).
+   * @param aAllowed
+   *        The allowed values.
+   * @throws XsltException
+   *         XTSE0020 if the attribute is present with another value
+   */
   private static void _checkVocabulary (@NonNull final XslElement aEl, @NonNull final String sAttr, @NonNull final String... aAllowed)
   {
     final String v = aEl.getAttr (sAttr);
@@ -507,6 +681,61 @@ public final class ElementValidator
     throw XsltException.at (aEl, "XTSE0020", sAttr + "='" + s + "' is not allowed on xsl:" + aEl.getLocalName ());
   }
 
+  /**
+   * Validate one XSLT element (not its descendants). In this order:
+   * <ul>
+   * <li>version must be a number (XTSE0110), expand-text a boolean; the
+   * validation, default-validation and type attributes are checked for the
+   * schema-awareness of the processor (XTSE1660 without it; the type attribute
+   * of xsl:function is not meant here); default-collation must name at least
+   * one supported collation (XTSE0125);</li>
+   * <li>xsl:break and xsl:next-iteration are checked by
+   * {@link #_checkIterateExit(XslElement)};</li>
+   * <li>the parent must be one of {@link #ALLOWED_PARENTS} (XTSE0010); under
+   * a literal result element only xsl:sort and xsl:with-param pass this
+   * check;</li>
+   * <li>for an element known to {@link XsltElementSpecs}: attributes in no
+   * namespace must be defined for it or standard attributes unless in
+   * forwards compatible mode, and attributes in the XSLT namespace are never
+   * allowed (XTSE0090); required attributes must be present (XTSE0010);</li>
+   * <li>the rules of single elements: xsl:template needs match or name, mode
+   * and priority only with match, visibility only with name (XTSE0500), and a
+   * valid mode list; QName attributes (XTSE0020, XTSE0280); names in a reserved
+   * namespace (XTSE0080, except xsl:initial-template) and unprefixed function
+   * names (XTSE0740); boolean attributes; single characters of
+   * xsl:decimal-format; as and use of xsl:global-context-item and
+   * xsl:context-item (XTSE3088, XTSE3089); standalone, html-version and
+   * method of xsl:output (XTSE1570); the vocabularies of xsl:mode; the mode
+   * of xsl:apply-templates;</li>
+   * <li>the content model: text with xml:space="preserve" or an element in an
+   * element that must be empty (XTSE0260, or XTSE0010 for a non-XSLT child),
+   * an XSLT child not allowed (XTSE0010, skipped for unknown elements in
+   * forwards compatible mode), non-whitespace text where none is allowed
+   * (XTSE0010), content next to select where select excludes it (the code of
+   * {@link #SELECT_EXCLUSIVE});</li>
+   * <li>xsl:param: no tunnel on a stylesheet or function parameter, function
+   * parameters always required and without default value (XTSE0760), no
+   * select on a required parameter; static variables and parameters only at
+   * top level (XTSE0090) and private; xsl:function new-each-time and
+   * agreeing override attributes; prefixes of exclude-result-prefixes and
+   * extension-element-prefixes (XTSE0808, XTSE0809, XTSE1430, XTSE0800);</li>
+   * <li>xsl:number value excludes select, count, from and level (XTSE0975);
+   * xsl:for-each-group has exactly one grouping attribute (XTSE1080);
+   * xsl:analyze-string child order and at least one substring branch
+   * (XTSE1130); xsl:choose has at least one xsl:when before at most one
+   * xsl:otherwise; xsl:fork has xsl:sequence children or one
+   * xsl:for-each-group; xsl:sort and xsl:param come first;</li>
+   * <li>only the first xsl:sort has stable (XTSE1017); xsl:with-param
+   * (XTSE0670) and xsl:param (XTSE0580) children have distinct names.</li>
+   * </ul>
+   *
+   * @param aEl
+   *        The XSLT element.
+   * @param bSchemaAware
+   *        <code>true</code> for a schema-aware processor.
+   * @throws XsltException
+   *         the first violation found
+   */
   private static void _validateXslElement (@NonNull final XslElement aEl, final boolean bSchemaAware)
   {
     final String sLocal = aEl.getLocalName ();
@@ -925,13 +1154,20 @@ public final class ElementValidator
     }
   }
 
+  /**
+   * @param aEl
+   *        The element.
+   * @return <code>true</code> for xsl:stylesheet, xsl:transform or
+   *         xsl:package.
+   */
   private static boolean _isStylesheetRoot (@NonNull final XslElement aEl)
   {
     return aEl.isXsl ("stylesheet") || aEl.isXsl ("transform") || aEl.isXsl ("package");
   }
 
   /**
-   * Validate a module tree.
+   * Validate a module tree for a processor without schema-awareness; see
+   * {@link #validateTree(XslElement, boolean)}.
    *
    * @param aEl
    *        The element to start at (module root).
@@ -942,13 +1178,25 @@ public final class ElementValidator
   }
 
   /**
-   * Validate a module tree.
+   * Validate a module tree: each XSLT element with
+   * {@link #_validateXslElement(XslElement, boolean)}, each literal result
+   * element with {@link #_validateLiteralResultElement(XslElement, boolean)},
+   * then its children recursively. An unknown XSLT element in forwards
+   * compatible mode is skipped with its content, and so is an unknown
+   * top-level child of the stylesheet element in forwards compatible mode.
+   * With schema-awareness the content of xsl:import-schema (an inline schema)
+   * is not validated. The recursion depth follows the nesting depth of the
+   * stylesheet.
    *
    * @param aEl
    *        The element to start at (module root).
    * @param bSchemaAware
    *        <code>true</code> for a schema-aware processor (validation and type
    *        attributes are allowed).
+   * @throws XsltException
+   *         the first static error found, including XTSE0120 for
+   *         non-whitespace text directly in xsl:stylesheet, xsl:transform or
+   *         xsl:package
    */
   public static void validateTree (@NonNull final XslElement aEl, final boolean bSchemaAware)
   {

@@ -110,6 +110,22 @@ public final class ValidationRequest
     m_aSchemaSet = aSchemaSet;
   }
 
+  /**
+   * Resolve the value of a <code>[xsl:]type</code> attribute. A
+   * URIQualifiedName is taken as written; an unprefixed name is in the
+   * namespace of the inherited <code>[xsl:]xpath-default-namespace</code>
+   * (no namespace without one), the default namespace for elements and
+   * types; a prefixed name uses the namespaces in scope on the element.
+   *
+   * @param aEl
+   *        The element carrying the attribute.
+   * @param sType
+   *        The attribute value, surrounding whitespace allowed.
+   * @return The expanded type name.
+   * @throws XsltException
+   *         XTSE1520 if the value is not a lexical QName or EQName, XTSE0280
+   *         if its prefix is not bound.
+   */
   @NonNull
   private static XdmQName _resolveTypeName (@NonNull final XslElement aEl, @NonNull final String sType)
   {
@@ -139,7 +155,18 @@ public final class ValidationRequest
   }
 
   /**
-   * Compile the validation request of an instruction.
+   * Compile the validation request of an instruction (XSLT 3.0 section
+   * 25.4.1). A <code>type</code> attribute (in no namespace on an XSLT
+   * element, in the XSLT namespace on a literal result element) wins over
+   * <code>validation</code>: <code>xs:untyped</code> and
+   * <code>xs:untypedAtomic</code> become special requests, any other name
+   * must resolve to a type definition of the in-scope schema. Without
+   * <code>type</code>, a <code>validation</code> value of strict, lax or
+   * preserve selects that mode and any other value strip (the two
+   * attributes together and invalid values are rejected by
+   * {@link com.helger.xslt.compile.ElementValidator}). Without either, the
+   * inherited <code>[xsl:]default-validation</code> applies: preserve if it
+   * says so, else strip; it does not apply to xsl:source-document.
    *
    * @param aCtx
    *        The compile context.
@@ -150,6 +177,12 @@ public final class ValidationRequest
    * @return The request, or <code>null</code> if the stylesheet is not
    *         schema-aware (or for xsl:source-document without validation
    *         attributes).
+   * @throws XsltException
+   *         XTSE1520 for a type name that is invalid or names no type
+   *         definition, XTSE0280 for an unbound prefix in it, XTSE1530 for a
+   *         complex type on xsl:attribute, and XTTE1545 for a
+   *         namespace-sensitive type on xsl:attribute (the constructed
+   *         attribute is parentless when it is validated).
    */
   @Nullable
   public static ValidationRequest compile (@NonNull final CompileContext aCtx,
@@ -228,7 +261,9 @@ public final class ValidationRequest
   /**
    * Strip: every element of the subtree becomes <code>xs:untyped</code>,
    * every attribute <code>xs:untypedAtomic</code>, nothing is nilled. The ID
-   * properties stay.
+   * properties stay. The subtree is walked iteratively with an explicit
+   * stack; clearing the schema type and type annotation is what makes a node
+   * untyped.
    *
    * @param aNode
    *        The node (any kind).
@@ -260,7 +295,10 @@ public final class ValidationRequest
    * @param aNode
    *        An element or attribute.
    * @return <code>true</code> if its typed value is namespace-sensitive (of
-   *         type xs:QName or xs:NOTATION or derived from them).
+   *         type xs:QName or xs:NOTATION or derived from them). With a type
+   *         definition the definition decides; with only an atomic base type
+   *         its local name is compared; an untyped node is never
+   *         namespace-sensitive.
    */
   public static boolean isNamespaceSensitive (@NonNull final IXdmNode aNode)
   {
@@ -300,7 +338,11 @@ public final class ValidationRequest
 
   /**
    * XTTE0950: copying with validation="preserve" must not separate
-   * namespace-sensitive content from its namespaces.
+   * namespace-sensitive content from its namespaces (XSLT 3.0 section
+   * 11.9.1). An attribute fails if it is namespace-sensitive itself, as it
+   * is copied without its parent element; any other node fails only with
+   * <code>copy-namespaces="no"</code> and namespace-sensitive content
+   * anywhere in its subtree.
    *
    * @param aNode
    *        The node to copy.
@@ -317,6 +359,13 @@ public final class ValidationRequest
                                             (aNode.isAttribute () ? "without its parent element" : "and copy-namespaces='no'"));
   }
 
+  /**
+   * Annotate an element as <code>xs:anyType</code> (not nilled) without
+   * touching its content; a no-op for other node kinds.
+   *
+   * @param aNode
+   *        The node.
+   */
   private static void _setAnyType (@NonNull final IXdmNode aNode)
   {
     if (!aNode.isElement ())
@@ -326,6 +375,18 @@ public final class ValidationRequest
     aNode.setNilled (false);
   }
 
+  /**
+   * Apply <code>validation="preserve"</code>, whose meaning depends on the
+   * construct (XSLT 3.0 section 25.4.1.1): a new element (xsl:element,
+   * literal result element) and an element made by xsl:copy are annotated
+   * <code>xs:anyType</code> while their content keeps its annotations; an
+   * attribute made by xsl:attribute is stripped (xs:untypedAtomic); a node
+   * copied by xsl:copy (attribute) or xsl:copy-of and document nodes keep
+   * all annotations.
+   *
+   * @param aNode
+   *        The constructed or copied node.
+   */
   private void _applyPreserve (@NonNull final IXdmNode aNode)
   {
     switch (m_eKind)
@@ -349,9 +410,11 @@ public final class ValidationRequest
   }
 
   /**
-   * @return The node a validation episode runs on: the node itself, or the
-   *         single element child of a document node; <code>null</code> for
-   *         other node kinds and for a document node of another shape.
+   * @return The node a validation episode runs on: the node itself for an
+   *         element or attribute, or the single element child of a document
+   *         node; <code>null</code> for other node kinds and for a document
+   *         node with no or several element children or with a non-empty
+   *         text child (comments and processing instructions are ignored).
    */
   @Nullable
   private static IXdmNode _getTarget (@NonNull final IXdmNode aNode)
@@ -374,6 +437,18 @@ public final class ValidationRequest
     return ret;
   }
 
+  /**
+   * Build the prefix resolver used to validate namespace-sensitive values
+   * (xs:QName, xs:NOTATION) of an attribute. <code>xml</code> is always
+   * bound; the empty prefix resolves to the default namespace of the element
+   * or to "" (no namespace) if there is none; other prefixes use the
+   * namespaces in scope on the element. Without an element only the empty
+   * prefix resolves (to no namespace).
+   *
+   * @param aElement
+   *        The parent element of the attribute, or <code>null</code>.
+   * @return The resolver, returning <code>null</code> for an unbound prefix.
+   */
   @NonNull
   private static UnaryOperator <String> _getNamespaceResolver (@Nullable final IXdmNode aElement)
   {
@@ -388,7 +463,20 @@ public final class ValidationRequest
   }
 
   /**
-   * Validate an attribute value against a simple type and annotate it.
+   * Validate an attribute value against a simple type and annotate it. The
+   * schema type records the declared type and, for a single token of a
+   * union type, the member type that matched. The is-id and is-idrefs
+   * properties follow the type: a single token derived from xs:ID makes it
+   * an ID, a token derived from xs:IDREF makes it an IDREF (single token,
+   * not a list type) or IDREFS (otherwise); the ID kind is left unchanged
+   * when no such token occurs.
+   *
+   * @param aAttr
+   *        The attribute; its parent, if any, resolves prefixes.
+   * @param aType
+   *        The simple type to validate against.
+   * @throws XdmValidationException
+   *         if the value is not valid for the type
    */
   private static void _validateAttributeValue (@NonNull final IXdmNode aAttr,
                                                @NonNull final IXdmTypeDefinition aType) throws XdmValidationException
@@ -417,12 +505,37 @@ public final class ValidationRequest
       aAttr.setIDKind (eIDKind);
   }
 
+  /**
+   * @return The EQName of a named node for error messages, else its node
+   *         kind.
+   */
   @NonNull
   private static String _describe (@NonNull final IXdmNode aNode)
   {
     return aNode.getName () != null ? aNode.getName ().getEQName () : aNode.getKind ().toString ();
   }
 
+  /**
+   * Strict or lax validation (XSLT 3.0 section 25.4.1.1) of the constructed
+   * node, or of the single element child of a constructed document node
+   * (section 25.4.2). An attribute is validated against its top-level
+   * attribute declaration. An element is validated against its top-level
+   * element declaration or its <code>xsi:type</code> by the schema set. If
+   * neither exists, strict fails and lax leaves the node as it is (no
+   * validation episode takes place, the content is not assessed). Other
+   * node kinds are left alone.
+   *
+   * @param aNode
+   *        The constructed or copied node.
+   * @param bDocumentLevel
+   *        <code>true</code> to check the document-level constraints (ID
+   *        uniqueness, IDREF targets) as well.
+   * @throws XPathException
+   *         XTTE1550 for a document node of the wrong shape, XTTE1512 for a
+   *         missing declaration under strict, XTTE1555 for a violated
+   *         document-level constraint, XTTE1510 (strict) or XTTE1515 (lax)
+   *         for any other validation failure.
+   */
   private void _validate (@NonNull final IXdmNode aNode, final boolean bDocumentLevel)
   {
     final IXdmNode aTarget = _getTarget (aNode);
@@ -465,6 +578,27 @@ public final class ValidationRequest
     }
   }
 
+  /**
+   * Validation against the type named by <code>[xsl:]type</code> (XSLT 3.0
+   * section 25.4.1.2). <code>xs:untyped</code> strips all annotations;
+   * <code>xs:untypedAtomic</code> strips them too and annotates an element
+   * <code>xs:untypedAtomic</code>, failing for an element with element
+   * children. Any other type validates the attribute value or element
+   * (for a document node: its single element child) through the schema
+   * set.
+   *
+   * @param aNode
+   *        The constructed or copied node.
+   * @param bDocumentLevel
+   *        <code>true</code> to check the document-level constraints as
+   *        well.
+   * @throws XPathException
+   *         XTTE1540 for content that does not match the type, XTTE1550 for
+   *         a document node of the wrong shape, XTTE1535 for a complex type
+   *         and an attribute node, XTTE1545 for a parentless attribute and a
+   *         namespace-sensitive type, XTTE1555 for a violated document-level
+   *         constraint.
+   */
   private void _validateAgainstType (@NonNull final IXdmNode aNode, final boolean bDocumentLevel)
   {
     if ("untyped".equals (m_sSpecialType))
@@ -516,11 +650,17 @@ public final class ValidationRequest
    * Apply the request to the node the instruction has just constructed (or
    * copied). Child nodes are validated before their parents, so the request of
    * the parent overrides those of its content, as section 25.4.1 requires.
+   * Document-level constraints are checked for a document node and for the
+   * requests of xsl:document, xsl:result-document, xsl:source-document and
+   * xsl:merge-source. A type request validates against the type; otherwise
+   * strict and lax validate, preserve applies the per-construct rules, and
+   * strip removes all annotations of the subtree.
    *
    * @param aNode
    *        The node.
    * @throws XPathException
-   *         XTTE1510, XTTE1512, XTTE1515, XTTE1540, XTTE1550, XTTE1555
+   *         XTTE1510, XTTE1512, XTTE1515, XTTE1535, XTTE1540, XTTE1545,
+   *         XTTE1550, XTTE1555
    */
   public void apply (@NonNull final IXdmNode aNode)
   {
