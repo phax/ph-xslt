@@ -97,6 +97,12 @@ public final class OutputSpecTest
                                "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><br/></body></html>"),
                     null,
                     "~<br />"),
+                // XSLT 3.0 section 26: indent defaults to yes for html and xhtml
+                ok ("xhtml method indents by default",
+                    _outSheet ("method=\"xhtml\" omit-xml-declaration=\"yes\"",
+                               "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p/></body></html>"),
+                    null,
+                    "~\n  <body>"),
                 ok ("text method", _outSheet ("method=\"text\"", "<e>a&lt;b</e>"), null, "a<b"),
                 ok ("indent", _outSheet ("method=\"xml\" omit-xml-declaration=\"yes\" indent=\"yes\"", "<e><f/></e>"), null, "~<e>\n"),
                 ok ("character map", CHARMAPS + "<xsl:template match=\"/\">axb</xsl:template></xsl:stylesheet>", null, "a[X]b"),

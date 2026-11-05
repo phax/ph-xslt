@@ -181,7 +181,7 @@ public final class XsltTransformToTest
             SOURCE,
             true);
     _check (XsltTestHelper.SHEET +
-            "<xsl:output method='xhtml' include-content-type='no'/>" +
+            "<xsl:output method='xhtml' indent='no' include-content-type='no'/>" +
             "<xsl:template match='/'><html xmlns='http://www.w3.org/1999/xhtml'><head><title>t</title></head><body><br/><p>x</p></body></html></xsl:template>" +
             XsltTestHelper.END,
             SOURCE,

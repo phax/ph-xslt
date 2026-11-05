@@ -306,8 +306,8 @@ public final class OutputDefinition
 
   /**
    * Build the serialisation parameters for one result. They start with the
-   * given method, omit-xml-declaration="no" and, for the html method,
-   * indent="yes"; then every stored attribute is applied: boolean values via
+   * given method, omit-xml-declaration="no" and, for the html and xhtml
+   * methods, indent="yes"; then every stored attribute is applied: boolean values via
    * the XSLT yes/no forms, a zero-length doctype-public or doctype-system
    * counts as absent, an html-version that is not a decimal number is
    * ignored, item-separator "#absent" means none, standalone "omit" means
@@ -326,7 +326,8 @@ public final class OutputDefinition
     final SerializationParams ret = new SerializationParams ();
     ret.setMethod (sMethod);
     ret.setOmitXmlDeclaration (false);
-    if (SerializationParams.METHOD_HTML.equals (sMethod))
+    // XSLT 3.0 section 26.1: indent defaults to yes for html and xhtml
+    if (SerializationParams.METHOD_HTML.equals (sMethod) || SerializationParams.METHOD_XHTML.equals (sMethod))
       ret.setIndent (true);
     for (final var aEntry : m_aValues.entrySet ())
     {
