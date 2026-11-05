@@ -19,12 +19,17 @@ package com.helger.xslt.pkg;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.junit.Test;
 
 import com.helger.xpath.XPathException;
+import com.helger.xpath.context.IResourceResolver;
+import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xslt.XsltCompileOptions;
 import com.helger.xslt.XsltCompiler;
 import com.helger.xslt.XsltExecutable;
+import com.helger.xslt.XsltTestHelper;
 import com.helger.xslt.XsltTransformRequest;
 import com.helger.xslt.XsltTransformResult;
 
@@ -112,5 +117,57 @@ public final class PackagesTest
     assertEquals ("XTSE3058",
                   _errorCode (_principal ("<xsl:use-package name='urn:lib'><xsl:override><xsl:variable name='w' visibility='public'/></xsl:override></xsl:use-package>",
                                           "")));
+  }
+
+  @Test
+  public void testComponentsOfIncludedModules ()
+  {
+    // The components of a module included by the package module belong to the
+    // package like its own (XSLT 3.0 section 3.5): a private function there is
+    // not visible to the user, a public one can be named in xsl:accept
+    final String sLib = "<xsl:package name='urn:lib2' package-version='1.0' version='3.0'" +
+                        " xmlns:xsl='http://www.w3.org/1999/XSL/Transform'><xsl:include href='inc.xsl'/></xsl:package>";
+    final String sInc = "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform' xmlns:f='urn:f'>" +
+                        "<xsl:function name='f:pub' visibility='public'><xsl:param name='a'/><xsl:sequence select=\"'inc:' || f:hid($a)\"/></xsl:function>" +
+                        "<xsl:function name='f:hid'><xsl:param name='a'/><xsl:sequence select='$a'/></xsl:function>" +
+                        "</xsl:stylesheet>";
+    final IResourceResolver aResolver = new IResourceResolver ()
+    {
+      @Nullable
+      public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+      {
+        if (!"http://example.org/inc.xsl".equals (sAbsoluteUri))
+          return null;
+        final IXdmNode ret = XsltTestHelper.parse (sInc);
+        ret.setDocumentUri (sAbsoluteUri);
+        return ret;
+      }
+
+      @Nullable
+      public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+      {
+        return null;
+      }
+    };
+    final XsltCompileOptions aOptions = new XsltCompileOptions ().setResolver (aResolver)
+                                                                 .addPackage (new XsltCompileOptions.PackageSource (sLib,
+                                                                                                                  null,
+                                                                                                                  "http://example.org/lib2.xsl"));
+    assertEquals ("inc:x",
+                  XsltCompiler.compile (_principal ("<xsl:use-package name='urn:lib2'>" +
+                                                    "<xsl:accept component='function' names='f:pub#1' visibility='final'/></xsl:use-package>",
+                                                    "<xsl:value-of select=\"f:pub('x')\"/>"),
+                                        aOptions)
+                              .transform (new XsltTransformRequest ())
+                              .principalSerialized ());
+    try
+    {
+      XsltCompiler.compile (_principal ("<xsl:use-package name='urn:lib2'/>", "<xsl:value-of select=\"f:hid('x')\"/>"), aOptions);
+      fail ("No error");
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("XPST0017", ex.getCode ());
+    }
   }
 }

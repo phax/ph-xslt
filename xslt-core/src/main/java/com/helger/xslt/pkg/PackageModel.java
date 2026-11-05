@@ -253,27 +253,47 @@ public final class PackageModel
   }
 
   /**
+   * @param aUnit
+   *        A package.
+   * @return The top-level elements of all its non-simplified modules (the
+   *         package module and the modules it includes or imports), in module
+   *         order.
+   */
+  @NonNull
+  private static ICommonsList <XslElement> _getTopLevelElements (@NonNull final PackageUnit aUnit)
+  {
+    final ICommonsList <XslElement> ret = new CommonsArrayList <> ();
+    for (final XslModule aModule : aUnit.modules ())
+      if (aModule.getRoot () != null && !aModule.isSimplified ())
+        ret.addAll (aModule.getRoot ().getElementChildren ());
+    return ret;
+  }
+
+  /**
    * @param aRoot
    *        A package root.
    * @return The exposure of the package's xsl:expose elements (computed
    *         once per root and cached), or <code>null</code> for an
    *         xsl:stylesheet root or an xsl:package without xsl:expose.
    * @throws XsltException
-   *         The static errors of {@link PackageChecks#getExposure(XslElement)}.
+   *         The static errors of {@link PackageChecks#getExposure(XslElement, Iterable)}.
    */
   public PackageChecks.@Nullable Exposure getExposure (@NonNull final XslElement aRoot)
   {
     if (!m_aExposures.containsKey (aRoot))
-      m_aExposures.put (aRoot, aRoot.isXsl ("package") ? PackageChecks.getExposure (aRoot) : null);
+      m_aExposures.put (aRoot,
+                        aRoot.isXsl ("package") ? PackageChecks.getExposure (aRoot, _getTopLevelElements (getUnit (aRoot))) : null);
     return m_aExposures.get (aRoot);
   }
 
   /**
    * The components a package exposes to a using package: its own public,
-   * final and abstract components (after xsl:expose), plus those it accepts
-   * from the packages it uses with an exposed visibility (under the
-   * visibility of that xsl:accept). xsl:param counts as a public variable.
-   * The result is cached by package key, so two uses of one package share it.
+   * final and abstract components (after xsl:expose), declared in any of its
+   * modules (of several declarations with one symbolic name the one with the
+   * highest import precedence), plus those it accepts from the packages it
+   * uses with an exposed visibility (under the visibility of that
+   * xsl:accept). xsl:param counts as a public variable. The result is cached
+   * by package key, so two uses of one package share it.
    *
    * @param aUnit
    *        The package.
@@ -290,7 +310,19 @@ public final class PackageModel
     if (aRoot != null)
     {
       final PackageChecks.Exposure aExposure = getExposure (aRoot);
-      for (final XslElement aChild : aRoot.getElementChildren ())
+      final ICommonsMap <String, XslElement> aOwnWinners = new CommonsHashMap <> ();
+      final ICommonsList <XslElement> aAll = _getTopLevelElements (aUnit);
+      for (final XslElement aChild : aAll)
+      {
+        final PackageComponent aComp = PackageChecks.getComponent (aChild);
+        if (aComp != null)
+        {
+          final XslElement aPrev = aOwnWinners.get (aComp.getSymbolicName ());
+          if (aPrev == null || aPrev.getPrecedence () < aChild.getPrecedence ())
+            aOwnWinners.put (aComp.getSymbolicName (), aChild);
+        }
+      }
+      for (final XslElement aChild : aAll)
       {
         if (aChild.isXsl ("use-package"))
         {
@@ -313,7 +345,7 @@ public final class PackageModel
           continue;
         }
         PackageComponent aComp = PackageChecks.getComponent (aChild);
-        if (aComp == null)
+        if (aComp == null || aOwnWinners.get (aComp.getSymbolicName ()) != aChild)
           continue;
         if (aExposure != null && aExposure.byElement ().containsKey (aChild))
           aComp = aComp.withVisibility (aExposure.byElement ().get (aChild));
@@ -364,19 +396,18 @@ public final class PackageModel
         ret.hidden ().add (sSym);
       }
     }
-    // Everything the used package declares but does not export is hidden
-    final XslElement aUsedRoot = aUse.used ().getRoot ();
-    if (aUsedRoot != null)
-      for (final XslElement aChild : aUsedRoot.getElementChildren ())
-      {
-        if (aChild.isXsl ("param"))
-          continue;
-        final PackageComponent aComp = PackageChecks.getComponent (aChild);
-        if (aComp == null || ("mode".equals (aComp.kind ()) && aComp.name () == null))
-          continue;
-        if (!aExported.contains (aComp.getSymbolicName ()))
-          ret.hidden ().add (aComp.getSymbolicName ());
-      }
+    // Everything the used package declares in any module but does not export
+    // is hidden
+    for (final XslElement aChild : _getTopLevelElements (aUse.used ()))
+    {
+      if (aChild.isXsl ("param"))
+        continue;
+      final PackageComponent aComp = PackageChecks.getComponent (aChild);
+      if (aComp == null || ("mode".equals (aComp.kind ()) && aComp.name () == null))
+        continue;
+      if (!aExported.contains (aComp.getSymbolicName ()))
+        ret.hidden ().add (aComp.getSymbolicName ());
+    }
     // So is what the used package accepts from its own used packages without
     // exposing it (section 3.5.3.2: accepted as private there), and what is
     // hidden from the used package itself
