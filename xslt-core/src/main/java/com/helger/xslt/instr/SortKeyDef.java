@@ -253,9 +253,10 @@ public final class SortKeyDef
    * select expression, or else the content evaluated in temporary output
    * state, is atomised. An empty result is the empty key
    * (<code>null</code>), more than one item is XTTE1020. With data-type text
-   * the value becomes its string value. With data-type number a numeric
-   * value becomes an xs:double, anything else is cast from its trimmed
-   * string value to xs:double, and NaN if that fails. Without data-type an
+   * the value becomes its string value. With data-type number the value is
+   * converted like fn:number: a numeric value becomes an xs:double, a boolean
+   * 1 or 0, a string or untyped value is cast from its trimmed value to
+   * xs:double (NaN if that fails), any other value is NaN. Without data-type an
    * xs:untypedAtomic value becomes an xs:string and every other value is
    * kept.
    *
@@ -289,6 +290,12 @@ public final class SortKeyDef
     {
       if (aAtom.getType ().isNumeric ())
         return XdmAtomic.dbl (aAtom.getAsDouble ());
+      // Like fn:number: a boolean is 1 or 0, a string or untyped value is cast,
+      // anything else is NaN
+      if (aAtom.getType () == EAtomicType.BOOLEAN)
+        return XdmAtomic.dbl (aAtom.getBoolean () ? 1 : 0);
+      if (!aAtom.isStringLike () || aAtom.getType () == EAtomicType.ANY_URI)
+        return XdmAtomic.dbl (Double.NaN);
       try
       {
         return AtomicCaster.castFromString (Atomizer.getStringValue (aAtom).trim (),
