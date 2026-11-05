@@ -27,7 +27,6 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
-import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.eval.BuiltInFunctionItem;
@@ -404,10 +403,12 @@ public final class FnHigherOrder
    * <code>fn:sort($input as item()*[, $collation as xs:string?[, $key as
    * function(item()) as xs:anyAtomicType*]]) as item()*</code> (F&amp;O 3.1
    * section 16.2.6). The key of every item is the item itself or the result of
-   * the key function, prepared by {@link #_getSortKey(XdmSequence)}; an empty
-   * collation argument means the codepoint collation. The sort is stable, so
-   * items with equal keys keep their input order. All keys are computed before
-   * sorting, checking for interruption before each.
+   * the key function, prepared by {@link #_getSortKey(XdmSequence)}. Without a
+   * collation argument, or with an empty one, the default collation of the
+   * static context is used; an explicit collation URI is resolved against the
+   * static base URI. The sort is stable, so items with equal keys keep their
+   * input order. All keys are computed before sorting, checking for
+   * interruption before each.
    *
    * @param aCtx
    *        The dynamic context of the call.
@@ -421,14 +422,11 @@ public final class FnHigherOrder
   private static XdmSequence _sort (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
     final XdmSequence aInput = aArgs.get (0);
-    ICollation aCollation = null;
+    final ICollation aCollation;
     if (aArgs.size () >= 2 && !aArgs.get (1).isEmpty ())
-    {
-      final String sUri = ((XdmAtomic) aArgs.get (1).get (0)).getString ();
-      aCollation = CollationRegistry.getCollation (sUri);
-      if (aCollation == null)
-        throw XPathException.of ("FOCH0002", "Unsupported collation '" + sUri + "'");
-    }
+      aCollation = FnSequence.getCollation (aCtx, aArgs.get (1));
+    else
+      aCollation = FnSequence.getDefaultCollation (aCtx);
     final IXdmItem aKeyFunc = aArgs.size () >= 3 ? aArgs.get (2).get (0) : null;
     final ICommonsList <SortEntry> aEntries = new CommonsArrayList <> (aInput.size ());
     for (final IXdmItem aItem : aInput)
@@ -438,9 +436,8 @@ public final class FnHigherOrder
       final XdmSequence aKey = aKeyFunc != null ? _call1 (aCtx, aKeyFunc, aItemSeq) : aItemSeq;
       aEntries.add (new SortEntry (aItem, _getSortKey (aKey)));
     }
-    final ICollation aFinalCollation = aCollation;
     // List.sort is a stable merge sort
-    aEntries.sort ( (a, b) -> _compareKeys (a.key (), b.key (), aFinalCollation, aCtx));
+    aEntries.sort ( (a, b) -> _compareKeys (a.key (), b.key (), aCollation, aCtx));
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     for (final SortEntry aEntry : aEntries)
       aBuilder.add (aEntry.item ());
