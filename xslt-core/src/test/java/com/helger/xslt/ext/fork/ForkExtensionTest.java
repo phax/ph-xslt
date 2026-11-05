@@ -47,5 +47,32 @@ public final class ForkExtensionTest
     assertEquals ("XTSE0010",
                   errorCode (SHEET + "<xsl:template name='xsl:initial-template'><xsl:fork><xsl:value-of select='1'/></xsl:fork></xsl:template>" + END,
                              null));
+    // xsl:sequence and xsl:for-each-group mixed, or two xsl:for-each-group
+    assertEquals ("XTSE0010",
+                  errorCode (SHEET +
+                             "<xsl:template name='xsl:initial-template'><xsl:fork><xsl:sequence select='1'/>" +
+                             "<xsl:for-each-group select='1' group-by='.'><xsl:sequence select='2'/></xsl:for-each-group>" +
+                             "</xsl:fork></xsl:template>" +
+                             END,
+                             null));
+    assertEquals ("XTSE0010",
+                  errorCode (SHEET +
+                             "<xsl:template name='xsl:initial-template'><xsl:fork>" +
+                             "<xsl:for-each-group select='1' group-by='.'><xsl:sequence select='1'/></xsl:for-each-group>" +
+                             "<xsl:for-each-group select='2' group-by='.'><xsl:sequence select='2'/></xsl:for-each-group>" +
+                             "</xsl:fork></xsl:template>" +
+                             END,
+                             null));
+    // xsl:fallback is allowed around both forms
+    assertEquals ("12",
+                  text ("<xsl:template name='xsl:initial-template'><xsl:value-of>" +
+                        "<xsl:fork><xsl:fallback/><xsl:sequence select='1'/><xsl:fallback/><xsl:sequence select='2'/></xsl:fork>" +
+                        "</xsl:value-of></xsl:template>",
+                        null));
+    assertEquals ("1",
+                  text ("<xsl:template name='xsl:initial-template'><xsl:value-of>" +
+                        "<xsl:fork><xsl:fallback/><xsl:for-each-group select='1' group-by='.'><xsl:sequence select='.'/></xsl:for-each-group><xsl:fallback/></xsl:fork>" +
+                        "</xsl:value-of></xsl:template>",
+                        null));
   }
 }

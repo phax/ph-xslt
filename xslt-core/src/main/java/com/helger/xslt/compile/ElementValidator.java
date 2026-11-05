@@ -873,6 +873,22 @@ public final class ElementValidator
           throw XsltException.at (aEl, "XTSE0010", "xsl:choose requires at least one xsl:when");
         break;
       }
+      case "fork":
+      {
+        // Either xsl:sequence children or a single xsl:for-each-group, each
+        // with xsl:fallback around (section 17)
+        int nSequences = 0;
+        int nGroups = 0;
+        for (final XslElement aChild : aEl.getElementChildren ())
+          if (aChild.isXsl ("sequence"))
+            nSequences++;
+          else
+            if (aChild.isXsl ("for-each-group"))
+              nGroups++;
+        if (nGroups > 1 || (nGroups == 1 && nSequences > 0))
+          throw XsltException.at (aEl, "XTSE0010", "xsl:fork contains either xsl:sequence children or a single xsl:for-each-group");
+        break;
+      }
       case "template":
       case "function":
         _checkSortFirst (aEl, "param", "XTSE0010");

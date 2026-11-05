@@ -309,9 +309,9 @@ lets nested ones pass); the AVTs `letter-value` (`xsl:number`), `error-code` (`x
 `schema-aware` (`xsl:evaluate`), the `xsl:merge-key` AVTs and a text value template in `xsl:text` are operands too;
 a non-motionless collation AVT of a streamed `xsl:for-each-group` is rejected; `empty-sequence()` permits no nodes.
 `streamable-100` to `-102` passed before S3 only because nothing was checked; they expect a construct the
-Recommendation does not guarantee to run, and now get XTSE3430 (go-xslt accepts them the same way). Found on the way,
-not fixed (default behaviour): `xsl:fork` mixing `xsl:sequence` and `xsl:for-each-group` children is not rejected
-with XTSE0010. Left for S4: the run-time XTSE3430 of go-xslt for `fn:key` over a streamed document.
+Recommendation does not guarantee to run, and now get XTSE3430 (go-xslt accepts them the same way). Found on the way
+and fixed on 2026-11-05 (default behaviour): `xsl:fork` mixing `xsl:sequence` and `xsl:for-each-group` children, or
+with two `xsl:for-each-group`, is rejected with XTSE0010; `xsl:fallback` is allowed among its children (section 17). Left for S4: the run-time XTSE3430 of go-xslt for `fn:key` over a streamed document.
 
 S4 notes: `com.helger.xpath.xdm.XdmStreamReader` reads with the JDK StAX parser (settings of `XdmParser`: internal
 subset read, external subset and entities not, same entity and depth limits) and builds ordinary nodes numbered as they

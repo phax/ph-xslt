@@ -150,7 +150,7 @@ public final class XsltElementSpecs
     _add ("non-matching-substring", "", "", "", false);
     _add ("fallback", "", "", "", false);
     _add ("where-populated", "", "", "", false);
-    _add ("fork", "", "", "sequence for-each-group", true);
+    _add ("fork", "", "", "sequence for-each-group fallback", true);
     _add ("on-empty", "select", "", "", false);
     _add ("on-non-empty", "select", "", "", false);
     _add ("iterate", "select", "select", "", false);
