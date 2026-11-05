@@ -44,8 +44,10 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
 
   /**
    * Append a parentless node as the last child and make this node its parent.
-   * If the tree was numbered, the numbering of the whole tree and the name
-   * indexes of its document are removed and assigned again on demand.
+   * A numbering the appended subtree had as a tree of its own is removed. If
+   * this tree was numbered, the numbering of the whole tree and the name
+   * indexes of its document are removed too; both are assigned again on
+   * demand.
    *
    * @throws IllegalArgumentException
    *         if the node already has a parent, or is an attribute, namespace or
@@ -67,6 +69,8 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
       default:
         break;
     }
+    // A subtree numbered as a tree of its own must not keep that numbering
+    aRealChild.internalInvalidateOrder ();
     aRealChild.internalSetParent (this);
     if (m_aChildren == null)
       m_aChildren = new CommonsArrayList <> ();

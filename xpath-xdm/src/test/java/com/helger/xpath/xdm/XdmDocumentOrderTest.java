@@ -123,6 +123,31 @@ public final class XdmDocumentOrderTest
   }
 
   @Test
+  public void testAppendNumberedSubtree ()
+  {
+    // A subtree numbered as a tree of its own, appended to an unnumbered tree
+    final IXdmNode aSub = IXdmNode.createElement (X);
+    aSub.appendChild (IXdmNode.createElement (X));
+    aSub.assignDocumentOrder ();
+    assertEquals (true, ((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree () != 0);
+    final IXdmNode aDoc = IXdmNode.createDocument ();
+    aDoc.appendChild (aSub);
+    assertEquals (0, ((AbstractXdmNode) aSub).internalGetTree ());
+    assertEquals (0, ((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree ());
+    aDoc.assignDocumentOrder ();
+    assertEquals (1, aSub.getOrder ());
+    assertEquals (2, aSub.getChildAtIndex (0).getOrder ());
+
+    // The same for an attribute numbered on its own
+    final IXdmNode aAttr = IXdmNode.createAttribute (new XdmQName ("a"), "1");
+    aAttr.assignDocumentOrder ();
+    assertEquals (true, ((AbstractXdmNode) aAttr).internalGetTree () != 0);
+    final IXdmNode aElement = IXdmNode.createElement (X);
+    aElement.addAttribute (aAttr);
+    assertEquals (0, ((AbstractXdmNode) aAttr).internalGetTree ());
+  }
+
+  @Test
   public void testAttributeIndex () throws XdmParseException
   {
     final XdmQName aNameA = new XdmQName ("a");

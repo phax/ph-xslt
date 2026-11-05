@@ -95,9 +95,10 @@ public final class XdmElementNode extends AbstractXdmParentNode
 
   /**
    * Append a parentless attribute node as the last attribute of this element.
-   * There is no check for an attribute of the same name. If the tree was
-   * numbered, the numbering of the whole tree and the name indexes of its
-   * document are removed and assigned again on demand.
+   * There is no check for an attribute of the same name. A numbering of the
+   * attribute on its own is removed. If the tree was numbered, the numbering
+   * of the whole tree and the name indexes of its document are removed and
+   * assigned again on demand.
    *
    * @throws IllegalArgumentException
    *         if the node is no attribute node or already has a parent
@@ -110,6 +111,8 @@ public final class XdmElementNode extends AbstractXdmParentNode
       throw new IllegalArgumentException ("Not an attribute node");
     if (aRealAttribute.getParent () != null)
       throw new IllegalArgumentException ("The attribute node already has a parent");
+    // An attribute numbered on its own must not keep that numbering
+    aRealAttribute.internalInvalidateOrder ();
     aRealAttribute.internalSetParent (this);
     if (m_aAttributes == null)
       m_aAttributes = new CommonsArrayList <> ();
