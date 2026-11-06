@@ -76,6 +76,18 @@ public final class NumberExtensionTest
   }
 
   @Test
+  public void testConstantAndComputedAttributes ()
+  {
+    // A constant format and start-at are analysed once at compile time, AVTs
+    // per evaluation: both give the same text
+    final String sConst = _text ("<xsl:number value='1 to 3' format='1-a-i' start-at='0 9'/>");
+    assertEquals ("0-j-xi", sConst);
+    assertEquals (sConst, _text ("<xsl:number value='1 to 3' format=\"{'1-a-i'}\" start-at=\"{'0 9'}\"/>"));
+    assertEquals ("[1]", _text ("<xsl:number value='1' format=\"{''}[1]\"/>"));
+    assertEquals ("1", _text ("<xsl:number value='1' format=\"{''}\"/>"));
+  }
+
+  @Test
   public void testNegativeRoundsToZero ()
   {
     assertEquals ("0", _text ("<xsl:number value='-0.3'/>"));

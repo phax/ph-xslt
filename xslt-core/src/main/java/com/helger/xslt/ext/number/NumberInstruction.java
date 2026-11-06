@@ -57,6 +57,7 @@ import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.Avt;
 import com.helger.xslt.compile.CompileContext;
 import com.helger.xslt.compile.XPathExpr;
+import com.helger.xslt.ext.number.NumberFormatter.Picture;
 import com.helger.xslt.instr.AbstractInstruction;
 import com.helger.xslt.instr.IInstruction;
 import com.helger.xslt.runtime.IXsltOutput;
@@ -182,6 +183,10 @@ public final class NumberInstruction extends AbstractInstruction
   private final Avt m_aOrdinal;
   private final Avt m_aStartAt;
   private final Avt m_aLang;
+  // The analysed format and the parsed start-at of constant attributes, null
+  // if they are computed per evaluation
+  private final Picture m_aConstPicture;
+  private final ICommonsList <BigInteger> m_aConstStartAt;
 
   private NumberInstruction (@NonNull final XslElement aEl,
                              @Nullable final XPathExpr aValue,
@@ -194,7 +199,9 @@ public final class NumberInstruction extends AbstractInstruction
                              @Nullable final Avt aGroupSize,
                              @Nullable final Avt aOrdinal,
                              @NonNull final Avt aStartAt,
-                             @Nullable final Avt aLang)
+                             @Nullable final Avt aLang,
+                             @Nullable final Picture aConstPicture,
+                             @Nullable final ICommonsList <BigInteger> aConstStartAt)
   {
     super (aEl);
     m_aValue = aValue;
@@ -208,6 +215,8 @@ public final class NumberInstruction extends AbstractInstruction
     m_aOrdinal = aOrdinal;
     m_aStartAt = aStartAt;
     m_aLang = aLang;
+    m_aConstPicture = aConstPicture;
+    m_aConstStartAt = aConstStartAt;
   }
 
   /**
@@ -921,10 +930,14 @@ public final class NumberInstruction extends AbstractInstruction
     {
       // Each number is shifted by its start-at value minus one; the last
       // start-at value is repeated for surplus numbers
-      final String sStartAt = m_aStartAt.evaluate (aCtx);
-      final ICommonsList <BigInteger> aStarts = _parseStartAt (sStartAt);
+      ICommonsList <BigInteger> aStarts = m_aConstStartAt;
       if (aStarts == null)
-        throw new XPathException ("XTDE0030", "The start-at value '" + sStartAt + "' of xsl:number is not a list of integers");
+      {
+        final String sStartAt = m_aStartAt.evaluate (aCtx);
+        aStarts = _parseStartAt (sStartAt);
+        if (aStarts == null)
+          throw new XPathException ("XTDE0030", "The start-at value '" + sStartAt + "' of xsl:number is not a list of integers");
+      }
       for (int i = 0; i < aNums.size (); ++i)
       {
         final BigInteger aDelta = aStarts.get (Math.min (i, aStarts.size () - 1)).subtract (BigInteger.ONE);
@@ -932,7 +945,8 @@ public final class NumberInstruction extends AbstractInstruction
           aNums.set (i, aNums.get (i).add (aDelta));
       }
     }
-    final String sFormat = m_aFormat.evaluate (aCtx);
+    final Picture aPicture = m_aConstPicture != null ? m_aConstPicture
+                                                     : NumberFormatter.parsePicture (m_aFormat.evaluate (aCtx));
     final String sGroupSep = m_aGroupSep != null ? m_aGroupSep.evaluate (aCtx) : "";
     int nGroupSize = 0;
     if (m_aGroupSize != null)
@@ -950,7 +964,7 @@ public final class NumberInstruction extends AbstractInstruction
         throw new XPathException ("XTDE0030", "The lang value '" + sLang + "' of xsl:number is not a valid language code");
     }
     final String sOrdinal = m_aOrdinal != null ? m_aOrdinal.evaluate (aCtx) : "";
-    final String sText = NumberFormatter.format (aNums, sFormat, sGroupSep, nGroupSize, sLang, sOrdinal);
+    final String sText = NumberFormatter.format (aNums, aPicture, sGroupSep, nGroupSize, sLang, sOrdinal);
     if (!sText.isEmpty ())
       aOut.appendNew (IXdmNode.createText (sText));
   }
@@ -1092,7 +1106,8 @@ public final class NumberInstruction extends AbstractInstruction
     final Avt aOrdinal = aCtx.compileOptionalAvt (aEl, "ordinal");
     final String sStartAt = aEl.getAttr ("start-at");
     final Avt aStartAt = aCtx.compileAvt (aEl, sStartAt == null ? "1" : sStartAt);
-    if (aStartAt.isConstant () && _parseStartAt (aStartAt.getConstantValue ()) == null)
+    final ICommonsList <BigInteger> aConstStartAt = aStartAt.isConstant () ? _parseStartAt (aStartAt.getConstantValue ()) : null;
+    if (aStartAt.isConstant () && aConstStartAt == null)
       throw XsltException.at (aEl,
                               "XTSE0020",
                               "The start-at value '" + aStartAt.getConstantValue () + "' of xsl:number is not a list of integers");
@@ -1110,6 +1125,8 @@ public final class NumberInstruction extends AbstractInstruction
                                   aGroupSize,
                                   aOrdinal,
                                   aStartAt,
-                                  aLang);
+                                  aLang,
+                                  aFormat.isConstant () ? NumberFormatter.parsePicture (aFormat.getConstantValue ()) : null,
+                                  aConstStartAt);
   }
 }
