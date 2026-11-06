@@ -446,6 +446,23 @@ final class XsdValidationRun
   }
 
   /**
+   * Size the record of the types of simple-typed nodes for XSD 1.1 assertions
+   * (see {@link #annotateAssertType}) for a validation of a whole document,
+   * so that it is not rehashed again and again while it grows to an entry for
+   * most nodes. Does nothing if the schema has no assertions or something was
+   * recorded already.
+   *
+   * @param nNodes
+   *        The number of nodes of the document (all kinds, as numbered),
+   *        only a hint.
+   */
+  void expectAssertNodes (final int nNodes)
+  {
+    if (m_aAssertTypes != null && m_aAssertTypes.isEmpty () && nNodes > 16)
+      m_aAssertTypes = new CommonsHashMap <> (nNodes);
+  }
+
+  /**
    * go-xslt <code>annotateAssertType</code>: records the type a simple-typed
    * node validated against for the typed view of later XSD 1.1 assertion
    * evaluations. Unions are resolved when the assertion tree is built.

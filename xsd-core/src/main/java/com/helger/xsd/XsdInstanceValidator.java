@@ -1913,6 +1913,8 @@ final class XsdInstanceValidator
     if (aLateHint != null)
       return XsdValidationResult.createInvalid (aLateHint);
     final XsdValidationRun aRun = new XsdValidationRun (aSchema, aDocument);
+    // The whole tree is validated: its document order numbers count its nodes
+    aRun.expectAssertNodes (aDocument.getEndOrder () + 1);
     final XsdErrorCollector aCollector = aOptions == null ? null : new XsdErrorCollector (aOptions.getMaxErrors ());
     final String sLanguage = aOptions == null ? "" : aOptions.getLanguage ();
     if (aCollector != null)
