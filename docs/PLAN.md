@@ -495,3 +495,21 @@ Open, for later:
 * Harness: the XSLT30 harness has no code-mismatch list like `qt3-code-mismatches.txt`; XSD tokens `Unicode_*`,
   edition and XML-version tokens are never claimed; a non-queried schema compile crash drops the group's instance tests
   uncounted.
+
+## Function calls, conversions and key patterns
+
+Status: in progress (2026-11-06). Follows from sch2java S7 (see `docs/SUGGESTIONS-sch2java.md`): compiling simple
+`xsl:function` bodies into compiled parts was implemented and measured and gave no gain (key index over 100,000 nodes
+with `use='f:schemeAndValue(id)'`: 94 ms before, 97 ms after; the same `use` inline 79 ms), so it was dropped: it
+would have put the semantics of xsl:variable, xsl:choose, xsl:if, xsl:value-of and xsl:sequence in two places. A JFR
+profile of that workload shows instead:
+
+1. `FunctionLibrary.getFunction` builds and hashes the key `{ns}local#arity` on every static function call (about
+   17 %; 15 to 20 % of the per-line Schematron profile of S4 to S6).
+2. `SequenceTypeMatcher.convert` for the `as` conversions of results, variables and arguments (16 to 20 %).
+3. `PatternMatcher$PathSearch` allocated per key `match` test (about 15 % of the key index build).
+
+Also queued for this phase: one `ArrayList` per axis step copied into an `XdmSequence` (about 13 % of the child-step
+profile of S4 to S6), and two go-xslt v0.4.2 algorithm changes that apply here too: `xsl:number` creates a context
+per candidate node (`NumberInstruction`, go-xslt `fbf8394`), and `array(T)` checks of `xsl:iterate` parameters
+re-check every member (`SequenceTypeMatcher`, go-xslt `0483716`/`a60fa65`).
