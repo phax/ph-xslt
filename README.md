@@ -25,6 +25,8 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
 | `xsd-core` | Native XML Schema 1.0 and 1.1 validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine/override, schema-for-schemas checks, simple types and facets, content models with open content, instance validation with identity constraints, assertions and conditional type assignment, read-only component view, validation API that reports all errors; the default schema provider for XPath and XSLT (schemas compiled as XSD 1.1) | usable |
 | `xsd-conformance` | W3C xsdtests (XML Schema) harness with a pluggable validator (not deployed) | usable |
+| `xslt-benchmark` | JMH benchmarks and profiling workloads for parsing, XPath, XSLT, XSD, streaming and compiling (standalone, not in the reactor, not deployed; see its `README.md` and `docs/benchmarks`) | usable |
+| `xdm-memory-benchmark` | Retained heap of the node tree compared with ph-xml MicroDOM and Saxon TinyTree (standalone, not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
 

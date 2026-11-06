@@ -541,3 +541,12 @@ workload, `getChildAtIndex` 14 %; the `ArrayList` copy is only about 6 %, so tha
 `HashMap` growth (about 10 %, pre-sizing), context allocation per call and focus (about 5 %),
 `EAtomicType.isNumeric` through `isDerivedFrom` (a flag would make it constant), pattern predicates of key matches.
 
+Benchmark (2026-11-06): module `xslt-benchmark` (JMH, standalone; `compare.sh <base> <new>` builds two commits in
+temporary worktrees and compares them), baseline and ranked hot spots in `docs/benchmarks/2026-11-06-baseline.md`.
+Checked against the queued items: the `array(T)` check is already linear (uniform member type), dropped; the key
+index `HashMap` growth is 0.7 %, dropped; the `xsl:number` cost is the quadratic counting (`_countAny` 93 %), not the
+context per candidate. New in the profile: `XdmSchemaType.of` per annotated node in XSD 1.1 assertions (68 % of 1.1
+validation), `FunctionLibrary.createDefault` per compiled stylesheet (47 % of compiling),
+`PatternMatcher._getSelectingAxis` per `canMatch` (26 % of dispatch), the default collation of `min`/`max` resolved
+per call (54 % of the positional workload), `days-from-duration` through `BigInteger` (33 % of FLWOR).
+
