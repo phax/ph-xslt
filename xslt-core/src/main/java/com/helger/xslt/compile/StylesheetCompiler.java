@@ -2150,7 +2150,8 @@ public final class StylesheetCompiler
     m_aPackages = aLoader.getPackages ();
     m_aPackages.analyse ();
 
-    final FunctionLibrary aLib = FunctionLibrary.createDefault ();
+    // The XSLT and stylesheet functions go into a child of the shared default library
+    final FunctionLibrary aLib = FunctionLibrary.getDefault ().createChild ();
     m_aRegistry.contributeFunctions (aLib);
     if (m_aOptions.isStreamingClaim ())
       XsltFunctions.registerStreamingClaim (aLib);

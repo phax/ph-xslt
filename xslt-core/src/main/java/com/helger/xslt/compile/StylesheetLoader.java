@@ -110,8 +110,8 @@ public final class StylesheetLoader
   private int m_nBuildDepth;
 
   /**
-   * Create a loader. The function library for static expressions is the
-   * default library plus the XSLT functions allowed in static expressions,
+   * Create a loader. The function library for static expressions is a child
+   * of the shared default library with the XSLT functions allowed in static expressions,
    * and the streaming-related functions when the options claim streaming.
    *
    * @param aOptions
@@ -121,7 +121,7 @@ public final class StylesheetLoader
   public StylesheetLoader (@NonNull final XsltCompileOptions aOptions)
   {
     m_aOptions = aOptions;
-    m_aStaticFunctions = FunctionLibrary.createDefault ();
+    m_aStaticFunctions = FunctionLibrary.getDefault ().createChild ();
     XsltFunctions.registerStatic (m_aStaticFunctions);
     if (aOptions.isStreamingClaim ())
       XsltFunctions.registerStreamingClaim (m_aStaticFunctions);

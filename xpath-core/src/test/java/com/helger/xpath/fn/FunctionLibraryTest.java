@@ -22,6 +22,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
@@ -71,5 +72,57 @@ public final class FunctionLibraryTest
     assertNull (aChild.getFunction (aName, 0));
     // Not visible in the parent
     assertNull (new FunctionLibrary ().getFunction (aName, 3));
+  }
+
+  private static void _assertReadOnly (final Runnable aChange)
+  {
+    try
+    {
+      aChange.run ();
+      fail ("The shared default library must refuse the change");
+    }
+    catch (final IllegalStateException ex)
+    {
+      // expected
+    }
+  }
+
+  @Test
+  public void testSharedDefaultIsReadOnly ()
+  {
+    final FunctionLibrary aDefault = FunctionLibrary.getDefault ();
+    assertSame (aDefault, FunctionLibrary.getDefault ());
+    final XdmQName aName = new XdmQName ("urn:test", "f");
+    final long nStamp = aDefault.getModificationStamp ();
+    final IXPathFunction aImpl = (aCtx, aArgs) -> XdmSequence.EMPTY;
+    _assertReadOnly ( () -> aDefault.register ("urn:test", "f", "() as item()*", aImpl));
+    _assertReadOnly ( () -> aDefault.register ("urn:test", "f", "() as item()*", aImpl, true, aImpl));
+    _assertReadOnly ( () -> aDefault.registerVariadic ("urn:test", "f", 1, "item()*", "item()*", aImpl));
+    _assertReadOnly ( () -> aDefault.hide (FN_CONCAT, 2));
+    _assertReadOnly ( () -> aDefault.hideFromLookup (FN_CONCAT, 2));
+    final FunctionLibrary.FunctionDef aConcat2 = aDefault.getFunction (FN_CONCAT, 2);
+    assertNotNull (aConcat2);
+    _assertReadOnly ( () -> aDefault.registerParsed (aName,
+                                                     aConcat2.getParamTypes (),
+                                                     aConcat2.getReturnType (),
+                                                     aImpl,
+                                                     false));
+    _assertReadOnly ( () -> aDefault.registerForLookup (aName,
+                                                        aConcat2.getParamTypes (),
+                                                        aConcat2.getReturnType (),
+                                                        aImpl,
+                                                        false));
+    // The on-demand arities of fn:concat are still created, without changing the stamp
+    assertNotNull (aDefault.getFunction (FN_CONCAT, 17));
+    assertEquals (nStamp, aDefault.getModificationStamp ());
+    assertNull (aDefault.getFunction (aName, 0));
+
+    // A child takes the changes and shadows the default
+    final FunctionLibrary aChild = aDefault.createChild ();
+    aChild.registerParsed (FN_CONCAT, aConcat2.getParamTypes (), aConcat2.getReturnType (), aImpl, false);
+    assertSame (aImpl, aChild.getFunction (FN_CONCAT, 2).getImpl ());
+    assertSame (aConcat2, aDefault.getFunction (FN_CONCAT, 2));
+    // A library of createDefault stays writable
+    FunctionLibrary.createDefault ().hide (FN_CONCAT, 2);
   }
 }

@@ -244,6 +244,8 @@ public final class FunctionLibrary
   // this library (not by the on-demand functions of a variadic registration,
   // which do not change any lookup result)
   private volatile long m_nModCount;
+  // Set for the shared default library (getDefault): every registration, hiding or lookup change is refused
+  private volatile boolean m_bReadOnly;
 
   /**
    * Create an empty library without parent. Use {@link #createDefault()} for
@@ -262,6 +264,19 @@ public final class FunctionLibrary
   private FunctionLibrary (@Nullable final FunctionLibrary aParent)
   {
     m_aParent = aParent;
+  }
+
+  /**
+   * Refuse a change of the registrations of the shared default library (see {@link #getDefault()}), which every
+   * static context and compiled stylesheet sees.
+   *
+   * @throws IllegalStateException
+   *         if this is the shared default library.
+   */
+  private void _checkWritable ()
+  {
+    if (m_bReadOnly)
+      throw new IllegalStateException ("The shared default function library is read-only; register into a child library (createChild) instead");
   }
 
   /**
@@ -369,6 +384,7 @@ public final class FunctionLibrary
     final int nArity = _countParams (sSignature);
     final XdmQName aName = new XdmQName (sNamespaceUri, sLocalName);
     final FunctionDef aDef = new FunctionDef (aName, sSignature, aImpl, bFocusDependent);
+    _checkWritable ();
     m_aRWLock.writeLocked ( () -> {
       m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), aDef);
       m_nModCount++;
@@ -439,6 +455,7 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
+    _checkWritable ();
     m_aRWLock.writeLocked ( () -> {
       m_aMap.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
       m_nModCount++;
@@ -481,6 +498,7 @@ public final class FunctionLibrary
     ValueEnforcer.notEmpty (sReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final Object [] aData = new Object [] { Integer.valueOf (nMinArity), sParamType, sReturnType, aImpl };
+    _checkWritable ();
     m_aRWLock.writeLocked ( () -> {
       m_aVariadic.put ("{" + sNamespaceUri + "}" + sLocalName, aData);
       m_nModCount++;
@@ -713,6 +731,7 @@ public final class FunctionLibrary
   {
     ValueEnforcer.notNull (aName, "Name");
     final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
+    _checkWritable ();
     m_aRWLock.writeLocked ( () -> {
       m_aHidden.add (sKey);
       m_aMap.remove (sKey);
@@ -750,6 +769,7 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
+    _checkWritable ();
     m_aRWLock.writeLocked ( () -> {
       m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
       m_nModCount++;
@@ -771,6 +791,7 @@ public final class FunctionLibrary
   public FunctionLibrary hideFromLookup (@NonNull final XdmQName aName, final int nArity)
   {
     ValueEnforcer.notNull (aName, "Name");
+    _checkWritable ();
     m_aRWLock.writeLocked ( () -> {
       m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), nArity), null);
       m_nModCount++;
@@ -779,7 +800,10 @@ public final class FunctionLibrary
   }
 
   /**
-   * @return A new library with all built-in functions of F&amp;O 3.1.
+   * Build a new library with all built-in functions of F&amp;O 3.1. This registers several hundred functions and
+   * parses no signature yet; to see the built-in functions, prefer a child of the shared {@link #getDefault()}.
+   *
+   * @return A new library with all built-in functions of F&amp;O 3.1, writable.
    */
   @NonNull
   public static FunctionLibrary createDefault ()
@@ -809,7 +833,15 @@ public final class FunctionLibrary
     return ret;
   }
 
-  /** @return The shared default library. Do not register into it. */
+  /**
+   * The library of the built-in functions shared by all static contexts and compiled stylesheets, built once with
+   * {@link #createDefault()} on the first call. It is read-only: every registration, hiding or lookup change throws an
+   * {@link IllegalStateException}, so its modification stamp never changes; register into a {@link #createChild()}
+   * instead. Only the functions of a variadic registration (<code>fn:concat</code>) are still created on demand,
+   * under its lock.
+   *
+   * @return The shared default library.
+   */
   @NonNull
   public static FunctionLibrary getDefault ()
   {
@@ -819,7 +851,11 @@ public final class FunctionLibrary
     return DEFAULT_LOCK.writeLockedGet ( () -> {
       FunctionLibrary aLib = s_aDefault;
       if (aLib == null)
-        s_aDefault = aLib = createDefault ();
+      {
+        aLib = createDefault ();
+        aLib.m_bReadOnly = true;
+        s_aDefault = aLib;
+      }
       return aLib;
     });
   }
