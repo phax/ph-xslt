@@ -83,14 +83,32 @@ public enum EAtomicType
   ERROR ("error", ANY_ATOMIC_TYPE);
 
   private static final Map <String, EAtomicType> BY_LOCAL_NAME = new HashMap <> ();
-  static
-  {
-    for (final EAtomicType e : values ())
-      BY_LOCAL_NAME.put (e.m_sLocalName, e);
-  }
 
   private final String m_sLocalName;
   private final EAtomicType m_eParent;
+  // Set once in the static initialiser (before any other thread can see the
+  // constants): the bits of the ordinals of this type and all its ancestors,
+  // and the answer of isNumeric
+  private long m_nAncestorBits;
+  private boolean m_bNumeric;
+
+  static
+  {
+    final EAtomicType [] aAll = values ();
+    if (aAll.length > Long.SIZE)
+      throw new IllegalStateException ("Too many atomic types for the ancestor bits: " + aAll.length);
+    for (final EAtomicType e : aAll)
+    {
+      BY_LOCAL_NAME.put (e.m_sLocalName, e);
+      long nBits = 0;
+      for (EAtomicType eAnc = e; eAnc != null; eAnc = eAnc.m_eParent)
+        nBits |= 1L << eAnc.ordinal ();
+      e.m_nAncestorBits = nBits;
+    }
+    final long nDecimalBit = 1L << DECIMAL.ordinal ();
+    for (final EAtomicType e : aAll)
+      e.m_bNumeric = e == DOUBLE || e == FLOAT || ((e.m_nAncestorBits & nDecimalBit) != 0 && e != NUMERIC);
+  }
 
   EAtomicType (@NonNull final String sLocalName, @Nullable final EAtomicType eParent)
   {
@@ -125,16 +143,13 @@ public enum EAtomicType
    * @return <code>true</code> if this is the same as or derived from the
    *         other type. {@link #NUMERIC} is treated as the union: DOUBLE,
    *         FLOAT, DECIMAL and everything derived from them are derived from
-   *         it.
+   *         it. Answered from bits computed once per type.
    */
   public boolean isDerivedFrom (@NonNull final EAtomicType eOther)
   {
     if (eOther == NUMERIC)
-      return isNumeric ();
-    for (EAtomicType e = this; e != null; e = e.m_eParent)
-      if (e == eOther)
-        return true;
-    return false;
+      return m_bNumeric;
+    return (m_nAncestorBits & (1L << eOther.ordinal ())) != 0;
   }
 
   /**
@@ -144,7 +159,7 @@ public enum EAtomicType
    */
   public boolean isNumeric ()
   {
-    return this == DOUBLE || this == FLOAT || (isDerivedFrom (DECIMAL) && this != NUMERIC);
+    return m_bNumeric;
   }
 
   /** @return <code>true</code> for xs:integer and all its derived types. */
