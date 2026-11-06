@@ -678,6 +678,29 @@ public final class XPathEvaluator
   }
 
   /**
+   * The check of {@link #_isEmptyByNameIndex(IExpr.PathExpr, IExpr.StepExpr, int, DynamicContext)}
+   * for a whole path, as {@link #_evalPath(IExpr.PathExpr, DynamicContext)} applies it: the last
+   * step is the fused step for <code>//name</code> if there is one.
+   *
+   * @param aExpr
+   *        The path.
+   * @param aCtx
+   *        The dynamic context with the context item the path is evaluated from.
+   * @return <code>true</code> if the path is known to be empty without evaluating it,
+   *         <code>false</code> if that cannot be decided (the path may still be empty).
+   */
+  static boolean isEmptyByNameIndex (final IExpr.@NonNull PathExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    final List <IExpr.StepExpr> aSteps = aExpr.steps ();
+    final int nSteps = aSteps.size ();
+    if (nSteps == 0)
+      return false;
+    final boolean bFused = nSteps >= 2 && aSteps.get (nSteps - 2).fused () != null;
+    final IExpr.StepExpr aLast = bFused ? aSteps.get (nSteps - 2).fused () : aSteps.get (nSteps - 1);
+    return _isEmptyByNameIndex (aExpr, aLast, bFused ? nSteps - 2 : nSteps - 1, aCtx);
+  }
+
+  /**
    * Evaluate a whole path expression (XPath 3.1 section 3.3) with all its steps. A path that
    * selects elements by a name the document does not contain, after a prefix that cannot raise an
    * error, is empty without evaluating the prefix

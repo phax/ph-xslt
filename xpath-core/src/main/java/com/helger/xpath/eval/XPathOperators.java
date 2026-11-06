@@ -32,6 +32,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.ast.EBinaryOp;
 import com.helger.xpath.ast.EComparisonOp;
+import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.collation.ICollation;
@@ -788,6 +789,28 @@ public final class XPathOperators
                                   @NonNull final DynamicContext aCtx)
   {
     return ((XdmAtomic) _cast (aValue, aType, true, aCtx).get (0)).getBoolean ();
+  }
+
+  /**
+   * Is a path known to be empty from the element index of its document, without evaluating it?
+   * This is the check the evaluator makes before it evaluates a path (and in the early exit of
+   * existence tests): the last step is a child, descendant or descendant-or-self step (or the
+   * fused <code>//name</code> step) with an exact element name that does not occur in the
+   * document, and everything before it is a start expression and steps that cannot raise an error
+   * (axis steps without predicates, unions of such paths), evaluated from a context item that is a
+   * node in a tree with a document root. A tree without numbering and a streamed document have no
+   * index. When this returns <code>false</code> the path has to be evaluated as usual.
+   *
+   * @param aExpr
+   *        The path.
+   * @param aCtx
+   *        The dynamic context with the context item the path is evaluated from.
+   * @return <code>true</code> if the path is known to be empty, <code>false</code> if that cannot
+   *         be decided.
+   */
+  public static boolean isEmptyByNameIndex (final IExpr.@NonNull PathExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    return XPathEvaluator.isEmptyByNameIndex (aExpr, aCtx);
   }
 
   /**

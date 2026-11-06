@@ -27,6 +27,7 @@ import org.junit.Test;
 import com.helger.xpath.CompiledXPath;
 import com.helger.xpath.XPathCompiler;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.fn.FnAccessor;
@@ -363,5 +364,35 @@ public final class EarlyExitTest
     aDoc.assignDocumentOrder ();
     assertEquals ("true", _eval ("exists(cac:InvoiceLine/cac:Item/cbc:UUID)", aRoot));
     assertEquals ("1", _eval ("count((cac:InvoiceLine|cac:CreditNoteLine)/cac:Item/cbc:UUID)", aRoot));
+  }
+
+  private static boolean _isEmptyByNameIndex (@NonNull final String sPath, @NonNull final IXdmItem aContext)
+  {
+    final CompiledXPath aCompiled = XPathCompiler.compile (sPath, _createStaticContext ());
+    return XPathOperators.isEmptyByNameIndex ((IExpr.PathExpr) aCompiled.getExpression (),
+                                              aCompiled.createDynamicContext ().withFocus (aContext, 1, 1));
+  }
+
+  @Test
+  public void testPublicEmptyByNameIndex ()
+  {
+    final IXdmNode aDoc = _parse ("<Invoice xmlns:cac='" +
+                                  NS_CAC +
+                                  "' xmlns:cbc='" +
+                                  NS_CBC +
+                                  "'><cac:InvoiceLine><cbc:ID>1</cbc:ID><cac:Item><cbc:Name>a</cbc:Name></cac:Item>" +
+                                  "</cac:InvoiceLine><cbc:Note>n</cbc:Note></Invoice>");
+    final IXdmNode aRoot = aDoc.getChildAtIndex (0);
+    final IXdmNode aLine = aRoot.getChildAtIndex (0);
+    // The generated code's per-line shape: relative steps, the last one absent
+    assertTrue (_isEmptyByNameIndex ("cac:Item/cac:ClassifiedTaxCategory/cbc:TaxExemptionReason", aLine));
+    assertTrue (_isEmptyByNameIndex ("(cac:InvoiceLine|cac:CreditNoteLine)/cbc:UUID", aRoot));
+    assertTrue (_isEmptyByNameIndex ("/Invoice/cac:InvoiceLine//cbc:UUID", aRoot));
+    // Not decidable: the name occurs, a single step, a predicate in the prefix,
+    // a context item that is no node
+    assertFalse (_isEmptyByNameIndex ("cac:Item/cbc:Name", aLine));
+    assertFalse (_isEmptyByNameIndex ("cbc:UUID", aLine));
+    assertFalse (_isEmptyByNameIndex ("cac:Item[1]/cbc:UUID", aLine));
+    assertFalse (_isEmptyByNameIndex ("cac:Item/cbc:UUID", XdmAtomic.integer (1)));
   }
 }
