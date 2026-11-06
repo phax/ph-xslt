@@ -277,7 +277,8 @@ public final class NumberInstruction extends AbstractInstruction
   /**
    * <code>matches-count($node)</code> of XSLT 3.0 section 12.3: the count
    * pattern if present, otherwise the default of the same node kind and
-   * expanded name as the selected node.
+   * expanded name as the selected node. A count pattern of exact names
+   * decides a node with a parent by its kind and name alone.
    *
    * @param aC
    *        The counting state.
@@ -289,13 +290,18 @@ public final class NumberInstruction extends AbstractInstruction
   {
     if (m_aCount == null)
       return _isSameKindAndName (aNode, aC.m_aTarget);
+    // A pattern of exact names decides a node with a parent by its kind and
+    // name; a parentless node goes to the pattern
+    if (m_aCount.exactNames () && aNode.getParent () != null)
+      return aNode.getKind () == ENodeKind.ELEMENT && m_aCount.elementNames ().contains (aNode.getName ());
     return m_aCount.pattern ().matches (aNode, aC.m_aCountCtx);
   }
 
   /**
    * The from pattern part of <code>matches-from($node)</code> (XSLT 3.0
    * section 12.3). The spec also makes every root node match; the callers get
-   * that effect by stopping their upward walk at the root.
+   * that effect by stopping their upward walk at the root. A from pattern of
+   * exact names decides a node with a parent by its kind and name alone.
    *
    * @param aC
    *        The counting state.
@@ -306,7 +312,11 @@ public final class NumberInstruction extends AbstractInstruction
    */
   private boolean _matchesFrom (@NonNull final Counting aC, @NonNull final IXdmNode aNode)
   {
-    return m_aFrom != null && m_aFrom.pattern ().matches (aNode, aC.m_aFromCtx);
+    if (m_aFrom == null)
+      return false;
+    if (m_aFrom.exactNames () && aNode.getParent () != null)
+      return aNode.getKind () == ENodeKind.ELEMENT && m_aFrom.elementNames ().contains (aNode.getName ());
+    return m_aFrom.pattern ().matches (aNode, aC.m_aFromCtx);
   }
 
   /**
@@ -416,8 +426,7 @@ public final class NumberInstruction extends AbstractInstruction
    * {@link #SIBLING_SCAN_LIMIT} children the siblings come from the name index
    * if the count pattern allows it
    * ({@link #_countPrecedingSiblingsByName(Counting, IXdmNode)}); otherwise the
-   * preceding siblings are tested one by one, against the names alone if the
-   * count pattern consists of exact names (a sibling has a parent).
+   * preceding siblings are tested one by one.
    */
   private long _siblingIndex (@NonNull final Counting aC, @NonNull final IXdmNode aNode)
   {
@@ -431,16 +440,13 @@ public final class NumberInstruction extends AbstractInstruction
       if (nPreceding >= 0)
         return nPreceding + 1;
     }
-    // An explicit count pattern of exact names is decided by the name
-    final List <XdmQName> aExact = m_aCount != null && m_aCount.exactNames () ? m_aCount.elementNames () : null;
     long ret = 1;
     for (int i = 0; i < nCount; ++i)
     {
       final IXdmNode aSibling = aParent.getChildAtIndex (i);
       if (aSibling == aNode)
         break;
-      if (aExact != null ? (aSibling.getKind () == ENodeKind.ELEMENT && aExact.contains (aSibling.getName ()))
-                         : _matchesCount (aC, aSibling))
+      if (_matchesCount (aC, aSibling))
         ret++;
     }
     return ret;
