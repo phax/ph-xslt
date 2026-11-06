@@ -17,6 +17,7 @@
 package com.helger.xpath.pattern;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.ICommonsList;
@@ -46,6 +47,35 @@ public interface XsltPattern
    * @return <code>true</code> if the item matches.
    */
   boolean matches (@NonNull IXdmItem aItem, @NonNull DynamicContext aCtx);
+
+  /**
+   * A test on the item alone, without evaluating anything: <code>false</code> means that
+   * {@link #matches(IXdmItem, DynamicContext)} is <code>false</code> for the item with every
+   * context. <code>true</code> decides nothing.
+   *
+   * @param aItem
+   *        The candidate item.
+   * @return <code>false</code> if the item cannot match.
+   */
+  default boolean canMatch (@NonNull final IXdmItem aItem)
+  {
+    return true;
+  }
+
+  /**
+   * The names the nodes this pattern matches must have: if every alternative of the pattern (the
+   * operands of top-level unions) is a path whose last step tests an exact element or attribute
+   * name (no wildcard, no kind test, not the namespace axis), every matching node is an element
+   * or attribute with one of these names. A host may then take the candidate nodes from a name
+   * index and test only those with {@link #matches(IXdmItem, DynamicContext)}.
+   *
+   * @return The names, or <code>null</code> if the pattern can match other nodes.
+   */
+  @Nullable
+  default PatternFinalNames getFinalNames ()
+  {
+    return null;
+  }
 
   /**
    * @return The default priority (XSLT 3.0 section 6.5). For a pattern with

@@ -864,7 +864,8 @@ public final class SequenceTypeMatcher
                                              eCastTarget.getQualifiedName ());
       return AtomicCaster.castFromString (aValue.getString (), eCastTarget, aCtx.getStaticContext ());
     }
-    if (eTarget == EAtomicType.ANY_ATOMIC_TYPE || eType.isDerivedFrom (eTarget))
+    // The exact type first, before the walk up the derivation chain
+    if (eType == eTarget || eTarget == EAtomicType.ANY_ATOMIC_TYPE || eType.isDerivedFrom (eTarget))
       return aValue;
     // Numeric promotion
     if (eTarget == EAtomicType.DOUBLE && (eType == EAtomicType.FLOAT || eType.isDerivedFrom (EAtomicType.DECIMAL)))
@@ -875,6 +876,46 @@ public final class SequenceTypeMatcher
     if (eTarget == EAtomicType.STRING && eType == EAtomicType.ANY_URI)
       return XdmAtomic.string (aValue.getString ());
     return aValue;
+  }
+
+  /**
+   * The conversion of {@link #_convertAtomics(XdmSequence, SeqType, DynamicContext, String)} for a
+   * sequence of exactly one item and a built-in target type: an atomic value is converted with
+   * {@link #_convertAtomic(XdmAtomic, EAtomicType, DynamicContext)} without a sequence builder;
+   * any other item is atomised and each of its values is converted. The match check against the
+   * whole sequence type is left to the caller.
+   *
+   * @param aSeq
+   *        A sequence of exactly one item.
+   * @param eTarget
+   *        The built-in target type.
+   * @param aCtx
+   *        Context.
+   * @return The supplied sequence itself if an atomic value stayed unchanged, a new sequence
+   *         otherwise.
+   * @throws XPathException
+   *         FOTY0013 if a map or function item must be atomised; the errors of the conversion of
+   *         the value
+   */
+  @NonNull
+  private static XdmSequence _convertSingleAtomic (@NonNull final XdmSequence aSeq,
+                                                   @NonNull final EAtomicType eTarget,
+                                                   @NonNull final DynamicContext aCtx)
+  {
+    final IXdmItem aItem = aSeq.get (0);
+    if (aItem instanceof final XdmAtomic aAtomic)
+    {
+      final XdmAtomic aConv = _convertAtomic (aAtomic, eTarget, aCtx);
+      return aConv == aAtomic ? aSeq : XdmSequence.of (aConv);
+    }
+    // Atomisation
+    final XdmSequence aAtoms = Atomizer.atomize (aSeq);
+    if (aAtoms.size () == 1)
+      return XdmSequence.of (_convertAtomic ((XdmAtomic) aAtoms.get (0), eTarget, aCtx));
+    final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
+    for (final IXdmItem aAtom : aAtoms)
+      aBuilder.add (_convertAtomic ((XdmAtomic) aAtom, eTarget, aCtx));
+    return aBuilder.build ();
   }
 
   /**
@@ -902,6 +943,15 @@ public final class SequenceTypeMatcher
   {
     final EAtomicType eTarget = aType.itemType ().atomicType ();
     final IXdmTypeDefinition aSchemaTarget = aType.itemType ().schemaType ();
+    if (aSchemaTarget == null && aSeq.size () == 1)
+    {
+      // One item, the most frequent case: no sequence builder
+      final XdmSequence ret = _convertSingleAtomic (aSeq, eTarget, aCtx);
+      if (!matches (ret, aType))
+        throw XPathException.of (sErrorCode,
+                                 "Required type is " + getAsString (aType) + ", but supplied was " + _describe (ret));
+      return ret;
+    }
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     boolean bChanged = false;
     for (final IXdmItem aItem : aSeq)

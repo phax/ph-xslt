@@ -36,6 +36,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.context.DynamicContext;
+import com.helger.xpath.fn.FunctionCallSite;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.ops.AtomicArithmetic;
@@ -808,6 +809,36 @@ public final class XPathOperators
                                             final int nArity)
   {
     final FunctionDef ret = aCtx.getStaticContext ().getFunctionLibrary ().getFunction (aName, nArity);
+    if (ret == null)
+      throw XPathException.of ("XPST0017", "Unknown function " + aName.getEQName () + "#" + nArity);
+    return ret;
+  }
+
+  /**
+   * Resolve a static function call against the function library of the static context, through
+   * the resolution cache of the call site: the same definition as
+   * {@link #getFunctionDef(DynamicContext, XdmQName, int)}, without building the lookup key again
+   * while the library and its registrations stay the same.
+   *
+   * @param aCtx
+   *        The dynamic context.
+   * @param aSite
+   *        The resolution cache of the call site, one per call expression.
+   * @param aName
+   *        The expanded function name.
+   * @param nArity
+   *        The number of arguments.
+   * @return The function definition.
+   * @throws XPathException
+   *         XPST0017 if there is no such function.
+   */
+  @NonNull
+  public static FunctionDef getFunctionDef (@NonNull final DynamicContext aCtx,
+                                            @NonNull final FunctionCallSite aSite,
+                                            @NonNull final XdmQName aName,
+                                            final int nArity)
+  {
+    final FunctionDef ret = aSite.getFunction (aCtx.getStaticContext ().getFunctionLibrary (), aName, nArity);
     if (ret == null)
       throw XPathException.of ("XPST0017", "Unknown function " + aName.getEQName () + "#" + nArity);
     return ret;

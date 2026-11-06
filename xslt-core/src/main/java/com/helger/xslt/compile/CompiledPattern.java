@@ -38,6 +38,10 @@ import com.helger.xslt.runtime.XsltContext;
 public record CompiledPattern (@NonNull XsltPattern pattern, @NonNull StaticContext staticContext)
 {
   /**
+   * Match an item with the static context of the pattern and the pattern
+   * context of the engine. An item that {@link XsltPattern#canMatch(IXdmItem)}
+   * rejects is answered without creating a context.
+   *
    * @param aItem
    *        Candidate item.
    * @param aCtx
@@ -46,6 +50,13 @@ public record CompiledPattern (@NonNull XsltPattern pattern, @NonNull StaticCont
    */
   public boolean matches (@NonNull final IXdmItem aItem, @NonNull final XsltContext aCtx)
   {
+    if (!pattern.canMatch (aItem))
+    {
+      // No context is created for an item that cannot match; the
+      // cancellation check stays as in the match itself
+      aCtx.getEngine ().getPatternContext ().checkInterrupt ();
+      return false;
+    }
     return pattern.matches (aItem, aCtx.getEngine ().getPatternContext ().withStaticContext (staticContext));
   }
 }

@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.ReturnsMutableCopy;
@@ -30,8 +31,10 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.ENodeTestKind;
 import com.helger.xpath.ast.ExprWalker;
 import com.helger.xpath.ast.IExpr;
+import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.eval.XPathEvaluator;
 import com.helger.xpath.xdm.IXdmItem;
@@ -56,6 +59,11 @@ public final class CompiledXsltPattern implements XsltPattern
   private final double m_dDefaultPriority;
   private final List <CompiledXsltPattern> m_aAlternatives;
   private final Set <IExpr> m_aPositionalPredicates;
+  // The paths of a pattern that is a union of paths, for the quick test of
+  // canMatch; null for any other pattern
+  private final List <IExpr.PathExpr> m_aUnionPaths;
+  // See getFinalNames; null if not every path ends in an exact name test
+  private final PatternFinalNames m_aFinalNames;
 
   /**
    * Create the pattern and collect, once, its positional predicates (see
@@ -84,6 +92,90 @@ public final class CompiledXsltPattern implements XsltPattern
     final Set <IExpr> aPositional = Collections.newSetFromMap (new IdentityHashMap <> ());
     _collectPositionalPredicates (aExpr, aPositional);
     m_aPositionalPredicates = Collections.unmodifiableSet (aPositional);
+    m_aUnionPaths = _getUnionPaths (aExpr);
+    m_aFinalNames = m_aUnionPaths == null ? null : _getFinalNames (m_aUnionPaths);
+  }
+
+  /**
+   * The alternatives of a pattern that consists only of path patterns joined by top-level or
+   * nested unions, walked iteratively from left to right.
+   *
+   * @param aPattern
+   *        The parsed pattern.
+   * @return The paths, or <code>null</code> if the pattern contains anything else (a predicate
+   *         pattern, an intersection or a difference).
+   */
+  @Nullable
+  private static List <IExpr.PathExpr> _getUnionPaths (@NonNull final IExpr aPattern)
+  {
+    final ICommonsList <IExpr.PathExpr> ret = new CommonsArrayList <> ();
+    final ICommonsList <IExpr> aStack = new CommonsArrayList <> (aPattern);
+    while (aStack.isNotEmpty ())
+    {
+      final IExpr aCur = aStack.removeLast ();
+      if (aCur instanceof final IExpr.SetExpr aSet && aSet.op () == IExpr.SetExpr.ESetOp.UNION)
+      {
+        aStack.add (aSet.right ());
+        aStack.add (aSet.left ());
+      }
+      else
+        if (aCur instanceof final IExpr.PathExpr aPath)
+          ret.add (aPath);
+        else
+          return null;
+    }
+    return Collections.unmodifiableList (ret);
+  }
+
+  /**
+   * The exact names of the last steps of the paths (see {@link #getFinalNames()}): each last step
+   * must be an axis step (not parenthesised) with a name test without wildcard on an axis whose
+   * principal node kind is element (child, descendant, descendant-or-self, self) or attribute.
+   *
+   * @param aPaths
+   *        The paths of a union pattern.
+   * @return The distinct names in order of appearance, or <code>null</code> if a path does not end
+   *         in such a step.
+   */
+  @Nullable
+  private static PatternFinalNames _getFinalNames (@NonNull final List <IExpr.PathExpr> aPaths)
+  {
+    final ICommonsList <XdmQName> aElements = new CommonsArrayList <> ();
+    final ICommonsList <XdmQName> aAttributes = new CommonsArrayList <> ();
+    for (final IExpr.PathExpr aPath : aPaths)
+    {
+      final List <IExpr.StepExpr> aSteps = aPath.steps ();
+      if (aSteps.isEmpty ())
+        return null;
+      final IExpr.StepExpr aLast = aSteps.get (aSteps.size () - 1);
+      if (aLast.postfix () != null)
+        return null;
+      final NodeTest aTest = aLast.test ();
+      if (aTest.kind () != ENodeTestKind.NAME ||
+          aTest.anyName () ||
+          aTest.anyNamespace () ||
+          aTest.anyLocalName () ||
+          aTest.name () == null)
+        return null;
+      final ICommonsList <XdmQName> aTarget;
+      switch (aLast.axis ())
+      {
+        case CHILD:
+        case DESCENDANT:
+        case DESCENDANT_OR_SELF:
+        case SELF:
+          aTarget = aElements;
+          break;
+        case ATTRIBUTE:
+          aTarget = aAttributes;
+          break;
+        default:
+          return null;
+      }
+      if (!aTarget.contains (aTest.name ()))
+        aTarget.add (aTest.name ());
+    }
+    return new PatternFinalNames (Collections.unmodifiableList (aElements), Collections.unmodifiableList (aAttributes));
   }
 
   /**
@@ -160,6 +252,30 @@ public final class CompiledXsltPattern implements XsltPattern
   }
 
   /**
+   * For a pattern that is a union of paths: <code>false</code> if the item is a node that the last
+   * step of no path can select (wrong node kind for the axis or failing node test), so that no
+   * path can match it; such a node would be rejected by the search of every path before anything
+   * is evaluated. <code>true</code> for every other pattern and item.
+   */
+  @Override
+  public boolean canMatch (@NonNull final IXdmItem aItem)
+  {
+    if (m_aUnionPaths == null || !(aItem instanceof final IXdmNode aNode))
+      return true;
+    for (final IExpr.PathExpr aPath : m_aUnionPaths)
+      if (PatternMatcher.canLastStepSelect (aPath, aNode))
+        return true;
+    return false;
+  }
+
+  @Override
+  @Nullable
+  public PatternFinalNames getFinalNames ()
+  {
+    return m_aFinalNames;
+  }
+
+  /**
    * Match an item (XSLT 3.0 section 5.5.3). The candidate becomes the current
    * item. A plain <code>.</code> matches every item; a predicate pattern
    * <code>.[...]</code> matches if the filter expression, evaluated with the
@@ -184,6 +300,12 @@ public final class CompiledXsltPattern implements XsltPattern
     ValueEnforcer.notNull (aCtx, "Ctx");
     try
     {
+      if (!canMatch (aItem))
+      {
+        // As the search of every path would do before rejecting the node
+        aCtx.checkInterrupt ();
+        return false;
+      }
       final DynamicContext aRealCtx = aCtx.withCurrentItem (aItem);
       if (m_aExpr instanceof IExpr.ContextItemExpr)
         return true;

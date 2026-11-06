@@ -18,6 +18,7 @@ package com.helger.xslt.runtime;
 
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import org.jspecify.annotations.NonNull;
@@ -41,6 +42,7 @@ import com.helger.xpath.eval.SequenceTypeMatcher;
 import com.helger.xpath.fn.FnAccessor;
 import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.ops.Atomizer;
+import com.helger.xpath.pattern.PatternFinalNames;
 import com.helger.xpath.value.XdmArray;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
@@ -97,6 +99,8 @@ public final class Engine
 
   // NaN equals nothing: a unique key that is never searched for
   private static final Object NAN_KEY = new Object ();
+  // The key indexes built from the name index of the document, for tests
+  private static final AtomicLong KEY_INDEXES_FROM_NAMES = new AtomicLong (0);
 
   /**
    * Identifies one built key index: a key name, the root of the tree it
@@ -1297,10 +1301,92 @@ public final class Engine
   }
 
   /**
-   * Build the index of a key over the whole tree below a root, iteratively in
-   * document order: every node, its attributes and, only if one of the match
-   * patterns mentions <code>namespace-node</code>, its namespace nodes. The
-   * collation and the composite setting are taken from the first declaration.
+   * The candidates of a key index from the name index of the document: if the
+   * match pattern of every declaration names the elements and attributes it
+   * can match ({@link com.helger.xpath.pattern.XsltPattern#getFinalNames()}),
+   * the elements and attributes of these names, merged in document order.
+   * Every node the walk of the whole tree would find matching is among them,
+   * and they come in the order of the walk, so testing only these against the
+   * full patterns gives the same index.
+   *
+   * @param aDefs
+   *        The declarations of the key.
+   * @param aRoot
+   *        The root of the tree.
+   * @return The candidates, or <code>null</code> if a pattern can match other
+   *         nodes, the root is no document node, the document is streamed or
+   *         the tree is not numbered (no name index): then the whole tree must
+   *         be walked.
+   */
+  @Nullable
+  private static List <IXdmNode> _getKeyCandidatesFromNames (@NonNull final ICommonsList <KeyDefinition> aDefs,
+                                                             @NonNull final IXdmNode aRoot)
+  {
+    if (!(aRoot instanceof final XdmDocumentNode aDoc) || aDoc.isStreamed ())
+      return null;
+    final ICommonsList <XdmQName> aElementNames = new CommonsArrayList <> ();
+    final ICommonsList <XdmQName> aAttributeNames = new CommonsArrayList <> ();
+    for (final KeyDefinition aDef : aDefs)
+    {
+      final PatternFinalNames aNames = aDef.getMatch ().pattern ().getFinalNames ();
+      if (aNames == null)
+        return null;
+      for (final XdmQName aName : aNames.elementNames ())
+        if (!aElementNames.contains (aName))
+          aElementNames.add (aName);
+      for (final XdmQName aName : aNames.attributeNames ())
+        if (!aAttributeNames.contains (aName))
+          aAttributeNames.add (aName);
+    }
+    // Distinct names give disjoint lists, each in document order
+    final ICommonsList <List <IXdmNode>> aLists = new CommonsArrayList <> ();
+    for (final XdmQName aName : aElementNames)
+    {
+      final List <IXdmNode> aNodes = aDoc.getElementsByName (aName);
+      if (aNodes == null)
+        return null;
+      if (!aNodes.isEmpty ())
+        aLists.add (aNodes);
+    }
+    for (final XdmQName aName : aAttributeNames)
+    {
+      final List <IXdmNode> aNodes = aDoc.getAttributesByName (aName);
+      if (aNodes == null)
+        return null;
+      if (!aNodes.isEmpty ())
+        aLists.add (aNodes);
+    }
+    if (aLists.isEmpty ())
+      return List.of ();
+    if (aLists.size () == 1)
+      return aLists.getFirst ();
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
+    for (final List <IXdmNode> aNodes : aLists)
+      ret.addAll (aNodes);
+    ret.sort ( (a, b) -> Integer.compare (a.getOrder (), b.getOrder ()));
+    return ret;
+  }
+
+  /**
+   * @return The number of key indexes built so far (in this JVM) from the
+   *         name index of the document instead of a walk of the whole tree.
+   *         For tests that need to know which path ran: the index is the same
+   *         either way.
+   */
+  public static long getKeyIndexFromNamesCount ()
+  {
+    return KEY_INDEXES_FROM_NAMES.get ();
+  }
+
+  /**
+   * Build the index of a key over the whole tree below a root in document
+   * order. If the match patterns allow it, only the candidates from the name
+   * index of the document are tested
+   * ({@link #_getKeyCandidatesFromNames(ICommonsList, IXdmNode)}); otherwise
+   * the tree is walked iteratively: every node, its attributes and, only if
+   * one of the match patterns mentions <code>namespace-node</code>, its
+   * namespace nodes. The collation and the composite setting are taken from
+   * the first declaration.
    *
    * @param aDefs
    *        The declarations of the key (not empty).
@@ -1323,6 +1409,14 @@ public final class Engine
                                                                                        : CollationRegistry.getCollationOrThrow (sCollation);
     final boolean bComposite = aDefs.getFirst ().isComposite ();
     final XsltContext aUseCtx = createRootContext ().withState (XsltState.EMPTY);
+    final List <IXdmNode> aCandidates = _getKeyCandidatesFromNames (aDefs, aRoot);
+    if (aCandidates != null)
+    {
+      KEY_INDEXES_FROM_NAMES.incrementAndGet ();
+      for (final IXdmNode aNode : aCandidates)
+        _indexNode (aNode, aDefs, aUseCtx, aCollation, bComposite, ret);
+      return ret;
+    }
     boolean bNamespaces = false;
     for (final KeyDefinition aDef : aDefs)
       if (aDef.getMatch ().pattern ().getSource ().contains ("namespace-node"))
