@@ -7,6 +7,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `ph-parent-pom`, ph-commons is the base library.
 - The W3C suite runs are integration tests (`*IT`, failsafe) and only run with `-Pconformance`:
   `mvn install -Pconformance` is the full gate; `-Dit.test=<IT class>` picks one. XSLT30 alone takes about 12 minutes.
+- Benchmarks: `xslt-benchmark` (JMH, standalone like `xdm-memory-benchmark`: own POM, not in the reactor, never
+  installed). Build with `mvn -o -q clean package -f xslt-benchmark/pom.xml` (always `clean`: an incremental compile can
+  drop `META-INF/BenchmarkList`); it uses the engine jars of `~/.m2`, `xslt-benchmark/compare.sh <base> <new>` builds
+  the engine of two commits in temporary worktrees instead. Inputs are generated (`BenchData`, fixed seed) and every
+  workload checks its result once against a value computed in Java; a new workload needs such a check, and its case ID
+  in both `EWorkloadGroup.getAllCaseIDs` and the `@Param` list of its JMH class. Reports: `docs/benchmarks/`.
 - W3C suites live outside the repo in `../../git-thirdparty/{qt3tests,xslt30-test,xsdtests}`; never copy them in.
 - Copyright header is "Philip Helger" only. Tim Riep appears in `NOTICE` and `README.md` only.
 - Never read Saxon sources (MPL); work from the W3C specs and the Go code.
