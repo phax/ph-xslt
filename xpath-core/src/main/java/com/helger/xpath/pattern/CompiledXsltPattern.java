@@ -31,8 +31,10 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.ENodeTestKind;
 import com.helger.xpath.ast.ExprWalker;
 import com.helger.xpath.ast.IExpr;
+import com.helger.xpath.ast.NodeTest;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.eval.XPathEvaluator;
 import com.helger.xpath.xdm.IXdmItem;
@@ -60,6 +62,8 @@ public final class CompiledXsltPattern implements XsltPattern
   // The paths of a pattern that is a union of paths, for the quick test of
   // canMatch; null for any other pattern
   private final List <IExpr.PathExpr> m_aUnionPaths;
+  // See getFinalNames; null if not every path ends in an exact name test
+  private final PatternFinalNames m_aFinalNames;
 
   /**
    * Create the pattern and collect, once, its positional predicates (see
@@ -89,6 +93,7 @@ public final class CompiledXsltPattern implements XsltPattern
     _collectPositionalPredicates (aExpr, aPositional);
     m_aPositionalPredicates = Collections.unmodifiableSet (aPositional);
     m_aUnionPaths = _getUnionPaths (aExpr);
+    m_aFinalNames = m_aUnionPaths == null ? null : _getFinalNames (m_aUnionPaths);
   }
 
   /**
@@ -120,6 +125,57 @@ public final class CompiledXsltPattern implements XsltPattern
           return null;
     }
     return Collections.unmodifiableList (ret);
+  }
+
+  /**
+   * The exact names of the last steps of the paths (see {@link #getFinalNames()}): each last step
+   * must be an axis step (not parenthesised) with a name test without wildcard on an axis whose
+   * principal node kind is element (child, descendant, descendant-or-self, self) or attribute.
+   *
+   * @param aPaths
+   *        The paths of a union pattern.
+   * @return The distinct names in order of appearance, or <code>null</code> if a path does not end
+   *         in such a step.
+   */
+  @Nullable
+  private static PatternFinalNames _getFinalNames (@NonNull final List <IExpr.PathExpr> aPaths)
+  {
+    final ICommonsList <XdmQName> aElements = new CommonsArrayList <> ();
+    final ICommonsList <XdmQName> aAttributes = new CommonsArrayList <> ();
+    for (final IExpr.PathExpr aPath : aPaths)
+    {
+      final List <IExpr.StepExpr> aSteps = aPath.steps ();
+      if (aSteps.isEmpty ())
+        return null;
+      final IExpr.StepExpr aLast = aSteps.get (aSteps.size () - 1);
+      if (aLast.postfix () != null)
+        return null;
+      final NodeTest aTest = aLast.test ();
+      if (aTest.kind () != ENodeTestKind.NAME ||
+          aTest.anyName () ||
+          aTest.anyNamespace () ||
+          aTest.anyLocalName () ||
+          aTest.name () == null)
+        return null;
+      final ICommonsList <XdmQName> aTarget;
+      switch (aLast.axis ())
+      {
+        case CHILD:
+        case DESCENDANT:
+        case DESCENDANT_OR_SELF:
+        case SELF:
+          aTarget = aElements;
+          break;
+        case ATTRIBUTE:
+          aTarget = aAttributes;
+          break;
+        default:
+          return null;
+      }
+      if (!aTarget.contains (aTest.name ()))
+        aTarget.add (aTest.name ());
+    }
+    return new PatternFinalNames (Collections.unmodifiableList (aElements), Collections.unmodifiableList (aAttributes));
   }
 
   /**
@@ -210,6 +266,13 @@ public final class CompiledXsltPattern implements XsltPattern
       if (PatternMatcher.canLastStepSelect (aPath, aNode))
         return true;
     return false;
+  }
+
+  @Override
+  @Nullable
+  public PatternFinalNames getFinalNames ()
+  {
+    return m_aFinalNames;
   }
 
   /**

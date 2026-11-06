@@ -17,6 +17,7 @@
 package com.helger.xpath.pattern;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.ICommonsList;
@@ -59,6 +60,21 @@ public interface XsltPattern
   default boolean canMatch (@NonNull final IXdmItem aItem)
   {
     return true;
+  }
+
+  /**
+   * The names the nodes this pattern matches must have: if every alternative of the pattern (the
+   * operands of top-level unions) is a path whose last step tests an exact element or attribute
+   * name (no wildcard, no kind test, not the namespace axis), every matching node is an element
+   * or attribute with one of these names. A host may then take the candidate nodes from a name
+   * index and test only those with {@link #matches(IXdmItem, DynamicContext)}.
+   *
+   * @return The names, or <code>null</code> if the pattern can match other nodes.
+   */
+  @Nullable
+  default PatternFinalNames getFinalNames ()
+  {
+    return null;
   }
 
   /**

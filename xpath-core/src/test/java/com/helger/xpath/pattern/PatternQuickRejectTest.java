@@ -18,6 +18,8 @@ package com.helger.xpath.pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -31,10 +33,12 @@ import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.XdmQName;
 
 /**
  * The quick rejection of {@link XsltPattern#canMatch(com.helger.xpath.xdm.IXdmItem)} and of the
- * path search changes no match result. The expected match lists were taken from the implementation before the
+ * path search changes no match result, and {@link XsltPattern#getFinalNames()} names every node a
+ * pattern can match. The expected match lists were taken from the implementation before the
  * quick rejection.
  *
  * @author Philip Helger
@@ -147,6 +151,40 @@ public final class PatternQuickRejectTest
       for (final IXdmNode aNode : aNodes)
         if (!aPattern.canMatch (aNode))
           assertFalse (aCase[0], aPattern.matches (aNode, aCtx));
+    }
+  }
+
+  /**
+   * The final names are given only where every alternative ends in an exact element or attribute
+   * name, and every matching node has one of them.
+   */
+  @Test
+  public void testFinalNames () throws Exception
+  {
+    final IXdmNode aDoc = new XdmParser ().parse (DOC);
+    final ICommonsList <IXdmNode> aNodes = _collectNodes (aDoc);
+    final StaticContext aSC = new StaticContext ().declareNamespace ("p", "urn:p");
+    final DynamicContext aCtx = new DynamicContext (aSC);
+    final XdmQName aA = new XdmQName ("a");
+    final XdmQName aB = new XdmQName ("b");
+    final XdmQName aY = new XdmQName ("y");
+    final PatternFinalNames aNames = XsltPatternParser.parse ("a | b[1] | //b | x/@y | p:c", aSC).getFinalNames ();
+    assertNotNull (aNames);
+    assertEquals (List.of (aA, aB, new XdmQName ("urn:p", "c")), aNames.elementNames ());
+    assertEquals (List.of (aY), aNames.attributeNames ());
+    for (final String s : new String [] { "*", "p:*", "*:c", "node()", "text()", "element(b)", "attribute(x)", "/", "document-node()", "b except b[1]", "b intersect a/b", "(a | b)", "(a | b)/c[1]/(d)", "@*", "namespace::x" })
+      assertNull (s, XsltPatternParser.parse (s, aSC).getFinalNames ());
+    for (final String [] aCase : CASES)
+    {
+      final XsltPattern aPattern = XsltPatternParser.parse (aCase[0], aSC);
+      final PatternFinalNames aFinal = aPattern.getFinalNames ();
+      if (aFinal != null)
+        for (final IXdmNode aNode : aNodes)
+          if (aPattern.matches (aNode, aCtx))
+            assertEquals (aCase[0],
+                          Boolean.TRUE,
+                          Boolean.valueOf (aNode.isElement () ? aFinal.elementNames ().contains (aNode.getName ())
+                                                              : aFinal.attributeNames ().contains (aNode.getName ())));
     }
   }
 }

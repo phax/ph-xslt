@@ -88,6 +88,10 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Static calls resolve through the `FunctionCallSite` of their `IExpr.FunctionCallExpr` (cached per library instance
   and `FunctionLibrary.getModificationStamp`, the sum of the change counters of the parent chain). Every new
   `FunctionLibrary` method that changes what `getFunction` returns must increment `m_nModCount` under the write lock.
+- Patterns: `XsltPattern.canMatch` rejects a node that the last step of no union path can select (it must stay a pure
+  pre-test of what the path search rejects first); `getFinalNames` gives the exact element/attribute names when every
+  alternative ends in one, and `Engine._buildKeyIndex` then tests only those nodes from the document's name index
+  instead of walking the tree (`Engine.getKeyIndexFromNamesCount ()` tells tests which path ran).
 - Streamability (XSLT 3.0 section 19): `com.helger.xpath.stream.XPathStreamability` classifies expressions and
   patterns; the XSLT layer supplies its knowledge through `StreamContext`. It fails closed: an unknown construct is
   roaming/free-ranging, never "streamable".
