@@ -62,6 +62,9 @@ public final class CompiledXsltPattern implements XsltPattern
   // The paths of a pattern that is a union of paths, for the quick test of
   // canMatch; null for any other pattern
   private final List <IExpr.PathExpr> m_aUnionPaths;
+  // Parallel to m_aUnionPaths: the precomputed last step of each path, null
+  // for a path the pre-test does not decide
+  private final PatternMatcher.LastStep [] m_aLastSteps;
   // See getFinalNames; null if not every path ends in an exact name test
   private final PatternFinalNames m_aFinalNames;
 
@@ -93,6 +96,14 @@ public final class CompiledXsltPattern implements XsltPattern
     _collectPositionalPredicates (aExpr, aPositional);
     m_aPositionalPredicates = Collections.unmodifiableSet (aPositional);
     m_aUnionPaths = _getUnionPaths (aExpr);
+    if (m_aUnionPaths == null)
+      m_aLastSteps = null;
+    else
+    {
+      m_aLastSteps = new PatternMatcher.LastStep [m_aUnionPaths.size ()];
+      for (int i = 0; i < m_aLastSteps.length; ++i)
+        m_aLastSteps[i] = PatternMatcher.getLastStep (m_aUnionPaths.get (i));
+    }
     m_aFinalNames = m_aUnionPaths == null ? null : _getFinalNames (m_aUnionPaths);
   }
 
@@ -252,6 +263,16 @@ public final class CompiledXsltPattern implements XsltPattern
   }
 
   /**
+   * The pre-test of {@link PatternMatcher#canLastStepSelect(IExpr.PathExpr, IXdmNode)} for the union path at the
+   * passed index, with the last step computed when the pattern was created.
+   */
+  private boolean _canLastStepSelect (final int nIndex, @NonNull final IXdmNode aNode)
+  {
+    final PatternMatcher.LastStep aLast = m_aLastSteps[nIndex];
+    return aLast == null || aLast.canSelect (aNode);
+  }
+
+  /**
    * For a pattern that is a union of paths: <code>false</code> if the item is a node that the last
    * step of no path can select (wrong node kind for the axis or failing node test), so that no
    * path can match it; such a node would be rejected by the search of every path before anything
@@ -262,8 +283,8 @@ public final class CompiledXsltPattern implements XsltPattern
   {
     if (m_aUnionPaths == null || !(aItem instanceof final IXdmNode aNode))
       return true;
-    for (final IExpr.PathExpr aPath : m_aUnionPaths)
-      if (PatternMatcher.canLastStepSelect (aPath, aNode))
+    for (int i = 0; i < m_aLastSteps.length; ++i)
+      if (_canLastStepSelect (i, aNode))
         return true;
     return false;
   }
@@ -273,6 +294,37 @@ public final class CompiledXsltPattern implements XsltPattern
   public PatternFinalNames getFinalNames ()
   {
     return m_aFinalNames;
+  }
+
+  /**
+   * Match a node against a pattern that is a union of paths, as <code>PatternMatcher.matchesNode</code> does: the
+   * paths from left to right until one matches, each rejected by the pre-test of its precomputed last step before a
+   * search is allocated. The context with the node as current item is only created for the first path that passes
+   * the pre-test.
+   *
+   * @param aNode
+   *        The candidate node.
+   * @param aCtx
+   *        Dynamic context for predicates and variable references.
+   * @return <code>true</code> if a path matches the node.
+   */
+  private boolean _matchesUnionPaths (@NonNull final IXdmNode aNode, @NonNull final DynamicContext aCtx)
+  {
+    PatternMatcher aMatcher = null;
+    for (int i = 0; i < m_aLastSteps.length; ++i)
+    {
+      if (!_canLastStepSelect (i, aNode))
+      {
+        // As the search would do before rejecting the node at its first step
+        aCtx.checkInterrupt ();
+        continue;
+      }
+      if (aMatcher == null)
+        aMatcher = new PatternMatcher (aCtx.withCurrentItem (aNode), aNode, m_aPositionalPredicates);
+      if (aMatcher.searchPath (m_aUnionPaths.get (i), aNode))
+        return true;
+    }
+    return false;
   }
 
   /**
@@ -300,12 +352,8 @@ public final class CompiledXsltPattern implements XsltPattern
     ValueEnforcer.notNull (aCtx, "Ctx");
     try
     {
-      if (!canMatch (aItem))
-      {
-        // As the search of every path would do before rejecting the node
-        aCtx.checkInterrupt ();
-        return false;
-      }
+      if (m_aUnionPaths != null && aItem instanceof final IXdmNode aNode)
+        return _matchesUnionPaths (aNode, aCtx);
       final DynamicContext aRealCtx = aCtx.withCurrentItem (aItem);
       if (m_aExpr instanceof IExpr.ContextItemExpr)
         return true;
