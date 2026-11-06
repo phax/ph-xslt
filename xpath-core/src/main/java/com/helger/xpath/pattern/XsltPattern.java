@@ -48,6 +48,20 @@ public interface XsltPattern
   boolean matches (@NonNull IXdmItem aItem, @NonNull DynamicContext aCtx);
 
   /**
+   * A test on the item alone, without evaluating anything: <code>false</code> means that
+   * {@link #matches(IXdmItem, DynamicContext)} is <code>false</code> for the item with every
+   * context. <code>true</code> decides nothing.
+   *
+   * @param aItem
+   *        The candidate item.
+   * @return <code>false</code> if the item cannot match.
+   */
+  default boolean canMatch (@NonNull final IXdmItem aItem)
+  {
+    return true;
+  }
+
+  /**
    * @return The default priority (XSLT 3.0 section 6.5). For a pattern with
    *         top-level union alternatives this is only meaningful per
    *         alternative, see {@link #getAlternatives()}.

@@ -301,6 +301,88 @@ final class PatternMatcher
     return ret;
   }
 
+  /**
+   * The test of a non-parenthesised step on the node alone, before the context nodes are looked
+   * at: the effective axis (the self axis for a <code>document-node()</code> test without explicit
+   * axis in the first step of a relative path), the node kinds the axis can select (no attribute
+   * or namespace node on the child or descendant axis, no document node on the child axis, no
+   * parentless node on the descendant axis, only attributes on the attribute axis and only
+   * namespace nodes on the namespace axis) and the node test with the principal node kind of the
+   * axis.
+   *
+   * @param aStep
+   *        An axis step (no postfix).
+   * @param bFirstRelative
+   *        <code>true</code> for the first step of a relative path.
+   * @param aNode
+   *        The node the step must have selected.
+   * @return The effective axis, or <code>null</code> if the step cannot select the node from any
+   *         context node.
+   */
+  @Nullable
+  private static EAxis _getSelectingAxis (@NonNull final StepExpr aStep,
+                                          final boolean bFirstRelative,
+                                          @NonNull final IXdmNode aNode)
+  {
+    EAxis eAxis = aStep.axis ();
+    final NodeTest aTest = aStep.test ();
+    if (bFirstRelative && !aStep.axisExplicit () && aTest.kind () == ENodeTestKind.DOCUMENT)
+      eAxis = EAxis.SELF;
+    final ENodeKind eKind = aNode.getKind ();
+    final boolean bAttrOrNs = eKind == ENodeKind.ATTRIBUTE || eKind == ENodeKind.NAMESPACE;
+    switch (eAxis)
+    {
+      case ATTRIBUTE:
+        if (eKind != ENodeKind.ATTRIBUTE)
+          return null;
+        break;
+      case NAMESPACE:
+        if (eKind != ENodeKind.NAMESPACE)
+          return null;
+        break;
+      case CHILD:
+        if (bAttrOrNs || eKind == ENodeKind.DOCUMENT)
+          return null;
+        break;
+      case DESCENDANT:
+        if (bAttrOrNs || aNode.getParent () == null)
+          return null;
+        break;
+      default:
+        break;
+    }
+    if (!NodeTestMatcher.matches (aTest, aNode, AxisNavigator.getPrincipalNodeKind (eAxis)))
+      return null;
+    return eAxis;
+  }
+
+  /**
+   * A test of a path pattern on the node alone, without allocating a search: can the last step
+   * of the path select the node at all (see
+   * {@link #_getSelectingAxis(StepExpr, boolean, IXdmNode)})? <code>false</code> means that the
+   * path cannot match the node; then the search of {@link #matchesPath(IExpr.PathExpr, IXdmNode)}
+   * would reject it at its first step without evaluating anything. A path without steps or
+   * ending in a parenthesised step is not decided here (<code>true</code>).
+   *
+   * @param aPath
+   *        A path pattern.
+   * @param aNode
+   *        The candidate node.
+   * @return <code>false</code> if the path cannot match the node.
+   */
+  static boolean canLastStepSelect (final IExpr.@NonNull PathExpr aPath, @NonNull final IXdmNode aNode)
+  {
+    final List <StepExpr> aSteps = aPath.steps ();
+    final int nLast = aSteps.size () - 1;
+    if (nLast < 0)
+      return true;
+    final StepExpr aStep = aSteps.get (nLast);
+    if (aStep.postfix () != null)
+      return true;
+    final boolean bFirstRelative = nLast == 0 && aPath.start () == null && !aPath.absolute ();
+    return _getSelectingAxis (aStep, bFirstRelative, aNode) != null;
+  }
+
   /** The search of one path for one candidate. */
   private final class PathSearch
   {
@@ -534,37 +616,12 @@ final class PatternMatcher
         return;
       }
 
-      EAxis eAxis = aStep.axis ();
-      final NodeTest aTest = aStep.test ();
-      if (bFirstRelative && !aStep.axisExplicit () && aTest.kind () == ENodeTestKind.DOCUMENT)
-        eAxis = EAxis.SELF;
+      final EAxis eAxis = _getSelectingAxis (aStep, bFirstRelative, aNode);
+      if (eAxis == null)
+        return;
       final ENodeKind eKind = aNode.getKind ();
       final boolean bAttrOrNs = eKind == ENodeKind.ATTRIBUTE || eKind == ENodeKind.NAMESPACE;
       final IXdmNode aParent = aNode.getParent ();
-      switch (eAxis)
-      {
-        case ATTRIBUTE:
-          if (eKind != ENodeKind.ATTRIBUTE)
-            return;
-          break;
-        case NAMESPACE:
-          if (eKind != ENodeKind.NAMESPACE)
-            return;
-          break;
-        case CHILD:
-          if (bAttrOrNs || eKind == ENodeKind.DOCUMENT)
-            return;
-          break;
-        case DESCENDANT:
-          if (bAttrOrNs || aParent == null)
-            return;
-          break;
-        default:
-          break;
-      }
-      if (!NodeTestMatcher.matches (aTest, aNode, AxisNavigator.getPrincipalNodeKind (eAxis)))
-        return;
-
       switch (eAxis)
       {
         case CHILD:
@@ -646,9 +703,18 @@ final class PatternMatcher
     throw new IllegalStateException ("Unexpected pattern node " + aPattern);
   }
 
-  /** @return <code>true</code> if the path pattern matches the node. */
+  /**
+   * @return <code>true</code> if the path pattern matches the node. A node the last step cannot
+   *         select is rejected without allocating a search.
+   */
   boolean matchesPath (final IExpr.@NonNull PathExpr aPath, @NonNull final IXdmNode aNode)
   {
+    if (!canLastStepSelect (aPath, aNode))
+    {
+      // The search would reject the node at its first step
+      m_aCtx.checkInterrupt ();
+      return false;
+    }
     final PathSearch aSearch = new PathSearch (aPath, true);
     aSearch.search (aPath.steps ().size () - 1, aNode);
     return aSearch.isFound ();

@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.ReturnsMutableCopy;
@@ -56,6 +57,9 @@ public final class CompiledXsltPattern implements XsltPattern
   private final double m_dDefaultPriority;
   private final List <CompiledXsltPattern> m_aAlternatives;
   private final Set <IExpr> m_aPositionalPredicates;
+  // The paths of a pattern that is a union of paths, for the quick test of
+  // canMatch; null for any other pattern
+  private final List <IExpr.PathExpr> m_aUnionPaths;
 
   /**
    * Create the pattern and collect, once, its positional predicates (see
@@ -84,6 +88,38 @@ public final class CompiledXsltPattern implements XsltPattern
     final Set <IExpr> aPositional = Collections.newSetFromMap (new IdentityHashMap <> ());
     _collectPositionalPredicates (aExpr, aPositional);
     m_aPositionalPredicates = Collections.unmodifiableSet (aPositional);
+    m_aUnionPaths = _getUnionPaths (aExpr);
+  }
+
+  /**
+   * The alternatives of a pattern that consists only of path patterns joined by top-level or
+   * nested unions, walked iteratively from left to right.
+   *
+   * @param aPattern
+   *        The parsed pattern.
+   * @return The paths, or <code>null</code> if the pattern contains anything else (a predicate
+   *         pattern, an intersection or a difference).
+   */
+  @Nullable
+  private static List <IExpr.PathExpr> _getUnionPaths (@NonNull final IExpr aPattern)
+  {
+    final ICommonsList <IExpr.PathExpr> ret = new CommonsArrayList <> ();
+    final ICommonsList <IExpr> aStack = new CommonsArrayList <> (aPattern);
+    while (aStack.isNotEmpty ())
+    {
+      final IExpr aCur = aStack.removeLast ();
+      if (aCur instanceof final IExpr.SetExpr aSet && aSet.op () == IExpr.SetExpr.ESetOp.UNION)
+      {
+        aStack.add (aSet.right ());
+        aStack.add (aSet.left ());
+      }
+      else
+        if (aCur instanceof final IExpr.PathExpr aPath)
+          ret.add (aPath);
+        else
+          return null;
+    }
+    return Collections.unmodifiableList (ret);
   }
 
   /**
@@ -160,6 +196,23 @@ public final class CompiledXsltPattern implements XsltPattern
   }
 
   /**
+   * For a pattern that is a union of paths: <code>false</code> if the item is a node that the last
+   * step of no path can select (wrong node kind for the axis or failing node test), so that no
+   * path can match it; such a node would be rejected by the search of every path before anything
+   * is evaluated. <code>true</code> for every other pattern and item.
+   */
+  @Override
+  public boolean canMatch (@NonNull final IXdmItem aItem)
+  {
+    if (m_aUnionPaths == null || !(aItem instanceof final IXdmNode aNode))
+      return true;
+    for (final IExpr.PathExpr aPath : m_aUnionPaths)
+      if (PatternMatcher.canLastStepSelect (aPath, aNode))
+        return true;
+    return false;
+  }
+
+  /**
    * Match an item (XSLT 3.0 section 5.5.3). The candidate becomes the current
    * item. A plain <code>.</code> matches every item; a predicate pattern
    * <code>.[...]</code> matches if the filter expression, evaluated with the
@@ -184,6 +237,12 @@ public final class CompiledXsltPattern implements XsltPattern
     ValueEnforcer.notNull (aCtx, "Ctx");
     try
     {
+      if (!canMatch (aItem))
+      {
+        // As the search of every path would do before rejecting the node
+        aCtx.checkInterrupt ();
+        return false;
+      }
       final DynamicContext aRealCtx = aCtx.withCurrentItem (aItem);
       if (m_aExpr instanceof IExpr.ContextItemExpr)
         return true;
