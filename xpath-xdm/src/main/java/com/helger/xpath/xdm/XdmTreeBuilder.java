@@ -171,9 +171,21 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private XdmQName _getName (@NonNull final String sUri, @NonNull final String sLocalName, @NonNull final String sQName)
   {
     // Keyed by the lexical name and not by XdmQName, whose equals ignores the
-    // prefix
-    return m_aNames.computeIfAbsent (sUri, k -> new CommonsHashMap <> ())
-                   .computeIfAbsent (sQName, k -> new XdmQName (sUri, sLocalName, _getPrefix (sQName)).getInterned ());
+    // prefix. Plain get/put instead of computeIfAbsent, so that no capturing
+    // lambda is created per name
+    ICommonsMap <String, XdmQName> aByQName = m_aNames.get (sUri);
+    if (aByQName == null)
+    {
+      aByQName = new CommonsHashMap <> ();
+      m_aNames.put (sUri, aByQName);
+    }
+    XdmQName ret = aByQName.get (sQName);
+    if (ret == null)
+    {
+      ret = new XdmQName (sUri, sLocalName, _getPrefix (sQName)).getInterned ();
+      aByQName.put (sQName, ret);
+    }
+    return ret;
   }
 
   /**

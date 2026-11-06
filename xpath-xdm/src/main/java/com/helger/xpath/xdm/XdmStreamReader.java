@@ -227,8 +227,21 @@ public final class XdmStreamReader implements AutoCloseable
     final String sRealUri = sUri == null ? "" : sUri;
     final String sRealPrefix = sPrefix == null ? "" : sPrefix;
     final String sQName = sRealPrefix.isEmpty () ? sLocalName : sRealPrefix + ':' + sLocalName;
-    return m_aNames.computeIfAbsent (sRealUri, k -> new CommonsHashMap <> ())
-                   .computeIfAbsent (sQName, k -> new XdmQName (sRealUri, sLocalName, _getPrefix (sQName)).getInterned ());
+    // Plain get/put instead of computeIfAbsent, so that no capturing lambda is
+    // created per name
+    ICommonsMap <String, XdmQName> aByQName = m_aNames.get (sRealUri);
+    if (aByQName == null)
+    {
+      aByQName = new CommonsHashMap <> ();
+      m_aNames.put (sRealUri, aByQName);
+    }
+    XdmQName ret = aByQName.get (sQName);
+    if (ret == null)
+    {
+      ret = new XdmQName (sRealUri, sLocalName, _getPrefix (sQName)).getInterned ();
+      aByQName.put (sQName, ret);
+    }
+    return ret;
   }
 
   /**

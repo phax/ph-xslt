@@ -18,6 +18,7 @@ package com.helger.xpath.xdm;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -317,5 +318,27 @@ public final class XdmParserTest
     {
       Files.delete (aFile);
     }
+  }
+
+  /** Equal lexical names in the same namespace share one name instance; another prefix gives another one. */
+  @Test
+  public void testSharedNames () throws Exception
+  {
+    final IXdmNode aRoot = _parse ("<a:x xmlns:a='urn:u' xmlns:b='urn:u' a:k='1'><x k='2'/><a:x b:k='3'/><b:x/></a:x>").getChildAtIndex (0);
+    final IXdmNode aX = aRoot.getChildAtIndex (0);
+    final IXdmNode aAX = aRoot.getChildAtIndex (1);
+    final IXdmNode aBX = aRoot.getChildAtIndex (2);
+    assertSame (aRoot.getName (), aAX.getName ());
+    assertNotSame (aRoot.getName (), aBX.getName ());
+    assertEquals (aRoot.getName (), aBX.getName ());
+    assertEquals ("b", aBX.getName ().prefix ());
+    assertEquals (new XdmQName ("x"), aX.getName ());
+    assertEquals ("a", aRoot.getAttributeAtIndex (0).getName ().prefix ());
+    assertEquals (new XdmQName ("k"), aX.getAttributeAtIndex (0).getName ());
+    assertEquals ("b", aAX.getAttributeAtIndex (0).getName ().prefix ());
+    assertEquals (aRoot.getAttributeAtIndex (0).getName (), aAX.getAttributeAtIndex (0).getName ());
+    // The names hold canonical strings
+    assertSame ("urn:u".intern (), aRoot.getName ().namespaceUri ());
+    assertSame ("x".intern (), aRoot.getName ().localName ());
   }
 }
