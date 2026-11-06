@@ -19,6 +19,9 @@ package com.helger.xslt.ext.number;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -29,10 +32,16 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.ast.EAxis;
+import com.helger.xpath.ast.ENodeTestKind;
+import com.helger.xpath.ast.IExpr;
+import com.helger.xpath.ast.NodeTest;
+import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.ops.AtomicComparator;
 import com.helger.xpath.ops.Atomizer;
 import com.helger.xpath.pattern.CompiledXsltPattern;
+import com.helger.xpath.pattern.PatternFinalNames;
 import com.helger.xpath.pattern.XsltPattern;
 import com.helger.xpath.pattern.XsltPatternParser;
 import com.helger.xpath.value.EAtomicType;
@@ -42,6 +51,7 @@ import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmItem;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmConstants;
+import com.helger.xpath.xdm.XdmDocumentNode;
 import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltException;
 import com.helger.xslt.compile.Avt;
@@ -83,22 +93,63 @@ public final class NumberInstruction extends AbstractInstruction
    *        The pattern.
    * @param staticContext
    *        Its static context.
+   * @param elementNames
+   *        The distinct names of the elements the pattern can match (see
+   *        {@link XsltPattern#getFinalNames()}), or <code>null</code> if it can
+   *        match other nodes than elements and attributes of known names.
+   * @param exactNames
+   *        <code>true</code> if the pattern matches exactly the elements of
+   *        these names that have a parent: every alternative is a single
+   *        <code>child::</code> step with an exact name test and no
+   *        predicate. A candidate from the name index then matches without
+   *        testing it.
    */
-  private record NumberPattern (@NonNull XsltPattern pattern, @NonNull StaticContext staticContext)
+  private record NumberPattern (@NonNull XsltPattern pattern,
+                                @NonNull StaticContext staticContext,
+                                @Nullable List <XdmQName> elementNames,
+                                boolean exactNames)
+  {}
+
+  /**
+   * The state of one evaluation of a counting xsl:number: the run-time
+   * context, the selected node, one match context per pattern for all
+   * candidate nodes (the dynamic context does not change while counting), the
+   * document of the selected node if it is a document that is not streamed,
+   * and the running count of level="any".
+   */
+  private static final class Counting
   {
+    private final XsltContext m_aCtx;
+    private final IXdmNode m_aTarget;
+    private final DynamicContext m_aCountCtx;
+    private final DynamicContext m_aFromCtx;
+    private final XdmDocumentNode m_aDoc;
+    private long m_nCount;
+
     /**
-     * Match the pattern against a node in the run-time context of the
-     * xsl:number instruction, with the pattern's own static context.
-     *
-     * @param aNode
-     *        The node to test.
      * @param aCtx
-     *        The run-time context of the instruction (local variables).
-     * @return <code>true</code> if the node matches.
+     *        The run-time context of the instruction.
+     * @param aTarget
+     *        The selected node.
+     * @param aCount
+     *        The count pattern, <code>null</code> for the default.
+     * @param aFrom
+     *        The from pattern, <code>null</code> if absent.
      */
-    boolean matches (@NonNull final IXdmNode aNode, @NonNull final XsltContext aCtx)
+    Counting (@NonNull final XsltContext aCtx,
+              @NonNull final IXdmNode aTarget,
+              @Nullable final NumberPattern aCount,
+              @Nullable final NumberPattern aFrom)
     {
-      return pattern.matches (aNode, aCtx.getDynamicContext ().withStaticContext (staticContext));
+      m_aCtx = aCtx;
+      m_aTarget = aTarget;
+      final DynamicContext aDyn = aCtx.getDynamicContext ();
+      m_aCountCtx = aCount == null ? null : aDyn.withStaticContext (aCount.staticContext ());
+      m_aFromCtx = aFrom == null ? null : aDyn.withStaticContext (aFrom.staticContext ());
+      IXdmNode aRoot = aTarget;
+      while (aRoot.getParent () != null)
+        aRoot = aRoot.getParent ();
+      m_aDoc = aRoot instanceof final XdmDocumentNode aDoc && !aDoc.isStreamed () ? aDoc : null;
     }
   }
 
@@ -111,6 +162,14 @@ public final class NumberInstruction extends AbstractInstruction
   private static final Pattern START_AT = Pattern.compile ("-?[0-9]+([ \\t\\n\\r]+-?[0-9]+)*");
   /** The lexical space of xs:integer, for grouping-size. */
   private static final Pattern INTEGER = Pattern.compile ("[+-]?[0-9]+");
+  /**
+   * Up to this many children of a parent the preceding siblings are tested one
+   * by one; beyond it they come from the name index where the count pattern
+   * allows it (the index keeps a list per parent and name asked for).
+   */
+  private static final int SIBLING_SCAN_LIMIT = 32;
+  /** See {@link #getNameIndexCountCount()}. */
+  private static final AtomicLong NAME_INDEX_COUNTS = new AtomicLong (0);
 
   private final XPathExpr m_aValue;
   private final XPathExpr m_aSelect;
@@ -206,43 +265,22 @@ public final class NumberInstruction extends AbstractInstruction
     return -1;
   }
 
-  /** The subtree of a node (without attributes) in document order. */
-  @NonNull
-  private static ICommonsList <IXdmNode> _subtreeInDocumentOrder (@NonNull final IXdmNode aRoot)
-  {
-    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
-    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
-    aStack.add (aRoot);
-    while (aStack.isNotEmpty ())
-    {
-      final IXdmNode aNode = aStack.removeLast ();
-      ret.add (aNode);
-      for (int i = aNode.getChildCount () - 1; i >= 0; --i)
-        aStack.add (aNode.getChildAtIndex (i));
-    }
-    return ret;
-  }
-
   /**
    * <code>matches-count($node)</code> of XSLT 3.0 section 12.3: the count
    * pattern if present, otherwise the default of the same node kind and
    * expanded name as the selected node.
    *
-   * @param aCtx
-   *        The run-time context of the instruction.
+   * @param aC
+   *        The counting state.
    * @param aNode
    *        The node to test.
-   * @param aTarget
-   *        The selected node (for the default pattern).
    * @return <code>true</code> if the node is counted.
    */
-  private boolean _matchesCount (@NonNull final XsltContext aCtx,
-                                 @NonNull final IXdmNode aNode,
-                                 @NonNull final IXdmNode aTarget)
+  private boolean _matchesCount (@NonNull final Counting aC, @NonNull final IXdmNode aNode)
   {
     if (m_aCount == null)
-      return _isSameKindAndName (aNode, aTarget);
-    return m_aCount.matches (aNode, aCtx);
+      return _isSameKindAndName (aNode, aC.m_aTarget);
+    return m_aCount.pattern ().matches (aNode, aC.m_aCountCtx);
   }
 
   /**
@@ -250,32 +288,150 @@ public final class NumberInstruction extends AbstractInstruction
    * section 12.3). The spec also makes every root node match; the callers get
    * that effect by stopping their upward walk at the root.
    *
-   * @param aCtx
-   *        The run-time context of the instruction.
+   * @param aC
+   *        The counting state.
    * @param aNode
    *        The node to test.
    * @return <code>true</code> if there is a from pattern and the node matches
    *         it.
    */
-  private boolean _matchesFrom (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aNode)
+  private boolean _matchesFrom (@NonNull final Counting aC, @NonNull final IXdmNode aNode)
   {
-    return m_aFrom != null && m_aFrom.matches (aNode, aCtx);
+    return m_aFrom != null && m_aFrom.pattern ().matches (aNode, aC.m_aFromCtx);
   }
 
-  /** 1 + the number of preceding siblings matching count. */
-  private long _siblingIndex (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aNode, @NonNull final IXdmNode aTarget)
+  /**
+   * @param aC
+   *        The counting state.
+   * @return The names of the elements the count pattern can match in this
+   *         evaluation: those of the count pattern, or for the default pattern
+   *         and a selected element the name of that element.
+   *         <code>null</code> if it can match other nodes.
+   */
+  @Nullable
+  private List <XdmQName> _getCountNames (@NonNull final Counting aC)
+  {
+    if (m_aCount != null)
+      return m_aCount.elementNames ();
+    return aC.m_aTarget.getKind () == ENodeKind.ELEMENT ? List.of (aC.m_aTarget.getName ()) : null;
+  }
+
+  /**
+   * @return <code>true</code> if every element of the names of
+   *         {@link #_getCountNames(Counting)} that has a parent matches the
+   *         count pattern, so that candidates need not be tested.
+   */
+  private boolean _isCountExact ()
+  {
+    return m_aCount == null || m_aCount.exactNames ();
+  }
+
+  /**
+   * The elements of some names from the name index of a document.
+   *
+   * @param aDoc
+   *        The document.
+   * @param aNames
+   *        The distinct element names.
+   * @return One list per name in document order, or <code>null</code> if the
+   *         document has no name index (the tree is not numbered).
+   */
+  @Nullable
+  private static ICommonsList <List <IXdmNode>> _getElementLists (@NonNull final XdmDocumentNode aDoc,
+                                                                 @NonNull final List <XdmQName> aNames)
+  {
+    final ICommonsList <List <IXdmNode>> ret = new CommonsArrayList <> ();
+    for (final XdmQName aName : aNames)
+    {
+      final List <IXdmNode> aNodes = aDoc.getElementsByName (aName);
+      if (aNodes == null)
+        return null;
+      ret.add (aNodes);
+    }
+    return ret;
+  }
+
+  /**
+   * The number of preceding siblings of an element that match count, from the
+   * name index of the document: the children of the parent with one of the
+   * count names (kept by the index per parent and name) before the element in
+   * document order, found by binary search. With exact names they are counted
+   * without testing them, otherwise each one is tested against the count
+   * pattern. A sibling of another name cannot match.
+   *
+   * @param aC
+   *        The counting state, with a document.
+   * @param aNode
+   *        The element, which has a parent.
+   * @return The number, or -1 if the count pattern can match other nodes than
+   *         elements of known names or the tree is not numbered.
+   */
+  private long _countPrecedingSiblingsByName (@NonNull final Counting aC, @NonNull final IXdmNode aNode)
+  {
+    final List <XdmQName> aNames = _getCountNames (aC);
+    if (aNames == null)
+      return -1;
+    final IXdmNode aParent = aNode.getParent ();
+    final ICommonsList <List <IXdmNode>> aLists = new CommonsArrayList <> ();
+    for (final XdmQName aName : aNames)
+    {
+      final List <IXdmNode> aSiblings = aC.m_aDoc.getChildElementsByName (aParent, aName);
+      if (aSiblings == null)
+        return -1;
+      aLists.add (aSiblings);
+    }
+    NAME_INDEX_COUNTS.incrementAndGet ();
+    final boolean bExact = _isCountExact ();
+    final int nOrder = aNode.getOrder ();
+    long ret = 0;
+    for (final List <IXdmNode> aSiblings : aLists)
+    {
+      final int nEnd = XdmDocumentNode.getLowerBound (aSiblings, 0, nOrder);
+      if (bExact)
+        ret += nEnd;
+      else
+        for (int i = 0; i < nEnd; ++i)
+        {
+          aC.m_aCtx.getDynamicContext ().checkInterrupt ();
+          if (_matchesCount (aC, aSiblings.get (i)))
+            ret++;
+        }
+    }
+    return ret;
+  }
+
+  /**
+   * 1 + the number of preceding siblings matching count; 1 for a node without
+   * siblings (a parentless node, an attribute or a namespace node). For an
+   * element in a document whose parent has more than
+   * {@link #SIBLING_SCAN_LIMIT} children the siblings come from the name index
+   * if the count pattern allows it
+   * ({@link #_countPrecedingSiblingsByName(Counting, IXdmNode)}); otherwise the
+   * preceding siblings are tested one by one, against the names alone if the
+   * count pattern consists of exact names (a sibling has a parent).
+   */
+  private long _siblingIndex (@NonNull final Counting aC, @NonNull final IXdmNode aNode)
   {
     if (_hasNoSiblings (aNode))
       return 1;
     final IXdmNode aParent = aNode.getParent ();
-    long ret = 1;
     final int nCount = aParent.getChildCount ();
+    if (aC.m_aDoc != null && aNode.getKind () == ENodeKind.ELEMENT && nCount > SIBLING_SCAN_LIMIT)
+    {
+      final long nPreceding = _countPrecedingSiblingsByName (aC, aNode);
+      if (nPreceding >= 0)
+        return nPreceding + 1;
+    }
+    // An explicit count pattern of exact names is decided by the name
+    final List <XdmQName> aExact = m_aCount != null && m_aCount.exactNames () ? m_aCount.elementNames () : null;
+    long ret = 1;
     for (int i = 0; i < nCount; ++i)
     {
       final IXdmNode aSibling = aParent.getChildAtIndex (i);
       if (aSibling == aNode)
         break;
-      if (_matchesCount (aCtx, aSibling, aTarget))
+      if (aExact != null ? (aSibling.getKind () == ENodeKind.ELEMENT && aExact.contains (aSibling.getName ()))
+                         : _matchesCount (aC, aSibling))
         ret++;
     }
     return ret;
@@ -287,21 +443,19 @@ public final class NumberInstruction extends AbstractInstruction
    * count) is reached first, nothing is numbered. The number is the sibling
    * index of the counted node.
    *
-   * @param aCtx
-   *        The run-time context of the instruction.
-   * @param aTarget
-   *        The selected node.
+   * @param aC
+   *        The counting state.
    * @return The number, or 0 for the empty place marker.
    */
-  private long _countSingle (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
+  private long _countSingle (@NonNull final Counting aC)
   {
     // count is tested before from: a node matching both is still numbered
-    IXdmNode aCur = aTarget;
+    IXdmNode aCur = aC.m_aTarget;
     while (aCur != null)
     {
-      if (_matchesCount (aCtx, aCur, aTarget))
-        return _siblingIndex (aCtx, aCur, aTarget);
-      if (_matchesFrom (aCtx, aCur))
+      if (_matchesCount (aC, aCur))
+        return _siblingIndex (aC, aCur);
+      if (_matchesFrom (aC, aCur))
         return 0;
       aCur = aCur.getParent ();
     }
@@ -313,79 +467,252 @@ public final class NumberInstruction extends AbstractInstruction
    * matching count, up to and including the innermost node matching from (or
    * the root), each numbered by its sibling index, outermost first.
    *
-   * @param aCtx
-   *        The run-time context of the instruction.
-   * @param aTarget
-   *        The selected node.
+   * @param aC
+   *        The counting state.
    * @return The place marker, possibly empty.
    */
   @NonNull
-  private ICommonsList <BigInteger> _countMultiple (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
+  private ICommonsList <BigInteger> _countMultiple (@NonNull final Counting aC)
   {
     final ICommonsList <IXdmNode> aChain = new CommonsArrayList <> ();
-    for (IXdmNode aCur = aTarget; aCur != null; aCur = aCur.getParent ())
+    for (IXdmNode aCur = aC.m_aTarget; aCur != null; aCur = aCur.getParent ())
     {
-      if (_matchesCount (aCtx, aCur, aTarget))
+      if (_matchesCount (aC, aCur))
         aChain.add (aCur);
-      if (_matchesFrom (aCtx, aCur))
+      if (_matchesFrom (aC, aCur))
         break;
     }
     final ICommonsList <BigInteger> ret = new CommonsArrayList <> ();
     for (int i = aChain.size () - 1; i >= 0; --i)
-      ret.add (BigInteger.valueOf (_siblingIndex (aCtx, aChain.get (i), aTarget)));
+      ret.add (BigInteger.valueOf (_siblingIndex (aC, aChain.get (i))));
     return ret;
   }
 
   /**
-   * level="any": the nodes on the preceding and ancestor-or-self axes that
-   * match count, not before the last of them matching from. Walks in reverse
-   * document order and stops at the from node.
+   * One node of the level="any" walk: count it if it matches count.
+   *
+   * @param aC
+   *        The counting state.
+   * @param aNode
+   *        The node.
+   * @return <code>true</code> if it matches from, so that the walk ends.
    */
-  private long _countAny (@NonNull final XsltContext aCtx, @NonNull final IXdmNode aTarget)
+  private boolean _visitAny (@NonNull final Counting aC, @NonNull final IXdmNode aNode)
   {
-    long nCount = 0;
-    if (_matchesCount (aCtx, aTarget, aTarget))
-      nCount++;
-    if (_matchesFrom (aCtx, aTarget))
-      return nCount;
-    IXdmNode aCur = aTarget;
-    if (aTarget.getKind () == ENodeKind.ATTRIBUTE || aTarget.getKind () == ENodeKind.NAMESPACE)
+    aC.m_aCtx.getDynamicContext ().checkInterrupt ();
+    if (_matchesCount (aC, aNode))
+      aC.m_nCount++;
+    return _matchesFrom (aC, aNode);
+  }
+
+  /**
+   * The last node in document order before a position that matches the from
+   * pattern, among the elements of the from names: the lists are merged
+   * backwards by document order, so the candidates are tested in reverse
+   * document order like the walk of the whole tree does, and the first
+   * matching one is the result. With exact names the first candidate is the
+   * result without testing it.
+   *
+   * @param aC
+   *        The counting state.
+   * @param aLists
+   *        The elements of the from names, one list per name.
+   * @param nBefore
+   *        The document order number the candidates must be before.
+   * @return The node, or <code>null</code> if no such element matches.
+   */
+  @Nullable
+  private IXdmNode _findLastFrom (@NonNull final Counting aC,
+                                  @NonNull final ICommonsList <List <IXdmNode>> aLists,
+                                  final int nBefore)
+  {
+    final int nLists = aLists.size ();
+    final int [] aPos = new int [nLists];
+    for (int i = 0; i < nLists; ++i)
+      aPos[i] = XdmDocumentNode.getLowerBound (aLists.get (i), 0, nBefore) - 1;
+    while (true)
     {
-      // Other attributes of the parent are on neither axis
-      aCur = aTarget.getParent ();
-      if (aCur == null)
-        return nCount;
-      if (_matchesCount (aCtx, aCur, aTarget))
-        nCount++;
-      if (_matchesFrom (aCtx, aCur))
-        return nCount;
+      int nBest = -1;
+      int nBestOrder = 0;
+      for (int i = 0; i < nLists; ++i)
+        if (aPos[i] >= 0)
+        {
+          final int nOrder = aLists.get (i).get (aPos[i]).getOrder ();
+          if (nBest < 0 || nOrder > nBestOrder)
+          {
+            nBest = i;
+            nBestOrder = nOrder;
+          }
+        }
+      if (nBest < 0)
+        return null;
+      final IXdmNode aNode = aLists.get (nBest).get (aPos[nBest]);
+      if (m_aFrom.exactNames ())
+        return aNode;
+      aC.m_aCtx.getDynamicContext ().checkInterrupt ();
+      if (_matchesFrom (aC, aNode))
+        return aNode;
+      aPos[nBest]--;
     }
+  }
+
+  /**
+   * level="any" from the name index of the document, for the nodes before the
+   * start node (the selected node, or the parent of a selected attribute or
+   * namespace node, both already visited). If the count pattern and the from
+   * pattern (if any) can match only elements of known names, the only nodes
+   * that can matter are the elements of these names before the start node:
+   * the last one matching from is found first (the root if there is none),
+   * then the elements of the count names from that node on to the start node
+   * are counted, found by binary search on the document order and, unless the
+   * count names are exact, each tested against the count pattern.
+   *
+   * @param aC
+   *        The counting state. The count is added to it.
+   * @param aStart
+   *        The start node.
+   * @return <code>false</code> if the name index cannot be used (no document
+   *         root, a streamed document, a tree that is not numbered, or a
+   *         pattern that can match other nodes); nothing was counted then.
+   */
+  private boolean _countAnyByNames (@NonNull final Counting aC, @NonNull final IXdmNode aStart)
+  {
+    if (aC.m_aDoc == null)
+      return false;
+    final List <XdmQName> aCountNames = _getCountNames (aC);
+    if (aCountNames == null || (m_aFrom != null && m_aFrom.elementNames () == null))
+      return false;
+    final ICommonsList <List <IXdmNode>> aCountLists = _getElementLists (aC.m_aDoc, aCountNames);
+    if (aCountLists == null)
+      return false;
+    ICommonsList <List <IXdmNode>> aFromLists = null;
+    if (m_aFrom != null)
+    {
+      aFromLists = _getElementLists (aC.m_aDoc, m_aFrom.elementNames ());
+      if (aFromLists == null)
+        return false;
+    }
+    NAME_INDEX_COUNTS.incrementAndGet ();
+    final int nStart = aStart.getOrder ();
+    // Without a matching from node the root is the one matching from
+    int nFrom = aC.m_aDoc.getOrder ();
+    if (aFromLists != null)
+    {
+      final IXdmNode aFromNode = _findLastFrom (aC, aFromLists, nStart);
+      if (aFromNode != null)
+        nFrom = aFromNode.getOrder ();
+    }
+    final boolean bExact = _isCountExact ();
+    for (final List <IXdmNode> aNodes : aCountLists)
+    {
+      final int nLow = XdmDocumentNode.getLowerBound (aNodes, 0, nFrom);
+      final int nHigh = XdmDocumentNode.getLowerBound (aNodes, nLow, nStart);
+      if (bExact)
+        aC.m_nCount += nHigh - nLow;
+      else
+        for (int i = nLow; i < nHigh; ++i)
+        {
+          aC.m_aCtx.getDynamicContext ().checkInterrupt ();
+          if (_matchesCount (aC, aNodes.get (i)))
+            aC.m_nCount++;
+        }
+    }
+    return true;
+  }
+
+  /**
+   * level="any" by walking the tree, for the nodes before the start node (the
+   * selected node, or the parent of a selected attribute or namespace node,
+   * both already visited): the preceding siblings of the start node and of
+   * each of its ancestors with their subtrees, then the ancestor itself, all
+   * in reverse document order and iteratively with one stack, until a node
+   * matching from.
+   *
+   * @param aC
+   *        The counting state. The count is added to it.
+   * @param aStart
+   *        The start node.
+   */
+  private void _countAnyByWalk (@NonNull final Counting aC, @NonNull final IXdmNode aStart)
+  {
+    // The nodes from the subtree root down to the current one, and for each
+    // the index of its next child to visit (counting down)
+    final ICommonsList <IXdmNode> aStack = new CommonsArrayList <> ();
+    int [] aNext = new int [16];
+    IXdmNode aCur = aStart;
     while (true)
     {
       final IXdmNode aParent = aCur.getParent ();
       if (aParent == null)
-        break;
+        return;
       final int nIndex = _indexInParent (aParent, aCur);
       for (int i = nIndex - 1; i >= 0; --i)
       {
-        final ICommonsList <IXdmNode> aSubtree = _subtreeInDocumentOrder (aParent.getChildAtIndex (i));
-        for (int j = aSubtree.size () - 1; j >= 0; --j)
+        final IXdmNode aRoot = aParent.getChildAtIndex (i);
+        aStack.add (aRoot);
+        aNext[0] = aRoot.getChildCount () - 1;
+        while (aStack.isNotEmpty ())
         {
-          final IXdmNode aNode = aSubtree.get (j);
-          aCtx.getDynamicContext ().checkInterrupt ();
-          if (_matchesCount (aCtx, aNode, aTarget))
-            nCount++;
-          if (_matchesFrom (aCtx, aNode))
-            return nCount;
+          final int nTop = aStack.size () - 1;
+          final IXdmNode aNode = aStack.get (nTop);
+          final int nChild = aNext[nTop];
+          if (nChild >= 0)
+          {
+            // Descend into the last child not yet visited
+            aNext[nTop] = nChild - 1;
+            final IXdmNode aChild = aNode.getChildAtIndex (nChild);
+            if (nTop + 1 == aNext.length)
+              aNext = Arrays.copyOf (aNext, aNext.length * 2);
+            aNext[nTop + 1] = aChild.getChildCount () - 1;
+            aStack.add (aChild);
+          }
+          else
+          {
+            // All children are visited: the node itself comes before them
+            aStack.removeLast ();
+            if (_visitAny (aC, aNode))
+              return;
+          }
         }
       }
-      if (_matchesCount (aCtx, aParent, aTarget))
-        nCount++;
-      if (_matchesFrom (aCtx, aParent))
-        return nCount;
+      if (_visitAny (aC, aParent))
+        return;
       aCur = aParent;
     }
-    return nCount;
+  }
+
+  /**
+   * level="any": the nodes on the preceding and ancestor-or-self axes that
+   * match count, not before the last of them matching from (XSLT 3.0 section
+   * 12.3). The selected node and, for an attribute or namespace node, its
+   * parent are tested first (other attributes of the parent are on neither
+   * axis); the nodes before them come from the name index of the document
+   * where the patterns allow it
+   * ({@link #_countAnyByNames(Counting, IXdmNode)}), otherwise from a walk in
+   * reverse document order that stops at the from node
+   * ({@link #_countAnyByWalk(Counting, IXdmNode)}).
+   *
+   * @param aC
+   *        The counting state.
+   * @return The number of counted nodes, 0 for the empty place marker.
+   */
+  private long _countAny (@NonNull final Counting aC)
+  {
+    final IXdmNode aTarget = aC.m_aTarget;
+    if (_visitAny (aC, aTarget))
+      return aC.m_nCount;
+    IXdmNode aStart = aTarget;
+    if (aTarget.getKind () == ENodeKind.ATTRIBUTE || aTarget.getKind () == ENodeKind.NAMESPACE)
+    {
+      aStart = aTarget.getParent ();
+      if (aStart == null)
+        return aC.m_nCount;
+      if (_visitAny (aC, aStart))
+        return aC.m_nCount;
+    }
+    if (!_countAnyByNames (aC, aStart))
+      _countAnyByWalk (aC, aStart);
+    return aC.m_nCount;
   }
 
   /**
@@ -467,21 +794,22 @@ public final class NumberInstruction extends AbstractInstruction
       aTarget = aNode;
     }
 
+    final Counting aC = new Counting (aCtx, aTarget, m_aCount, m_aFrom);
     final ICommonsList <BigInteger> ret = new CommonsArrayList <> ();
     switch (m_eLevel)
     {
       case MULTIPLE:
-        return _countMultiple (aCtx, aTarget);
+        return _countMultiple (aC);
       case ANY:
       {
-        final long n = _countAny (aCtx, aTarget);
+        final long n = _countAny (aC);
         if (n > 0)
           ret.add (BigInteger.valueOf (n));
         return ret;
       }
       default:
       {
-        final long n = _countSingle (aCtx, aTarget);
+        final long n = _countSingle (aC);
         if (n > 0)
           ret.add (BigInteger.valueOf (n));
         return ret;
@@ -559,6 +887,17 @@ public final class NumberInstruction extends AbstractInstruction
   }
 
   /**
+   * @return The number of sibling counts and level="any" counts made so far
+   *         (in this JVM) from the name index of the document instead of
+   *         testing every preceding node. For tests that need to know which
+   *         path ran: the number is the same either way.
+   */
+  public static long getNameIndexCountCount ()
+  {
+    return NAME_INDEX_COUNTS.get ();
+  }
+
+  /**
    * Run xsl:number (XSLT 3.0 section 12): compute the place marker, re-base it
    * by start-at (only evaluated for a non-empty place marker; the last
    * start-at value applies to the surplus numbers), evaluate the conversion
@@ -617,9 +956,53 @@ public final class NumberInstruction extends AbstractInstruction
   }
 
   /**
+   * The names of a pattern that matches exactly the elements of these names
+   * that have a parent: every top-level alternative is a relative path of a
+   * single <code>child::</code> step (written or defaulted) with an exact name
+   * test, without predicates.
+   *
+   * @param aPattern
+   *        The pattern.
+   * @return The distinct names, or <code>null</code> if the pattern has
+   *         another shape.
+   */
+  @Nullable
+  private static List <XdmQName> _getExactNames (@NonNull final XsltPattern aPattern)
+  {
+    final ICommonsList <XdmQName> ret = new CommonsArrayList <> ();
+    for (final XsltPattern aAlternative : aPattern.getAlternatives ())
+    {
+      if (!(aAlternative instanceof final CompiledXsltPattern aCP) ||
+          !(aCP.getPatternExpr () instanceof final IExpr.PathExpr aPath) ||
+          aPath.start () != null ||
+          aPath.absolute () ||
+          aPath.steps ().size () != 1)
+        return null;
+      final IExpr.StepExpr aStep = aPath.steps ().getFirst ();
+      if (aStep.axis () != EAxis.CHILD ||
+          aStep.postfix () != null ||
+          aStep.fused () != null ||
+          !aStep.predicates ().isEmpty ())
+        return null;
+      final NodeTest aTest = aStep.test ();
+      if (aTest == null ||
+          aTest.kind () != ENodeTestKind.NAME ||
+          aTest.anyName () ||
+          aTest.anyNamespace () ||
+          aTest.anyLocalName () ||
+          aTest.name () == null)
+        return null;
+      if (!ret.contains (aTest.name ()))
+        ret.add (aTest.name ());
+    }
+    return ret;
+  }
+
+  /**
    * Compile the count or from attribute as a pattern with the full static
    * context of the element (so it may use local variables), register it with
-   * the streamability index if there is one, and reject static calls of
+   * the streamability index if there is one, determine the element names it
+   * can match (for the name index of the document), and reject static calls of
    * fn:current-group (XTSE1060), fn:current-grouping-key (XTSE1070),
    * fn:current-merge-group (XTSE3470) and fn:current-merge-key (XTSE3500).
    *
@@ -661,7 +1044,11 @@ public final class NumberInstruction extends AbstractInstruction
         if (aCP.containsFunction (aFilter))
           throw XsltException.at (aEl, aEntry[1], aEntry[0] + "() may not be used in a pattern");
       }
-    return new NumberPattern (aPattern, aSC);
+    final List <XdmQName> aExact = _getExactNames (aPattern);
+    if (aExact != null)
+      return new NumberPattern (aPattern, aSC, aExact, true);
+    final PatternFinalNames aFinal = aPattern.getFinalNames ();
+    return new NumberPattern (aPattern, aSC, aFinal == null ? null : aFinal.elementNames (), false);
   }
 
   /**
