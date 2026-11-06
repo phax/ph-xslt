@@ -86,6 +86,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   names an element the document's index does not contain is empty without evaluating its prefix
   (`XPathEvaluator._isEmptyByNameIndex`, also in the complete evaluation), but only for prefixes that cannot raise an
   error (axis steps without predicates, unions of such paths, a node as context item in a tree with a document root).
+- xsl:number (`NumberInstruction`) counts from the document's name index where the count and from patterns name the
+  elements they can match (`XsltPattern.getFinalNames`; patterns of single exact `child::` name steps and the default
+  count pattern of an element are counted by binary search on the document order without testing): level="any" over
+  the whole document, single/multiple for parents with more than 32 children (`getChildElementsByName`). Unnumbered,
+  streamed and parentless trees and other patterns walk the tree. `NumberInstruction.getNameIndexCountCount ()` tells
+  tests which path ran.
 - Node test names hold interned strings (`NodeTest` constructor, `XdmQName.getInterned`), like the names the JDK
   parsers report and the tree builders keep, so a matching name test is decided by identity.
 - `XPathOperators` (`xpath-core`, package `eval`) is the one place for the semantics of comparisons, arithmetic,

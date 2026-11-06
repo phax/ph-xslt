@@ -77,6 +77,19 @@ public final class XsdFeatures11Test
             true,
             new DocCheck ("<r lim=\"5\">4</r>", true),
             new DocCheck ("<r lim=\"5\">6</r>", false)),
+        // The schema type of an assertion tree node is shared per pair of
+        // types, but the union member is resolved per value
+        new Case ("assert-shared-schema-types",
+            VER_11,
+            "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n" +
+                "\t\t  <xs:simpleType name=\"U\"><xs:union memberTypes=\"xs:int xs:date\"/></xs:simpleType>\n" +
+                "\t\t  <xs:element name=\"r\"><xs:complexType><xs:sequence><xs:element name=\"e\" maxOccurs=\"unbounded\"><xs:complexType><xs:simpleContent>\n" +
+                "\t\t    <xs:extension base=\"U\"><xs:attribute name=\"w\" type=\"xs:int\"/><xs:attribute name=\"u\" type=\"U\"/></xs:extension></xs:simpleContent></xs:complexType></xs:element></xs:sequence>\n" +
+                "\t\t    <xs:assert test=\"count(e[data(.) instance of xs:int]) = 2 and count(e[data(.) instance of xs:date]) = 1 and sum(e/@w) = 6 and count(e/@u[data(.) instance of xs:date]) = 1 and count(e/@u[data(.) instance of xs:int]) = 1\"/></xs:complexType></xs:element></xs:schema>",
+            true,
+            new DocCheck ("<r><e w=\"1\" u=\"2000-01-01\">1</e><e w=\"2\" u=\"7\">2000-01-01</e><e w=\"3\">3</e></r>", true),
+            new DocCheck ("<r><e w=\"1\" u=\"2000-01-01\">1</e><e w=\"2\" u=\"7\">2000-01-01</e><e w=\"3\">2000-01-02</e></r>", false),
+            new DocCheck ("<r><e w=\"1\" u=\"2000-01-01\">1</e><e w=\"2\" u=\"2000-01-02\">2000-01-01</e><e w=\"3\">3</e></r>", false)),
         new Case ("assert-default-namespace",
             VER_11,
             "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" targetNamespace=\"urn:t\" elementFormDefault=\"qualified\" xpathDefaultNamespace=\"##targetNamespace\">\n" +

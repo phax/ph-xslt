@@ -67,7 +67,12 @@ public final class NumberFormatter
    * @param suffix
    *        Trailing non-alphanumeric run.
    */
-  private record Picture (String prefix, ICommonsList <String> tokens, ICommonsList <String> seps, String suffix)
+  /**
+   * An analysed format string: the prefix, the format tokens, the separators
+   * between them and the suffix. Read-only once created, so an xsl:number with
+   * a constant format shares one between all evaluations.
+   */
+  record Picture (String prefix, ICommonsList <String> tokens, ICommonsList <String> seps, String suffix)
   {}
 
   private static final String [] FAMILY_GLYPHS = { "𐄇𐄈𐄉𐄊𐄋𐄌𐄍𐄎𐄏𐄐",
@@ -206,12 +211,18 @@ public final class NumberFormatter
   }
 
   /**
-   * Analyse a format string. A format without any alphanumeric character
-   * wraps the implied token "1" on both sides ("*" renders as "*1*").
+   * Analyse a format string. An empty format means "1". A format without any
+   * alphanumeric character wraps the implied token "1" on both sides ("*"
+   * renders as "*1*").
+   *
+   * @param sFormatIn
+   *        The format string.
+   * @return The picture.
    */
   @NonNull
-  private static Picture _parsePicture (@NonNull final String sFormat)
+  static Picture parsePicture (@NonNull final String sFormatIn)
   {
+    final String sFormat = sFormatIn.isEmpty () ? "1" : sFormatIn;
     final int [] aCPs = sFormat.codePoints ().toArray ();
     final int nLen = aCPs.length;
     int i = 0;
@@ -579,6 +590,50 @@ public final class NumberFormatter
   }
 
   /**
+   * Format numbers with an analysed format string, as
+   * {@link #format(List, String, String, int, String, String)} does.
+   *
+   * @param aNums
+   *        The numbers.
+   * @param aPic
+   *        The analysed format string, see {@link #parsePicture(String)}.
+   * @param sGroupSep
+   *        Grouping separator, possibly empty.
+   * @param nGroupSize
+   *        Grouping size, 0 for no grouping.
+   * @param sLang
+   *        Language, may be <code>null</code>.
+   * @param sOrdinal
+   *        Value of the ordinal attribute, empty for cardinal numbers.
+   * @return The formatted string.
+   */
+  @NonNull
+  static String format (@NonNull final List <BigInteger> aNums,
+                        @NonNull final Picture aPic,
+                        @NonNull final String sGroupSep,
+                        final int nGroupSize,
+                        @Nullable final String sLang,
+                        @NonNull final String sOrdinal)
+  {
+    final int m = aPic.tokens ().size ();
+    final StringBuilder aSB = new StringBuilder (aPic.prefix ());
+    for (int i = 0; i < aNums.size (); ++i)
+    {
+      final int k = Math.min (i, m - 1);
+      if (i > 0)
+      {
+        if (k >= 1 && k - 1 < aPic.seps ().size ())
+          aSB.append (aPic.seps ().get (k - 1));
+        else
+          aSB.append ('.');
+      }
+      aSB.append (_formatOne (aNums.get (i), aPic.tokens ().get (k), sGroupSep, nGroupSize, sLang, sOrdinal));
+    }
+    aSB.append (aPic.suffix ());
+    return aSB.toString ();
+  }
+
+  /**
    * Format a list of numbers. The last format token is reused for surplus
    * numbers; the separator before a number is the one preceding its token, or
    * "." when there is only one token. An empty list still yields the prefix
@@ -606,22 +661,6 @@ public final class NumberFormatter
                                @Nullable final String sLang,
                                @NonNull final String sOrdinal)
   {
-    final Picture aPic = _parsePicture (sFormat.isEmpty () ? "1" : sFormat);
-    final int m = aPic.tokens ().size ();
-    final StringBuilder aSB = new StringBuilder (aPic.prefix ());
-    for (int i = 0; i < aNums.size (); ++i)
-    {
-      final int k = Math.min (i, m - 1);
-      if (i > 0)
-      {
-        if (k >= 1 && k - 1 < aPic.seps ().size ())
-          aSB.append (aPic.seps ().get (k - 1));
-        else
-          aSB.append ('.');
-      }
-      aSB.append (_formatOne (aNums.get (i), aPic.tokens ().get (k), sGroupSep, nGroupSize, sLang, sOrdinal));
-    }
-    aSB.append (aPic.suffix ());
-    return aSB.toString ();
+    return format (aNums, parsePicture (sFormat), sGroupSep, nGroupSize, sLang, sOrdinal);
   }
 }
