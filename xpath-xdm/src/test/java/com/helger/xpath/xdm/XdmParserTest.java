@@ -36,8 +36,7 @@ import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.collection.commons.ICommonsOrderedMap;
 
 /**
- * Test class for classes {@link XdmParser}, {@link XdmTreeBuilder} and
- * {@link IXdmNode}.
+ * Test class for classes {@link XdmParser}, {@link XdmTreeBuilder} and {@link IXdmNode}.
  *
  * @author Philip Helger
  */
@@ -132,7 +131,7 @@ public final class XdmParserTest
   public void testIDKinds () throws XdmParseException
   {
     final IXdmNode aA = _parse ("<!DOCTYPE a [<!ATTLIST a i ID #IMPLIED r IDREF #IMPLIED rs IDREFS #IMPLIED n CDATA #IMPLIED>]>" +
-                               "<a i=' x ' r='y' rs=' p   q ' n=' keep  me ' xml:id='  z  '/>").getChildAtIndex (0);
+                                "<a i=' x ' r='y' rs=' p   q ' n=' keep  me ' xml:id='  z  '/>").getChildAtIndex (0);
     assertEquals (EIDKind.ID, aA.getAttribute ("", "i").getIDKind ());
     assertEquals ("x", aA.getAttribute ("", "i").getValue ());
     assertEquals (EIDKind.IDREF, aA.getAttribute ("", "r").getIDKind ());
@@ -205,7 +204,7 @@ public final class XdmParserTest
     assertEquals ("x", aDoc.getStringValue ());
   }
 
-  @Test(expected = XdmParseException.class)
+  @Test (expected = XdmParseException.class)
   public void testElementDepthLimit () throws XdmParseException
   {
     new XdmParser ().setMaxElementDepth (3).parse ("<a><b><c><d/></c></b></a>");
@@ -220,7 +219,7 @@ public final class XdmParserTest
     assertEquals ("urn:test:doc", aDoc.getDocumentUri ());
   }
 
-  @Test(expected = XdmParseException.class)
+  @Test (expected = XdmParseException.class)
   public void testNotWellFormed () throws XdmParseException
   {
     _parse ("<a><b></a>");
@@ -282,7 +281,7 @@ public final class XdmParserTest
   }
 
   @Test
-  public void testFifthEditionNamesExplained () throws XdmParseException
+  public void testFifthEditionNamesExplained ()
   {
     // Names XML 1.0 (5th edition) allows, which the JDK parser rejects in an
     // XML 1.0 document: the error says so

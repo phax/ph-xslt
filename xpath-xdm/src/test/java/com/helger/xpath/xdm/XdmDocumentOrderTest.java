@@ -20,14 +20,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 
 import org.junit.Test;
 
 /**
- * Test class for the document order numbering of {@link AbstractXdmNode} and
- * the name index of {@link XdmDocumentNode}.
+ * Test class for the document order numbering of {@link AbstractXdmNode} and the name index of
+ * {@link XdmDocumentNode}.
  *
  * @author Philip Helger
  */
@@ -73,7 +74,7 @@ public final class XdmDocumentOrderTest
     assertNotNull (aXs);
     assertEquals (3, aXs.size ());
     for (int i = 1; i < aXs.size (); ++i)
-      assertEquals (true, aXs.get (i - 1).getOrder () < aXs.get (i).getOrder ());
+      assertTrue (aXs.get (i - 1).getOrder () < aXs.get (i).getOrder ());
     assertEquals (1, aDoc.getElementsByName (new XdmQName ("urn:p", "x")).size ());
     assertEquals (0, aDoc.getElementsByName (new XdmQName ("none")).size ());
     // The index is kept
@@ -129,7 +130,7 @@ public final class XdmDocumentOrderTest
     final IXdmNode aSub = IXdmNode.createElement (X);
     aSub.appendChild (IXdmNode.createElement (X));
     aSub.assignDocumentOrder ();
-    assertEquals (true, ((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree () != 0);
+    assertTrue (((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree () != 0);
     final IXdmNode aDoc = IXdmNode.createDocument ();
     aDoc.appendChild (aSub);
     assertEquals (0, ((AbstractXdmNode) aSub).internalGetTree ());
@@ -141,7 +142,7 @@ public final class XdmDocumentOrderTest
     // The same for an attribute numbered on its own
     final IXdmNode aAttr = IXdmNode.createAttribute (new XdmQName ("a"), "1");
     aAttr.assignDocumentOrder ();
-    assertEquals (true, ((AbstractXdmNode) aAttr).internalGetTree () != 0);
+    assertTrue (((AbstractXdmNode) aAttr).internalGetTree () != 0);
     final IXdmNode aElement = IXdmNode.createElement (X);
     aElement.addAttribute (aAttr);
     assertEquals (0, ((AbstractXdmNode) aAttr).internalGetTree ());
