@@ -948,7 +948,8 @@ public final class XPathEvaluator
 
   /**
    * A static function call (XPath 3.1 section 3.1.5). The function is resolved by name and arity
-   * in the static context. With an argument placeholder the result is a partially applied
+   * in the function library of the static context, through the resolution cache of the call site
+   * (see {@link com.helger.xpath.fn.FunctionCallSite}). With an argument placeholder the result is a partially applied
    * {@link BuiltInFunctionItem}. A one-argument call of <code>fn:exists</code>,
    * <code>fn:empty</code>, <code>fn:boolean</code> or <code>fn:not</code> is answered with early
    * exit. Otherwise every argument is evaluated, converted to its parameter type with the function
@@ -964,7 +965,7 @@ public final class XPathEvaluator
                                                 @NonNull final DynamicContext aCtx)
   {
     final List <IExpr> aArgExprs = aExpr.args ();
-    final FunctionDef aDef = XPathOperators.getFunctionDef (aCtx, aExpr.name (), aArgExprs.size ());
+    final FunctionDef aDef = XPathOperators.getFunctionDef (aCtx, aExpr.site (), aExpr.name (), aArgExprs.size ());
     if (_hasPlaceholder (aArgExprs))
       return _partialApply (new BuiltInFunctionItem (aDef, aCtx), aArgExprs, aCtx);
     if (aArgExprs.size () == 1)

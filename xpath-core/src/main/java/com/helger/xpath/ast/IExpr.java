@@ -21,6 +21,7 @@ import java.util.List;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.xpath.fn.FunctionCallSite;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.xdm.XdmQName;
 
@@ -48,9 +49,28 @@ public sealed interface IExpr
   record ContextItemExpr () implements IExpr
   {}
 
-  /** A static function call; an argument may be a {@link PlaceholderExpr}. */
-  record FunctionCallExpr (@NonNull XdmQName name, @NonNull List <IExpr> args) implements IExpr
-  {}
+  /**
+   * A static function call; an argument may be a {@link PlaceholderExpr}. The
+   * site caches the resolution of name and arity in the function library of the
+   * evaluation (see {@link FunctionCallSite}); it does not take part in
+   * equality.
+   */
+  record FunctionCallExpr (@NonNull XdmQName name, @NonNull List <IExpr> args, @NonNull FunctionCallSite site) implements
+                          IExpr
+  {
+    /**
+     * A call with its own, empty resolution cache.
+     *
+     * @param name
+     *        Expanded function name.
+     * @param args
+     *        The argument expressions.
+     */
+    public FunctionCallExpr (@NonNull final XdmQName name, @NonNull final List <IExpr> args)
+    {
+      this (name, args, new FunctionCallSite ());
+    }
+  }
 
   /** The argument placeholder <code>?</code> of a partial function application. */
   record PlaceholderExpr () implements IExpr

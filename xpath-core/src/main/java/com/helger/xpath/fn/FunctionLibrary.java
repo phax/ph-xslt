@@ -240,6 +240,10 @@ public final class FunctionLibrary
   // What fn:function-lookup finds instead of the static binding; a null value
   // means it finds nothing
   private final ICommonsMap <String, FunctionDef> m_aLookup = new CommonsHashMap <> ();
+  // Incremented under the write lock by every change of the registrations of
+  // this library (not by the on-demand functions of a variadic registration,
+  // which do not change any lookup result)
+  private volatile long m_nModCount;
 
   /**
    * Create an empty library without parent. Use {@link #createDefault()} for
@@ -365,7 +369,10 @@ public final class FunctionLibrary
     final int nArity = _countParams (sSignature);
     final XdmQName aName = new XdmQName (sNamespaceUri, sLocalName);
     final FunctionDef aDef = new FunctionDef (aName, sSignature, aImpl, bFocusDependent);
-    m_aRWLock.writeLocked ( () -> m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), aDef));
+    m_aRWLock.writeLocked ( () -> {
+      m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), aDef);
+      m_nModCount++;
+    });
     return this;
   }
 
@@ -432,7 +439,10 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
-    m_aRWLock.writeLocked ( () -> m_aMap.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef));
+    m_aRWLock.writeLocked ( () -> {
+      m_aMap.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
+      m_nModCount++;
+    });
     return this;
   }
 
@@ -471,7 +481,10 @@ public final class FunctionLibrary
     ValueEnforcer.notEmpty (sReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final Object [] aData = new Object [] { Integer.valueOf (nMinArity), sParamType, sReturnType, aImpl };
-    m_aRWLock.writeLocked ( () -> m_aVariadic.put ("{" + sNamespaceUri + "}" + sLocalName, aData));
+    m_aRWLock.writeLocked ( () -> {
+      m_aVariadic.put ("{" + sNamespaceUri + "}" + sLocalName, aData);
+      m_nModCount++;
+    });
     return this;
   }
 
@@ -526,6 +539,28 @@ public final class FunctionLibrary
       m_aMap.put (sKey, aNew);
       return aNew;
     });
+  }
+
+  /**
+   * A stamp of the registrations this library and its parent chain see: the
+   * sum of the change counters of the libraries in the chain. Every
+   * registration, hiding or lookup change in this library or a parent
+   * increases it; the on-demand creation of a function of a variadic
+   * registration does not, since it changes no lookup result. Two equal stamps
+   * of the same library therefore mean that
+   * {@link #getFunction(XdmQName, int)} gives the same result for every name
+   * and arity. Read the stamp before a lookup whose result is cached with it,
+   * so that a change in between makes the cached entry stale instead of
+   * hiding the change.
+   *
+   * @return The stamp.
+   */
+  long getModificationStamp ()
+  {
+    long ret = 0;
+    for (FunctionLibrary aLib = this; aLib != null; aLib = aLib.m_aParent)
+      ret += aLib.m_nModCount;
+    return ret;
   }
 
   /**
@@ -681,6 +716,7 @@ public final class FunctionLibrary
     m_aRWLock.writeLocked ( () -> {
       m_aHidden.add (sKey);
       m_aMap.remove (sKey);
+      m_nModCount++;
     });
     return this;
   }
@@ -714,7 +750,10 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
-    m_aRWLock.writeLocked ( () -> m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef));
+    m_aRWLock.writeLocked ( () -> {
+      m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
+      m_nModCount++;
+    });
     return this;
   }
 
@@ -732,7 +771,10 @@ public final class FunctionLibrary
   public FunctionLibrary hideFromLookup (@NonNull final XdmQName aName, final int nArity)
   {
     ValueEnforcer.notNull (aName, "Name");
-    m_aRWLock.writeLocked ( () -> m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), nArity), null));
+    m_aRWLock.writeLocked ( () -> {
+      m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), nArity), null);
+      m_nModCount++;
+    });
     return this;
   }
 
