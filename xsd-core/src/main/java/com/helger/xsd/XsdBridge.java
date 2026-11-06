@@ -72,8 +72,12 @@ final class XsdBridge implements IXdmSchemaSet
                          @NonNull ICommonsList <IXdmNode> originals)
   {}
 
-  /** The annotation of a node: its type and the type its value was validated against. */
-  private record TypeKey (@NonNull IXsdType type, @NonNull IXsdType valueType)
+  /**
+   * The annotation of a node: its type and the type its value was validated
+   * against. Also the key of the schema types cached by
+   * {@link XsdValidationRun#getAssertSchemaType}.
+   */
+  record TypeKey (@NonNull IXsdType type, @NonNull IXsdType valueType)
   {
     /**
      * Two keys are equal if they hold the very same type objects: types are

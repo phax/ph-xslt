@@ -157,6 +157,12 @@ final class XsdValidationRun
    */
   private ICommonsMap <IXdmNode, XsdSimpleType> m_aAssertTypes;
   private XsdBridge m_aAssertBridge;
+  /*
+   * The schema types of the assertion trees of this run by pair of types, so
+   * that all nodes with the same pair share one immutable annotation instead
+   * of deriving it again per node.
+   */
+  private ICommonsMap <XsdBridge.TypeKey, XdmSchemaType> m_aAssertSchemaTypes;
 
   /**
    * Create a run without an instance document, so no unparsed entity is
@@ -471,7 +477,10 @@ final class XsdValidationRun
   /**
    * The schema type a node of an assertion tree is annotated with: the type
    * its value validated against and, for a union, the member that accepted the
-   * value.
+   * value. The union member is resolved for every call, as it depends on the
+   * value; the schema type of a pair of types is created once per run and then
+   * shared, as <code>XdmSchemaType</code> is immutable and derived from the two
+   * types only.
    *
    * @param aType
    *        The type.
@@ -487,7 +496,10 @@ final class XsdValidationRun
                                      @NonNull final IXdmNode aAt)
   {
     if (m_aAssertBridge == null)
+    {
       m_aAssertBridge = new XsdBridge (m_aSchema);
+      m_aAssertSchemaTypes = new CommonsHashMap <> ();
+    }
     XsdSimpleType aValueType = aType;
     if (aType.m_eVariety == EXsdVariety.UNION)
     {
@@ -495,7 +507,10 @@ final class XsdValidationRun
       if (aMember != null)
         aValueType = aMember;
     }
-    return XdmSchemaType.of (m_aAssertBridge.definitionOf (aType), m_aAssertBridge.definitionOf (aValueType));
+    final XsdBridge aBridge = m_aAssertBridge;
+    return m_aAssertSchemaTypes.computeIfAbsent (new XsdBridge.TypeKey (aType, aValueType),
+                                                 k -> XdmSchemaType.of (aBridge.definitionOf (k.type ()),
+                                                                        aBridge.definitionOf (k.valueType ())));
   }
 
   /**
