@@ -498,7 +498,7 @@ Open, for later:
 
 ## Function calls, conversions and key patterns
 
-Status: in progress (2026-11-06). Follows from sch2java S7 (see `docs/SUGGESTIONS-sch2java.md`): compiling simple
+Status: items 1 to 3 and sch2java S8 done (2026-11-06); the queued items below are open. Follows from sch2java S7 (see `docs/SUGGESTIONS-sch2java.md`): compiling simple
 `xsl:function` bodies into compiled parts was implemented and measured and gave no gain (key index over 100,000 nodes
 with `use='f:schemeAndValue(id)'`: 94 ms before, 97 ms after; the same `use` inline 79 ms), so it was dropped: it
 would have put the semantics of xsl:variable, xsl:choose, xsl:if, xsl:value-of and xsl:sequence in two places. A JFR
@@ -513,3 +513,31 @@ Also queued for this phase: one `ArrayList` per axis step copied into an `XdmSeq
 profile of S4 to S6), and two go-xslt v0.4.2 algorithm changes that apply here too: `xsl:number` creates a context
 per candidate node (`NumberInstruction`, go-xslt `fbf8394`), and `array(T)` checks of `xsl:iterate` parameters
 re-check every member (`SequenceTypeMatcher`, go-xslt `0483716`/`a60fa65`).
+
+Done (JDK 21, min of 25 runs after 5 warm-ups, before/after alternated; `1836f9a` against `2be6fee`):
+
+* Static calls resolve once per call site: `IExpr.FunctionCallExpr` carries a `FunctionCallSite` that caches the
+  definition per library instance and `FunctionLibrary.getModificationStamp` (libraries change after compilation:
+  stylesheet functions, `AccumulatorExtension`), with `XPathOperators.getFunctionDef` for generated code.
+  `getFunction` share 12.8 % to 1.0 % (invoice), 11.4 % to 1.9 % (key with function).
+* `as` conversion of a single item without a sequence builder (`SequenceTypeMatcher._convertSingleAtomic`, exact type
+  before the derivation walk); the conversion share 21 % to 13 % on the key workload.
+* `XsltPattern.canMatch` rejects a node the last step of no path can select before any context or path search is
+  built; `PathSearch.<init>` 9.6 % to 1.5 %.
+* sch2java S8: a key whose match patterns all end in an exact element or attribute name takes its candidates from the
+  document's name index (`XsltPattern.getFinalNames`, `Engine._getKeyCandidatesFromNames`), merged in document order;
+  anything else walks the tree as before.
+
+| Workload | Before | After |
+|----------|--------|-------|
+| key over 100,000 nodes, `use` calls `f:schemeAndValue` | 84 to 90 ms | 58 ms |
+| the same key, `use` inline | 69 to 71 ms | 46 to 47 ms |
+| 100,000 function calls | 71 to 74 ms | 52 ms |
+| TSR-like: 3 keys over 150,000 elements | 212 to 243 ms | 97 to 109 ms |
+| invoice: 8 per-line expressions over 63,404 lines | 110 ms | 90 ms |
+
+Next in the profiles: the child scan of `AxisNavigator.collectNamedChildren` (35 % inclusive of the invoice
+workload, `getChildAtIndex` 14 %; the `ArrayList` copy is only about 6 %, so that item is dropped), the key index
+`HashMap` growth (about 10 %, pre-sizing), context allocation per call and focus (about 5 %),
+`EAtomicType.isNumeric` through `isDerivedFrom` (a flag would make it constant), pattern predicates of key matches.
+
