@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.context.StaticContext;
 import com.helger.xpath.xdm.IXdmNode;
@@ -185,6 +186,72 @@ public final class PatternQuickRejectTest
                           Boolean.TRUE,
                           Boolean.valueOf (aNode.isElement () ? aFinal.elementNames ().contains (aNode.getName ())
                                                               : aFinal.attributeNames ().contains (aNode.getName ())));
+    }
+  }
+
+  /** The union paths of a pattern from left to right, or an empty list for any other pattern. */
+  @NonNull
+  private static ICommonsList <IExpr.PathExpr> _getUnionPaths (@NonNull final IExpr aPattern)
+  {
+    final ICommonsList <IExpr.PathExpr> ret = new CommonsArrayList <> ();
+    final ArrayDeque <IExpr> aStack = new ArrayDeque <> ();
+    aStack.push (aPattern);
+    while (!aStack.isEmpty ())
+    {
+      final IExpr aCur = aStack.pop ();
+      if (aCur instanceof final IExpr.SetExpr aSet && aSet.op () == IExpr.SetExpr.ESetOp.UNION)
+      {
+        aStack.push (aSet.right ());
+        aStack.push (aSet.left ());
+      }
+      else
+        if (aCur instanceof final IExpr.PathExpr aPath)
+          ret.add (aPath);
+        else
+          return new CommonsArrayList <> ();
+    }
+    return ret;
+  }
+
+  /**
+   * The last step computed once per path (canMatch and the union match) gives the same answer as
+   * computing it from the path for every node.
+   */
+  @Test
+  public void testPrecomputedLastStep () throws Exception
+  {
+    final IXdmNode aDoc = new XdmParser ().parse (DOC);
+    final ICommonsList <IXdmNode> aNodes = _collectNodes (aDoc);
+    final StaticContext aSC = new StaticContext ().declareNamespace ("p", "urn:p");
+    final ICommonsList <String> aPatterns = new CommonsArrayList <> ();
+    for (final String [] aCase : CASES)
+      aPatterns.add (aCase[0]);
+    aPatterns.addAll ("(a)",
+                      "a | (b)/c",
+                      "child::document-node()",
+                      "self::document-node()",
+                      "attribute::x | namespace::p",
+                      "descendant::node()",
+                      "descendant-or-self::*",
+                      "/descendant::b",
+                      "a/document-node()",
+                      "a/b/@x | /r/text()");
+    for (final String sPattern : aPatterns)
+    {
+      final CompiledXsltPattern aPattern = (CompiledXsltPattern) XsltPatternParser.parse (sPattern, aSC);
+      final ICommonsList <IExpr.PathExpr> aPaths = _getUnionPaths (aPattern.getPatternExpr ());
+      for (final IXdmNode aNode : aNodes)
+      {
+        boolean bAny = aPaths.isEmpty ();
+        for (final IExpr.PathExpr aPath : aPaths)
+        {
+          final boolean bOld = PatternMatcher.canLastStepSelect (aPath, aNode);
+          final PatternMatcher.LastStep aLast = PatternMatcher.getLastStep (aPath);
+          assertEquals (sPattern, Boolean.valueOf (bOld), Boolean.valueOf (aLast == null || aLast.canSelect (aNode)));
+          bAny |= bOld;
+        }
+        assertEquals (sPattern, Boolean.valueOf (bAny), Boolean.valueOf (aPattern.canMatch (aNode)));
+      }
     }
   }
 }

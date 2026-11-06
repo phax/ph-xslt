@@ -18,9 +18,13 @@ package com.helger.xslt.ext.accumulator;
 
 import org.junit.Test;
 
+import com.helger.xpath.fn.FunctionLibrary;
+import com.helger.xpath.xdm.XdmConstants;
+import com.helger.xpath.xdm.XdmQName;
 import com.helger.xslt.XsltTestHelper;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 /**
  * Test class for class {@link AccumulatorExtension}.
@@ -120,5 +124,27 @@ public final class AccumulatorExtensionTest
     for (int i = 0; i < 5000; ++i)
       aSB.append ("</b>");
     assertEquals ("5000", XsltTestHelper.text (ACC + "<xsl:template match='/'><xsl:value-of select=\"accumulator-after('n')\"/></xsl:template>", aSB.toString ()));
+  }
+
+  @Test
+  public void testCopyWrappersStayInTheStylesheet ()
+  {
+    // fn:copy-of and fn:snapshot and their wrappers are registered in the stylesheet's library, a child of the
+    // shared default library, which must stay without them
+    final XdmQName aCopyOf = new XdmQName (XdmConstants.NS_FN, "copy-of");
+    final XdmQName aSnapshot = new XdmQName (XdmConstants.NS_FN, "snapshot");
+    final int nDefaultCount = FunctionLibrary.getDefault ().getAllFunctions ().size ();
+    for (int i = 0; i < 2; ++i)
+      assertEquals ("1 1",
+                    XsltTestHelper.text (ACC +
+                                         "<xsl:template match='/'><xsl:value-of select=\"copy-of(//b[1])/accumulator-after('n'), " +
+                                         "snapshot(//b[1])/accumulator-after('n')\"/></xsl:template>",
+                                         "<a><b/><b/></a>"));
+    for (int i = 0; i <= 1; ++i)
+    {
+      assertNull (FunctionLibrary.getDefault ().getFunction (aCopyOf, i));
+      assertNull (FunctionLibrary.getDefault ().getFunction (aSnapshot, i));
+    }
+    assertEquals (nDefaultCount, FunctionLibrary.getDefault ().getAllFunctions ().size ());
   }
 }

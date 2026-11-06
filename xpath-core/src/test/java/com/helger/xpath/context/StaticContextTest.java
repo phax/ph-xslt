@@ -17,12 +17,14 @@
 package com.helger.xpath.context;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
 import com.helger.xpath.XPathCompiler;
 import com.helger.xpath.XPathException;
+import com.helger.xpath.collation.CollationRegistry;
 import com.helger.xpath.value.XdmAtomic;
 import com.helger.xpath.value.XdmSequence;
 
@@ -119,5 +121,34 @@ public final class StaticContextTest
     assertEquals ("1", _eval (aXml11, "string(string-to-codepoints(codepoints-to-string(1)))"));
     _assertError (aXml11, "codepoints-to-string(0)", "FOCH0001");
     _assertError (aXml11, "codepoints-to-string(55296)", "FOCH0001");
+  }
+
+  @Test
+  public void testResolvedDefaultCollation ()
+  {
+    final StaticContext aStatic = new StaticContext ();
+    assertSame (CollationRegistry.CODEPOINT, aStatic.getResolvedDefaultCollation ());
+    assertSame (CollationRegistry.CODEPOINT, aStatic.resolveCollation (CollationRegistry.CODEPOINT_URI));
+
+    // Setting the default collation drops the kept one
+    aStatic.setDefaultCollation (CollationRegistry.HTML_ASCII_CASE_INSENSITIVE_URI);
+    assertSame (CollationRegistry.HTML_ASCII_CASE_INSENSITIVE, aStatic.getResolvedDefaultCollation ());
+    assertSame (CollationRegistry.HTML_ASCII_CASE_INSENSITIVE, aStatic.getResolvedDefaultCollation ());
+    assertEquals ("B", _eval (aStatic, "string(max(('a', 'B')))"));
+    assertEquals ("true", _eval (aStatic, "string(deep-equal('a', 'A'))"));
+
+    // A relative default collation is resolved against the base URI, and setting the base URI drops the kept one
+    aStatic.setBaseUri ("http://www.w3.org/2005/xpath-functions/collation/x");
+    aStatic.setDefaultCollation ("html-ascii-case-insensitive");
+    assertSame (CollationRegistry.HTML_ASCII_CASE_INSENSITIVE, aStatic.getResolvedDefaultCollation ());
+    aStatic.setBaseUri ("http://example.org/");
+    _assertError (aStatic, "max(('a', 'B'))", "FOCH0002");
+    // A failure is not kept
+    _assertError (aStatic, "max(('a', 'B'))", "FOCH0002");
+    aStatic.setBaseUri ("http://www.w3.org/2005/xpath-functions/collation/");
+    assertEquals ("B", _eval (aStatic, "string(max(('a', 'B')))"));
+
+    _assertError (new StaticContext ().setDefaultCollation ("http://example.org/unknown"), "max(('a', 'B'))", "FOCH0002");
+    _assertError (new StaticContext ().setDefaultCollation (":invalid"), "max(('a', 'B'))", "FOCH0002");
   }
 }

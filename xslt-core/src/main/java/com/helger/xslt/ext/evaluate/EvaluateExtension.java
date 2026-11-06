@@ -111,7 +111,7 @@ public final class EvaluateExtension implements IXsltExtension
 
   /**
    * Build the function library of dynamic expressions from the library of
-   * the stylesheet: start with the default XPath library and add every
+   * the stylesheet: start with a child of the shared default XPath library and add every
    * function of the stylesheet library that is not already there by name and
    * arity, except the context-dependent XSLT functions of
    * {@link #EXCLUDED_FUNCTIONS} (in the fn namespace) and stylesheet
@@ -119,12 +119,12 @@ public final class EvaluateExtension implements IXsltExtension
    *
    * @param aSheetLib
    *        The function library of the stylesheet.
-   * @return A new library. Never <code>null</code>.
+   * @return A new child library of the shared default library. Never <code>null</code>.
    */
   @NonNull
   private static FunctionLibrary _createLibrary (@NonNull final FunctionLibrary aSheetLib)
   {
-    final FunctionLibrary ret = FunctionLibrary.createDefault ();
+    final FunctionLibrary ret = FunctionLibrary.getDefault ().createChild ();
     for (final FunctionLibrary.FunctionDef aDef : aSheetLib.getAllFunctions ())
     {
       final XdmQName aName = aDef.getName ();

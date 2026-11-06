@@ -16,6 +16,9 @@
  */
 package com.helger.xpath.context;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -25,7 +28,9 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
+import com.helger.xpath.XPathException;
 import com.helger.xpath.collation.CollationRegistry;
+import com.helger.xpath.collation.ICollation;
 import com.helger.xpath.fn.FormatDecimalFormat;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.xdm.XdmConstants;
@@ -63,6 +68,8 @@ public final class StaticContext
   private EXsdVersion m_eXsdVersion = DEFAULT_XSD_VERSION;
   private boolean m_bXsdVersionSet = false;
   private IXdmSchemaSet m_aSchemaSet;
+  // The default collation as resolved by getResolvedDefaultCollation; null until the first successful resolution
+  private volatile ICollation m_aResolvedDefaultCollation;
 
   /**
    * Create a static context with the prefixes <code>xml</code>,
@@ -201,6 +208,7 @@ public final class StaticContext
   public StaticContext setBaseUri (@Nullable final String sBaseUri)
   {
     m_sBaseUri = sBaseUri;
+    m_aResolvedDefaultCollation = null;
     return this;
   }
 
@@ -329,7 +337,71 @@ public final class StaticContext
   public StaticContext setDefaultCollation (@NonNull final String sCollationUri)
   {
     m_sDefaultCollation = ValueEnforcer.notEmpty (sCollationUri, "CollationUri");
+    m_aResolvedDefaultCollation = null;
     return this;
+  }
+
+  /**
+   * Resolve a collation URI as written in a function call: the codepoint collation URI directly, any other URI is
+   * parsed, resolved against the static base URI if it is relative and there is one (with
+   * {@link URI#resolve(URI)}), and looked up in the {@link CollationRegistry}.
+   *
+   * @param sUri
+   *        The collation URI as written.
+   * @return The collation, never <code>null</code> ({@link CollationRegistry#CODEPOINT} for the codepoint
+   *         collation).
+   * @throws XPathException
+   *         FOCH0002 for a syntactically invalid or unsupported collation URI.
+   */
+  @NonNull
+  public ICollation resolveCollation (@NonNull final String sUri)
+  {
+    // An absolute URI: resolving it changes nothing
+    if (CollationRegistry.CODEPOINT_URI.equals (sUri))
+      return CollationRegistry.CODEPOINT;
+    String sAbsUri = sUri;
+    try
+    {
+      final URI aUri = new URI (sUri);
+      if (!aUri.isAbsolute ())
+      {
+        final String sBase = m_sBaseUri;
+        if (sBase != null)
+          sAbsUri = new URI (sBase).resolve (aUri).toString ();
+      }
+    }
+    catch (final URISyntaxException | IllegalArgumentException ex)
+    {
+      throw XPathException.of ("FOCH0002", "Invalid collation URI '" + sUri + "'");
+    }
+    final ICollation ret = CollationRegistry.getCollation (sAbsUri);
+    if (ret == null)
+      throw XPathException.of ("FOCH0002", "Unsupported collation '" + sUri + "'");
+    return ret;
+  }
+
+  /**
+   * The default collation resolved with {@link #resolveCollation(String)}. The first successful resolution is kept
+   * until the default collation or the base URI is set again, so that functions which use the default collation do
+   * not parse its URI on every call; a failure is not kept and raises the error again on every call. Safe for
+   * concurrent readers once the context is filled (the kept value is published through a volatile field, and two
+   * threads that resolve at the same time get equal collations).
+   *
+   * @return The default collation, never <code>null</code> ({@link CollationRegistry#CODEPOINT} for the codepoint
+   *         collation).
+   * @throws XPathException
+   *         FOCH0002 for a syntactically invalid or unsupported default collation URI.
+   */
+  @NonNull
+  public ICollation getResolvedDefaultCollation ()
+  {
+    ICollation ret = m_aResolvedDefaultCollation;
+    if (ret == null)
+    {
+      ret = resolveCollation (m_sDefaultCollation);
+      m_aResolvedDefaultCollation = ret;
+    }
+    return ret;
   }
 
   /** @return The unnamed decimal format used by fn:format-number. */

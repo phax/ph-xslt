@@ -48,6 +48,14 @@ public final class FnDateTime
   private static final BigDecimal SIXTY = BigDecimal.valueOf (60);
   private static final BigDecimal SECONDS_PER_HOUR = BigDecimal.valueOf (3600);
   private static final BigDecimal SECONDS_PER_DAY = BigDecimal.valueOf (86400);
+  // 10^0 to 10^18, for the long fast path of _getWholeSeconds
+  private static final long [] POWERS_OF_TEN = new long [19];
+  static
+  {
+    POWERS_OF_TEN[0] = 1;
+    for (int i = 1; i < POWERS_OF_TEN.length; ++i)
+      POWERS_OF_TEN[i] = POWERS_OF_TEN[i - 1] * 10;
+  }
 
   @PresentForCodeCoverage
   private static final FnDateTime INSTANCE = new FnDateTime ();
@@ -138,10 +146,35 @@ public final class FnDateTime
   }
 
   /**
+   * The seconds of a duration truncated towards zero as a long, computed without a division of big numbers: for a
+   * value with a scale of 0 to 18 and at most 18 digits the unscaled value is divided by the power of ten of the
+   * scale.
+   *
+   * @param aSeconds
+   *        The seconds of a duration.
+   * @return The whole seconds (truncated towards zero), or {@link Long#MIN_VALUE} if the value has a negative scale
+   *         or more than 18 digits (then the caller computes with big numbers).
+   */
+  static long getWholeSeconds (@NonNull final BigDecimal aSeconds)
+  {
+    final int nScale = aSeconds.scale ();
+    if (nScale < 0 || aSeconds.precision () > 18)
+      return Long.MIN_VALUE;
+    if (nScale >= POWERS_OF_TEN.length)
+    {
+      // At most 18 digits, all after the decimal point
+      return 0;
+    }
+    return aSeconds.unscaledValue ().longValue () / POWERS_OF_TEN[nScale];
+  }
+
+  /**
    * Extract an integer component of the day-time part of a duration: the
    * seconds are divided by the unit with truncation towards zero, and the
    * remainder modulo <code>nModulo</code> is taken, so the result has the sign
-   * of the duration (F&amp;O 3.1 sections 8.3.3 to 8.3.5).
+   * of the duration (F&amp;O 3.1 sections 8.3.3 to 8.3.5). Durations whose
+   * seconds fit in a long are computed with long arithmetic (see
+   * {@link #getWholeSeconds(BigDecimal)}), the others with BigInteger.
    *
    * @param aDur
    *        The duration.
@@ -157,6 +190,14 @@ public final class FnDateTime
                                             @NonNull final BigDecimal aUnit,
                                             final int nModulo)
   {
+    final long nWholeSeconds = getWholeSeconds (aDur.getSeconds ());
+    if (nWholeSeconds != Long.MIN_VALUE)
+    {
+      // Truncating the seconds first gives the same quotient for a whole unit; the long division and remainder
+      // truncate towards zero like the BigInteger ones below
+      final long nWhole = nWholeSeconds / aUnit.longValueExact ();
+      return XdmSequence.of (XdmAtomic.integer (nModulo > 0 ? nWhole % nModulo : nWhole));
+    }
     // Truncation towards zero keeps the sign of the duration
     final BigInteger aWhole = aDur.getSeconds ().divideToIntegralValue (aUnit).toBigInteger ();
     final BigInteger aPart = nModulo > 0 ? aWhole.remainder (BigInteger.valueOf (nModulo)) : aWhole;

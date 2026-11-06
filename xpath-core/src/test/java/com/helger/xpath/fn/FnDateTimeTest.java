@@ -22,6 +22,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.Arrays;
 
 import org.junit.Test;
@@ -400,5 +402,49 @@ public final class FnDateTimeTest
                   LIB.getFunction (new XdmQName (XdmConstants.NS_FN, s.substring (0, nHash)),
                                    Integer.parseInt (s.substring (nHash + 1))) != null);
     }
+  }
+
+  /** The components of the day-time part as the BigInteger computation before the long fast path gave them. */
+  private static String _expectedPart (final BigDecimal aSeconds, final long nUnit, final int nModulo)
+  {
+    final BigInteger aWhole = aSeconds.divideToIntegralValue (BigDecimal.valueOf (nUnit)).toBigInteger ();
+    return "integer:" + (nModulo > 0 ? aWhole.remainder (BigInteger.valueOf (nModulo)) : aWhole);
+  }
+
+  @Test
+  public void testDurationPartsFastPath ()
+  {
+    final String [] aValues = { "0",
+                                "0.5",
+                                "-0.5",
+                                "59.999",
+                                "60",
+                                "-60",
+                                "3599.9999999",
+                                "86399.999999999999",
+                                "86400",
+                                "-86400.000001",
+                                "123456789.123456789",
+                                "0.0000000000000000001",
+                                "-0.00000000000000000012",
+                                "999999999999999999",
+                                "-999999999999999999",
+                                "1000000000000000000",
+                                "-1000000000000000000.5",
+                                "92233720368547758070",
+                                "123456789012345678901234567890.123" };
+    for (final String sValue : aValues)
+    {
+      final BigDecimal aSeconds = new BigDecimal (sValue);
+      final long nWhole = FnDateTime.getWholeSeconds (aSeconds);
+      if (nWhole != Long.MIN_VALUE)
+        assertEquals (sValue, aSeconds.setScale (0, RoundingMode.DOWN).longValueExact (), nWhole);
+      final XdmSequence aDur = XdmSequence.of (XdmAtomic.of (EAtomicType.DAY_TIME_DURATION, XdmDurationValue.of (0, aSeconds)));
+      assertEquals (sValue, _expectedPart (aSeconds, 86400, 0), _call ("days-from-duration", aDur));
+      assertEquals (sValue, _expectedPart (aSeconds, 3600, 24), _call ("hours-from-duration", aDur));
+      assertEquals (sValue, _expectedPart (aSeconds, 60, 60), _call ("minutes-from-duration", aDur));
+    }
+    // A large value takes the BigInteger path
+    assertEquals (Long.MIN_VALUE, FnDateTime.getWholeSeconds (new BigDecimal ("1000000000000000000")));
   }
 }

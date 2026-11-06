@@ -17,8 +17,6 @@
 package com.helger.xpath.fn;
 
 import java.math.BigInteger;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -82,9 +80,8 @@ public final class FnSequence
   {}
 
   /**
-   * Resolve a collation URI: a relative URI is resolved against the static
-   * base URI (if there is one) with {@link URI#resolve(URI)}, then looked up
-   * in the {@link CollationRegistry}.
+   * Resolve a collation URI with {@link com.helger.xpath.context.StaticContext#resolveCollation(String)} of the
+   * static context of the call.
    *
    * @param aCtx
    *        The dynamic context of the call.
@@ -98,24 +95,7 @@ public final class FnSequence
   @Nullable
   private static ICollation _resolveCollation (@NonNull final DynamicContext aCtx, @NonNull final String sUri)
   {
-    String sAbsUri = sUri;
-    try
-    {
-      final URI aUri = new URI (sUri);
-      if (!aUri.isAbsolute ())
-      {
-        final String sBase = aCtx.getStaticContext ().getBaseUri ();
-        if (sBase != null)
-          sAbsUri = new URI (sBase).resolve (aUri).toString ();
-      }
-    }
-    catch (final URISyntaxException | IllegalArgumentException ex)
-    {
-      throw XPathException.of ("FOCH0002", "Invalid collation URI '" + sUri + "'");
-    }
-    final ICollation ret = CollationRegistry.getCollation (sAbsUri);
-    if (ret == null)
-      throw XPathException.of ("FOCH0002", "Unsupported collation '" + sUri + "'");
+    final ICollation ret = aCtx.getStaticContext ().resolveCollation (sUri);
     // The comparison helpers use null for the codepoint collation
     return ret == CollationRegistry.CODEPOINT ? null : ret;
   }
@@ -139,12 +119,14 @@ public final class FnSequence
    * @param aCtx
    *        Dynamic context.
    * @return The default collation of the static context, <code>null</code>
-   *         for the codepoint collation.
+   *         for the codepoint collation. Resolved once per static context (see
+   *         {@link com.helger.xpath.context.StaticContext#getResolvedDefaultCollation()}).
    */
   @Nullable
   static ICollation getDefaultCollation (@NonNull final DynamicContext aCtx)
   {
-    return _resolveCollation (aCtx, aCtx.getStaticContext ().getDefaultCollation ());
+    final ICollation ret = aCtx.getStaticContext ().getResolvedDefaultCollation ();
+    return ret == CollationRegistry.CODEPOINT ? null : ret;
   }
 
   @NonNull
