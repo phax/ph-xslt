@@ -1070,7 +1070,7 @@ public final class XPathEvaluator
   {
     final List <IExpr> aArgExprs = aExpr.args ();
     final FunctionDef aDef = XPathOperators.getFunctionDef (aCtx, aExpr.site (), aExpr.name (), aArgExprs.size ());
-    if (_hasPlaceholder (aArgExprs))
+    if (aExpr.site ().hasPlaceholder (aArgExprs))
       return _partialApply (new BuiltInFunctionItem (aDef, aCtx), aArgExprs, aCtx);
     if (aArgExprs.size () == 1)
     {
