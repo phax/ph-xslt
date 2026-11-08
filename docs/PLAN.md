@@ -557,3 +557,10 @@ lambda per name in the tree builders, `EAtomicType.isDerivedFrom` in constant ti
 2,218 ms to 3.5 ms (6.3 GB to 8 MB allocated), XPath positional and FLWOR about half, XSD 1.1 validation 0.58 of the
 allocation. Gate unchanged.
 
+Batch 2 (2026-11-08, `docs/benchmarks/2026-11-08-batch-2.md`): focus-independent predicates evaluated once per step
+(`ExprWalker.isFocusIndependent`), a `long` fast path for integer arithmetic, argument conversion without builders,
+XSD identity paths walked on the tree (`XsdIdentityPath`), the depth walk and assertion tree copies. XPath positional
+288 ms to 3.4 ms, XPath rules 0.87, XSLT recursion 0.87, XSD allocation 0.89 to 0.91. Gate unchanged. Open next: the
+child scan (node model), `XdmSequence` building, literal arguments converted per call, the tree builder, and for
+XSD the depth recorded by the tree builder and `getDeclaredNamespaces` without a copy.
+

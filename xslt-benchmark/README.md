@@ -138,3 +138,4 @@ Absolute times depend on the machine and vary between runs; compare ratios measu
 |---|---|
 | [2026-11-06-baseline.md](../docs/benchmarks/2026-11-06-baseline.md) | Baseline of `main` (`6b8e1c2`) with the hot spots per workload |
 | [2026-11-08-batch-1.md](../docs/benchmarks/2026-11-08-batch-1.md) | Batch 1: XSD 1.1 assertions, linear xsl:number, collation, shared function library, pattern last step, durations, type derivation |
+| [2026-11-08-batch-2.md](../docs/benchmarks/2026-11-08-batch-2.md) | Batch 2: focus-independent predicates, long integer arithmetic, argument conversion, XSD identity paths and assertion trees |
