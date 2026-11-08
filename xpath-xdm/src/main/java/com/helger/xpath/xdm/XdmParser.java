@@ -17,6 +17,7 @@
 package com.helger.xpath.xdm;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -428,7 +429,9 @@ public class XdmParser
   public IXdmNode parse (@NonNull final String sXml) throws XdmParseException
   {
     ValueEnforcer.notNull (sXml, "Xml");
-    return _parse (new InputSource (new NonBlockingStringReader (sXml)), sXml);
+    // StringReader reads from the string itself, where NonBlockingStringReader
+    // would copy it into a char array first
+    return _parse (new InputSource (new StringReader (sXml)), sXml);
   }
 
   /**
