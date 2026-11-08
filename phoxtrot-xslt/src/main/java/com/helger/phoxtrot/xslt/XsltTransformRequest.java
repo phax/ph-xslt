@@ -31,6 +31,7 @@ import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.runtime.Engine;
 import com.helger.phoxtrot.xslt.runtime.ExecutionBudget;
 
 /**
@@ -44,6 +45,13 @@ import com.helger.phoxtrot.xslt.runtime.ExecutionBudget;
 @NotThreadSafe
 public final class XsltTransformRequest
 {
+  /**
+   * The value of {@link #setMaxSteps(long)} for "no step limit": the
+   * transformation may execute any number of instructions. The nesting depth
+   * limit ({@link #setMaxDepth(int)}) and the interrupt hook still apply.
+   */
+  public static final long UNLIMITED_STEPS = Long.MAX_VALUE;
+
   /** A template parameter of the initial template or initial mode. */
   public record TemplateParam (@NonNull XdmQName name, @NonNull XdmSequence value, boolean tunnel)
   {}
@@ -60,6 +68,7 @@ public final class XsltTransformRequest
   private IResourceResolver m_aResolver;
   private OffsetDateTime m_aCurrentDateTime;
   private BooleanSupplier m_aInterrupt;
+  private IXsltMessageListener m_aMessageListener;
   private long m_nMaxSteps;
   private int m_nMaxDepth;
   private ExecutionBudget m_aSharedBudget;
@@ -249,16 +258,75 @@ public final class XsltTransformRequest
     return this;
   }
 
-  /** @return The maximum number of instructions to execute, 0 for the default (20,000,000). */
+  /**
+   * @return The listener that receives the messages and warnings of the
+   *         transformation while it runs, <code>null</code> for none.
+   */
+  @Nullable
+  public IXsltMessageListener getMessageListener ()
+  {
+    return m_aMessageListener;
+  }
+
+  /**
+   * Set a listener for the messages (<code>xsl:message</code>, failed
+   * <code>xsl:assert</code>) and processor warnings of the transformation. It
+   * is called synchronously in the order the messages are produced, on the
+   * thread that runs the transformation (normally the large-stack worker
+   * thread, see {@link IXsltMessageListener}). The messages are still
+   * collected in {@link XsltTransformResult#messages()} and, when the
+   * transformation fails, in {@link XsltException#getCollectedMessages()}.
+   * A transformation started by <code>fn:transform</code> reports its
+   * messages to the listener of its caller, unless the
+   * <code>enable-messages</code> option is false. Without a listener nothing
+   * changes.
+   *
+   * @param aMessageListener
+   *        The listener; <code>null</code> (the default) for none.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setMessageListener (@Nullable final IXsltMessageListener aMessageListener)
+  {
+    m_aMessageListener = aMessageListener;
+    return this;
+  }
+
+  /**
+   * @return The maximum number of instructions to execute as set by
+   *         {@link #setMaxSteps(long)}: 0 (the initial value) or a negative
+   *         value for the default of {@link Engine#DEFAULT_MAX_STEPS}
+   *         (20,000,000), {@link #UNLIMITED_STEPS} for no limit, any other
+   *         value for that limit.
+   */
   public long getMaxSteps ()
   {
     return m_nMaxSteps;
   }
 
   /**
+   * Set the maximum number of instructions the transformation may execute;
+   * the instruction that exceeds it fails the transformation with XPDY0130.
+   * One step is counted for each instruction of a sequence constructor that
+   * is executed (so a loop body of three instructions counts three per
+   * iteration) and for each accumulator rule applied; the XPath evaluation
+   * inside an instruction is not counted.
+   * <ul>
+   * <li>0 (the initial value) or a negative value: the default of
+   * {@link Engine#DEFAULT_MAX_STEPS} (20,000,000) instructions.</li>
+   * <li>{@link #UNLIMITED_STEPS} ({@link Long#MAX_VALUE}): no step limit. The
+   * nesting depth limit and the interrupt hook still apply, so a run that
+   * never ends can only be stopped by {@link #setInterrupt(BooleanSupplier)}.</li>
+   * <li>Any other positive value: that number of instructions.</li>
+   * </ul>
+   * The limit is ignored when a shared budget is set
+   * ({@link #setSharedBudget(ExecutionBudget)}), as for a transformation run by
+   * <code>fn:transform</code>, which spends from the budget of its caller;
+   * <code>xsl:evaluate</code> also counts against the budget of the
+   * transformation it runs in.
+   *
    * @param nMaxSteps
-   *        The maximum number of instructions to execute; when exceeded the
-   *        transformation fails with XPDY0130. 0 for the default.
+   *        The maximum number of instructions to execute, see above.
    * @return this for chaining
    */
   @NonNull

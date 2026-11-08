@@ -39,7 +39,10 @@ public final class ExecutionBudget
 
   /**
    * @param nMaxSteps
-   *        The maximum number of instructions to execute.
+   *        The maximum number of instructions to execute;
+   *        {@link Long#MAX_VALUE}
+   *        ({@link com.helger.phoxtrot.xslt.XsltTransformRequest#UNLIMITED_STEPS})
+   *        is never exceeded, so it means no step limit.
    * @param nMaxDepth
    *        The maximum nesting depth.
    */
@@ -59,6 +62,7 @@ public final class ExecutionBudget
    */
   public boolean step ()
   {
+    // With Long.MAX_VALUE as limit the counter would wrap only after 2^63 steps
     if (++m_nSteps > m_nMaxSteps)
       throw new XPathException ("XPDY0130", "The transformation executed more than " + m_nMaxSteps + " instructions");
     return (m_nSteps & 1023) == 0;
@@ -87,6 +91,15 @@ public final class ExecutionBudget
   public void leaveDepth ()
   {
     m_nDepth--;
+  }
+
+  /**
+   * @return The maximum number of instructions to execute,
+   *         {@link Long#MAX_VALUE} for no limit.
+   */
+  public long getMaxSteps ()
+  {
+    return m_nMaxSteps;
   }
 
   /** @return The number of instructions executed so far. */

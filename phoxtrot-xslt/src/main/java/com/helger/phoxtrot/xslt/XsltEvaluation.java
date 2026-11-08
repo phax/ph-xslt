@@ -114,6 +114,6 @@ public final class XsltEvaluation
   @ReturnsMutableCopy
   public ICommonsList <String> getMessages ()
   {
-    return m_aEngine.getMessages ().getClone ();
+    return m_aEngine.getMessageTexts ();
   }
 }

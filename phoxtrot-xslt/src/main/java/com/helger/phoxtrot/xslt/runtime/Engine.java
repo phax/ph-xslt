@@ -25,6 +25,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
@@ -56,7 +57,10 @@ import com.helger.phoxtrot.xpath.pattern.PatternFinalNames;
 import com.helger.phoxtrot.xpath.value.XdmArray;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.EXsltMessageKind;
+import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.XsltException;
+import com.helger.phoxtrot.xslt.XsltMessage;
 import com.helger.phoxtrot.xslt.XsltTransformRequest;
 import com.helger.phoxtrot.xslt.XsltTransformResult;
 import com.helger.phoxtrot.xslt.compile.StylesheetCompiler;
@@ -74,6 +78,7 @@ import com.helger.phoxtrot.xslt.pkg.PackageModel;
 import com.helger.phoxtrot.xslt.pkg.PackageUnit;
 import com.helger.phoxtrot.xslt.tree.XslElement;
 import com.helger.phoxtrot.xslt.tree.XslModule;
+import com.helger.phoxtrot.xslt.tree.XslNode;
 import com.helger.phoxtrot.xslt.tree.XsltNames;
 
 /**
@@ -92,7 +97,10 @@ public final class Engine
   public static final XsltStateKey <String> CURRENT_OUTPUT_URI = new XsltStateKey <> ("current-output-uri",
                                                                                      XsltStateKey.EScope.CLEARED_IN_FUNCTIONS);
 
-  /** Default maximum number of executed instructions. */
+  /**
+   * Default maximum number of executed instructions, used when the request
+   * sets none (see {@link XsltTransformRequest#setMaxSteps(long)}).
+   */
   public static final long DEFAULT_MAX_STEPS = 20_000_000L;
   /** Default maximum nesting depth of templates and functions. */
   public static final int DEFAULT_MAX_DEPTH = 10_000;
@@ -122,7 +130,7 @@ public final class Engine
   private final ICommonsSet <VariableDef> m_aOriginalsInProgress = new CommonsHashSet <> ();
   private final ICommonsMap <KeyIndexId, ICommonsMap <Object, ICommonsList <IXdmNode>>> m_aKeyIndexes = new CommonsHashMap <> ();
   private final ICommonsSet <XdmQName> m_aKeysInProgress = new CommonsHashSet <> ();
-  private final ICommonsList <String> m_aMessages = new CommonsArrayList <> ();
+  private final ICommonsList <XsltMessage> m_aMessages = new CommonsArrayList <> ();
   private final ICommonsList <XsltTransformResult.SecondaryResult> m_aSecondaryResults = new CommonsArrayList <> ();
   private IXsltOutput m_aPrincipalOutput;
   private OutputDefinition m_aPrincipalOutputDefinition;
@@ -134,7 +142,9 @@ public final class Engine
    * Set up the run-wide state of one transformation. The execution budget is
    * the shared one of the request (a nested <code>fn:transform</code>) or a new
    * one with the requested limits; a requested maximum depth is capped at
-   * {@link #DEFAULT_MAX_DEPTH}, a non-positive limit means the default. The
+   * {@link #DEFAULT_MAX_DEPTH}, a non-positive limit means the default, and
+   * a maximum number of steps of
+   * {@link XsltTransformRequest#UNLIMITED_STEPS} means no step limit. The
    * dynamic context gets the function library of the stylesheet, the static
    * base URI of the principal module, the current date/time and interrupt of
    * the request, a resolver that applies xsl:strip-space to every document it
@@ -535,7 +545,9 @@ public final class Engine
    * (xsl:next-match). For a plain selection in a mode with
    * on-multiple-match="fail", the following rules of the same precedence and
    * priority are tested as well and another matching template raises
-   * XTDE0540.
+   * XTDE0540; with warning-on-multiple-match="yes" (and a message listener)
+   * they are tested too, and another matching template gives a warning
+   * before the best rule is used.
    *
    * @param aMode
    *        The mode.
@@ -578,16 +590,25 @@ public final class Engine
         continue;
       if (!aRule.getPattern ().matches (aItem, aCtx))
         continue;
-      if (aMode.isFailOnMultipleMatch () && aAfter == null)
+      if (aAfter == null &&
+          (aMode.isFailOnMultipleMatch () || (aMode.isWarningOnMultipleMatch () && hasMessageListener ())))
         for (int j = i + 1; j < nSize; ++j)
         {
           final TemplateRule aOther = aRules.get (j);
           if (aOther.getPrecedence () != nPrec || aOther.getPriority () != aRule.getPriority ())
             break;
           if (aOther.getTemplate () != aRule.getTemplate () && aOther.getPattern ().matches (aItem, aCtx))
-            throw XsltException.at (aRule.getTemplate ().getElement (),
-                                    "XTDE0540",
-                                    "Several template rules match the item and the mode specifies on-multiple-match='fail'");
+          {
+            if (aMode.isFailOnMultipleMatch ())
+              throw XsltException.at (aRule.getTemplate ().getElement (),
+                                      "XTDE0540",
+                                      "Several template rules match the item and the mode specifies on-multiple-match='fail'");
+            addWarning (aRule.getTemplate ().getElement (),
+                        "Several template rules of the same import precedence and priority match the item in mode " +
+                                                            aMode.getName ().getEQName () +
+                                                            "; the one declared last is used");
+            break;
+          }
         }
       return aRule;
     }
@@ -991,9 +1012,11 @@ public final class Engine
    * over the records of a streamed document). The typed attribute of the mode
    * is checked (XTTE3100/XTTE3110). With a matching rule, the rule runs with
    * the item as focus, no local variables, and the caller's state with this
-   * rule as current rule and this mode as current mode. Otherwise the built-in
-   * rule runs one nesting level deeper with the same focus and the current rule
-   * cleared, keeping the mode for its implicit xsl:apply-templates.
+   * rule as current rule and this mode as current mode. Otherwise (after a
+   * warning to the message listener if the mode has warning-on-no-match="yes")
+   * the built-in rule runs one nesting level deeper with the same focus and the
+   * current rule cleared, keeping the mode for its implicit
+   * xsl:apply-templates.
    *
    * @param aCaller
    *        Context of the instruction.
@@ -1024,6 +1047,11 @@ public final class Engine
       _invokeRule (aRule, aMode, aCaller, aItem, nPosition, nSize, aParams, aOut);
     else
     {
+      if (aMode.isWarningOnNoMatch ())
+        addWarning (aMode.getDeclaration (),
+                    "No template rule matches the item in mode " +
+                                             aMode.getName ().getEQName () +
+                                             "; the built-in rule (on-no-match) is used");
       // The built-in rule runs with the focus on the item and keeps the mode
       final XsltContext aCtx = aCaller.withoutFocusAndVariables ()
                                       .withFocus (aItem, nPosition, nSize)
@@ -1669,18 +1697,95 @@ public final class Engine
   }
 
   /**
-   * @param sMessage
-   *        The text of an xsl:message.
+   * Record the message of an xsl:message or a failed xsl:assert and pass it
+   * to the message listener of the request, if there is one, right away.
+   *
+   * @param eKind
+   *        {@link EXsltMessageKind#MESSAGE} or
+   *        {@link EXsltMessageKind#ASSERTION}.
+   * @param sText
+   *        The text of the message.
+   * @param aContent
+   *        The content of the message.
+   * @param aErrorCode
+   *        The code of the error the message ends the transformation with, or
+   *        <code>null</code> if it does not terminate.
+   * @param aNode
+   *        The instruction, for its location. May be <code>null</code>.
    */
-  public void addMessage (@NonNull final String sMessage)
+  public void addMessage (@NonNull final EXsltMessageKind eKind,
+                          @NonNull final String sText,
+                          @NonNull final XdmSequence aContent,
+                          @Nullable final XdmQName aErrorCode,
+                          @Nullable final XslNode aNode)
   {
-    m_aMessages.add (sMessage);
+    final XsltMessage aMessage = new XsltMessage (eKind,
+                                                  sText,
+                                                  aContent,
+                                                  aErrorCode != null,
+                                                  aErrorCode,
+                                                  aNode != null ? aNode.getModule ().getUri () : null,
+                                                  aNode != null ? aNode.getLine () : 0,
+                                                  aNode != null ? aNode.getColumn () : 0);
+    m_aMessages.add (aMessage);
+    final IXsltMessageListener aListener = m_aRequest.getMessageListener ();
+    if (aListener != null)
+      aListener.onMessage (aMessage);
   }
 
-  @NonNull
-  public ICommonsList <String> getMessages ()
+  /**
+   * @return <code>true</code> if the request has a message listener, so that
+   *         warnings are worth computing.
+   */
+  public boolean hasMessageListener ()
   {
-    return m_aMessages;
+    return m_aRequest.getMessageListener () != null;
+  }
+
+  /**
+   * Pass a processor warning to the message listener of the request; without
+   * a listener nothing happens. Warnings are not recorded.
+   *
+   * @param aNode
+   *        The stylesheet node the warning is about, for its location. May be
+   *        <code>null</code>.
+   * @param sText
+   *        The text of the warning.
+   */
+  public void addWarning (@Nullable final XslNode aNode, @NonNull final String sText)
+  {
+    final IXsltMessageListener aListener = m_aRequest.getMessageListener ();
+    if (aListener != null)
+      aListener.onWarning (new XsltMessage (EXsltMessageKind.WARNING,
+                                            sText,
+                                            XdmSequence.EMPTY,
+                                            false,
+                                            null,
+                                            aNode != null ? aNode.getModule ().getUri () : null,
+                                            aNode != null ? aNode.getLine () : 0,
+                                            aNode != null ? aNode.getColumn () : 0));
+  }
+
+  /**
+   * @return A copy of the messages recorded so far, in the order they were
+   *         produced.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <XsltMessage> getMessages ()
+  {
+    return m_aMessages.getClone ();
+  }
+
+  /**
+   * @return The texts of the messages recorded so far, in the order they were
+   *         produced.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <String> getMessageTexts ()
+  {
+    return m_aMessages.getAllMapped (XsltMessage::text);
   }
 
   /**

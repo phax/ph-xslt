@@ -38,6 +38,7 @@ import com.helger.phoxtrot.xpath.value.XdmArray;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmMap;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.EXsltMessageKind;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.compile.Avt;
 import com.helger.phoxtrot.xslt.compile.CompileContext;
@@ -516,14 +517,18 @@ public final class ControlInstructions
    * select value followed by the result of the content. A dynamic error while
    * the value is evaluated does not end the transformation: the message text
    * becomes "Error in xsl:message: " and the error message, with an empty
-   * value. The text (see {@link #_messageText(XdmSequence)}) is passed to
-   * the engine. Then terminate is evaluated: a value other than yes/no (true,
-   * false, 1, 0) is XTDE0030; if it is true the transformation ends with a
-   * dynamic error whose code is the evaluated error-code (an EQName or
-   * lexical QName resolved against the instruction's namespaces, without the
-   * default namespace), or
-   * XTMM9000 if there is none or it is not a valid name, carrying the
-   * message text and the message value as the error object.
+   * value. Then terminate is evaluated: a value other than yes/no (true,
+   * false, 1, 0) is XTDE0030; if it is true, the error code is the evaluated
+   * error-code (an EQName or lexical QName resolved against the instruction's
+   * namespaces, without the default namespace), or XTMM9000 if there is none
+   * or it is not a valid name. The message (text, see
+   * {@link #_messageText(XdmSequence)}, value, terminate flag, code and
+   * location) is then passed to the engine, which records it and reports it to
+   * the message listener; when evaluating terminate or error-code raises an
+   * error, the message is passed as not terminating before that error is
+   * thrown. Finally a terminating message ends the transformation with a
+   * dynamic error of that code, carrying the message text and the message
+   * value as the error object.
    */
   @NonNull
   private static IInstruction _compileMessage (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
@@ -551,29 +556,41 @@ public final class ControlInstructions
         aValue = XdmSequence.EMPTY;
         sMessage = "Error in xsl:message: " + ex.getMessage ();
       }
-      aRtCtx.getEngine ().addMessage (sMessage);
       boolean bTerminate = false;
-      if (aTerminate != null)
+      XdmQName aCode = null;
+      try
       {
-        final String s = aTerminate.evaluate (aRtCtx);
-        if (!XsltNames.isXsltBooleanLexical (s))
-          throw new XPathException ("XTDE0030", "terminate='" + s + "' is not yes or no");
-        bTerminate = XsltNames.isXsltTrue (s);
-      }
-      if (bTerminate)
-      {
-        XdmQName aCode = XTMM9000;
-        if (aErrorCode != null)
+        if (aTerminate != null)
         {
-          final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (aRtCtx));
-          // XSLT 3.0 section 23.1: an effective value that is not a valid
-          // EQName gives the default code XTMM9000
-          final XdmQName aResolved = aEl.resolveQName (s, false);
-          if (aResolved != null)
-            aCode = aResolved;
+          final String s = aTerminate.evaluate (aRtCtx);
+          if (!XsltNames.isXsltBooleanLexical (s))
+            throw new XPathException ("XTDE0030", "terminate='" + s + "' is not yes or no");
+          bTerminate = XsltNames.isXsltTrue (s);
         }
-        throw new XPathException (aCode, sMessage, aValue);
+        if (bTerminate)
+        {
+          aCode = XTMM9000;
+          if (aErrorCode != null)
+          {
+            final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (aRtCtx));
+            // XSLT 3.0 section 23.1: an effective value that is not a valid
+            // EQName gives the default code XTMM9000
+            final XdmQName aResolved = aEl.resolveQName (s, false);
+            if (aResolved != null)
+              aCode = aResolved;
+          }
+        }
       }
+      catch (final XPathException ex)
+      {
+        // The message is still output, then the error of terminate or
+        // error-code ends the transformation
+        aRtCtx.getEngine ().addMessage (EXsltMessageKind.MESSAGE, sMessage, aValue, null, aEl);
+        throw ex;
+      }
+      aRtCtx.getEngine ().addMessage (EXsltMessageKind.MESSAGE, sMessage, aValue, aCode, aEl);
+      if (bTerminate)
+        throw new XPathException (aCode, sMessage, aValue);
     });
   }
 

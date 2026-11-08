@@ -306,6 +306,36 @@ public final class XsltInstructionsTest
   }
 
   @Test
+  public void testUnlimitedSteps ()
+  {
+    // Four instructions in 2237 * 2237 iterations: just over the default of
+    // 20,000,000 steps
+    final String sSheet = SHEET +
+                          IT +
+                          "<xsl:for-each select='1 to 2237'><xsl:for-each select='1 to 2237'>" +
+                          "<xsl:if test='false()'/><xsl:if test='false()'/><xsl:if test='false()'/><xsl:if test='false()'/>" +
+                          "</xsl:for-each></xsl:for-each>" +
+                          "<xsl:text>done</xsl:text>" +
+                          TE +
+                          END;
+    final XsltExecutable aExec = XsltCompiler.compile (sSheet, new XsltCompileOptions ());
+    for (final long nMaxSteps : new long [] { 0, -1 })
+      try
+      {
+        aExec.transform (new XsltTransformRequest ().setMaxSteps (nMaxSteps));
+        throw new IllegalStateException ("no error");
+      }
+      catch (final XsltException ex)
+      {
+        assertEquals ("XPDY0130", ex.getCode ());
+        assertTrue (ex.getMessage (), ex.getMessage ().contains ("20000000"));
+      }
+    final String sResult = aExec.transform (new XsltTransformRequest ().setMaxSteps (XsltTransformRequest.UNLIMITED_STEPS))
+                                .principalSerialized ();
+    assertTrue (sResult, sResult.endsWith ("done"));
+  }
+
+  @Test
   public void testInitialFunctionAndMode ()
   {
     final XsltExecutable aExec = XsltCompiler.compile (SHEET +
