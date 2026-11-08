@@ -29,7 +29,6 @@ import org.xml.sax.helpers.AttributesImpl;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
-import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmQName;
 
@@ -165,8 +164,10 @@ public final class XdmSaxEmitter
       {
         case ELEMENT:
         {
-          final ICommonsOrderedMap <String, String> aNamespaces = aNode == aElement ? aNode.getInScopeNamespaces ()
-                                                                                    : aNode.getDeclaredNamespaces ();
+          // Most elements declare nothing: no copy of an empty map for them
+          final Map <String, String> aNamespaces = aNode == aElement ? aNode.getInScopeNamespaces ()
+                                                                     : aNode.hasDeclaredNamespaces () ? aNode.getDeclaredNamespaces ()
+                                                                                                      : Map.of ();
           _startElement (aNode, aNamespaces, aHandler);
           aStack.push (new Entry (aNode, true, aNamespaces));
           for (int i = aNode.getChildCount () - 1; i >= 0; --i)

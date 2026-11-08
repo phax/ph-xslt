@@ -473,6 +473,20 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return aNamespaces == null ? new CommonsLinkedHashMap <> () : aNamespaces.getClone ();
   }
 
+  public final boolean hasDeclaredNamespaces ()
+  {
+    final ICommonsOrderedMap <String, String> aNamespaces = _getNamespaces ();
+    return aNamespaces != null && !aNamespaces.isEmpty ();
+  }
+
+  @Nullable
+  public final String getDeclaredNamespaceUri (@NonNull final String sPrefix)
+  {
+    ValueEnforcer.notNull (sPrefix, "Prefix");
+    final ICommonsOrderedMap <String, String> aNamespaces = _getNamespaces ();
+    return aNamespaces == null ? null : aNamespaces.get (sPrefix);
+  }
+
   /**
    * The <code>xml</code> prefix resolves to {@link XdmConstants#NS_XML}
    * without looking at the tree. Otherwise the declarations of this node and

@@ -453,6 +453,26 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   ICommonsOrderedMap <String, String> getDeclaredNamespaces ();
 
   /**
+   * @return <code>true</code> if this element declares (or undeclares) at
+   *         least one namespace itself. Unlike
+   *         {@link #getDeclaredNamespaces()} nothing is copied.
+   */
+  boolean hasDeclaredNamespaces ();
+
+  /**
+   * Look up a prefix in the namespace declarations of this element only,
+   * without copying them as {@link #getDeclaredNamespaces()} does.
+   *
+   * @param sPrefix
+   *        The prefix, empty for the default namespace.
+   * @return The declared URI, the empty string if the prefix is undeclared
+   *         here, <code>null</code> if this element has no declaration of the
+   *         prefix.
+   */
+  @Nullable
+  String getDeclaredNamespaceUri (@NonNull String sPrefix);
+
+  /**
    * Resolve a prefix against the declarations of this node and its ancestors.
    *
    * @param sPrefix
