@@ -45,7 +45,8 @@ import com.helger.phoxtrot.xdm.XdmQName;
  * <ul>
  * <li>Elements and attributes keep their prefixes. Every element gets an
  * <code>xmlns</code> attribute for each namespace it declares (or
- * undeclares) in XDM, the outermost element written also for every other
+ * undeclares) in XDM that is not bound the same way in scope already, the
+ * outermost element written also for every other
  * namespace in scope that the DOM parent does not bind the same way, and any
  * element or attribute whose prefix is not bound to its namespace at that
  * point gets the missing declaration (namespace fixup), so the DOM is
@@ -136,7 +137,12 @@ public final class XdmToDom
     }
     else
       if (aNode.hasDeclaredNamespaces ())
-        aDecls.putAll (aNode.getDeclaredNamespaces ());
+      {
+        // Declarations that repeat the binding in scope are not written
+        for (final Map.Entry <String, String> aEntry : aNode.getDeclaredNamespaces ().entrySet ())
+          if (!aScope.isBoundTo (aEntry.getKey (), aEntry.getValue ()))
+            aDecls.put (aEntry.getKey (), aEntry.getValue ());
+      }
     aDecls.remove ("xml");
     for (final Map.Entry <String, String> aEntry : aDecls.entrySet ())
       _declare (ret, aEntry.getKey (), aEntry.getValue (), aScope);
