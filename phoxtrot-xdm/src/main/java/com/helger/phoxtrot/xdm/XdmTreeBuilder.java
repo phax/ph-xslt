@@ -54,6 +54,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
 {
   // Indentation text up to this length is shared, see _getText
   private static final int MAX_SHARED_INDENT = 64;
+  // Attribute values up to this length are shared, see _getShared
+  private static final int MAX_SHARED_VALUE = 32;
+  // Slots of the table of shared values (a power of two)
+  private static final int SHARED_VALUE_SLOTS = 1024;
 
   private final ICommonsList <String> m_aPendingPrefixes = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aPendingUris = new CommonsArrayList <> ();
@@ -66,6 +70,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   // tabs) by their length - 1
   private final String [] m_aSpaceIndents = new String [MAX_SHARED_INDENT];
   private final String [] m_aTabIndents = new String [MAX_SHARED_INDENT];
+  // The shared short attribute values, by the low bits of their hash code;
+  // created on first use
+  private String [] m_aSharedValues;
   // Location of the first character event of the pending text
   private int m_nTextLine;
   private int m_nTextColumn;
@@ -177,6 +184,51 @@ public final class XdmTreeBuilder extends DefaultHandler2
     final XdmTextNode aText = _isLocated () ? new XdmTextNode.Located (sValue, m_nTextLine, m_nTextColumn)
                                             : new XdmTextNode (sValue);
     _append (aText);
+  }
+
+  /**
+   * @return The table of shared values, created on the first call.
+   */
+  @NonNull
+  private String [] _getSharedValues ()
+  {
+    String [] ret = m_aSharedValues;
+    if (ret == null)
+    {
+      ret = new String [SHARED_VALUE_SLOTS];
+      m_aSharedValues = ret;
+    }
+    return ret;
+  }
+
+  /**
+   * Short attribute values such as codes, amounts, flags and dates
+   * (<code>EUR</code>, <code>0088</code>, <code>true</code>) repeat
+   * throughout a document. A value of at most {@link #MAX_SHARED_VALUE}
+   * characters is shared within the document: the table has one slot per
+   * hash code (its low bits), and a different value in the slot is replaced,
+   * so the table never grows and keeps the values seen recently. The table
+   * belongs to this builder and is dropped with it. Text is not shared: in
+   * the parse benchmark that cost about 10 % of the parse time, for 0.5 to
+   * 17 % less retained heap.
+   *
+   * @return The shared string equal to the value: the one in the table, or
+   *         the value itself, which takes its slot. A value longer than
+   *         {@link #MAX_SHARED_VALUE} is returned unchanged.
+   */
+  @NonNull
+  private String _getShared (@NonNull final String sValue)
+  {
+    if (sValue.length () > MAX_SHARED_VALUE)
+      return sValue;
+    final int nHash = sValue.hashCode ();
+    final String [] aTable = _getSharedValues ();
+    final int nSlot = (nHash ^ (nHash >>> 16)) & (SHARED_VALUE_SLOTS - 1);
+    final String sCandidate = aTable[nSlot];
+    if (sValue.equals (sCandidate))
+      return sCandidate;
+    aTable[nSlot] = sValue;
+    return sValue;
   }
 
   /**
@@ -492,7 +544,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
       if (sAttrQName.equals ("xmlns") || sAttrQName.startsWith ("xmlns:"))
         continue;
       final XdmQName aAttrName = _getName (aAttrs.getURI (i), aAttrs.getLocalName (i), sAttrQName);
-      final String sValue = aAttrs.getValue (i);
+      final String sValue = _getShared (aAttrs.getValue (i));
       EIDKind eIDKind = _getIDKind (aAttrs.getType (i));
       if (eIDKind == EIDKind.NONE && aAttrName.isSameName (XdmConstants.NS_XML, "id"))
         eIDKind = EIDKind.ID;
