@@ -146,8 +146,11 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
     if (this == aOther)
       return true;
     // The local names are short and usually differ, the namespace URIs are
-    // long and often equal, so the local name is compared first
+    // long and often equal, so the local name is compared first. Different
+    // local names are told apart by their cached hash codes, without reading
+    // the characters
     return aOther instanceof final XdmQName aOtherName &&
+           localName.hashCode () == aOtherName.localName.hashCode () &&
            localName.equals (aOtherName.localName) &&
            namespaceUri.equals (aOtherName.namespaceUri);
   }

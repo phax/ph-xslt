@@ -225,8 +225,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     else
       for (int i = 0; i < nCount; ++i)
       {
-        final IXdmNode aChild = aParent.getChildAtIndex (i);
-        if (aChild.getKind () == ENodeKind.ELEMENT && aName.equals (aChild.getName ()))
+        if (aParent.getChildAtIndex (i) instanceof final XdmElementNode aChild && aName.equals (aChild.getName ()))
           ret.add (aChild);
       }
     return List.copyOf (ret);

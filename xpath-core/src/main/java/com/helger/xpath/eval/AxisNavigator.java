@@ -33,6 +33,7 @@ import com.helger.xpath.ast.EAxis;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmNode;
 import com.helger.xpath.xdm.XdmDocumentNode;
+import com.helger.xpath.xdm.XdmElementNode;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -374,8 +375,9 @@ public final class AxisNavigator
     }
     for (int i = 0; i < nCount; ++i)
     {
-      final IXdmNode aChild = aNode.getChildAtIndex (i);
-      if (aChild.getKind () == ENodeKind.ELEMENT && aName.equals (aChild.getName ()))
+      // The element class is final: a type check and a direct call instead of
+      // two calls through the interface
+      if (aNode.getChildAtIndex (i) instanceof final XdmElementNode aChild && aName.equals (aChild.getName ()))
         aOut.add (aChild);
     }
   }

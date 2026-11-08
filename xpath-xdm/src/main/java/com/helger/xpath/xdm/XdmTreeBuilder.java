@@ -296,8 +296,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append pending text and finish the numbering: the document ends with the
-   * last node numbered. If a change from outside removed the numbering while
+   * Append pending text, trim the child array of the document and finish the
+   * numbering: the document ends with the last node numbered. If a change
+   * from outside removed the numbering while
    * building, the finished tree is numbered in a second pass
    * ({@link IXdmNode#assignDocumentOrder()}). Name indexes asked for while
    * building would miss the later nodes and are dropped.
@@ -306,6 +307,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   public void endDocument ()
   {
     _flushText ();
+    m_aDocument.internalTrimChildren ();
     if (m_nTree != 0 && m_aDocument.internalGetTree () == m_nTree)
     {
       m_aDocument.internalSetEndOrder (m_nOrder - 1);
@@ -381,13 +383,14 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append pending text, end the closed element with the last node numbered
-   * and make its parent the current node.
+   * Append pending text, trim the child array of the closed element, end it
+   * with the last node numbered and make its parent the current node.
    */
   @Override
   public void endElement (final String sUri, final String sLocalName, final String sQName)
   {
     _flushText ();
+    m_aCurrent.internalTrimChildren ();
     m_aCurrent.internalSetEndOrder (m_nOrder - 1);
     m_aCurrent = (AbstractXdmParentNode) m_aCurrent.getParent ();
     m_aSystemIds.pop ();
