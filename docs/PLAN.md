@@ -550,3 +550,10 @@ validation), `FunctionLibrary.createDefault` per compiled stylesheet (47 % of co
 `PatternMatcher._getSelectingAxis` per `canMatch` (26 % of dispatch), the default collation of `min`/`max` resolved
 per call (54 % of the positional workload), `days-from-duration` through `BigInteger` (33 % of FLWOR).
 
+Batch 1 (2026-11-08, `docs/benchmarks/2026-11-08-batch-1.md`): XSD 1.1 assertion schema types per type and run,
+linear `xsl:number` counting, the default collation resolved once per static context, one shared read-only default
+function library, the selecting axis of a pattern's last step computed once, duration parts in `long` arithmetic, no
+lambda per name in the tree builders, `EAtomicType.isDerivedFrom` in constant time. `xsl:number` at 2,000 lines
+2,218 ms to 3.5 ms (6.3 GB to 8 MB allocated), XPath positional and FLWOR about half, XSD 1.1 validation 0.58 of the
+allocation. Gate unchanged.
+
