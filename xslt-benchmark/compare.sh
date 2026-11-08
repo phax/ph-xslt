@@ -77,6 +77,8 @@ OTHER_CP=$(tr ':' '\n' < "$MODULE_DIR/target/classpath.txt" | grep -v '/com/helg
 run_commit ()
 {
   REV=$1
+  # The remaining arguments are for JMH
+  shift
   SHA=$(git -C "$REPO_DIR" rev-parse --short "$REV^{commit}")
   TREE="$WORK_DIR/engine-$SHA"
   if [ ! -d "$TREE" ]; then
