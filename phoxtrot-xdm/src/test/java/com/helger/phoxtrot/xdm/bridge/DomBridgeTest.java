@@ -54,6 +54,7 @@ import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XdmDocumentNode;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xdm.XdmTreeBuilder;
 
 /**
  * Test class for {@link DomToXdm} and {@link XdmToDom}: documents parsed
@@ -201,6 +202,26 @@ public final class DomBridgeTest
       assertEquals (sXml, describe (aOriginal), describe (aBack));
       _assertNumbered (aBack);
     }
+  }
+
+  @Test
+  public void testXdmToSaxRoundTrip () throws Exception
+  {
+    for (final String sXml : DOCUMENTS)
+    {
+      final IXdmNode aOriginal = new XdmParser ().parse (sXml);
+      final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+      XdmToSax.emit (aOriginal, aBuilder, aBuilder);
+      assertEquals (sXml, describe (aOriginal), describe (aBuilder.getDocument ()));
+    }
+    // A parentless element with an attribute in a namespace without prefix
+    final IXdmNode aE = IXdmNode.createElement (new XdmQName ("urn:x", "e", ""));
+    aE.addAttribute (IXdmNode.createAttribute (new XdmQName ("urn:a", "a", ""), "1"));
+    final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+    XdmToSax.emit (aE, aBuilder, null);
+    final IXdmNode aBack = aBuilder.getDocument ().getChildAtIndex (0);
+    assertEquals ("urn:x", aBack.lookupNamespaceUri (""));
+    assertEquals ("ns0", aBack.getAttribute ("urn:a", "a").getName ().prefix ());
   }
 
   @Test

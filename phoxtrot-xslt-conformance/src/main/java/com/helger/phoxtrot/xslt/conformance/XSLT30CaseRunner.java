@@ -28,6 +28,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.xml.transform.ErrorListener;
+import javax.xml.transform.Source;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.URIResolver;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.stream.StreamSource;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.xml.sax.InputSource;
@@ -55,10 +63,13 @@ import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.conformance.QT3EngineEvaluator;
 import com.helger.phoxtrot.xpath.conformance.QT3Outcome;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltExecutable;
 import com.helger.phoxtrot.xslt.XsltTransformRequest;
 import com.helger.phoxtrot.xslt.XsltTransformResult;
+import com.helger.phoxtrot.xslt.jaxp.PhoxtrotTransformerFactory;
+import com.helger.phoxtrot.xslt.jaxp.XdmSource;
 
 /**
  * Runs one xslt30-test case, a port of Go's <code>runXSLTCase</code>: applies
@@ -91,6 +102,21 @@ public final class XSLT30CaseRunner
   static final boolean WRITE_TO = Boolean.getBoolean ("xslt30.writeTo");
   /** The number of transformations compared by the writeTo check. */
   static final AtomicLong WRITE_TO_COMPARED = new AtomicLong (0);
+
+  /**
+   * <code>-Dxslt30.jaxp=true</code>: every transformation whose shape JAXP
+   * can express (a stylesheet file without packages or static parameters, a
+   * principal source document as global context item, stylesheet
+   * parameters, the serialized principal result; no initial template,
+   * function or mode, not schema-aware, not streamed) is run a second time
+   * through the JAXP adapter (<code>PhoxtrotTransformerFactory</code>,
+   * <code>StreamSource</code>, <code>StreamResult</code>), which must give
+   * the same characters or the same error code; a difference fails the case
+   * with "harness".
+   */
+  static final boolean JAXP = Boolean.getBoolean ("xslt30.jaxp");
+  /** The number of transformations compared by the JAXP check. */
+  static final AtomicLong JAXP_COMPARED = new AtomicLong (0);
 
   /**
    * The outcome of one case.
@@ -380,6 +406,75 @@ public final class XSLT30CaseRunner
     else
       if (!aSW.toString ().equals (sExpected))
         throw new HarnessException ("writeTo: different output: " + _cut (aSW.toString ()));
+  }
+
+  /** Ignores warnings and lets fatal errors be thrown by the adapter. */
+  private static final ErrorListener QUIET_ERROR_LISTENER = new ErrorListener ()
+  {
+    public void warning (@NonNull final TransformerException ex)
+    {}
+
+    public void error (@NonNull final TransformerException ex)
+    {}
+
+    public void fatalError (@NonNull final TransformerException ex)
+    {}
+  };
+
+  /**
+   * Run the transformation again through the JAXP adapter and compare: the
+   * stylesheet compiled from its URI, the principal source from its file
+   * (or as XDM source), the parameters set as XDM values, the documents and
+   * texts of the case given by a URI resolver over the case's resolver.
+   */
+  private static void _compareJaxp (@NonNull final String sStylesheetUri,
+                                    @NonNull final IXdmNode aSource,
+                                    @Nullable final Path aSourcePath,
+                                    @NonNull final XsltTransformRequest aRequest,
+                                    @NonNull final XSLT30ResourceResolver aResolver,
+                                    @Nullable final String sExpected,
+                                    @Nullable final String sExpectedCode)
+  {
+    JAXP_COMPARED.incrementAndGet ();
+    final URIResolver aURIResolver = (sHref, sBase) -> {
+      final IXdmNode aDoc = aResolver.resolveDocument (sHref);
+      if (aDoc != null)
+        return new XdmSource (aDoc);
+      final String sText = aResolver.resolveText (sHref, null);
+      return sText == null ? null : new StreamSource (new NonBlockingStringReader (sText), sHref);
+    };
+    final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
+    aTF.setURIResolver (aURIResolver);
+    aTF.setErrorListener (QUIET_ERROR_LISTENER);
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_LOAD_EXTERNAL_ENTITIES, Boolean.TRUE);
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MESSAGE_LISTENER, (IXsltMessageListener) aMessage -> {});
+    final StringWriter aSW = new StringWriter ();
+    String sCode = null;
+    try
+    {
+      final Transformer aTransformer = aTF.newTemplates (new StreamSource (sStylesheetUri)).newTransformer ();
+      aTransformer.setErrorListener (QUIET_ERROR_LISTENER);
+      for (final Map.Entry <XdmQName, XdmSequence> aEntry : aRequest.params ().entrySet ())
+        aTransformer.setParameter (aEntry.getKey ().getEQName (), aEntry.getValue ());
+      final Source aJaxpSource = aSourcePath != null ? new StreamSource (XSLT30ResourceResolver.getFileUri (aSourcePath))
+                                                     : new XdmSource (aSource);
+      final StreamResult aResult = new StreamResult (aSW);
+      if (aRequest.getBaseOutputUri () != null)
+        aResult.setSystemId (aRequest.getBaseOutputUri ());
+      aTransformer.transform (aJaxpSource, aResult);
+    }
+    catch (final TransformerException ex)
+    {
+      sCode = ex.getCause () instanceof final XPathException aXEx ? aXEx.getCode () : "jaxp:" + ex.getMessage ();
+    }
+    if (sExpectedCode != null || sCode != null)
+    {
+      if (sExpectedCode == null || !sExpectedCode.equals (sCode))
+        throw new HarnessException ("jaxp: error " + sCode + " instead of " + sExpectedCode);
+    }
+    else
+      if (!aSW.toString ().equals (sExpected))
+        throw new HarnessException ("jaxp: different output: " + _cut (aSW.toString ()));
   }
 
   /**
@@ -821,6 +916,20 @@ public final class XSLT30CaseRunner
       aRequest.setStreamedSourceUri (XSLT30ResourceResolver.getFileUri (aStreamablePath));
     }
 
+    // The shape JAXP can express, see JAXP
+    final boolean bJaxp = JAXP &&
+                          !bEmbedded &&
+                          aPackages.isEmpty () &&
+                          aStaticParams.isEmpty () &&
+                          !m_bSchemaAware &&
+                          !m_bStreaming &&
+                          aSource != null &&
+                          aSource.isDocument () &&
+                          aContextItem == aSource &&
+                          aTemplate == null &&
+                          aFunction == null &&
+                          aMode == null &&
+                          !aRequest.isRawDelivery ();
     final XsltTransformResult aResult;
     try
     {
@@ -830,10 +939,14 @@ public final class XSLT30CaseRunner
     {
       if (WRITE_TO)
         _compareWriteTo (aExecutable, aRequest, null, ex.getCode ());
+      if (bJaxp)
+        _compareJaxp (sBaseUri, aSource, aStreamablePath, aRequest, aResolver, null, ex.getCode ());
       throw ex;
     }
     if (WRITE_TO && !aRequest.isRawDelivery ())
       _compareWriteTo (aExecutable, aRequest, aResult.principalSerialized (), null);
+    if (bJaxp)
+      _compareJaxp (sBaseUri, aSource, aStreamablePath, aRequest, aResolver, aResult.principalSerialized (), null);
     return XSLT30Actual.ofResult (aResult,
                                   aFunction != null || (aOutput != null && "no".equals (aOutput.tree ())),
                                   sResultVar,
