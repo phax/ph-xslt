@@ -845,7 +845,9 @@ public final class XdmStreamReader implements AutoCloseable
    *        <code>true</code> if the caller would read the document with
    *        external entities ({@link XdmParser#setLoadExternalEntities(boolean)}):
    *        a document with an external DTD subset is then refused, since this
-   *        reader never reads it.
+   *        reader never reads it. For the same reason there is no entity
+   *        resolver here (see
+   *        {@link XdmParser#setEntityResolver(org.xml.sax.EntityResolver)}).
    * @param nMaxElementDepth
    *        The maximum element nesting depth, 0 for unlimited.
    * @param aStripWhitespace

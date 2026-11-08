@@ -34,10 +34,12 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 import org.xml.sax.XMLReader;
+import org.xml.sax.ext.EntityResolver2;
 import org.xml.sax.helpers.DefaultHandler;
 
 import com.helger.annotation.Nonnegative;
@@ -90,9 +92,95 @@ public class XdmParser
                                                       { "entityReplacementLimit", "3000000" },
                                                       { "elementAttributeLimit", "10000" } };
 
+  /**
+   * The entity resolver installed on the SAX parser when external entities
+   * are read and the user set a resolver: it asks the user's resolver first
+   * and returns <code>null</code> (the parser then opens the system ID itself)
+   * when that has no answer. A source the user's resolver returns without a
+   * system ID gets the absolute system ID of the entity, so that the base URI
+   * of the nodes read from it stays the entity's URI.
+   */
+  private static final class UserEntityResolver implements EntityResolver2
+  {
+    private final EntityResolver m_aDelegate;
+
+    UserEntityResolver (@NonNull final EntityResolver aDelegate)
+    {
+      m_aDelegate = aDelegate;
+    }
+
+    /**
+     * @return The system ID resolved against the base URI; as written if
+     *         there is no base URI, if it is absolute already or if either is
+     *         no valid URI.
+     */
+    @Nullable
+    private static String _getAbsoluteSystemID (@Nullable final String sBaseURI, @Nullable final String sSystemID)
+    {
+      if (sSystemID == null || sBaseURI == null)
+        return sSystemID;
+      try
+      {
+        final URI aSystemURI = new URI (sSystemID);
+        if (aSystemURI.isAbsolute ())
+          return sSystemID;
+        return new URI (sBaseURI).resolve (aSystemURI).toString ();
+      }
+      catch (final URISyntaxException | IllegalArgumentException ex)
+      {
+        return sSystemID;
+      }
+    }
+
+    /**
+     * Never an external subset for a document that declares none: the JDK
+     * parser asks for it, but does not apply the declarations of the returned
+     * subset, so the user's resolver is not asked.
+     */
+    @Nullable
+    public InputSource getExternalSubset (final String sName, final String sBaseURI)
+    {
+      return null;
+    }
+
+    /**
+     * Ask the user's resolver for an external entity or the external DTD
+     * subset (name <code>[dtd]</code>): an {@link EntityResolver2} gets the SAX2
+     * call with the system ID as written, any other resolver the SAX1 call
+     * with the absolute system ID.
+     *
+     * @return The user's source (with the absolute system ID filled in if it
+     *         has none), or <code>null</code> for the parser's default
+     *         behaviour.
+     */
+    @Nullable
+    public InputSource resolveEntity (final String sName,
+                                      final String sPublicID,
+                                      final String sBaseURI,
+                                      final String sSystemID) throws SAXException, IOException
+    {
+      final String sAbsoluteSystemID = _getAbsoluteSystemID (sBaseURI, sSystemID);
+      final InputSource ret;
+      if (m_aDelegate instanceof final EntityResolver2 aResolver2)
+        ret = aResolver2.resolveEntity (sName, sPublicID, sBaseURI, sSystemID);
+      else
+        ret = m_aDelegate.resolveEntity (sPublicID, sAbsoluteSystemID);
+      if (ret != null && ret.getSystemId () == null)
+        ret.setSystemId (sAbsoluteSystemID);
+      return ret;
+    }
+
+    @Nullable
+    public InputSource resolveEntity (final String sPublicID, final String sSystemID) throws SAXException, IOException
+    {
+      return resolveEntity (null, sPublicID, null, sSystemID);
+    }
+  }
+
   private boolean m_bLoadExternalEntities = DEFAULT_LOAD_EXTERNAL_ENTITIES;
   private int m_nMaxElementDepth = DEFAULT_MAX_ELEMENT_DEPTH;
   private IXdmSchemaSet m_aSchemaSet;
+  private EntityResolver m_aEntityResolver;
 
   public final boolean isLoadExternalEntities ()
   {
@@ -113,6 +201,42 @@ public class XdmParser
   public final XdmParser setLoadExternalEntities (final boolean bLoadExternalEntities)
   {
     m_bLoadExternalEntities = bLoadExternalEntities;
+    return this;
+  }
+
+  @Nullable
+  public final EntityResolver getEntityResolver ()
+  {
+    return m_aEntityResolver;
+  }
+
+  /**
+   * Set a SAX entity resolver for the external DTD subset and the external
+   * entities (general and parameter). It is used only when they are read
+   * ({@link #setLoadExternalEntities(boolean)}); with the default settings
+   * nothing external is read and the resolver is never called. It is asked
+   * first for every external resource; when it returns <code>null</code> the
+   * parser opens the system ID itself, as without a resolver. A returned source
+   * without system ID gets the absolute system ID of the entity, which stays
+   * the base URI of the nodes read from it. An {@link EntityResolver2} gets the
+   * SAX2 call (the system ID as written plus the base URI; the JDK parser
+   * passes no entity name), any other resolver the SAX1 call with the
+   * absolute system ID. {@link EntityResolver2#getExternalSubset(String, String)}
+   * is never called. An exception thrown by the resolver fails the parse with
+   * an {@link XdmParseException}.
+   * <p>
+   * {@link XdmStreamReader} has no such hook: it never reads an external
+   * resource (a document that would need one is refused or read in full by
+   * this parser instead).
+   *
+   * @param aEntityResolver
+   *        The resolver; <code>null</code> (the default) for none.
+   * @return this for chaining
+   */
+  @NonNull
+  public final XdmParser setEntityResolver (@Nullable final EntityResolver aEntityResolver)
+  {
+    m_aEntityResolver = aEntityResolver;
     return this;
   }
 
@@ -328,7 +452,9 @@ public class XdmParser
    * Read a source with the JDK SAX parser into a tree built by
    * {@link XdmTreeBuilder}: namespace aware, not DTD validating, secure
    * processing on, external entities and the external DTD subset only with
-   * {@link #setLoadExternalEntities(boolean)}, the {@link #ENTITY_LIMITS} and
+   * {@link #setLoadExternalEntities(boolean)} (then through the
+   * {@link #setEntityResolver(EntityResolver) entity resolver} if one is set),
+   * the {@link #ENTITY_LIMITS} and
    * the {@link #getMaxElementDepth() maximum element depth} set explicitly.
    * With a schema set the finished document is validated afterwards. A parse
    * error that comes from a name the JDK parser rejects against the 5th
@@ -371,7 +497,11 @@ public class XdmParser
       aReader.setContentHandler (aBuilder);
       aReader.setErrorHandler (aBuilder);
       aReader.setDTDHandler (aBuilder);
-      aReader.setEntityResolver (aBuilder);
+      // The user's resolver only where the parser reads external resources
+      if (m_bLoadExternalEntities && m_aEntityResolver != null)
+        aReader.setEntityResolver (new UserEntityResolver (m_aEntityResolver));
+      else
+        aReader.setEntityResolver (aBuilder);
       aReader.setProperty ("http://xml.org/sax/properties/lexical-handler", aBuilder);
       aReader.setProperty ("http://xml.org/sax/properties/declaration-handler", aBuilder);
       for (final String [] aLimit : ENTITY_LIMITS)
