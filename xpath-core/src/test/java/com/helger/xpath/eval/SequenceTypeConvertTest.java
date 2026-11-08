@@ -22,6 +22,7 @@ import static org.junit.Assert.assertSame;
 import static com.helger.xpath.eval.ExprTestHelper.atomicType;
 import static com.helger.xpath.eval.ExprTestHelper.parse;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import org.jspecify.annotations.NonNull;
@@ -201,6 +202,61 @@ public final class SequenceTypeConvertTest
     final XdmSequence aInts = _s (XdmAtomic.integer (1), XdmAtomic.integer (2));
     assertEquals ("same [xs:integer(1) xs:integer(2)]",
                   _convert (aInts, _t (EAtomicType.DECIMAL, EOccurrence.ZERO_OR_MORE), aCtx));
+  }
+
+  /**
+   * Several items that already match need no conversion; anything else takes the conversion
+   * loop.
+   */
+  @Test
+  public void testSeveralAlreadyMatching ()
+  {
+    final DynamicContext aCtx = new DynamicContext (new StaticContext ());
+    final XdmSequence aMixed = _s (XdmAtomic.integer (1),
+                                   XdmAtomic.of (EAtomicType.BYTE, BigInteger.TWO),
+                                   XdmAtomic.decimal (BigDecimal.ONE));
+    assertEquals ("same [xs:integer(1) xs:byte(2) xs:decimal(1)]",
+                  _convert (aMixed, _t (EAtomicType.DECIMAL, EOccurrence.ZERO_OR_MORE), aCtx));
+    assertEquals ("same [xs:integer(1) xs:byte(2) xs:decimal(1)]",
+                  _convert (aMixed, _t (EAtomicType.ANY_ATOMIC_TYPE, EOccurrence.ONE_OR_MORE), aCtx));
+    assertEquals ("[xs:double(1) xs:double(2) xs:double(1)]",
+                  _convert (aMixed, _t (EAtomicType.DOUBLE, EOccurrence.ZERO_OR_MORE), aCtx));
+    assertEquals ("XTTE0780: Required type is xs:integer*, but supplied was a sequence of 3 items starting with a value of type xs:integer",
+                  _convert (aMixed, _t (EAtomicType.INTEGER, EOccurrence.ZERO_OR_MORE), aCtx));
+    assertEquals ("XTTE0780: Required type is xs:decimal?, but supplied was a sequence of 3 items starting with a value of type xs:integer",
+                  _convert (aMixed, _t (EAtomicType.DECIMAL, EOccurrence.ZERO_OR_ONE), aCtx));
+    final XdmSequence aUntyped = _s (XdmAtomic.untyped ("1"), XdmAtomic.untyped ("2"));
+    assertEquals ("same [xs:untypedAtomic(1) xs:untypedAtomic(2)]",
+                  _convert (aUntyped, _t (EAtomicType.ANY_ATOMIC_TYPE, EOccurrence.ZERO_OR_MORE), aCtx));
+    assertEquals ("same [xs:untypedAtomic(1) xs:untypedAtomic(2)]",
+                  _convert (aUntyped, _t (EAtomicType.UNTYPED_ATOMIC, EOccurrence.ZERO_OR_MORE), aCtx));
+    assertEquals ("[xs:string(1) xs:string(2)]",
+                  _convert (aUntyped, _t (EAtomicType.STRING, EOccurrence.ZERO_OR_MORE), aCtx));
+    assertEquals ("XTTE0780: Required type is xs:error*, but supplied was a sequence of 2 items starting with a value of type xs:untypedAtomic",
+                  _convert (aUntyped, _t (EAtomicType.ERROR, EOccurrence.ZERO_OR_MORE), aCtx));
+    // A node among atomic values is atomised
+    final IXdmNode aElement = parse ("<a>3</a>").getChildAtIndex (0);
+    assertEquals ("[xs:integer(1) xs:integer(3)]",
+                  _convert (_s (XdmAtomic.integer (1), aElement), _t (EAtomicType.INTEGER, EOccurrence.ZERO_OR_MORE), aCtx));
+  }
+
+  /**
+   * The typed value of single nodes of an untyped tree, per node kind.
+   */
+  @Test
+  public void testSingleUntypedNodes ()
+  {
+    final DynamicContext aCtx = new DynamicContext (new StaticContext ());
+    final IXdmNode aDoc = parse ("<a x='1'><!--c--><?p d?>t</a>");
+    final IXdmNode aElement = aDoc.getChildAtIndex (0);
+    assertEquals ("[xs:untypedAtomic(t)]", _convert (_s (aElement), _t1 (EAtomicType.ANY_ATOMIC_TYPE), aCtx));
+    assertEquals ("[xs:untypedAtomic(1)]",
+                  _convert (_s (aElement.getAttributeAtIndex (0)), _t1 (EAtomicType.UNTYPED_ATOMIC), aCtx));
+    assertEquals ("[xs:string(c)]", _convert (_s (aElement.getChildAtIndex (0)), _t1 (EAtomicType.ANY_ATOMIC_TYPE), aCtx));
+    assertEquals ("[xs:string(d)]", _convert (_s (aElement.getChildAtIndex (1)), _t1 (EAtomicType.ANY_ATOMIC_TYPE), aCtx));
+    assertEquals ("XTTE0780: Required type is xs:integer, but supplied was a value of type xs:string",
+                  _convert (_s (aElement.getChildAtIndex (0)), _t1 (EAtomicType.INTEGER), aCtx));
+    assertEquals ("[xs:double(1)]", _convert (_s (aElement.getAttributeAtIndex (0)), _t1 (EAtomicType.NUMERIC), aCtx));
   }
 
   @Test

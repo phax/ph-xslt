@@ -16,10 +16,13 @@
  */
 package com.helger.xpath.fn;
 
+import java.util.List;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.ThreadSafe;
+import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.xdm.XdmQName;
 
@@ -50,6 +53,35 @@ public final class FunctionCallSite
   {}
 
   private volatile Entry m_aEntry;
+  // Whether the arguments of the call contain a placeholder: 0 = not known
+  // yet, 1 = no, 2 = yes
+  private volatile int m_nPlaceholder;
+
+  /**
+   * Does the call of this site have an argument placeholder (a partial
+   * function application)? The answer is computed from the arguments on the
+   * first call and kept, as the arguments of a call site never change.
+   * Concurrent first calls may compute it twice, with the same result.
+   *
+   * @param aArgs
+   *        The argument expressions of the call of this site.
+   * @return <code>true</code> if any argument is <code>?</code>.
+   */
+  public boolean hasPlaceholder (@NonNull final List <IExpr> aArgs)
+  {
+    final int nKnown = m_nPlaceholder;
+    if (nKnown != 0)
+      return nKnown == 2;
+    boolean bFound = false;
+    for (final IExpr aArg : aArgs)
+      if (aArg instanceof IExpr.PlaceholderExpr)
+      {
+        bFound = true;
+        break;
+      }
+    m_nPlaceholder = bFound ? 2 : 1;
+    return bFound;
+  }
 
   /**
    * Resolve the function of this call site: the cached definition if the

@@ -25,6 +25,7 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsSet;
+import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.xdm.XdmConstants;
 import com.helger.xpath.xdm.XdmQName;
 
@@ -50,6 +51,106 @@ public final class ExprWalker
                                                                                        "matches",
                                                                                        "deep-equal",
                                                                                        "lang");
+
+  // Functions of the fn namespace that read neither the focus nor anything
+  // that changes between two calls of one run, with any number of arguments
+  private static final ICommonsSet <String> FOCUS_FREE_FUNCTIONS = new CommonsHashSet <> ("true",
+                                                                                          "false",
+                                                                                          "not",
+                                                                                          "boolean",
+                                                                                          "exists",
+                                                                                          "empty",
+                                                                                          "abs",
+                                                                                          "ceiling",
+                                                                                          "floor",
+                                                                                          "round",
+                                                                                          "round-half-to-even",
+                                                                                          "format-integer",
+                                                                                          "format-number",
+                                                                                          "concat",
+                                                                                          "string-join",
+                                                                                          "substring",
+                                                                                          "upper-case",
+                                                                                          "lower-case",
+                                                                                          "translate",
+                                                                                          "contains",
+                                                                                          "starts-with",
+                                                                                          "ends-with",
+                                                                                          "substring-before",
+                                                                                          "substring-after",
+                                                                                          "matches",
+                                                                                          "replace",
+                                                                                          "tokenize",
+                                                                                          "codepoints-to-string",
+                                                                                          "string-to-codepoints",
+                                                                                          "compare",
+                                                                                          "codepoint-equal",
+                                                                                          "normalize-unicode",
+                                                                                          "encode-for-uri",
+                                                                                          "iri-to-uri",
+                                                                                          "escape-html-uri",
+                                                                                          "contains-token",
+                                                                                          "head",
+                                                                                          "tail",
+                                                                                          "insert-before",
+                                                                                          "remove",
+                                                                                          "reverse",
+                                                                                          "subsequence",
+                                                                                          "distinct-values",
+                                                                                          "index-of",
+                                                                                          "deep-equal",
+                                                                                          "zero-or-one",
+                                                                                          "one-or-more",
+                                                                                          "exactly-one",
+                                                                                          "count",
+                                                                                          "avg",
+                                                                                          "max",
+                                                                                          "min",
+                                                                                          "sum",
+                                                                                          "year-from-dateTime",
+                                                                                          "month-from-dateTime",
+                                                                                          "day-from-dateTime",
+                                                                                          "hours-from-dateTime",
+                                                                                          "minutes-from-dateTime",
+                                                                                          "seconds-from-dateTime",
+                                                                                          "timezone-from-dateTime",
+                                                                                          "year-from-date",
+                                                                                          "month-from-date",
+                                                                                          "day-from-date",
+                                                                                          "timezone-from-date",
+                                                                                          "hours-from-time",
+                                                                                          "minutes-from-time",
+                                                                                          "seconds-from-time",
+                                                                                          "timezone-from-time",
+                                                                                          "years-from-duration",
+                                                                                          "months-from-duration",
+                                                                                          "days-from-duration",
+                                                                                          "hours-from-duration",
+                                                                                          "minutes-from-duration",
+                                                                                          "seconds-from-duration",
+                                                                                          "dateTime",
+                                                                                          "adjust-dateTime-to-timezone",
+                                                                                          "adjust-date-to-timezone",
+                                                                                          "adjust-time-to-timezone",
+                                                                                          "current-dateTime",
+                                                                                          "current-date",
+                                                                                          "current-time",
+                                                                                          "implicit-timezone",
+                                                                                          "default-collation",
+                                                                                          "default-language",
+                                                                                          "static-base-uri",
+                                                                                          "QName",
+                                                                                          "error");
+  // Functions of the fn namespace that read the context item without an
+  // argument, but are focus-free with at least one
+  private static final ICommonsSet <String> FOCUS_FREE_WITH_ARGUMENT = new CommonsHashSet <> ("string",
+                                                                                              "data",
+                                                                                              "number",
+                                                                                              "string-length",
+                                                                                              "normalize-space",
+                                                                                              "name",
+                                                                                              "local-name",
+                                                                                              "namespace-uri");
 
   @PresentForCodeCoverage
   private static final ExprWalker INSTANCE = new ExprWalker ();
@@ -316,5 +417,101 @@ public final class ExprWalker
                               aName -> isPositionOrLast (aName) ||
                                        (XdmConstants.NS_FN.equals (aName.namespaceUri ()) &&
                                         aName.localName ().equals ("function-lookup")));
+  }
+
+  /**
+   * @return <code>true</code> if a static call of this name and arity is one
+   *         of the built-in functions that read neither the focus nor anything
+   *         that differs between two calls of one run: the listed functions of
+   *         the fn namespace, all of the math namespace and the constructor
+   *         functions of the xs namespace.
+   */
+  private static boolean _isFocusFreeFunction (@NonNull final XdmQName aName, final int nArity)
+  {
+    final String sNamespaceUri = aName.namespaceUri ();
+    if (XdmConstants.NS_FN.equals (sNamespaceUri))
+      return FOCUS_FREE_FUNCTIONS.contains (aName.localName ()) ||
+             (nArity >= 1 && FOCUS_FREE_WITH_ARGUMENT.contains (aName.localName ()));
+    if (FunctionLibrary.NS_MATH.equals (sNamespaceUri))
+      return true;
+    return XdmConstants.NS_XS.equals (sNamespaceUri) && nArity == 1;
+  }
+
+  /**
+   * Is the value of an expression the same whatever the focus is, and the same
+   * on every evaluation within one run? This fails closed: it is
+   * <code>true</code> only if the tree contains no context item expression, no
+   * unary lookup, no path other than one hanging off a start expression through
+   * axis steps without predicates (<code>$x/a/@b</code>), no function item
+   * (inline function, named function reference, dynamic call, argument
+   * placeholder), and only static calls of the built-in functions of
+   * {@link #_isFocusFreeFunction(XdmQName, int)} that the caller also accepts.
+   * Variables are fine, whether bound outside or inside the expression. An
+   * expression inside a nested predicate is held to the same rules, so a nested
+   * <code>$s[. gt 1]</code> makes the whole expression not focus-free.
+   *
+   * @param aExpr
+   *        The expression, e.g. a predicate.
+   * @param aCallFilter
+   *        Tests each static function call that passes the name check, e.g.
+   *        that it resolves to the built-in implementation.
+   * @return <code>true</code> if the expression is provably focus-free and
+   *         deterministic within a run.
+   */
+  public static boolean isFocusIndependent (@NonNull final IExpr aExpr,
+                                            @NonNull final Predicate <IExpr.FunctionCallExpr> aCallFilter)
+  {
+    final ArrayDeque <IExpr> aStack = new ArrayDeque <> ();
+    aStack.push (aExpr);
+    while (!aStack.isEmpty ())
+    {
+      final IExpr aCur = aStack.pop ();
+      switch (aCur)
+      {
+        case final IExpr.ContextItemExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.PlaceholderExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.NamedFunctionRefExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.InlineFunctionExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.DynamicCallExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.FunctionCallExpr e ->
+        {
+          if (!_isFocusFreeFunction (e.name (), e.args ().size ()) || !aCallFilter.test (e))
+            return false;
+          aStack.addAll (e.args ());
+        }
+        case final IExpr.PathExpr e ->
+        {
+          if (e.start () == null || e.absolute ())
+            return false;
+          for (final IExpr.StepExpr aStep : e.steps ())
+            if (aStep.postfix () != null || !aStep.predicates ().isEmpty ())
+              return false;
+          aStack.push (e.start ());
+        }
+        case final IExpr.LookupExpr e ->
+        {
+          if (e.base () == null)
+            return false;
+          _pushChildren (e, aStack);
+        }
+        default -> _pushChildren (aCur, aStack);
+      }
+    }
+    return true;
   }
 }
