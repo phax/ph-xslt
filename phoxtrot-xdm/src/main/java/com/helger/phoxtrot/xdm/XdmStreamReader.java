@@ -112,7 +112,7 @@ public final class XdmStreamReader implements AutoCloseable
   private final int m_nMaxElementDepth;
   private final Predicate <XdmQName> m_aStripWhitespace;
   private final XdmDocumentNode m_aDocument;
-  private final long m_nTree;
+  private final AbstractXdmNode.TreeStamp m_aTree;
   private int m_nOrder;
   // The open elements below the document node, innermost last
   private final ArrayDeque <AbstractXdmParentNode> m_aSpine = new ArrayDeque <> ();
@@ -165,8 +165,8 @@ public final class XdmStreamReader implements AutoCloseable
     m_aDocument.internalSetStreamed (true);
     if (sSystemId != null)
       m_aDocument.setDocumentUri (sSystemId);
-    m_nTree = AbstractXdmNode.internalNewTree ();
-    m_aDocument.internalStamp (m_nTree, m_nOrder++);
+    m_aTree = AbstractXdmNode.internalNewTree ();
+    m_aDocument.internalStamp (m_aTree, m_nOrder++);
     m_aDocument.internalSetEndOrder (Integer.MAX_VALUE);
   }
 
@@ -180,7 +180,7 @@ public final class XdmStreamReader implements AutoCloseable
   {
     if (m_nOrder >= MAX_NODES)
       throw new XdmParseException ("The streamed document has more than " + MAX_NODES + " nodes");
-    aNode.internalStamp (m_nTree, m_nOrder++);
+    aNode.internalStamp (m_aTree, m_nOrder++);
   }
 
   /**

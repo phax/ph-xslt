@@ -72,9 +72,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private Locator m_aLocator;
   private XdmDocumentNode m_aDocument;
   private AbstractXdmParentNode m_aCurrent;
-  // The tree number of the numbering given while building; 0 once a change of
-  // the tree from outside removed it
-  private long m_nTree;
+  // The numbering given while building; null once a change of the tree from
+  // outside removed it
+  private AbstractXdmNode.TreeStamp m_aTree;
   // The next document order number
   private int m_nOrder;
   private boolean m_bInDTD = false;
@@ -133,12 +133,12 @@ public final class XdmTreeBuilder extends DefaultHandler2
    */
   private void _stamp (@NonNull final AbstractXdmNode aNode)
   {
-    if (m_nTree != 0)
+    if (m_aTree != null)
     {
-      if (m_aDocument.internalGetTree () == m_nTree)
-        aNode.internalStamp (m_nTree, m_nOrder++);
+      if (m_aDocument.internalGetTree () == m_aTree)
+        aNode.internalStamp (m_aTree, m_nOrder++);
       else
-        m_nTree = 0;
+        m_aTree = null;
     }
   }
 
@@ -407,11 +407,11 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aCurrent = m_aDocument;
     if (m_aLocator != null)
       m_aDocument.setDocumentUri (m_aLocator.getSystemId ());
-    m_nTree = AbstractXdmNode.internalNewTree ();
+    m_aTree = AbstractXdmNode.internalNewTree ();
     m_nOrder = 0;
     m_nDepth = 0;
     m_nMaxDepth = 0;
-    m_aDocument.internalStamp (m_nTree, m_nOrder++);
+    m_aDocument.internalStamp (m_aTree, m_nOrder++);
     m_aDocument.internalSetEndOrder (Integer.MAX_VALUE);
   }
 
@@ -430,7 +430,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   {
     _flushText ();
     m_aDocument.internalTrimChildren ();
-    if (m_nTree != 0 && m_aDocument.internalGetTree () == m_nTree)
+    if (m_aTree != null && m_aDocument.internalGetTree () == m_aTree)
     {
       m_aDocument.internalSetEndOrder (m_nOrder - 1);
       m_aDocument.internalDropNameIndex ();

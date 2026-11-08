@@ -53,14 +53,14 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   private static final class NameIndex
   {
     // The numbering the index was built for
-    private final long m_nTree;
+    private final TreeStamp m_aTree;
     private final Map <XdmQName, List <IXdmNode>> m_aNodes;
     // The child elements by name of the parents asked for, filled on demand
     private final Map <ChildKey, List <IXdmNode>> m_aChildren = new ConcurrentHashMap <> ();
 
-    private NameIndex (final long nTree, @NonNull final Map <XdmQName, List <IXdmNode>> aNodes)
+    private NameIndex (@NonNull final TreeStamp aTree, @NonNull final Map <XdmQName, List <IXdmNode>> aNodes)
     {
-      m_nTree = nTree;
+      m_aTree = aTree;
       m_aNodes = aNodes;
     }
   }
@@ -78,7 +78,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   // The maximum element depth recorded by XdmTreeBuilder, and the numbering it
   // belongs to (0 = none)
   private int m_nMaxElementDepth;
-  private long m_nMaxElementDepthTree;
+  private TreeStamp m_aMaxElementDepthTree;
 
   XdmDocumentNode ()
   {}
@@ -113,15 +113,15 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
    * and collect the elements, or the attributes of the elements, by name.
    * Only elements are descended into; the other child kinds have no children.
    *
-   * @param nTree
-   *        The tree number of the current numbering, stored in the index.
+   * @param aTree
+   *        The current numbering, stored in the index.
    * @param bAttributes
    *        <code>true</code> to index the attributes, <code>false</code> for
    *        the elements.
    * @return The new index with immutable lists in document order.
    */
   @NonNull
-  private NameIndex _buildNameIndex (final long nTree, final boolean bAttributes)
+  private NameIndex _buildNameIndex (@NonNull final TreeStamp aTree, final boolean bAttributes)
   {
     final Map <XdmQName, ICommonsList <IXdmNode>> aCollected = new HashMap <> ();
     final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();
@@ -151,7 +151,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     final Map <XdmQName, List <IXdmNode>> aNodes = new HashMap <> (aCollected.size () * 2);
     for (final Map.Entry <XdmQName, ICommonsList <IXdmNode>> aEntry : aCollected.entrySet ())
       aNodes.put (aEntry.getKey (), List.copyOf (aEntry.getValue ()));
-    return new NameIndex (nTree, aNodes);
+    return new NameIndex (aTree, aNodes);
   }
 
   /**
@@ -162,13 +162,13 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   @Nullable
   private NameIndex _getIndex (final boolean bAttributes)
   {
-    final long nTree = internalGetTree ();
-    if (nTree == 0 || m_bStreamed)
+    final TreeStamp aTree = internalGetTree ();
+    if (aTree == null || m_bStreamed)
       return null;
     NameIndex aIndex = bAttributes ? m_aAttributeIndex : m_aNameIndex;
-    if (aIndex == null || aIndex.m_nTree != nTree)
+    if (aIndex == null || aIndex.m_aTree != aTree)
     {
-      aIndex = _buildNameIndex (nTree, bAttributes);
+      aIndex = _buildNameIndex (aTree, bAttributes);
       if (bAttributes)
         m_aAttributeIndex = aIndex;
       else
@@ -244,7 +244,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   {
     m_aNameIndex = null;
     m_aAttributeIndex = null;
-    m_nMaxElementDepthTree = 0;
+    m_aMaxElementDepthTree = null;
   }
 
   /**
@@ -259,7 +259,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   void internalSetMaxElementDepth (@Nonnegative final int nMaxElementDepth)
   {
     m_nMaxElementDepth = nMaxElementDepth;
-    m_nMaxElementDepthTree = internalGetTree ();
+    m_aMaxElementDepthTree = internalGetTree ();
   }
 
   /**
@@ -275,8 +275,8 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
    */
   public int getMaxElementDepth ()
   {
-    final long nTree = internalGetTree ();
-    if (nTree == 0 || nTree != m_nMaxElementDepthTree || m_bStreamed)
+    final TreeStamp aTree = internalGetTree ();
+    if (aTree == null || aTree != m_aMaxElementDepthTree || m_bStreamed)
       return -1;
     return m_nMaxElementDepth;
   }

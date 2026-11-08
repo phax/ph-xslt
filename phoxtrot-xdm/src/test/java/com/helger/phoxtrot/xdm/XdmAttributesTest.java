@@ -102,7 +102,7 @@ public final class XdmAttributesTest
     assertSame (aC, aR.getAttribute (null, "c"));
     assertEquals ("1", aR.getAttribute (null, "a").getValue ());
     // The numbering was dropped and is assigned again with the new attribute
-    assertEquals (0, ((AbstractXdmNode) aE).internalGetTree ());
+    assertNull (((AbstractXdmNode) aE).internalGetTree ());
     aDoc.assignDocumentOrder ();
     assertEquals (4, aC.getOrder ());
     assertEquals (5, aE.getOrder ());

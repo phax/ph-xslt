@@ -17,8 +17,8 @@
 package com.helger.phoxtrot.xdm;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.charset.StandardCharsets;
@@ -88,11 +88,11 @@ public final class XdmTreeBuilderNumberingTest
    */
   private static void _assertSameAsSecondPass (@NonNull final IXdmNode aDoc)
   {
-    final long nTree = ((AbstractXdmNode) aDoc).internalGetTree ();
-    assertNotEquals (0, nTree);
+    final AbstractXdmNode.TreeStamp aTree = ((AbstractXdmNode) aDoc).internalGetTree ();
+    assertNotNull (aTree);
     final ICommonsList <String> aBuilt = _getNumbering (aDoc);
     aDoc.assignDocumentOrder ();
-    assertNotEquals (nTree, ((AbstractXdmNode) aDoc).internalGetTree ());
+    assertNotSame (aTree, ((AbstractXdmNode) aDoc).internalGetTree ());
     assertEquals (aBuilt, _getNumbering (aDoc));
   }
 

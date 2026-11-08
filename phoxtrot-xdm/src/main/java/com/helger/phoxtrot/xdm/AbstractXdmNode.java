@@ -44,6 +44,26 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   private static final AtomicLong TREE_COUNTER = new AtomicLong (0);
 
   /**
+   * One numbering of a tree. All nodes numbered together reference the same
+   * instance, so "the same tree" is an identity check, and a node costs one
+   * reference instead of a <code>long</code> number. A plain
+   * <code>int</code> counter would wrap after 2^32 numberings, which a
+   * long-running process reaches, and could then give a live tree's number to
+   * a new tree; an identity cannot be reused while a node still references it.
+   * The sequence number orders different trees by the moment they were
+   * numbered and never wraps in practice (2^63).
+   */
+  static final class TreeStamp
+  {
+    private final long m_nSequence;
+
+    private TreeStamp (final long nSequence)
+    {
+      m_nSequence = nSequence;
+    }
+  }
+
+  /**
    * The properties only few nodes have. They live in a separate object that is
    * created on the first non-default value, which keeps every node small. All
    * of them are set while a tree is built.
@@ -66,8 +86,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
 
   private AbstractXdmNode m_aParent;
   private int m_nOrder;
-  // 0 = not numbered yet
-  private long m_nTree;
+  // null = not numbered yet
+  private TreeStamp m_aTree;
   // Created on demand
   private Details m_aDetails;
 
@@ -99,25 +119,30 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return m_aDetails == null ? null : m_aDetails.m_aNamespaces;
   }
 
-  /** @return The number of the tree this node was numbered in, 0 if it is not numbered. */
-  final long internalGetTree ()
+  /**
+   * @return The numbering this node was numbered in, <code>null</code> if it
+   *         is not numbered.
+   */
+  @Nullable
+  final TreeStamp internalGetTree ()
   {
-    return m_nTree;
+    return m_aTree;
   }
 
-  /** @return A new tree number, for a tree that is numbered while it is built. */
-  static long internalNewTree ()
+  /** @return A new numbering, for a tree that is numbered while it is built. */
+  @NonNull
+  static TreeStamp internalNewTree ()
   {
-    return TREE_COUNTER.incrementAndGet ();
+    return new TreeStamp (TREE_COUNTER.incrementAndGet ());
   }
 
   /**
    * Number a node as it is created, in the order {@link #assignDocumentOrder()}
    * would give it in the finished tree (used by {@link XdmStreamReader}).
    */
-  final void internalStamp (final long nTree, @Nonnegative final int nOrder)
+  final void internalStamp (@NonNull final TreeStamp aTree, @Nonnegative final int nOrder)
   {
-    m_nTree = nTree;
+    m_aTree = aTree;
     m_nOrder = nOrder;
   }
 
@@ -128,7 +153,7 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
    */
   final void internalInvalidateOrder ()
   {
-    if (m_nTree == 0)
+    if (m_aTree == null)
       return;
     final AbstractXdmNode aRoot = getRoot ();
     final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();
@@ -136,9 +161,9 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     while (!aStack.isEmpty ())
     {
       final AbstractXdmNode aCur = aStack.pop ();
-      aCur.m_nTree = 0;
+      aCur.m_aTree = null;
       for (int i = 0; i < aCur.getAttributeCount (); ++i)
-        aCur.getAttributeAtIndex (i).m_nTree = 0;
+        aCur.getAttributeAtIndex (i).m_aTree = null;
       for (int i = 0; i < aCur.getChildCount (); ++i)
         aStack.push (aCur.getChildAtIndex (i));
     }
@@ -603,7 +628,7 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   public final void assignDocumentOrder ()
   {
     final AbstractXdmNode aRoot = getRoot ();
-    final long nTree = TREE_COUNTER.incrementAndGet ();
+    final TreeStamp aTree = internalNewTree ();
     int nOrder = 0;
     final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();
     // The parent nodes whose subtree is not finished yet, innermost first
@@ -615,12 +640,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
       // Every open node that is no ancestor of this one is finished
       while (!aOpen.isEmpty () && aOpen.peek () != aCur.m_aParent)
         aOpen.pop ().internalSetEndOrder (nOrder - 1);
-      aCur.m_nTree = nTree;
+      aCur.m_aTree = aTree;
       aCur.m_nOrder = nOrder++;
       for (int i = 0; i < aCur.getAttributeCount (); ++i)
       {
         final AbstractXdmNode aAttr = aCur.getAttributeAtIndex (i);
-        aAttr.m_nTree = nTree;
+        aAttr.m_aTree = aTree;
         aAttr.m_nOrder = nOrder++;
       }
       if (aCur instanceof final AbstractXdmParentNode aParent)
@@ -659,12 +684,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
                                                                                                       : aLeft;
     final AbstractXdmNode aRightAnchor = aRight instanceof XdmNamespaceNode && aRight.m_aParent != null ? aRight.m_aParent
                                                                                                         : aRight;
-    if (aLeftAnchor.m_nTree == 0)
+    if (aLeftAnchor.m_aTree == null)
       aLeftAnchor.assignDocumentOrder ();
-    if (aRightAnchor.m_nTree == 0)
+    if (aRightAnchor.m_aTree == null)
       aRightAnchor.assignDocumentOrder ();
-    if (aLeftAnchor.m_nTree != aRightAnchor.m_nTree)
-      return Long.compare (aLeftAnchor.m_nTree, aRightAnchor.m_nTree);
+    if (aLeftAnchor.m_aTree != aRightAnchor.m_aTree)
+      return Long.compare (aLeftAnchor.m_aTree.m_nSequence, aRightAnchor.m_aTree.m_nSequence);
     if (aLeftAnchor.m_nOrder != aRightAnchor.m_nOrder)
       return Integer.compare (aLeftAnchor.m_nOrder, aRightAnchor.m_nOrder);
     final int nLeftSub = aLeftAnchor != aLeft && aLeft instanceof final XdmNamespaceNode aLeftNS ? 1 +
