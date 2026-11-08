@@ -908,6 +908,13 @@ public final class SequenceTypeMatcher
       final XdmAtomic aConv = _convertAtomic (aAtomic, eTarget, aCtx);
       return aConv == aAtomic ? aSeq : XdmSequence.of (aConv);
     }
+    if (aItem instanceof final IXdmNode aNode)
+    {
+      // A node without schema type or annotation: one value, no sequence
+      final XdmAtomic aUntyped = Atomizer.getUntypedValue (aNode);
+      if (aUntyped != null)
+        return XdmSequence.of (_convertAtomic (aUntyped, eTarget, aCtx));
+    }
     // Atomisation
     final XdmSequence aAtoms = Atomizer.atomize (aSeq);
     if (aAtoms.size () == 1)
@@ -916,6 +923,36 @@ public final class SequenceTypeMatcher
     for (final IXdmItem aAtom : aAtoms)
       aBuilder.add (_convertAtomic ((XdmAtomic) aAtom, eTarget, aCtx));
     return aBuilder.build ();
+  }
+
+  /**
+   * Does a sequence already match a built-in atomic sequence type without any conversion? Its
+   * size must satisfy the occurrence indicator and every item must be an atomic value whose type
+   * is the target type or derived from it. Such values are exactly the ones
+   * {@link #_convertAtomic(XdmAtomic, EAtomicType, DynamicContext)} returns unchanged (an
+   * xs:untypedAtomic value only for the targets xs:untypedAtomic and xs:anyAtomicType), and the
+   * final match check of the conversion would accept them.
+   *
+   * @return <code>true</code> if the conversion is the identity; <code>false</code> at the first
+   *         item that is no atomic value or not of the target type, and for xs:error.
+   */
+  private static boolean _isMatchingAtomics (@NonNull final XdmSequence aSeq, @NonNull final SeqType aType)
+  {
+    if (!_matchesOccurrence (aSeq.size (), aType.occurrence ()))
+      return false;
+    final EAtomicType eTarget = aType.itemType ().atomicType ();
+    if (eTarget == EAtomicType.ERROR)
+      return false;
+    final int nSize = aSeq.size ();
+    for (int i = 0; i < nSize; ++i)
+    {
+      if (!(aSeq.get (i) instanceof final XdmAtomic aAtomic))
+        return false;
+      final EAtomicType eType = aAtomic.getType ();
+      if (eType != eTarget && eTarget != EAtomicType.ANY_ATOMIC_TYPE && !eType.isDerivedFrom (eTarget))
+        return false;
+    }
+    return true;
   }
 
   /**
@@ -947,10 +984,23 @@ public final class SequenceTypeMatcher
     {
       // One item, the most frequent case: no sequence builder
       final XdmSequence ret = _convertSingleAtomic (aSeq, eTarget, aCtx);
+      // One value of exactly the target type matches every occurrence
+      // indicator but the empty sequence, which convert has handled
+      if (ret.size () == 1 &&
+          eTarget != EAtomicType.ERROR &&
+          ret.get (0) instanceof final XdmAtomic aResult &&
+          aResult.getType () == eTarget)
+        return ret;
       if (!matches (ret, aType))
         throw XPathException.of (sErrorCode,
                                  "Required type is " + getAsString (aType) + ", but supplied was " + _describe (ret));
       return ret;
+    }
+    if (aSchemaTarget == null && _isMatchingAtomics (aSeq, aType))
+    {
+      // Every value is already of the target type or a subtype: the
+      // conversion would keep each one as it is
+      return aSeq;
     }
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     boolean bChanged = false;

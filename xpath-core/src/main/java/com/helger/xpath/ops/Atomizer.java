@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
@@ -267,6 +268,30 @@ public final class Atomizer
       else
         _atomizeNonArray (aCur, aBuilder);
     }
+  }
+
+  /**
+   * The typed value of a node of an untyped tree without building a sequence: for a node without
+   * schema type and without type annotation it is the one value
+   * {@link #getTypedValues(IXdmNode)} gives, xs:string of the string value for comments,
+   * processing instructions and namespace nodes and xs:untypedAtomic of it for all other kinds.
+   *
+   * @param aNode
+   *        The node.
+   * @return The typed value, or <code>null</code> for a node with a schema type or a type
+   *         annotation, whose typed value the caller must compute with
+   *         {@link #atomize(XdmSequence)} or {@link #getTypedValues(IXdmNode)}.
+   */
+  @Nullable
+  public static XdmAtomic getUntypedValue (@NonNull final IXdmNode aNode)
+  {
+    if (aNode.getSchemaType () != null || aNode.getTypeAnnotation () != null)
+      return null;
+    return switch (aNode.getKind ())
+    {
+      case COMMENT, PROCESSING_INSTRUCTION, NAMESPACE -> XdmAtomic.string (aNode.getStringValue ());
+      default -> XdmAtomic.untyped (aNode.getStringValue ());
+    };
   }
 
   /**
