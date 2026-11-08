@@ -38,6 +38,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `XdmSequence.Builder` hands an exactly full buffer to the built sequence and copies it on the next change;
   `XdmSequence.ListBuilder` is the `List` to pass to code that fills one (axis navigation) instead of an `ArrayList`
   copied afterwards. `IExpr.LiteralExpr.sequence ()` is the sequence of the literal, built once.
+- Static calls: `FunctionCallSite` also keeps the literal arguments converted for the resolved `FunctionDef` (by
+  identity) and the XPath 1.0 compatibility mode; a failed conversion is not kept, so its error comes at the call.
 - QT3: `mvn verify -Pconformance -pl xpath-conformance -am` (`-Dqt3.only=<set>` for one test set). Every failing
   case must be named in `xpath-conformance/docs/accepted-failures/qt3.md` with a reason, or `QT3IT` fails. Compare
   fail lists (`xpath-conformance/target/qt3-fails.txt`) by name, never by count. Only dependency skips (spec, normalisation

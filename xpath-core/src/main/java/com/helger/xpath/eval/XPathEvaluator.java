@@ -44,6 +44,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.fn.FnBoolean;
 import com.helger.xpath.fn.FnSequence;
+import com.helger.xpath.fn.FunctionCallSite;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.fn.IXPathFunction;
@@ -1052,14 +1053,59 @@ public final class XPathEvaluator
   }
 
   /**
+   * The literal arguments of a static call converted to the parameter types of the resolved
+   * definition, from the call site if it holds them for this definition and compatibility mode,
+   * otherwise converted now and stored there. A literal whose conversion fails gets no entry, so
+   * that the call converts it again and raises the error at the time it always did. The conversion
+   * of a literal depends only on its value, the parameter type and the XPath 1.0 compatibility
+   * mode, and has no side effects.
+   *
+   * @return <code>null</code> if no argument is a literal.
+   */
+  private static FunctionCallSite.@Nullable ConvertedLiterals _getConvertedLiterals (final IExpr.@NonNull FunctionCallExpr aExpr,
+                                                                                    @NonNull final FunctionDef aDef,
+                                                                                    @NonNull final DynamicContext aCtx)
+  {
+    final FunctionCallSite aSite = aExpr.site ();
+    final List <IExpr> aArgExprs = aExpr.args ();
+    if (!aSite.hasLiteralArgument (aArgExprs))
+      return null;
+    final boolean bCompat = aCtx.getStaticContext ().isXPath10Compatibility ();
+    FunctionCallSite.ConvertedLiterals ret = aSite.getConvertedLiterals (aDef, bCompat);
+    if (ret == null)
+    {
+      final List <SeqType> aParamTypes = aDef.getParamTypes ();
+      final XdmSequence [] aValues = new XdmSequence [aArgExprs.size ()];
+      for (int i = 0; i < aValues.length; ++i)
+        if (aArgExprs.get (i) instanceof final IExpr.LiteralExpr aLiteral)
+          try
+          {
+            aValues[i] = XPathOperators.convertArgument (aLiteral.sequence (),
+                                                         aParamTypes.get (i),
+                                                         aCtx,
+                                                         aDef.getName (),
+                                                         i);
+          }
+          catch (final XPathException ex)
+          {
+            // Converted and raised again by the call itself
+          }
+      ret = new FunctionCallSite.ConvertedLiterals (aDef, bCompat, aValues);
+      aSite.setConvertedLiterals (ret);
+    }
+    return ret;
+  }
+
+  /**
    * A static function call (XPath 3.1 section 3.1.5). The function is resolved by name and arity
    * in the function library of the static context, through the resolution cache of the call site
-   * (see {@link com.helger.xpath.fn.FunctionCallSite}). With an argument placeholder the result is a partially applied
+   * (see {@link FunctionCallSite}). With an argument placeholder the result is a partially applied
    * {@link BuiltInFunctionItem}. A one-argument call of <code>fn:exists</code>,
    * <code>fn:empty</code>, <code>fn:boolean</code> or <code>fn:not</code> is answered with early
    * exit. Otherwise every argument is evaluated, converted to its parameter type with the function
    * conversion rules (including the XPath 1.0 compatibility conversions) and the implementation is
-   * invoked.
+   * invoked; a literal argument is taken converted from the call site (see
+   * {@link #_getConvertedLiterals(IExpr.FunctionCallExpr, FunctionDef, DynamicContext)}).
    *
    * @throws XPathException
    *         XPST0017 (from the function lookup) if no function of that name and arity exists;
@@ -1081,12 +1127,19 @@ public final class XPathEvaluator
     }
 
     final List <SeqType> aParamTypes = aDef.getParamTypes ();
+    final FunctionCallSite.ConvertedLiterals aLiterals = _getConvertedLiterals (aExpr, aDef, aCtx);
     final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> (aArgExprs.size ());
     for (int i = 0; i < aArgExprs.size (); ++i)
     {
-      // XPath 1.0 compatibility rules are applied inside convert
-      final XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
-      aArgs.add (XPathOperators.convertArgument (aValue, aParamTypes.get (i), aCtx, aDef.getName (), i));
+      final XdmSequence aLiteral = aLiterals == null ? null : aLiterals.get (i);
+      if (aLiteral != null)
+        aArgs.add (aLiteral);
+      else
+      {
+        // XPath 1.0 compatibility rules are applied inside convert
+        final XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
+        aArgs.add (XPathOperators.convertArgument (aValue, aParamTypes.get (i), aCtx, aDef.getName (), i));
+      }
     }
     return XPathOperators.invokeBuiltIn (aDef, aCtx, aArgs);
   }

@@ -24,6 +24,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.xpath.ast.IExpr;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
+import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -39,8 +40,13 @@ import com.helger.xpath.xdm.XdmQName;
  * the last lookup) looks the function up again and replaces the entry. The
  * result is therefore always the one of a direct lookup.
  * <p>
- * Safe for concurrent use: the entry is immutable and published through a
- * volatile field; concurrent calls may each look up and store an entry, all
+ * The site also keeps the arguments that are literals, converted to the
+ * parameter types of one resolved definition (see
+ * {@link #getConvertedLiterals(FunctionDef, boolean)}), so that a literal is
+ * not converted again on every call.
+ * <p>
+ * Safe for concurrent use: the entries are immutable and published through
+ * volatile fields; concurrent calls may each look up and store an entry, all
  * with correct results.
  *
  * @author Philip Helger
@@ -52,10 +58,115 @@ public final class FunctionCallSite
   private record Entry (@NonNull FunctionLibrary library, long stamp, @Nullable FunctionDef def)
   {}
 
+  /**
+   * The literal arguments of a call converted to the parameter types of one
+   * function definition, for one setting of the XPath 1.0 compatibility mode.
+   * Immutable.
+   */
+  public static final class ConvertedLiterals
+  {
+    private final FunctionDef m_aDef;
+    private final boolean m_bXPath10Compatibility;
+    private final XdmSequence [] m_aValues;
+
+    /**
+     * @param aDef
+     *        The function definition whose parameter types the values were
+     *        converted to.
+     * @param bXPath10Compatibility
+     *        The XPath 1.0 compatibility mode of the conversion.
+     * @param aValues
+     *        One entry per argument: the converted value of a literal, or
+     *        <code>null</code> for an argument that is no literal or whose
+     *        conversion failed (it is then converted on every call, raising
+     *        the error at its time). The array is copied.
+     */
+    public ConvertedLiterals (@NonNull final FunctionDef aDef,
+                              final boolean bXPath10Compatibility,
+                              @NonNull final XdmSequence [] aValues)
+    {
+      m_aDef = aDef;
+      m_bXPath10Compatibility = bXPath10Compatibility;
+      m_aValues = aValues.clone ();
+    }
+
+    /**
+     * @param nIndex
+     *        0-based argument index.
+     * @return The converted value of the literal argument at the index, or
+     *         <code>null</code> if the argument must be evaluated and converted
+     *         on the call.
+     */
+    @Nullable
+    public XdmSequence get (final int nIndex)
+    {
+      return m_aValues[nIndex];
+    }
+  }
+
   private volatile Entry m_aEntry;
   // Whether the arguments of the call contain a placeholder: 0 = not known
   // yet, 1 = no, 2 = yes
   private volatile int m_nPlaceholder;
+  // Whether the arguments of the call contain a literal: 0 = not known
+  // yet, 1 = no, 2 = yes
+  private volatile int m_nLiteral;
+  private volatile ConvertedLiterals m_aConvertedLiterals;
+
+  /**
+   * Is any argument of the call of this site a literal? Computed on the first
+   * call and kept, like {@link #hasPlaceholder(List)}.
+   *
+   * @param aArgs
+   *        The argument expressions of the call of this site.
+   * @return <code>true</code> if any argument is a {@link IExpr.LiteralExpr}.
+   */
+  public boolean hasLiteralArgument (@NonNull final List <IExpr> aArgs)
+  {
+    final int nKnown = m_nLiteral;
+    if (nKnown != 0)
+      return nKnown == 2;
+    boolean bFound = false;
+    for (final IExpr aArg : aArgs)
+      if (aArg instanceof IExpr.LiteralExpr)
+      {
+        bFound = true;
+        break;
+      }
+    m_nLiteral = bFound ? 2 : 1;
+    return bFound;
+  }
+
+  /**
+   * The converted literal arguments stored last, if they were converted for
+   * this function definition (by identity: a re-resolved definition after a
+   * library change needs a new conversion) and this compatibility mode.
+   *
+   * @param aDef
+   *        The definition the call resolved to.
+   * @param bXPath10Compatibility
+   *        The XPath 1.0 compatibility mode of the static context.
+   * @return <code>null</code> if nothing matching is stored.
+   */
+  @Nullable
+  public ConvertedLiterals getConvertedLiterals (@NonNull final FunctionDef aDef, final boolean bXPath10Compatibility)
+  {
+    final ConvertedLiterals ret = m_aConvertedLiterals;
+    if (ret != null && ret.m_aDef == aDef && ret.m_bXPath10Compatibility == bXPath10Compatibility)
+      return ret;
+    return null;
+  }
+
+  /**
+   * Store converted literal arguments, replacing the previous ones.
+   *
+   * @param aConverted
+   *        The converted literals.
+   */
+  public void setConvertedLiterals (@NonNull final ConvertedLiterals aConverted)
+  {
+    m_aConvertedLiterals = aConverted;
+  }
 
   /**
    * Does the call of this site have an argument placeholder (a partial

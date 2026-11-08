@@ -74,11 +74,42 @@ public final class FunctionCallSiteTest
     return (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.string (sPrefix + ((XdmAtomic) aArgs.get (0).get (0)).getString ()));
   }
 
+  /** The type name and the value of the first argument. */
+  @NonNull
+  private static IXPathFunction _describeArg ()
+  {
+    return (aCtx, aArgs) -> {
+      final XdmAtomic aArg = (XdmAtomic) aArgs.get (0).get (0);
+      return XdmSequence.of (XdmAtomic.string (aArg.getType ().getQualifiedName () + ":" + aArg.getLexical ()));
+    };
+  }
+
+  @NonNull
+  private static String _eval (@NonNull final IExpr aExpr, @NonNull final FunctionLibrary aLib, final boolean bCompat)
+  {
+    final StaticContext aSC = new StaticContext ().setFunctionLibrary (aLib).setXPath10Compatibility (bCompat);
+    return ((XdmAtomic) XPathEvaluator.evaluate (aExpr, new DynamicContext (aSC)).get (0)).getString ();
+  }
+
   @NonNull
   private static String _eval (@NonNull final IExpr aExpr, @NonNull final FunctionLibrary aLib)
   {
-    final StaticContext aSC = new StaticContext ().setFunctionLibrary (aLib);
-    return ((XdmAtomic) XPathEvaluator.evaluate (aExpr, new DynamicContext (aSC)).get (0)).getString ();
+    return _eval (aExpr, aLib, false);
+  }
+
+  @NonNull
+  private static String _evalError (@NonNull final IExpr aExpr, @NonNull final FunctionLibrary aLib, final boolean bCompat)
+  {
+    try
+    {
+      _eval (aExpr, aLib, bCompat);
+      fail ();
+      return null;
+    }
+    catch (final XPathException ex)
+    {
+      return ex.getCode ();
+    }
   }
 
   @NonNull
@@ -208,6 +239,61 @@ public final class FunctionCallSiteTest
     // Registered again
     aPkg.registerParsed (F, List.of (STRING), STRING, _const ("again"), false);
     assertEquals ("again/abc", _eval (aExpr, aPkg));
+  }
+
+  /**
+   * A literal argument is converted once per resolved definition and
+   * compatibility mode: the result is always the one of the conversion of the
+   * current definition, also when the definition changes between calls.
+   */
+  @Test
+  public void testConvertedLiterals ()
+  {
+    final SeqType aDouble = SeqType.of (ItemType.atomic (EAtomicType.DOUBLE), EOccurrence.ONE);
+    final SeqType aDecimal = SeqType.of (ItemType.atomic (EAtomicType.DECIMAL), EOccurrence.ONE);
+    final FunctionLibrary aBase = FunctionLibrary.createDefault ();
+    aBase.registerParsed (F, List.of (aDouble), STRING, _describeArg (), false);
+    final FunctionLibrary aPkg = aBase.createChild ();
+    aPkg.registerParsed (F, List.of (STRING), STRING, _describeArg (), false);
+    final IExpr aExpr = _parse ("t:f(2)", aBase);
+    final IExpr aStringExpr = _parse ("t:f('2')", aBase);
+    for (int i = 0; i < 3; ++i)
+    {
+      // Promoted to xs:double for the base definition
+      assertEquals ("xs:double:2", _eval (aExpr, aBase));
+      // No conversion to xs:string: XPTY0004 on every call
+      assertEquals ("XPTY0004", _evalError (aExpr, aPkg, false));
+      // XPath 1.0 compatibility mode: fn:string
+      assertEquals ("xs:string:2", _eval (aExpr, aPkg, true));
+      // XPath 1.0 compatibility mode: fn:number, otherwise an error
+      assertEquals ("xs:double:2", _eval (aStringExpr, aBase, true));
+      assertEquals ("XPTY0004", _evalError (aStringExpr, aBase, false));
+      assertEquals ("xs:string:2", _eval (aStringExpr, aPkg, false));
+    }
+    // Replaced after the first calls: the literal is converted for the new
+    // definition
+    aBase.registerParsed (F, List.of (aDecimal), STRING, _describeArg (), false);
+    assertEquals ("xs:integer:2", _eval (aExpr, aBase));
+    assertEquals ("XPTY0004", _evalError (aStringExpr, aBase, false));
+  }
+
+  /**
+   * A literal whose conversion fails raises its error at the time of the call
+   * of a direct conversion: after the errors of the arguments before it.
+   */
+  @Test
+  public void testLiteralConversionErrorMoment ()
+  {
+    final FunctionLibrary aLib = FunctionLibrary.createDefault ();
+    final IExpr aBad = _parse ("substring('abc', 'x')", aLib);
+    final IExpr aEarlier = _parse ("substring(error(QName('urn:test:site', 'first')), 'x')", aLib);
+    final IExpr aGood = _parse ("substring('abcd', 2) || substring('abcd', 2, 2)", aLib);
+    for (int i = 0; i < 3; ++i)
+    {
+      assertEquals ("XPTY0004", _evalError (aBad, aLib, false));
+      assertEquals ("first", _evalError (aEarlier, aLib, false));
+      assertEquals ("bcdbc", _eval (aGood, aLib));
+    }
   }
 
   /**
