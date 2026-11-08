@@ -564,3 +564,10 @@ XSD identity paths walked on the tree (`XsdIdentityPath`), the depth walk and as
 child scan (node model), `XdmSequence` building, literal arguments converted per call, the tree builder, and for
 XSD the depth recorded by the tree builder and `getDeclaredNamespaces` without a copy.
 
+Batch 3 (2026-11-08, `docs/benchmarks/2026-11-08-batch-3.md`): `XdmSequence` without an array for one item and
+without copies in builders, literal arguments converted once per call site, string functions without copies,
+children in a plain array, a cheaper tree builder, the maximum element depth recorded while building, declared
+namespaces without a copy. Against batch 2: XPath strings 0.57, child 0.64, rules 0.81, XSLT recursion 0.83, grouping
+0.73, serialisation 0.74 to 0.81, XSD 1.1 0.87, parse 0.92 with 20 % less allocation, retained heap of the tree 10 to
+27 % smaller. Gate unchanged.
+
