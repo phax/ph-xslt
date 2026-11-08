@@ -19,10 +19,10 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 | Module | Content | Status |
 |--------|---------|--------|
-| `phoxtrot-xdm` | XPath data model: node tree built from SAX, incremental StAX reader for streamed documents, names, document order | usable |
+| `phoxtrot-xdm` | XPath data model: node tree built from SAX, incremental StAX reader for streamed documents, names, document order, W3C DOM and SAX bridge | usable |
 | `phoxtrot-xpath` | XPath 3.1: values, parser, evaluator, F&O 3.1 function library, regex, collations, serialisation | usable |
 | `phoxtrot-xpath-conformance` | W3C QT3 test harness (not deployed) | usable |
-| `phoxtrot-xslt` | XSLT 3.0: stylesheet compiler, modules, templates and modes, all instruction families, XSLT functions, packages, schema-awareness, streaming (analysis, streamed execution, output written while it is built) | in progress |
+| `phoxtrot-xslt` | XSLT 3.0: stylesheet compiler, modules, templates and modes, all instruction families, XSLT functions, packages, schema-awareness, streaming (analysis, streamed execution, output written while it is built), JAXP `TransformerFactory` | in progress |
 | `phoxtrot-xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
 | `phoxtrot-xsd` | Native XML Schema 1.0 and 1.1 validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine/override, schema-for-schemas checks, simple types and facets, content models with open content, instance validation with identity constraints, assertions and conditional type assignment, read-only component view, validation API that reports all errors; the default schema provider for XPath and XSLT (schemas compiled as XSD 1.1) | usable |
 | `phoxtrot-xsd-conformance` | W3C xsdtests (XML Schema) harness with a pluggable validator (not deployed) | usable |
@@ -59,6 +59,52 @@ In both cases XML parsing stays on the JDK parser. `phoxtrot-xsd` can also be us
 
 [docs/SCHEMA.md](docs/SCHEMA.md) explains how the provider is selected, what the JDK validator cannot provide, and why
 Xerces-J is only the fallback next to the native validator.
+
+## JAXP (`javax.xml.transform`)
+
+`com.helger.phoxtrot.xslt.jaxp.PhoxtrotTransformerFactory` is a JAXP `TransformerFactory` for XSLT 3.0 (`Templates`
+are thread-safe, a `Transformer` is for one thread at a time). It is deliberately not registered in
+`META-INF/services`, which would replace the JDK transformer for every application on the class path; create it
+directly or by name:
+
+```java
+TransformerFactory aTF = new PhoxtrotTransformerFactory ();
+// or: TransformerFactory.newInstance ("com.helger.phoxtrot.xslt.jaxp.PhoxtrotTransformerFactory", aClassLoader)
+aTF.setURIResolver (aURIResolver);      // xsl:include/import, document(), doc(), unparsed-text()
+Templates aTemplates = aTF.newTemplates (new StreamSource (aXslFile));
+Transformer aTransformer = aTemplates.newTransformer ();
+aTransformer.setErrorListener (aErrorListener);  // xsl:message arrives as warning()
+aTransformer.setParameter ("phase", "#ALL");
+aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
+```
+
+* Sources: `StreamSource`, `DOMSource`, `SAXSource` (with or without `XMLReader`) and `XdmSource` (a phoxtrot tree);
+  results: `StreamResult` (writer, stream or `file:` system ID; written while it is built where the output
+  definition allows it), `DOMResult` and `SAXResult`. `newTransformer ()` is the identity transformer.
+* Parameters: `String` becomes `xs:untypedAtomic` (so `as="xs:integer"` accepts "42"), numbers, `Boolean`, `URI`,
+  `QName`, DOM nodes, phoxtrot items and sequences, arrays and collections (as sequences). Names `{uri}local`.
+* Output properties: the `OutputKeys` and the other XSLT 3.0 serialization attributes except `use-character-maps`
+  override the unnamed `xsl:output` for a `StreamResult`; namespaced names are accepted without effect.
+* Errors: compile errors are reported to `ErrorListener.fatalError` and thrown as `TransformerConfigurationException`,
+  run errors as `TransformerException`; the message starts with the error code, the locator has module, line and
+  column, the cause is the `XsltException`. `xsl:message` and failed `xsl:assert` go to `ErrorListener.warning` while
+  the transformation runs, or to an `IXsltMessageListener` (`PhoxtrotTransformer.setMessageListener`, factory
+  attribute `PhoxtrotTransformerFactory.ATTR_MESSAGE_LISTENER`).
+* What the `URIResolver` does not resolve is read directly if `XMLConstants.ACCESS_EXTERNAL_STYLESHEET` allows the
+  scheme (default `all`; `FEATURE_SECURE_PROCESSING` set to `true` allows nothing). External DTDs and entities are
+  only read with the attribute `ATTR_LOAD_EXTERNAL_ENTITIES`. Further attributes: `ATTR_SCHEMA_AWARE`, `ATTR_MAX_STEPS`.
+* Not supported: `SAXTransformerFactory` (`TransformerHandler`, `TemplatesHandler`), StAX sources and results, and
+  writing secondary results (`xsl:result-document`); these are available from `PhoxtrotTransformer.getLastResult ()`.
+  Initial templates, modes and functions need the phoxtrot API (`PhoxtrotTemplates.getExecutable ()`).
+
+## W3C DOM bridge
+
+`com.helger.phoxtrot.xdm.bridge` converts between W3C DOM and the phoxtrot tree without serialising:
+`DomToXdm.convertDocument (aNode, sSystemId)` builds the tree of a DOM (namespace fixup for DOMs built with
+`createElementNS`, DOM level 1 names, entity references expanded, ID attributes, unparsed entities, the document URI)
+and `DomToXdm.convert` returns the counterpart of a given DOM node in it; `XdmToDom.toDocument`,
+`toDocumentFragment` and `appendTo` write a tree, a subtree or a parentless node into a DOM with correct namespace
+declarations; `XdmToSax.emit` writes a tree as SAX events.
 
 ## Origin and acknowledgements
 
