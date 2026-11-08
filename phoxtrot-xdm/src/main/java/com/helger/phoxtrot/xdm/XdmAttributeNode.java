@@ -32,7 +32,6 @@ import com.helger.base.enforce.ValueEnforcer;
 public sealed class XdmAttributeNode extends AbstractXdmValueNode
 {
   private final XdmQName m_aName;
-  private EIDKind m_eIDKind = EIDKind.NONE;
   // Only set on nodes of a schema-validated tree; shared between nodes
   private XdmSchemaType m_aSchemaType;
 
@@ -55,18 +54,22 @@ public sealed class XdmAttributeNode extends AbstractXdmValueNode
     return m_aName;
   }
 
+  /**
+   * The ID kind is kept in the details holder: only ID, IDREF and IDREFS
+   * attributes (DTD, <code>xml:id</code> or schema type) have one.
+   */
   @Override
   @NonNull
   public EIDKind getIDKind ()
   {
-    return m_eIDKind;
+    return internalGetIDKind ();
   }
 
   @Override
   public void setIDKind (@NonNull final EIDKind eIDKind)
   {
     ValueEnforcer.notNull (eIDKind, "IDKind");
-    m_eIDKind = eIDKind;
+    internalSetIDKind (eIDKind);
   }
 
   @Override

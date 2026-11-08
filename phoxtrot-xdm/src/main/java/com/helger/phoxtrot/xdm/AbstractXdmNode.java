@@ -66,7 +66,11 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   /**
    * The properties only few nodes have. They live in a separate object that is
    * created on the first non-default value, which keeps every node small. All
-   * of them are set while a tree is built.
+   * of them but the namespace nodes of an element are set while a tree is
+   * built. The namespace nodes are built on demand under the lock of
+   * {@link XdmElementNode}; a reader without the lock that sees a holder
+   * created for them sees default values in all other fields, which is what
+   * a node without holder has.
    */
   private static final class Details
   {
@@ -82,6 +86,10 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     // Location of a node that is not located itself (see setLocation)
     private int m_nLine;
     private int m_nColumn;
+    // ID kind of an element or attribute; null for EIDKind.NONE
+    private EIDKind m_eIDKind;
+    // Lazily built namespace axis of an element, see XdmElementNode
+    private ICommonsList <IXdmNode> m_aNamespaceNodes;
   }
 
   private AbstractXdmNode m_aParent;
@@ -169,6 +177,48 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     }
     if (aRoot instanceof final XdmDocumentNode aDoc)
       aDoc.internalDropNameIndex ();
+  }
+
+  /**
+   * @return The ID kind stored for this node (elements and attributes),
+   *         {@link EIDKind#NONE} if none was stored.
+   */
+  @NonNull
+  final EIDKind internalGetIDKind ()
+  {
+    final EIDKind ret = m_aDetails == null ? null : m_aDetails.m_eIDKind;
+    return ret == null ? EIDKind.NONE : ret;
+  }
+
+  /**
+   * Store the ID kind of an element or attribute. {@link EIDKind#NONE}, the
+   * value of almost every node, creates no details holder.
+   */
+  final void internalSetIDKind (@NonNull final EIDKind eIDKind)
+  {
+    if (eIDKind != EIDKind.NONE || m_aDetails != null)
+      _details ().m_eIDKind = eIDKind == EIDKind.NONE ? null : eIDKind;
+  }
+
+  /**
+   * @return The namespace nodes built for this element, <code>null</code> if
+   *         there are none (yet). The caller guards the access.
+   */
+  @Nullable
+  final ICommonsList <IXdmNode> internalGetNamespaceNodes ()
+  {
+    return m_aDetails == null ? null : m_aDetails.m_aNamespaceNodes;
+  }
+
+  /**
+   * Keep the namespace nodes built for this element, or drop them with
+   * <code>null</code> (which creates no details holder). The caller guards the
+   * access.
+   */
+  final void internalSetNamespaceNodes (@Nullable final ICommonsList <IXdmNode> aNamespaceNodes)
+  {
+    if (aNamespaceNodes != null || m_aDetails != null)
+      _details ().m_aNamespaceNodes = aNamespaceNodes;
   }
 
   final void internalSetParent (@Nullable final AbstractXdmNode aParent)

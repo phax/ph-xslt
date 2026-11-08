@@ -44,12 +44,10 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   private final XdmQName m_aName;
   // Exactly as long as the number of attributes; null if there are none
   private AbstractXdmNode [] m_aAttributes;
-  private EIDKind m_eIDKind = EIDKind.NONE;
-  // Only set on nodes of a schema-validated tree; shared between nodes
+  // Only set on nodes of a schema-validated tree; shared between nodes. A
+  // field and not in the details holder: a validated tree has it on every
+  // node, and it is read whenever a typed value is needed
   private XdmSchemaType m_aSchemaType;
-  // Lazily built namespace axis. Written after the tree was built, guarded by
-  // NAMESPACE_NODES_LOCK
-  private ICommonsList <IXdmNode> m_aNamespaceNodes;
 
   XdmElementNode (@NonNull final XdmQName aName)
   {
@@ -69,18 +67,22 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
     return m_aName;
   }
 
+  /**
+   * The ID kind is kept in the details holder: only the elements of an ID
+   * type in a schema-validated tree have one.
+   */
   @Override
   @NonNull
   public EIDKind getIDKind ()
   {
-    return m_eIDKind;
+    return internalGetIDKind ();
   }
 
   @Override
   public void setIDKind (@NonNull final EIDKind eIDKind)
   {
     ValueEnforcer.notNull (eIDKind, "IDKind");
-    m_eIDKind = eIDKind;
+    internalSetIDKind (eIDKind);
   }
 
   @Override
@@ -158,7 +160,7 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
     ValueEnforcer.notNull (sPrefix, "Prefix");
     ValueEnforcer.notNull (sNamespaceUri, "NamespaceUri");
     internalDeclareNamespace (sPrefix, sNamespaceUri);
-    m_aNamespaceNodes = null;
+    internalSetNamespaceNodes (null);
   }
 
   @Override
@@ -213,11 +215,12 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
    */
   public ICommonsList <IXdmNode> getNamespaceNodes ()
   {
-    final ICommonsList <IXdmNode> aExisting = NAMESPACE_NODES_LOCK.readLockedGet ( () -> m_aNamespaceNodes);
+    final ICommonsList <IXdmNode> aExisting = NAMESPACE_NODES_LOCK.readLockedGet (this::internalGetNamespaceNodes);
     if (aExisting != null)
       return aExisting.getClone ();
     return NAMESPACE_NODES_LOCK.writeLockedGet ( () -> {
-      if (m_aNamespaceNodes == null)
+      ICommonsList <IXdmNode> aNodes = internalGetNamespaceNodes ();
+      if (aNodes == null)
       {
         final ICommonsList <IXdmNode> aList = new CommonsArrayList <> ();
         for (final var aEntry : getInScopeNamespaces ().entrySet ())
@@ -226,9 +229,10 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
           aNS.internalSetParent (this);
           aList.add (aNS);
         }
-        m_aNamespaceNodes = aList;
+        internalSetNamespaceNodes (aList);
+        aNodes = aList;
       }
-      return m_aNamespaceNodes.getClone ();
+      return aNodes.getClone ();
     });
   }
 
