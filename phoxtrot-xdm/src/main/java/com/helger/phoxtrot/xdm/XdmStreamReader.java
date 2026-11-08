@@ -424,7 +424,9 @@ public final class XdmStreamReader implements AutoCloseable
       final String sUri = m_aReader.getNamespaceURI (i);
       aElement.declareNamespace (sPrefix == null ? "" : sPrefix, sUri == null ? "" : sUri);
     }
-    for (int i = 0; i < m_aReader.getAttributeCount (); ++i)
+    final int nAttrs = m_aReader.getAttributeCount ();
+    final AbstractXdmNode [] aAttrs = nAttrs == 0 ? null : new AbstractXdmNode [nAttrs];
+    for (int i = 0; i < nAttrs; ++i)
     {
       final XdmQName aName = _getName (m_aReader.getAttributeNamespace (i),
                                        m_aReader.getAttributeLocalName (i),
@@ -438,8 +440,10 @@ public final class XdmStreamReader implements AutoCloseable
                                                                                    : XdmTreeBuilder.normaliseTokenised (sValue));
       aAttr.setIDKind (eIDKind);
       aAttr.setLocation (aElement.getLine (), aElement.getColumn ());
-      aElement.addAttribute (aAttr);
+      aAttrs[i] = aAttr;
     }
+    if (aAttrs != null)
+      aElement.internalSetAttributes (aAttrs);
     _top ().internalAppendNumbered (aElement);
     _stamp (aElement);
     for (int i = 0; i < aElement.getAttributeCount (); ++i)

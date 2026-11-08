@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xdm;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -89,6 +90,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private String [] m_aNameQNames = new String [64];
   private XdmQName [] m_aNames = new XdmQName [64];
   private int m_nNameCount;
+  // The attributes of the element being started, before they are set on it
+  private AbstractXdmNode [] m_aAttrBuffer = new AbstractXdmNode [8];
 
   /**
    * Give a new node the next document order number, as long as the tree is
@@ -446,8 +449,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aPendingUris.clear ();
     final String sSystemId = _applyEntityBase (aElement);
     final int nAttrs = aAttrs.getLength ();
-    if (nAttrs > 0)
-      aElement.internalReserveAttributes (nAttrs);
+    int nAttrCount = 0;
+    if (nAttrs > m_aAttrBuffer.length)
+      m_aAttrBuffer = new AbstractXdmNode [nAttrs];
     for (int i = 0; i < nAttrs; ++i)
     {
       final String sAttrQName = aAttrs.getQName (i);
@@ -464,8 +468,13 @@ public final class XdmTreeBuilder extends DefaultHandler2
       aAttr.setIDKind (eIDKind);
       if (m_aLocator != null)
         aAttr.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
-      // The element is not numbered yet, so this keeps the numbering
-      aElement.addAttribute (aAttr);
+      m_aAttrBuffer[nAttrCount++] = aAttr;
+    }
+    if (nAttrCount > 0)
+    {
+      // An array of the exact size; the element is not numbered yet
+      aElement.internalSetAttributes (Arrays.copyOf (m_aAttrBuffer, nAttrCount));
+      Arrays.fill (m_aAttrBuffer, 0, nAttrCount, null);
     }
     _append (aElement);
     for (int i = 0; i < aElement.getAttributeCount (); ++i)

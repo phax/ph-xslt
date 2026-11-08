@@ -16,6 +16,8 @@
  */
 package com.helger.phoxtrot.xdm;
 
+import java.util.Arrays;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -40,7 +42,8 @@ public final class XdmElementNode extends AbstractXdmParentNode
   private static final SimpleReadWriteLock NAMESPACE_NODES_LOCK = new SimpleReadWriteLock ();
 
   private final XdmQName m_aName;
-  private ICommonsList <AbstractXdmNode> m_aAttributes;
+  // Exactly as long as the number of attributes; null if there are none
+  private AbstractXdmNode [] m_aAttributes;
   private EIDKind m_eIDKind = EIDKind.NONE;
   // Only set on nodes of a schema-validated tree; shared between nodes
   private XdmSchemaType m_aSchemaType;
@@ -115,20 +118,33 @@ public final class XdmElementNode extends AbstractXdmParentNode
     aRealAttribute.internalInvalidateOrder ();
     aRealAttribute.internalSetParent (this);
     if (m_aAttributes == null)
-      m_aAttributes = new CommonsArrayList <> ();
-    m_aAttributes.add (aRealAttribute);
+      m_aAttributes = new AbstractXdmNode [] { aRealAttribute };
+    else
+    {
+      // The array stays exactly as long as the attribute count
+      final int nCount = m_aAttributes.length;
+      m_aAttributes = Arrays.copyOf (m_aAttributes, nCount + 1);
+      m_aAttributes[nCount] = aRealAttribute;
+    }
     internalInvalidateOrder ();
   }
 
   /**
-   * Create the attribute list with room for the given number of attributes,
-   * if there is none yet, so that an element built from a parser event does
-   * not carry the room of a default list ({@link XdmTreeBuilder}).
+   * Set all attributes of an element that has none yet and is not numbered,
+   * while its tree is built ({@link XdmTreeBuilder}, {@link XdmStreamReader}):
+   * the array is taken over as it is and each attribute gets this element as
+   * parent. The attributes must be parentless attribute nodes; this is not
+   * checked.
+   *
+   * @param aAttributes
+   *        The attributes, at least one, in document order. The array must
+   *        not be changed afterwards.
    */
-  void internalReserveAttributes (@Nonnegative final int nCount)
+  void internalSetAttributes (@NonNull final AbstractXdmNode [] aAttributes)
   {
-    if (m_aAttributes == null)
-      m_aAttributes = new CommonsArrayList <> (nCount);
+    for (final AbstractXdmNode aAttr : aAttributes)
+      aAttr.internalSetParent (this);
+    m_aAttributes = aAttributes;
   }
 
   /**
@@ -149,7 +165,7 @@ public final class XdmElementNode extends AbstractXdmParentNode
   @Nonnegative
   public int getAttributeCount ()
   {
-    return m_aAttributes == null ? 0 : m_aAttributes.size ();
+    return m_aAttributes == null ? 0 : m_aAttributes.length;
   }
 
   @Override
@@ -158,7 +174,7 @@ public final class XdmElementNode extends AbstractXdmParentNode
   {
     if (m_aAttributes == null)
       throw new IndexOutOfBoundsException ("No attributes");
-    return m_aAttributes.get (nIndex);
+    return m_aAttributes[nIndex];
   }
 
   @Override
