@@ -28,6 +28,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Traversals over input-controlled structure are iterative or depth-limited, never unbounded recursion.
 - Nodes are `IXdmNode` (own model, built from JDK SAX; one implementation class per node kind below the sealed
   `AbstractXdmNode`). Do not switch to DOM or IMicroDom as the model.
+- Node locations: element, attribute, text, comment and PI have a nested `Located` subclass with line and column
+  fields, created by the tree builders when they record locations (`XdmParser.setRecordLocations`, default on) and by
+  the `IXdmNode.create*` factories that take a location; any other node keeps a set location in its `Details` holder.
+  A copy that must keep its original's location uses those factories, not `setLocation` (one holder per node).
+  Stylesheet, schema and XSD instance parses (error locations, `xsl:try`, XSD error lines) set it on explicitly.
 - Document order: `getOrder ()`/`getEndOrder ()` (end = last node of the subtree, attributes included); a document node
   has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children)
   used by `AxisNavigator.collectNamedDescendants`/`collectNamedSubtreeAttributes`/`collectNamedChildren`. Every
@@ -41,6 +46,10 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   one shared string per document.
 - Use `hasDeclaredNamespaces ()`/`getDeclaredNamespaceUri (prefix)` where only a check or a lookup is needed:
   `getDeclaredNamespaces ()` returns a copy, also for an element without declarations.
+- Threads: `compile` and `transform` run on the thread `EXsltThreading` selects (`XsltCompileOptions.setThreading`,
+  `XsltTransformRequest.setThreading`), through `LargeStackRunner`: by default a new thread with a 2 GB stack per call,
+  or a shared pool of such threads, or the calling thread (its stack then limits the nesting). A call on one of the
+  worker threads (nested `fn:transform`) runs in place; a stack overflow is XPDY0130 in every mode.
 - Hosts that evaluate their own XPath against a stylesheet's declarations (Schematron) use
   `XsltExecutable.createStaticContext`/`createEvaluation`, never `Engine` directly; the start-up of a run lives in
   `XsltTransformer.initGlobalContextItem` and is shared by both. `CompiledXPath.evaluate` uses its own static context.

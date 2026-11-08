@@ -123,6 +123,7 @@ public final class XsltCompileOptions
   private boolean m_bEnforceStreamability = DEFAULT_ENFORCE_STREAMABILITY;
   private boolean m_bStreamingClaim = DEFAULT_STREAMING_CLAIM;
   private final ICommonsList <HostSchema> m_aHostSchemas = new CommonsArrayList <> ();
+  private EXsltThreading m_eThreading = EXsltThreading.DEFAULT;
 
   /** @return The stylesheet's own URI, against which import/include hrefs resolve. */
   @Nullable
@@ -304,6 +305,34 @@ public final class XsltCompileOptions
   public XsltCompileOptions setStreamingClaim (final boolean bStreamingClaim)
   {
     m_bStreamingClaim = bStreamingClaim;
+    return this;
+  }
+
+  /**
+   * @return The thread the compilation runs on. Default
+   *         {@link EXsltThreading#DEFAULT}.
+   */
+  @NonNull
+  public EXsltThreading getThreading ()
+  {
+    return m_eThreading;
+  }
+
+  /**
+   * Choose the thread the compilation runs on (see {@link EXsltThreading}):
+   * a new thread with a large stack per call (the default), a thread of a
+   * shared pool, or the calling thread, which then needs a stack deep enough
+   * for the nesting of the stylesheet.
+   *
+   * @param eThreading
+   *        The threading mode. May not be <code>null</code>.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions setThreading (@NonNull final EXsltThreading eThreading)
+  {
+    ValueEnforcer.notNull (eThreading, "Threading");
+    m_eThreading = eThreading;
     return this;
   }
 }

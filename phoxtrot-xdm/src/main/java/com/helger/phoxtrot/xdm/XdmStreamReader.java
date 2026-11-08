@@ -112,7 +112,7 @@ public final class XdmStreamReader implements AutoCloseable
   private final int m_nMaxElementDepth;
   private final Predicate <XdmQName> m_aStripWhitespace;
   private final XdmDocumentNode m_aDocument;
-  private final long m_nTree;
+  private final AbstractXdmNode.TreeStamp m_aTree;
   private int m_nOrder;
   // The open elements below the document node, innermost last
   private final ArrayDeque <AbstractXdmParentNode> m_aSpine = new ArrayDeque <> ();
@@ -165,8 +165,8 @@ public final class XdmStreamReader implements AutoCloseable
     m_aDocument.internalSetStreamed (true);
     if (sSystemId != null)
       m_aDocument.setDocumentUri (sSystemId);
-    m_nTree = AbstractXdmNode.internalNewTree ();
-    m_aDocument.internalStamp (m_nTree, m_nOrder++);
+    m_aTree = AbstractXdmNode.internalNewTree ();
+    m_aDocument.internalStamp (m_aTree, m_nOrder++);
     m_aDocument.internalSetEndOrder (Integer.MAX_VALUE);
   }
 
@@ -180,7 +180,7 @@ public final class XdmStreamReader implements AutoCloseable
   {
     if (m_nOrder >= MAX_NODES)
       throw new XdmParseException ("The streamed document has more than " + MAX_NODES + " nodes");
-    aNode.internalStamp (m_nTree, m_nOrder++);
+    aNode.internalStamp (m_aTree, m_nOrder++);
   }
 
   /**
@@ -385,8 +385,7 @@ public final class XdmStreamReader implements AutoCloseable
         _isWhitespace (sText) &&
         m_aStripWhitespace.test (aParent.getName ()))
       return;
-    final XdmTextNode aText = new XdmTextNode (sText);
-    aText.setLocation (m_nTextLine, m_nTextColumn);
+    final XdmTextNode aText = new XdmTextNode.Located (sText, m_nTextLine, m_nTextColumn);
     aParent.internalAppendNumbered (aText);
     _stamp (aText);
     m_aQueue.add (new Event (EEvent.LEAF, aText, m_aSpine.size () + 1));
@@ -414,17 +413,22 @@ public final class XdmStreamReader implements AutoCloseable
     _flushText ();
     if (m_nMaxElementDepth > 0 && m_aSpine.size () >= m_nMaxElementDepth)
       throw new XdmParseException ("Failed to parse XML: the element nesting is deeper than " + m_nMaxElementDepth);
-    final XdmElementNode aElement = new XdmElementNode (_getName (m_aReader.getNamespaceURI (),
-                                                                  m_aReader.getLocalName (),
-                                                                  m_aReader.getPrefix ()));
-    aElement.setLocation (m_aReader.getLocation ().getLineNumber (), m_aReader.getLocation ().getColumnNumber ());
+    final int nLine = m_aReader.getLocation ().getLineNumber ();
+    final int nColumn = m_aReader.getLocation ().getColumnNumber ();
+    final XdmElementNode aElement = new XdmElementNode.Located (_getName (m_aReader.getNamespaceURI (),
+                                                                          m_aReader.getLocalName (),
+                                                                          m_aReader.getPrefix ()),
+                                                                nLine,
+                                                                nColumn);
     for (int i = 0; i < m_aReader.getNamespaceCount (); ++i)
     {
       final String sPrefix = m_aReader.getNamespacePrefix (i);
       final String sUri = m_aReader.getNamespaceURI (i);
       aElement.declareNamespace (sPrefix == null ? "" : sPrefix, sUri == null ? "" : sUri);
     }
-    for (int i = 0; i < m_aReader.getAttributeCount (); ++i)
+    final int nAttrs = m_aReader.getAttributeCount ();
+    final AbstractXdmNode [] aAttrs = nAttrs == 0 ? null : new AbstractXdmNode [nAttrs];
+    for (int i = 0; i < nAttrs; ++i)
     {
       final XdmQName aName = _getName (m_aReader.getAttributeNamespace (i),
                                        m_aReader.getAttributeLocalName (i),
@@ -433,13 +437,16 @@ public final class XdmStreamReader implements AutoCloseable
       EIDKind eIDKind = _getIDKind (m_aReader.getAttributeType (i));
       if (eIDKind == EIDKind.NONE && aName.isSameName (XdmConstants.NS_XML, "id"))
         eIDKind = EIDKind.ID;
-      final XdmAttributeNode aAttr = new XdmAttributeNode (aName,
-                                                           eIDKind == EIDKind.NONE ? sValue
-                                                                                   : XdmTreeBuilder.normaliseTokenised (sValue));
+      final XdmAttributeNode aAttr = new XdmAttributeNode.Located (aName,
+                                                                   eIDKind == EIDKind.NONE ? sValue
+                                                                                           : XdmTreeBuilder.normaliseTokenised (sValue),
+                                                                   nLine,
+                                                                   nColumn);
       aAttr.setIDKind (eIDKind);
-      aAttr.setLocation (aElement.getLine (), aElement.getColumn ());
-      aElement.addAttribute (aAttr);
+      aAttrs[i] = aAttr;
     }
+    if (aAttrs != null)
+      aElement.internalSetAttributes (aAttrs);
     _top ().internalAppendNumbered (aElement);
     _stamp (aElement);
     for (int i = 0; i < aElement.getAttributeCount (); ++i)
@@ -481,8 +488,8 @@ public final class XdmStreamReader implements AutoCloseable
 
   /**
    * Flush pending text, then append a comment or processing instruction node
-   * with the current location to the innermost open element (or the
-   * document), number it and queue it as {@link EEvent#LEAF}.
+   * (created with the current location) to the innermost open element (or
+   * the document), number it and queue it as {@link EEvent#LEAF}.
    *
    * @throws XdmParseException
    *         if the node limit is exceeded
@@ -490,7 +497,6 @@ public final class XdmStreamReader implements AutoCloseable
   private void _leaf (@NonNull final AbstractXdmNode aNode) throws XdmParseException
   {
     _flushText ();
-    aNode.setLocation (m_aReader.getLocation ().getLineNumber (), m_aReader.getLocation ().getColumnNumber ());
     _top ().internalAppendNumbered (aNode);
     _stamp (aNode);
     m_aQueue.add (new Event (EEvent.LEAF, aNode, m_aSpine.size () + 1));
@@ -553,12 +559,17 @@ public final class XdmStreamReader implements AutoCloseable
             // outside the document element
             break;
           case XMLStreamConstants.COMMENT:
-            _leaf (new XdmCommentNode (m_aReader.getText ()));
+            _leaf (new XdmCommentNode.Located (m_aReader.getText (),
+                                               m_aReader.getLocation ().getLineNumber (),
+                                               m_aReader.getLocation ().getColumnNumber ()));
             break;
           case XMLStreamConstants.PROCESSING_INSTRUCTION:
           {
             final String sData = m_aReader.getPIData ();
-            _leaf (new XdmProcessingInstructionNode (new XdmQName (m_aReader.getPITarget ()), sData == null ? "" : sData));
+            _leaf (new XdmProcessingInstructionNode.Located (new XdmQName (m_aReader.getPITarget ()),
+                                                             sData == null ? "" : sData,
+                                                             m_aReader.getLocation ().getLineNumber (),
+                                                             m_aReader.getLocation ().getColumnNumber ()));
             break;
           }
           case XMLStreamConstants.ENTITY_REFERENCE:

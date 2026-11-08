@@ -1004,7 +1004,7 @@ final class XsdCompiler
   {
     try
     {
-      return new XdmParser ().parse (aSource.createInputSource ());
+      return new XdmParser ().setRecordLocations (true).parse (aSource.createInputSource ());
     }
     catch (final XdmParseException ex)
     {
@@ -1448,7 +1448,7 @@ final class XsdCompiler
       final IXdmNode aExtra;
       try
       {
-        aExtra = new XdmParser ().parse (aSource.createInputSource ());
+        aExtra = new XdmParser ().setRecordLocations (true).parse (aSource.createInputSource ());
       }
       catch (final XdmParseException ex)
       {

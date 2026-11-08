@@ -18,6 +18,7 @@ package com.helger.phoxtrot.xdm;
 
 import org.jspecify.annotations.NonNull;
 
+import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.enforce.ValueEnforcer;
@@ -30,7 +31,7 @@ import com.helger.base.enforce.ValueEnforcer;
  * @author Philip Helger
  */
 @NotThreadSafe
-public final class XdmTextNode extends AbstractXdmValueNode
+public sealed class XdmTextNode extends AbstractXdmValueNode
 {
   // Guards joining the pending text of all text nodes (one lock per node would
   // cost memory on every node)
@@ -109,5 +110,45 @@ public final class XdmTextNode extends AbstractXdmValueNode
   public ENodeKind getKind ()
   {
     return ENodeKind.TEXT;
+  }
+
+  /**
+   * A text node with the location of its source, created by the tree builders
+   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
+   * and by the factories of {@link IXdmNode} that take a location. The
+   * location is kept in two fields of its own instead of the details holder.
+   */
+  static final class Located extends XdmTextNode
+  {
+    private int m_nLine;
+    private int m_nColumn;
+
+    Located (@NonNull final String sValue, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      super (sValue);
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
+
+    @Override
+    @Nonnegative
+    public int getLine ()
+    {
+      return m_nLine;
+    }
+
+    @Override
+    @Nonnegative
+    public int getColumn ()
+    {
+      return m_nColumn;
+    }
+
+    @Override
+    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
   }
 }

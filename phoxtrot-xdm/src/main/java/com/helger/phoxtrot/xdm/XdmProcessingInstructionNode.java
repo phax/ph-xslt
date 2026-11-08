@@ -18,6 +18,7 @@ package com.helger.phoxtrot.xdm;
 
 import org.jspecify.annotations.NonNull;
 
+import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -26,7 +27,7 @@ import com.helger.annotation.concurrent.NotThreadSafe;
  * @author Philip Helger
  */
 @NotThreadSafe
-public final class XdmProcessingInstructionNode extends AbstractXdmValueNode
+public sealed class XdmProcessingInstructionNode extends AbstractXdmValueNode
 {
   private final XdmQName m_aName;
 
@@ -47,5 +48,45 @@ public final class XdmProcessingInstructionNode extends AbstractXdmValueNode
   public XdmQName getName ()
   {
     return m_aName;
+  }
+
+  /**
+   * A processing instruction with the location of its source, created by the tree builders
+   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
+   * and by the factories of {@link IXdmNode} that take a location. The
+   * location is kept in two fields of its own instead of the details holder.
+   */
+  static final class Located extends XdmProcessingInstructionNode
+  {
+    private int m_nLine;
+    private int m_nColumn;
+
+    Located (@NonNull final XdmQName aName, @NonNull final String sData, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      super (aName, sData);
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
+
+    @Override
+    @Nonnegative
+    public int getLine ()
+    {
+      return m_nLine;
+    }
+
+    @Override
+    @Nonnegative
+    public int getColumn ()
+    {
+      return m_nColumn;
+    }
+
+    @Override
+    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
   }
 }

@@ -42,6 +42,26 @@ public final class XdmDocumentOrderTest
   }
 
   @Test
+  public void testOrderBetweenTrees () throws XdmParseException
+  {
+    final XdmDocumentNode aFirst = _parse ("<a><b/></a>");
+    final XdmDocumentNode aSecond = _parse ("<a><b/></a>");
+    final IXdmNode aFirstB = aFirst.getChildAtIndex (0).getChildAtIndex (0);
+    final IXdmNode aSecondA = aSecond.getChildAtIndex (0);
+    // Same document order numbers, but different trees: ordered by numbering
+    assertEquals (aFirstB.getOrder (), aSecondA.getOrder () + 1);
+    assertTrue (IXdmNode.compareDocumentOrder (aFirstB, aSecondA) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aSecondA, aFirstB) > 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aFirst, aSecond) < 0);
+    // Nodes of one numbering share the stamp
+    assertSame (((AbstractXdmNode) aFirst).internalGetTree (), ((AbstractXdmNode) aFirstB).internalGetTree ());
+    // A tree numbered again sorts after the trees numbered before
+    aFirst.assignDocumentOrder ();
+    assertTrue (IXdmNode.compareDocumentOrder (aFirstB, aSecondA) > 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aFirst.getChildAtIndex (0), aFirstB) < 0);
+  }
+
+  @Test
   public void testEndOrder () throws XdmParseException
   {
     // 0 doc, 1 r, 2 @a, 3 x, 4 @b, 5 y, 6 x, 7 @c, 8 text, 9 z
@@ -130,11 +150,11 @@ public final class XdmDocumentOrderTest
     final IXdmNode aSub = IXdmNode.createElement (X);
     aSub.appendChild (IXdmNode.createElement (X));
     aSub.assignDocumentOrder ();
-    assertTrue (((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree () != 0);
+    assertNotNull (((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree ());
     final IXdmNode aDoc = IXdmNode.createDocument ();
     aDoc.appendChild (aSub);
-    assertEquals (0, ((AbstractXdmNode) aSub).internalGetTree ());
-    assertEquals (0, ((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree ());
+    assertNull (((AbstractXdmNode) aSub).internalGetTree ());
+    assertNull (((AbstractXdmNode) aSub.getChildAtIndex (0)).internalGetTree ());
     aDoc.assignDocumentOrder ();
     assertEquals (1, aSub.getOrder ());
     assertEquals (2, aSub.getChildAtIndex (0).getOrder ());
@@ -142,10 +162,10 @@ public final class XdmDocumentOrderTest
     // The same for an attribute numbered on its own
     final IXdmNode aAttr = IXdmNode.createAttribute (new XdmQName ("a"), "1");
     aAttr.assignDocumentOrder ();
-    assertTrue (((AbstractXdmNode) aAttr).internalGetTree () != 0);
+    assertNotNull (((AbstractXdmNode) aAttr).internalGetTree ());
     final IXdmNode aElement = IXdmNode.createElement (X);
     aElement.addAttribute (aAttr);
-    assertEquals (0, ((AbstractXdmNode) aAttr).internalGetTree ());
+    assertNull (((AbstractXdmNode) aAttr).internalGetTree ());
   }
 
   @Test

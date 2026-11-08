@@ -964,7 +964,9 @@ public final class XsltTransformer
   }
 
   /**
-   * Run the transformation on a worker thread with a large stack.
+   * Run the transformation on the thread the request selects
+   * ({@link XsltTransformRequest#getThreading()}), by default a worker thread
+   * with a large stack.
    *
    * @return The result.
    * @throws XsltException
@@ -977,7 +979,7 @@ public final class XsltTransformer
   {
     try
     {
-      return LargeStackRunner.run ( () -> _run (null), "phoxtrot-transform");
+      return LargeStackRunner.run ( () -> _run (null), "phoxtrot-transform", m_aRequest.getThreading ());
     }
     catch (final XPathException ex)
     {
@@ -986,7 +988,8 @@ public final class XsltTransformer
   }
 
   /**
-   * {@link #_run(ResultTarget)} on a large-stack worker thread; on an error
+   * {@link #_run(ResultTarget)} on the thread the request selects, by default
+   * a large-stack worker thread; on an error
    * what was written so far is flushed to the target before the error is
    * rethrown with the messages of the run (see
    * {@link #_withMessages(XPathException)}).
@@ -1013,7 +1016,7 @@ public final class XsltTransformer
           aTarget.flushQuietly ();
           throw ex;
         }
-      }, "phoxtrot-transform");
+      }, "phoxtrot-transform", m_aRequest.getThreading ());
     }
     catch (final XPathException ex)
     {
@@ -1022,7 +1025,7 @@ public final class XsltTransformer
   }
 
   /**
-   * Run the transformation on a worker thread with a large stack and write
+   * Run the transformation on the thread the request selects and write
    * the serialized principal result to an output stream, encoded with the
    * encoding of its output definition. The stream is flushed, not closed.
    *
@@ -1043,7 +1046,7 @@ public final class XsltTransformer
   }
 
   /**
-   * Run the transformation on a worker thread with a large stack and write
+   * Run the transformation on the thread the request selects and write
    * the serialized principal result to a writer, with the characters
    * {@link #run()} would return. The writer is flushed, not closed.
    *

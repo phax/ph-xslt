@@ -70,6 +70,30 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
+   * Like {@link #createElement(XdmQName)}, for a copy that keeps the location
+   * of its original: a node with a location other than 0:0 holds it in fields
+   * of its own, as the nodes of a parsed tree do, instead of the holder that
+   * {@link #setLocation(int, int)} creates on a node without location.
+   *
+   * @param aName
+   *        The element name. May not be <code>null</code>.
+   * @param nLine
+   *        The line in the source, 0 if unknown.
+   * @param nColumn
+   *        The column in the source, 0 if unknown.
+   * @return A new parentless element node without attributes, namespace
+   *         declarations or children.
+   */
+  @NonNull
+  static IXdmNode createElement (@NonNull final XdmQName aName, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    if (nLine == 0 && nColumn == 0)
+      return new XdmElementNode (aName);
+    return new XdmElementNode.Located (aName, nLine, nColumn);
+  }
+
+  /**
    * @param aName
    *        The attribute name. May not be <code>null</code>.
    * @param sValue
@@ -86,6 +110,35 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
+   * Like {@link #createAttribute(XdmQName, String)}, for a copy that keeps
+   * the location of its original (see
+   * {@link #createElement(XdmQName, int, int)}).
+   *
+   * @param aName
+   *        The attribute name. May not be <code>null</code>.
+   * @param sValue
+   *        The attribute value. May not be <code>null</code>.
+   * @param nLine
+   *        The line in the source, 0 if unknown.
+   * @param nColumn
+   *        The column in the source, 0 if unknown.
+   * @return A new parentless attribute node with ID kind
+   *         {@link EIDKind#NONE}.
+   */
+  @NonNull
+  static IXdmNode createAttribute (@NonNull final XdmQName aName,
+                                   @NonNull final String sValue,
+                                   @Nonnegative final int nLine,
+                                   @Nonnegative final int nColumn)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    ValueEnforcer.notNull (sValue, "Value");
+    if (nLine == 0 && nColumn == 0)
+      return new XdmAttributeNode (aName, sValue);
+    return new XdmAttributeNode.Located (aName, sValue, nLine, nColumn);
+  }
+
+  /**
    * @param sValue
    *        The text. May not be <code>null</code>; an empty text is not
    *        rejected.
@@ -96,6 +149,28 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   {
     ValueEnforcer.notNull (sValue, "Value");
     return new XdmTextNode (sValue);
+  }
+
+  /**
+   * Like {@link #createText(String)}, for a copy that keeps the location of
+   * its original (see {@link #createElement(XdmQName, int, int)}).
+   *
+   * @param sValue
+   *        The text. May not be <code>null</code>; an empty text is not
+   *        rejected.
+   * @param nLine
+   *        The line in the source, 0 if unknown.
+   * @param nColumn
+   *        The column in the source, 0 if unknown.
+   * @return A new parentless text node.
+   */
+  @NonNull
+  static IXdmNode createText (@NonNull final String sValue, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+  {
+    ValueEnforcer.notNull (sValue, "Value");
+    if (nLine == 0 && nColumn == 0)
+      return new XdmTextNode (sValue);
+    return new XdmTextNode.Located (sValue, nLine, nColumn);
   }
 
   /**

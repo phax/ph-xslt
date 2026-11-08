@@ -150,7 +150,7 @@ public final class PackageRegistry
         final InputSource aIS = new InputSource (new NonBlockingStringReader (aSource.text ()));
         if (aSource.baseUri () != null)
           aIS.setSystemId (aSource.baseUri ());
-        final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (m_aOptions.isLoadExternalEntities ()).parse (aIS);
+        final IXdmNode aDoc = new XdmParser ().setRecordLocations (true).setLoadExternalEntities (m_aOptions.isLoadExternalEntities ()).parse (aIS);
         if (aSource.baseUri () != null && aDoc.getDocumentUri () == null)
           aDoc.setDocumentUri (aSource.baseUri ());
         return _getDocumentElement (aDoc);

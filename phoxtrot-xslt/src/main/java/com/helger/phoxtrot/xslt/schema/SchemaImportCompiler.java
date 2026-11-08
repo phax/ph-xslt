@@ -113,8 +113,8 @@ public final class SchemaImportCompiler
   {
     try
     {
-      final IXdmNode aDoc = aSource.text () != null ? new XdmParser ().parse (aSource.text ())
-                                                   : new XdmParser ().parse (Path.of (new URI (aSource.systemId ())));
+      final IXdmNode aDoc = aSource.text () != null ? new XdmParser ().setRecordLocations (true).parse (aSource.text ())
+                                                   : new XdmParser ().setRecordLocations (true).parse (Path.of (new URI (aSource.systemId ())));
       for (final IXdmNode aChild : aDoc.getAllChildren ())
         if (aChild.isElement ())
         {
@@ -469,7 +469,7 @@ public final class SchemaImportCompiler
           for (final XdmSchemaSource aSource : aGroup)
           {
             IXdmNode aRoot = null;
-            for (final IXdmNode aChild : new XdmParser ().parse (aSource.text ()).getAllChildren ())
+            for (final IXdmNode aChild : new XdmParser ().setRecordLocations (true).parse (aSource.text ()).getAllChildren ())
               if (aChild.isElement ())
                 aRoot = aChild;
             if (aRoot == null)

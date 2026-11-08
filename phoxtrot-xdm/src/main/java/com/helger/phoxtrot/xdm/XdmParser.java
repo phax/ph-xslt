@@ -69,6 +69,13 @@ public class XdmParser
    * processing, JDK 21 enforces none, so the limit is always set explicitly.
    */
   public static final int DEFAULT_MAX_ELEMENT_DEPTH = 10_000;
+  /**
+   * Whether the nodes get the location the parser reports. On by default:
+   * stylesheet modules, schema documents and documents whose validation
+   * errors are reported with a line all need it, and they also come through
+   * resolvers that only call <code>new XdmParser ()</code>.
+   */
+  public static final boolean DEFAULT_RECORD_LOCATIONS = true;
 
   private static final Logger LOGGER = LoggerFactory.getLogger (XdmParser.class);
   /**
@@ -179,6 +186,7 @@ public class XdmParser
 
   private boolean m_bLoadExternalEntities = DEFAULT_LOAD_EXTERNAL_ENTITIES;
   private int m_nMaxElementDepth = DEFAULT_MAX_ELEMENT_DEPTH;
+  private boolean m_bRecordLocations = DEFAULT_RECORD_LOCATIONS;
   private IXdmSchemaSet m_aSchemaSet;
   private EntityResolver m_aEntityResolver;
 
@@ -257,6 +265,33 @@ public class XdmParser
   {
     ValueEnforcer.isGE0 (nMaxElementDepth, "MaxElementDepth");
     m_nMaxElementDepth = nMaxElementDepth;
+    return this;
+  }
+
+  public final boolean isRecordLocations ()
+  {
+    return m_bRecordLocations;
+  }
+
+  /**
+   * Decide whether the nodes get the line and column the parser reports
+   * (see {@link IXdmNode#getLine()}). Without, every element, attribute,
+   * text, comment and processing instruction node is 8 bytes smaller, which
+   * saves 7 to 9 % of a typical tree; the locations are then 0. Switch it
+   * off for input documents whose node locations nobody reads: they are used
+   * in the error messages of stylesheets and schemas, by
+   * <code>xsl:try</code>, and for the line of instance validation errors of
+   * the native XSD validator (without, such an error has line 0 and only its
+   * path).
+   *
+   * @param bRecordLocations
+   *        <code>true</code> to record them.
+   * @return this for chaining
+   */
+  @NonNull
+  public final XdmParser setRecordLocations (final boolean bRecordLocations)
+  {
+    m_bRecordLocations = bRecordLocations;
     return this;
   }
 
@@ -493,7 +528,7 @@ public class XdmParser
       // would make the features above ineffective
       if (m_bLoadExternalEntities)
         aReader.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "all");
-      final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+      final XdmTreeBuilder aBuilder = new XdmTreeBuilder (m_bRecordLocations);
       aReader.setContentHandler (aBuilder);
       aReader.setErrorHandler (aBuilder);
       aReader.setDTDHandler (aBuilder);

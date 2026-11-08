@@ -16,6 +16,8 @@
  */
 package com.helger.phoxtrot.xdm;
 
+import java.util.Arrays;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -33,20 +35,19 @@ import com.helger.collection.commons.ICommonsList;
  * @author Philip Helger
  */
 @NotThreadSafe
-public final class XdmElementNode extends AbstractXdmParentNode
+public sealed class XdmElementNode extends AbstractXdmParentNode
 {
   // Guards the lazy creation of the namespace nodes of all elements (one lock
   // per node would cost memory on every node)
   private static final SimpleReadWriteLock NAMESPACE_NODES_LOCK = new SimpleReadWriteLock ();
 
   private final XdmQName m_aName;
-  private ICommonsList <AbstractXdmNode> m_aAttributes;
-  private EIDKind m_eIDKind = EIDKind.NONE;
-  // Only set on nodes of a schema-validated tree; shared between nodes
+  // Exactly as long as the number of attributes; null if there are none
+  private AbstractXdmNode [] m_aAttributes;
+  // Only set on nodes of a schema-validated tree; shared between nodes. A
+  // field and not in the details holder: a validated tree has it on every
+  // node, and it is read whenever a typed value is needed
   private XdmSchemaType m_aSchemaType;
-  // Lazily built namespace axis. Written after the tree was built, guarded by
-  // NAMESPACE_NODES_LOCK
-  private ICommonsList <IXdmNode> m_aNamespaceNodes;
 
   XdmElementNode (@NonNull final XdmQName aName)
   {
@@ -66,18 +67,22 @@ public final class XdmElementNode extends AbstractXdmParentNode
     return m_aName;
   }
 
+  /**
+   * The ID kind is kept in the details holder: only the elements of an ID
+   * type in a schema-validated tree have one.
+   */
   @Override
   @NonNull
   public EIDKind getIDKind ()
   {
-    return m_eIDKind;
+    return internalGetIDKind ();
   }
 
   @Override
   public void setIDKind (@NonNull final EIDKind eIDKind)
   {
     ValueEnforcer.notNull (eIDKind, "IDKind");
-    m_eIDKind = eIDKind;
+    internalSetIDKind (eIDKind);
   }
 
   @Override
@@ -115,20 +120,33 @@ public final class XdmElementNode extends AbstractXdmParentNode
     aRealAttribute.internalInvalidateOrder ();
     aRealAttribute.internalSetParent (this);
     if (m_aAttributes == null)
-      m_aAttributes = new CommonsArrayList <> ();
-    m_aAttributes.add (aRealAttribute);
+      m_aAttributes = new AbstractXdmNode [] { aRealAttribute };
+    else
+    {
+      // The array stays exactly as long as the attribute count
+      final int nCount = m_aAttributes.length;
+      m_aAttributes = Arrays.copyOf (m_aAttributes, nCount + 1);
+      m_aAttributes[nCount] = aRealAttribute;
+    }
     internalInvalidateOrder ();
   }
 
   /**
-   * Create the attribute list with room for the given number of attributes,
-   * if there is none yet, so that an element built from a parser event does
-   * not carry the room of a default list ({@link XdmTreeBuilder}).
+   * Set all attributes of an element that has none yet and is not numbered,
+   * while its tree is built ({@link XdmTreeBuilder}, {@link XdmStreamReader}):
+   * the array is taken over as it is and each attribute gets this element as
+   * parent. The attributes must be parentless attribute nodes; this is not
+   * checked.
+   *
+   * @param aAttributes
+   *        The attributes, at least one, in document order. The array must
+   *        not be changed afterwards.
    */
-  void internalReserveAttributes (@Nonnegative final int nCount)
+  void internalSetAttributes (@NonNull final AbstractXdmNode [] aAttributes)
   {
-    if (m_aAttributes == null)
-      m_aAttributes = new CommonsArrayList <> (nCount);
+    for (final AbstractXdmNode aAttr : aAttributes)
+      aAttr.internalSetParent (this);
+    m_aAttributes = aAttributes;
   }
 
   /**
@@ -142,14 +160,14 @@ public final class XdmElementNode extends AbstractXdmParentNode
     ValueEnforcer.notNull (sPrefix, "Prefix");
     ValueEnforcer.notNull (sNamespaceUri, "NamespaceUri");
     internalDeclareNamespace (sPrefix, sNamespaceUri);
-    m_aNamespaceNodes = null;
+    internalSetNamespaceNodes (null);
   }
 
   @Override
   @Nonnegative
   public int getAttributeCount ()
   {
-    return m_aAttributes == null ? 0 : m_aAttributes.size ();
+    return m_aAttributes == null ? 0 : m_aAttributes.length;
   }
 
   @Override
@@ -158,7 +176,7 @@ public final class XdmElementNode extends AbstractXdmParentNode
   {
     if (m_aAttributes == null)
       throw new IndexOutOfBoundsException ("No attributes");
-    return m_aAttributes.get (nIndex);
+    return m_aAttributes[nIndex];
   }
 
   @Override
@@ -197,11 +215,12 @@ public final class XdmElementNode extends AbstractXdmParentNode
    */
   public ICommonsList <IXdmNode> getNamespaceNodes ()
   {
-    final ICommonsList <IXdmNode> aExisting = NAMESPACE_NODES_LOCK.readLockedGet ( () -> m_aNamespaceNodes);
+    final ICommonsList <IXdmNode> aExisting = NAMESPACE_NODES_LOCK.readLockedGet (this::internalGetNamespaceNodes);
     if (aExisting != null)
       return aExisting.getClone ();
     return NAMESPACE_NODES_LOCK.writeLockedGet ( () -> {
-      if (m_aNamespaceNodes == null)
+      ICommonsList <IXdmNode> aNodes = internalGetNamespaceNodes ();
+      if (aNodes == null)
       {
         final ICommonsList <IXdmNode> aList = new CommonsArrayList <> ();
         for (final var aEntry : getInScopeNamespaces ().entrySet ())
@@ -210,9 +229,50 @@ public final class XdmElementNode extends AbstractXdmParentNode
           aNS.internalSetParent (this);
           aList.add (aNS);
         }
-        m_aNamespaceNodes = aList;
+        internalSetNamespaceNodes (aList);
+        aNodes = aList;
       }
-      return m_aNamespaceNodes.getClone ();
+      return aNodes.getClone ();
     });
+  }
+
+  /**
+   * An element with the location of its source, created by the tree builders
+   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
+   * and by the factories of {@link IXdmNode} that take a location. The
+   * location is kept in two fields of its own instead of the details holder.
+   */
+  static final class Located extends XdmElementNode
+  {
+    private int m_nLine;
+    private int m_nColumn;
+
+    Located (@NonNull final XdmQName aName, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      super (aName);
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
+
+    @Override
+    @Nonnegative
+    public int getLine ()
+    {
+      return m_nLine;
+    }
+
+    @Override
+    @Nonnegative
+    public int getColumn ()
+    {
+      return m_nColumn;
+    }
+
+    @Override
+    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
   }
 }

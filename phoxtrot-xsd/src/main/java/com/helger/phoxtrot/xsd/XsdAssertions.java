@@ -216,8 +216,7 @@ final class XsdAssertions
   {
     if (aSrc.getKind () == ENodeKind.TEXT)
       return IXdmNode.createText (aSrc.getValue ());
-    final IXdmNode ret = IXdmNode.createElement (aSrc.getName ());
-    ret.setLocation (aSrc.getLine (), aSrc.getColumn ());
+    final IXdmNode ret = IXdmNode.createElement (aSrc.getName (), aSrc.getLine (), aSrc.getColumn ());
     // The root gets the computed base URI; below it the explicit ones are
     // enough, as xml:base attributes are copied too
     ret.setBaseUri (bRoot ? FnAccessor.getBaseUri (aSrc) : aSrc.getBaseUri ());
@@ -521,8 +520,7 @@ final class XsdAssertions
     // (3.4.4.1), but not its children (3.12.4: the [children] of the copy are
     // empty). The parent is not kept: the in-scope namespaces are copied, and
     // a test cannot legitimately depend on anything else outside the element
-    final IXdmNode aCopy = IXdmNode.createElement (aElement.getName ());
-    aCopy.setLocation (aElement.getLine (), aElement.getColumn ());
+    final IXdmNode aCopy = IXdmNode.createElement (aElement.getName (), aElement.getLine (), aElement.getColumn ());
     // [base URI] is a base information set property: the copy keeps it
     // (3.12.4 clause 1.1, appendix D)
     aCopy.setBaseUri (FnAccessor.getBaseUri (aElement));

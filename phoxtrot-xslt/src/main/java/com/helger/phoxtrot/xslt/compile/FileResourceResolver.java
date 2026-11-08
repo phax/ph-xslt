@@ -105,7 +105,7 @@ public final class FileResourceResolver implements IResourceResolver
       return null;
     try
     {
-      final IXdmNode ret = new XdmParser ().setLoadExternalEntities (m_bLoadExternalEntities).parse (aPath);
+      final IXdmNode ret = new XdmParser ().setRecordLocations (true).setLoadExternalEntities (m_bLoadExternalEntities).parse (aPath);
       if (ret.getDocumentUri () == null)
         ret.setDocumentUri (sAbsoluteUri);
       return ret;

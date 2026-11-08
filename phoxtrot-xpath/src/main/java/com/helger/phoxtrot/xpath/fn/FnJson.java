@@ -1071,7 +1071,8 @@ public final class FnJson
   /**
    * @param sXml
    *        An XML document as a string.
-   * @return The document node built by a new {@link XdmParser}.
+   * @return The document node built by a new {@link XdmParser}, without
+   *         node locations.
    * @throws XPathException
    *         FODC0006 if the string is not well-formed, with the parse
    *         exception as cause.
@@ -1081,7 +1082,8 @@ public final class FnJson
   {
     try
     {
-      return new XdmParser ().parse (sXml);
+      // Nothing reads the locations of a parsed string
+      return new XdmParser ().setRecordLocations (false).parse (sXml);
     }
     catch (final XdmParseException ex)
     {
