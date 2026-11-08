@@ -44,7 +44,9 @@ public enum EWorkloadGroup implements IHasID <String>
   /** Streamed and buffered <code>xsl:source-document</code>: {@link StreamingWorkload}. */
   STREAMING ("streaming"),
   /** Compiling stylesheets and expressions: {@link CompileWorkload}. */
-  COMPILE ("compile");
+  COMPILE ("compile"),
+  /** Many small transformations in the threading modes: {@link SmallTransformWorkload}. */
+  SMALL ("small");
 
   /** The case of the XPath group that runs the rule set. */
   public static final String XPATH_RULES = "rules";
@@ -95,6 +97,11 @@ public enum EWorkloadGroup implements IHasID <String>
         ret.add ("xslt");
         ret.add ("xpath");
         break;
+      case SMALL:
+        ret.add ("new-thread");
+        ret.add ("pool");
+        ret.add ("calling");
+        break;
     }
     return ret;
   }
@@ -128,6 +135,8 @@ public enum EWorkloadGroup implements IHasID <String>
         break;
       case COMPILE:
         return new CompileWorkload (sCase);
+      case SMALL:
+        return new SmallTransformWorkload (sCase);
     }
     throw new IllegalArgumentException ("Unknown case '" + sCase + "' of group '" + m_sID + "'");
   }

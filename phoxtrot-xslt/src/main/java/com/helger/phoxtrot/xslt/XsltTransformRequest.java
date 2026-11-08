@@ -23,6 +23,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
@@ -66,6 +67,7 @@ public final class XsltTransformRequest
   private boolean m_bRawDelivery;
   private boolean m_bSourceStreamed;
   private String m_sStreamedSourceUri;
+  private EXsltThreading m_eThreading = EXsltThreading.DEFAULT;
 
   /** @return The global context item (normally the source document node). */
   @Nullable
@@ -405,6 +407,37 @@ public final class XsltTransformRequest
   public XsltTransformRequest setStreamedSourceUri (@Nullable final String sAbsoluteUri)
   {
     m_sStreamedSourceUri = sAbsoluteUri;
+    return this;
+  }
+
+  /**
+   * @return The thread the transformation runs on. Default
+   *         {@link EXsltThreading#DEFAULT}.
+   */
+  @NonNull
+  public EXsltThreading getThreading ()
+  {
+    return m_eThreading;
+  }
+
+  /**
+   * Choose the thread the transformation runs on (see
+   * {@link EXsltThreading}): a new thread with a large stack per call (the
+   * default), a thread of a shared pool, which saves the thread start of
+   * many small transformations, or the calling thread, which saves the
+   * thread change as well but must have a stack deep enough for the template
+   * and function nesting the input causes (otherwise XPDY0130 earlier than
+   * {@link #setMaxDepth(int)} says).
+   *
+   * @param eThreading
+   *        The threading mode. May not be <code>null</code>.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setThreading (@NonNull final EXsltThreading eThreading)
+  {
+    ValueEnforcer.notNull (eThreading, "Threading");
+    m_eThreading = eThreading;
     return this;
   }
 }

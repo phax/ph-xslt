@@ -83,9 +83,10 @@ public final class XsltCompiler
   /**
    * Compile from an already parsed stylesheet document (e.g. an embedded
    * stylesheet element or a stylesheet built in memory). The compilation runs
-   * on a worker thread with a large stack (see {@link LargeStackRunner}; in
-   * place when already on one), so deeply nested stylesheets and expressions
-   * do not overflow the caller's stack.
+   * on the thread {@link XsltCompileOptions#getThreading()} selects, by
+   * default a worker thread with a large stack (see {@link LargeStackRunner};
+   * in place when already on one), so deeply nested stylesheets and
+   * expressions do not overflow the caller's stack.
    *
    * @param aStylesheet
    *        Document or element node of the stylesheet.
@@ -98,6 +99,8 @@ public final class XsltCompiler
   {
     ValueEnforcer.notNull (aStylesheet, "Stylesheet");
     ValueEnforcer.notNull (aOptions, "Options");
-    return LargeStackRunner.run ( () -> StylesheetCompiler.compile (aStylesheet, aOptions), "phoxtrot-compile");
+    return LargeStackRunner.run ( () -> StylesheetCompiler.compile (aStylesheet, aOptions),
+                                  "phoxtrot-compile",
+                                  aOptions.getThreading ());
   }
 }

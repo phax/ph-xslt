@@ -45,6 +45,7 @@ it do less. `MainProfile verify` runs these checks for every case.
 | `xsd` (`XsdBenchmark`) | `1.0`, `1.1` | 1,000, 10,000 | `XsdSchema.validateText` (parse plus assessment) against the invoice schema; 1.1 adds an assertion per line, an assertion facet per price and a type alternative per tax element. The preparation also checks the error count for a document with faults |
 | `streaming` (`StreamingBenchmark`) | `streamed`, `buffered` | 10,000, 100,000 | `xsl:source-document` with `xsl:iterate` over all lines from bytes in memory; streamed with the streaming claim and enforced streamability (checked: one streamed run), buffered without |
 | `compile` (`CompileBenchmark`) | `xslt`, `xpath` | - | compiling the 12 stylesheets of the XSLT and streaming workloads; compiling the 21 expressions of the XPath workloads and the rule set |
+| `small` (`SmallTransformBenchmark`) | `new-thread`, `pool`, `calling` | 3 (about 1 KB) | one `identity` transformation per call, from one thread (`single`) and from 8 threads at once (`parallel`, µs per call); the case is the threading mode of the request (`EXsltThreading`, set by reflection: an engine without the option always uses a new thread) |
 
 Not measured: generating and parsing the input (except in `parse`, `xsd` and `streaming`), compiling (except in
 `compile`). The XPath and XSLT workloads parse their document once per trial, so the name indexes a document builds on
@@ -114,7 +115,8 @@ jfr print --events jdk.ExecutionSample --stack-depth 256 target/xslt-keys.jfr > 
 
 `hot-methods` gives the self time (top frame); for inclusive shares aggregate the stacks of `jfr print`. Stylesheets are
 compiled on a thread `phoxtrot-compile` and transformations run on a thread `phoxtrot-transform` (a new one per
-transformation), not on `main`: include these threads when filtering samples. In the baseline JFR took almost no
+transformation, the default `EXsltThreading.NEW_THREAD`; `phoxtrot-pool-<n>` in the `pool` case of `small`), not on
+`main`: include these threads when filtering samples. In the baseline JFR took almost no
 samples of the streamed transformation (71 in 12 seconds); the cause was not analysed.
 
 ## Comparing two commits
