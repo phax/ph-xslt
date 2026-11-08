@@ -16,18 +16,26 @@
  */
 package com.helger.phoxtrot.xpath.bench;
 
+import java.io.ByteArrayInputStream;
+import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+import org.xml.sax.InputSource;
 
 import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xdm.XdmParser;
 
 /**
  * Builds a tree with {@link com.helger.phoxtrot.xdm.XdmParser} from the UTF-8 bytes of the generated
  * document (JDK SAX parser, tree builder, document order numbering while building). Measured: the
  * parse from bytes in memory. The allocation per parse is the <code>gc.alloc.rate.norm</code> of
- * the JMH GC profiler (<code>-prof gc</code>).
+ * the JMH GC profiler (<code>-prof gc</code>). The case <code>unlocated</code> parses without node
+ * locations (<code>XdmParser.setRecordLocations (false)</code>), called by reflection so that the
+ * benchmark also runs against an engine that predates the option: it then parses like
+ * <code>parse</code>.
  *
  * @author Philip Helger
  */
@@ -35,21 +43,52 @@ public final class ParseWorkload implements IWorkload
 {
   private final BenchData m_aData;
   private final byte [] m_aBytes;
+  // XdmParser.setRecordLocations of the unlocated case; null for the default
+  // parse or an engine without the option
+  private final Method m_aRecordLocations;
 
   /**
    * @param nLines
    *        The number of invoice lines of the document.
+   * @param bLocations
+   *        <code>false</code> to parse without node locations, where the
+   *        engine supports it.
    */
-  public ParseWorkload (final int nLines)
+  public ParseWorkload (final int nLines, final boolean bLocations)
   {
     m_aData = BenchData.create (nLines, true);
     m_aBytes = m_aData.getBytes ();
+    m_aRecordLocations = bLocations ? null : _findRecordLocations ();
+  }
+
+  /**
+   * @return <code>XdmParser.setRecordLocations (boolean)</code>, or
+   *         <code>null</code> if the engine on the class path has no such
+   *         method.
+   */
+  @Nullable
+  private static Method _findRecordLocations ()
+  {
+    try
+    {
+      return XdmParser.class.getMethod ("setRecordLocations", boolean.class);
+    }
+    catch (final NoSuchMethodException ex)
+    {
+      return null;
+    }
   }
 
   @NonNull
   public Object run () throws Exception
   {
-    return BenchData.parse (m_aBytes, "urn:bench:invoice.xml");
+    if (m_aRecordLocations == null)
+      return BenchData.parse (m_aBytes, "urn:bench:invoice.xml");
+    final XdmParser aParser = new XdmParser ();
+    m_aRecordLocations.invoke (aParser, Boolean.FALSE);
+    final InputSource aSource = new InputSource (new ByteArrayInputStream (m_aBytes));
+    aSource.setSystemId ("urn:bench:invoice.xml");
+    return aParser.parse (aSource);
   }
 
   public void verify (@NonNull final Object aResult)

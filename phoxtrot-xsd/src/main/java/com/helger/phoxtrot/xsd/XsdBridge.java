@@ -289,7 +289,7 @@ final class XsdBridge implements IXdmSchemaSet
   {
     final ICommonsList <IXdmNode> aClones = new CommonsArrayList <> ();
     final ICommonsList <IXdmNode> aOriginals = new CommonsArrayList <> ();
-    final IXdmNode aRoot = IXdmNode.createElement (aElement.getName ());
+    final IXdmNode aRoot = IXdmNode.createElement (aElement.getName (), aElement.getLine (), aElement.getColumn ());
     final ArrayDeque <IXdmNode []> aWork = new ArrayDeque <> ();
     aWork.push (new IXdmNode [] { aElement, aRoot });
     while (!aWork.isEmpty ())
@@ -297,15 +297,16 @@ final class XsdBridge implements IXdmSchemaSet
       final IXdmNode [] aPair = aWork.pop ();
       final IXdmNode aOrig = aPair[0];
       final IXdmNode aCopy = aPair[1];
-      aCopy.setLocation (aOrig.getLine (), aOrig.getColumn ());
       aClones.add (aCopy);
       aOriginals.add (aOrig);
       for (final Map.Entry <String, String> aEntry : aOrig.getDeclaredNamespaces ().entrySet ())
         aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());
       for (final IXdmNode aAttr : aOrig.getAllAttributes ())
       {
-        final IXdmNode aAttrCopy = IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
-        aAttrCopy.setLocation (aAttr.getLine (), aAttr.getColumn ());
+        final IXdmNode aAttrCopy = IXdmNode.createAttribute (aAttr.getName (),
+                                                             aAttr.getValue (),
+                                                             aAttr.getLine (),
+                                                             aAttr.getColumn ());
         aCopy.addAttribute (aAttrCopy);
         aClones.add (aAttrCopy);
         aOriginals.add (aAttr);
@@ -330,7 +331,7 @@ final class XsdBridge implements IXdmSchemaSet
         }
         if (aChild != null && aChild.isElement ())
         {
-          final IXdmNode aChildCopy = IXdmNode.createElement (aChild.getName ());
+          final IXdmNode aChildCopy = IXdmNode.createElement (aChild.getName (), aChild.getLine (), aChild.getColumn ());
           aCopy.appendChild (aChildCopy);
           aChildren.add (new IXdmNode [] { aChild, aChildCopy });
         }
@@ -539,8 +540,10 @@ final class XsdBridge implements IXdmSchemaSet
         // by more than one episode
         if (aOrig.getAttribute (aDefault.name ().space (), aDefault.name ().local ()) != null)
           continue;
-        final IXdmNode aAttr = IXdmNode.createAttribute (_fixupAttributeName (aOrig, aDefault.name ()), aDefault.value ());
-        aAttr.setLocation (aOrig.getLine (), aOrig.getColumn ());
+        final IXdmNode aAttr = IXdmNode.createAttribute (_fixupAttributeName (aOrig, aDefault.name ()),
+                                                         aDefault.value (),
+                                                         aOrig.getLine (),
+                                                         aOrig.getColumn ());
         aOrig.addAttribute (aAttr);
         bChanged = true;
         if (aDefault.type () != null)
@@ -589,8 +592,7 @@ final class XsdBridge implements IXdmSchemaSet
       final String sNormalised = XsdWhiteSpace.apply (aWSType.effectiveWhiteSpace (), aDefault.value ());
       if (sNormalised.isEmpty ())
         continue;
-      final IXdmNode aText = IXdmNode.createText (sNormalised);
-      aText.setLocation (aOrig.getLine (), aOrig.getColumn ());
+      final IXdmNode aText = IXdmNode.createText (sNormalised, aOrig.getLine (), aOrig.getColumn ());
       aOrig.appendChild (aText);
       aCopy.appendChild (IXdmNode.createText (sNormalised));
       bChanged = true;

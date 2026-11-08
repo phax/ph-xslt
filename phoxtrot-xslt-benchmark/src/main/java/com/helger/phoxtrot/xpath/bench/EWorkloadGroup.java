@@ -72,6 +72,7 @@ public enum EWorkloadGroup implements IHasID <String>
     {
       case PARSE:
         ret.add ("parse");
+        ret.add ("unlocated");
         break;
       case XPATH:
         for (final EXPathCase eCase : EXPathCase.values ())
@@ -104,8 +105,8 @@ public enum EWorkloadGroup implements IHasID <String>
     switch (this)
     {
       case PARSE:
-        if ("parse".equals (sCase))
-          return new ParseWorkload (nSize);
+        if ("parse".equals (sCase) || "unlocated".equals (sCase))
+          return new ParseWorkload (nSize, "parse".equals (sCase));
         break;
       case XPATH:
         if (XPATH_RULES.equals (sCase))

@@ -19,6 +19,7 @@ package com.helger.phoxtrot.xdm;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
 
@@ -28,7 +29,7 @@ import com.helger.base.enforce.ValueEnforcer;
  * @author Philip Helger
  */
 @NotThreadSafe
-public final class XdmAttributeNode extends AbstractXdmValueNode
+public sealed class XdmAttributeNode extends AbstractXdmValueNode
 {
   private final XdmQName m_aName;
   private EIDKind m_eIDKind = EIDKind.NONE;
@@ -79,5 +80,45 @@ public final class XdmAttributeNode extends AbstractXdmValueNode
   public void setSchemaType (@Nullable final XdmSchemaType aSchemaType)
   {
     m_aSchemaType = aSchemaType;
+  }
+
+  /**
+   * An attribute with the location of its source, created by the tree builders
+   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
+   * and by the factories of {@link IXdmNode} that take a location. The
+   * location is kept in two fields of its own instead of the details holder.
+   */
+  static final class Located extends XdmAttributeNode
+  {
+    private int m_nLine;
+    private int m_nColumn;
+
+    Located (@NonNull final XdmQName aName, @NonNull final String sValue, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      super (aName, sValue);
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
+
+    @Override
+    @Nonnegative
+    public int getLine ()
+    {
+      return m_nLine;
+    }
+
+    @Override
+    @Nonnegative
+    public int getColumn ()
+    {
+      return m_nColumn;
+    }
+
+    @Override
+    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
   }
 }

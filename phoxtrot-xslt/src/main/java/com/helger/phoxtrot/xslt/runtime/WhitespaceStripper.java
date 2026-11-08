@@ -161,8 +161,22 @@ public final class WhitespaceStripper
   @NonNull
   private static IXdmNode _copyNode (@NonNull final IXdmNode aSrc)
   {
-    final IXdmNode ret = NodeCopier.copyShallow (aSrc);
-    ret.setLocation (aSrc.getLine (), aSrc.getColumn ());
+    final IXdmNode ret;
+    // The kinds a parsed tree has many of are created with their location,
+    // so that a located copy stays as small as its source
+    if (aSrc.isElement ())
+      ret = IXdmNode.createElement (aSrc.getName (), aSrc.getLine (), aSrc.getColumn ());
+    else
+      if (aSrc.isText ())
+        ret = IXdmNode.createText (aSrc.getValue (), aSrc.getLine (), aSrc.getColumn ());
+      else
+        if (aSrc.isAttribute ())
+          ret = NodeCopier.createAttribute (aSrc.getName (), aSrc.getValue (), aSrc.getLine (), aSrc.getColumn ());
+        else
+        {
+          ret = NodeCopier.copyShallow (aSrc);
+          ret.setLocation (aSrc.getLine (), aSrc.getColumn ());
+        }
     ret.setTypeAnnotation (aSrc.getTypeAnnotation ());
     ret.setSchemaType (aSrc.getSchemaType ());
     ret.setNilled (aSrc.isNilled ());

@@ -35,7 +35,7 @@ import com.helger.collection.commons.ICommonsList;
  * @author Philip Helger
  */
 @NotThreadSafe
-public final class XdmElementNode extends AbstractXdmParentNode
+public sealed class XdmElementNode extends AbstractXdmParentNode
 {
   // Guards the lazy creation of the namespace nodes of all elements (one lock
   // per node would cost memory on every node)
@@ -230,5 +230,45 @@ public final class XdmElementNode extends AbstractXdmParentNode
       }
       return m_aNamespaceNodes.getClone ();
     });
+  }
+
+  /**
+   * An element with the location of its source, created by the tree builders
+   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
+   * and by the factories of {@link IXdmNode} that take a location. The
+   * location is kept in two fields of its own instead of the details holder.
+   */
+  static final class Located extends XdmElementNode
+  {
+    private int m_nLine;
+    private int m_nColumn;
+
+    Located (@NonNull final XdmQName aName, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      super (aName);
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
+
+    @Override
+    @Nonnegative
+    public int getLine ()
+    {
+      return m_nLine;
+    }
+
+    @Override
+    @Nonnegative
+    public int getColumn ()
+    {
+      return m_nColumn;
+    }
+
+    @Override
+    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
   }
 }

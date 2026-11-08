@@ -19,6 +19,7 @@ it do less. `MainProfile verify` runs these checks for every case.
 | Group (JMH class) | Case | Sizes (lines) | What is measured |
 |---|---|---|---|
 | `parse` (`ParseBenchmark`) | `parse` | 1,000, 10,000 | `XdmParser` from UTF-8 bytes in memory: SAX, tree builder, numbering while building |
+| | `unlocated` | | the same without node locations (`setRecordLocations (false)`, by reflection: an engine without the option parses like `parse`) |
 | `xpath` (`XPathBenchmark`) | `child` | 1,000, 10,000 | `count(/invoice/lines/line/item)` |
 | | `descendant` | | `count(//price) + count(//line//start)` |
 | | `positional` | | 200 numeric predicates `/invoice/lines/line[k]`, `position() mod 10`, `last()` |

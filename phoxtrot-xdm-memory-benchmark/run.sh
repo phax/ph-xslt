@@ -21,6 +21,7 @@
 # Usage: run.sh [xdm|full] [phoxtrot-xdm jar]
 #
 #   xdm   (default) measures only the phoxtrot tree and prints one table with a column per JVM
+#         (and one for the tree without node locations, if the engine has the parser option)
 #         and the instance sizes of the node classes
 #   full  runs the complete comparison (phoxtrot, MicroDOM, Saxon) once per JVM
 #
@@ -66,16 +67,24 @@ LC_ALL=C awk -F'\t' '
   $1 == "DOC" {
     if (nRun == 1) { aOrder[++nDocs] = $2; aCounts[$2] = $3 " | " $4 " | " $5 }
     aSize[$2, nRun] = $6
+    aUnlocated[$2, nRun] = $7
+    if ($7 >= 0) bUnlocated = 1
   }
   END {
     printf "| Document | Elements | Attributes | Text nodes"
-    for (r = 1; r <= nRun; r++) printf " | %s", aVM[r]
+    for (r = 1; r <= nRun; r++) {
+      printf " | %s", aVM[r]
+      if (bUnlocated) printf " | %s, no locations", aVM[r]
+    }
     printf " |\n|---|--:|--:|--:"
-    for (r = 1; r <= nRun; r++) printf "|--:"
+    for (r = 1; r <= nRun; r++) printf (bUnlocated ? "|--:|--:" : "|--:")
     printf "|\n"
     for (d = 1; d <= nDocs; d++) {
       printf "| %s | %s", aOrder[d], aCounts[aOrder[d]]
-      for (r = 1; r <= nRun; r++) printf " | %.2f MB", aSize[aOrder[d], r] / 1048576
+      for (r = 1; r <= nRun; r++) {
+        printf " | %.2f MB", aSize[aOrder[d], r] / 1048576
+        if (bUnlocated) printf " | %.2f MB", aUnlocated[aOrder[d], r] / 1048576
+      }
       printf " |\n"
     }
     printf "\nInstance sizes in bytes\n\n"

@@ -19,6 +19,7 @@ package com.helger.phoxtrot.xpath.membench;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -29,6 +30,7 @@ import java.util.function.Supplier;
 import javax.xml.transform.stream.StreamSource;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.openjdk.jol.info.ClassLayout;
 import org.openjdk.jol.info.GraphLayout;
 
@@ -172,6 +174,43 @@ public final class MainMemoryBenchmark
   }
 
   /**
+   * Parse a file into the phoxtrot XDM tree without node locations, if the
+   * engine on the class path has the option
+   * (<code>XdmParser.setRecordLocations</code>, called by reflection so that
+   * the benchmark also runs against older engine jars).
+   *
+   * @param aFile
+   *        The XML file.
+   * @return The document node, or <code>null</code> if the engine cannot
+   *         parse without locations.
+   * @throws IllegalStateException
+   *         wrapping the exception of a file that cannot be parsed
+   */
+  @Nullable
+  private static IXdmNode _parseXdmWithoutLocations (@NonNull final File aFile)
+  {
+    final Method aSetter;
+    try
+    {
+      aSetter = XdmParser.class.getMethod ("setRecordLocations", boolean.class);
+    }
+    catch (final NoSuchMethodException ex)
+    {
+      return null;
+    }
+    try
+    {
+      final XdmParser aParser = new XdmParser ();
+      aSetter.invoke (aParser, Boolean.FALSE);
+      return aParser.parse (aFile.toPath ());
+    }
+    catch (final ReflectiveOperationException | XdmParseException ex)
+    {
+      throw new IllegalStateException (ex);
+    }
+  }
+
+  /**
    * Parse a file into a ph-xml MicroDOM document.
    *
    * @param aFile
@@ -247,10 +286,11 @@ public final class MainMemoryBenchmark
    * lines for <code>run.sh</code>, which joins the lines of several JVM runs
    * into one table. First a <code>VM</code> line with the Java version and
    * whether compact object headers are on, then a <code>CLASS</code> line
-   * with the JOL instance size of each node class (and of the
+   * with the JOL instance size of each node class the engine has (and of the
    * <code>Details</code> holder), then one <code>DOC</code> line per
-   * document with its name, element, attribute and text node counts and the
-   * JOL deep size of the parsed tree in bytes.
+   * document with its name, element, attribute and text node counts, the
+   * JOL deep size of the parsed tree in bytes and the deep size of the tree
+   * parsed without node locations (-1 if the engine has no such option).
    *
    * @throws Exception
    *         if a document is missing or cannot be parsed
@@ -264,19 +304,30 @@ public final class MainMemoryBenchmark
     final StringBuilder aClasses = new StringBuilder ("CLASS");
     for (final String sClass : new String [] { "XdmDocumentNode",
                                                "XdmElementNode",
+                                               "XdmElementNode$Located",
                                                "XdmAttributeNode",
+                                               "XdmAttributeNode$Located",
                                                "XdmTextNode",
+                                               "XdmTextNode$Located",
                                                "AbstractXdmNode$Details" })
-      aClasses.append ('\t')
-              .append (sClass)
-              .append ('=')
-              .append (ClassLayout.parseClass (Class.forName ("com.helger.phoxtrot.xdm." + sClass)).instanceSize ());
+      try
+      {
+        final Class <?> aClass = Class.forName ("com.helger.phoxtrot.xdm." + sClass);
+        aClasses.append ('\t').append (sClass).append ('=').append (ClassLayout.parseClass (aClass).instanceSize ());
+      }
+      catch (final ClassNotFoundException ex)
+      {
+        // Not in this version of the engine
+      }
     System.out.println (aClasses);
     _parseXdm (new File (DOCUMENTS[0][1]));
     for (final String [] aDoc : DOCUMENTS)
     {
       final IXdmNode aXdm = _parseXdm (new File (aDoc[1]));
       final long [] aCounts = _countXdmNodes (aXdm);
+      final long nXdm = GraphLayout.parseInstance (aXdm).totalSize ();
+      final IXdmNode aUnlocated = _parseXdmWithoutLocations (new File (aDoc[1]));
+      final long nUnlocated = aUnlocated == null ? -1 : GraphLayout.parseInstance (aUnlocated).totalSize ();
       System.out.println ("DOC\t" +
                           aDoc[0] +
                           "\t" +
@@ -286,7 +337,9 @@ public final class MainMemoryBenchmark
                           "\t" +
                           aCounts[2] +
                           "\t" +
-                          GraphLayout.parseInstance (aXdm).totalSize ());
+                          nXdm +
+                          "\t" +
+                          nUnlocated);
     }
   }
 

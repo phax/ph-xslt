@@ -430,7 +430,7 @@ public final class XsltTransformHandler implements ITransformHandler
       final InputSource aSource = new InputSource (new NonBlockingStringReader (sText));
       if (sBaseUri != null)
         aSource.setSystemId (sBaseUri);
-      final IXdmNode ret = new XdmParser ().setLoadExternalEntities (bExternal).parse (aSource);
+      final IXdmNode ret = new XdmParser ().setRecordLocations (true).setLoadExternalEntities (bExternal).parse (aSource);
       if (sBaseUri != null && ret.getDocumentUri () == null)
         ret.setDocumentUri (sBaseUri);
       return ret;

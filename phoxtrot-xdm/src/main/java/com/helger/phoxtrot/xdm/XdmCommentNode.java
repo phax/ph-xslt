@@ -18,6 +18,7 @@ package com.helger.phoxtrot.xdm;
 
 import org.jspecify.annotations.NonNull;
 
+import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -26,7 +27,7 @@ import com.helger.annotation.concurrent.NotThreadSafe;
  * @author Philip Helger
  */
 @NotThreadSafe
-public final class XdmCommentNode extends AbstractXdmValueNode
+public sealed class XdmCommentNode extends AbstractXdmValueNode
 {
   XdmCommentNode (@NonNull final String sValue)
   {
@@ -37,5 +38,45 @@ public final class XdmCommentNode extends AbstractXdmValueNode
   public ENodeKind getKind ()
   {
     return ENodeKind.COMMENT;
+  }
+
+  /**
+   * A comment with the location of its source, created by the tree builders
+   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
+   * and by the factories of {@link IXdmNode} that take a location. The
+   * location is kept in two fields of its own instead of the details holder.
+   */
+  static final class Located extends XdmCommentNode
+  {
+    private int m_nLine;
+    private int m_nColumn;
+
+    Located (@NonNull final String sValue, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      super (sValue);
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
+
+    @Override
+    @Nonnegative
+    public int getLine ()
+    {
+      return m_nLine;
+    }
+
+    @Override
+    @Nonnegative
+    public int getColumn ()
+    {
+      return m_nColumn;
+    }
+
+    @Override
+    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
+    {
+      m_nLine = nLine;
+      m_nColumn = nColumn;
+    }
   }
 }

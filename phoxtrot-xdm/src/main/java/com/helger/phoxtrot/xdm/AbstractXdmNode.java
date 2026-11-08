@@ -59,12 +59,13 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     private String m_sBaseUri;
     // XSLT disable-output-escaping on a text node
     private boolean m_bDisableOutputEscaping;
+    // Location of a node that is not located itself (see setLocation)
+    private int m_nLine;
+    private int m_nColumn;
   }
 
   private AbstractXdmNode m_aParent;
   private int m_nOrder;
-  private int m_nLine;
-  private int m_nColumn;
   // 0 = not numbered yet
   private long m_nTree;
   // Created on demand
@@ -200,22 +201,41 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     return m_aParent;
   }
 
+  /**
+   * The location of a node without location fields of its own is kept in the
+   * details holder: 0 if none was set.
+   */
   @Nonnegative
-  public final int getLine ()
+  public int getLine ()
   {
-    return m_nLine;
+    return m_aDetails == null ? 0 : m_aDetails.m_nLine;
   }
 
+  /**
+   * The location of a node without location fields of its own is kept in the
+   * details holder: 0 if none was set.
+   */
   @Nonnegative
-  public final int getColumn ()
+  public int getColumn ()
   {
-    return m_nColumn;
+    return m_aDetails == null ? 0 : m_aDetails.m_nColumn;
   }
 
-  public final void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
+  /**
+   * A node created without a location (all nodes of a tree parsed without
+   * recording locations, and nodes of the factories without location) keeps a
+   * location set later in its details holder, which is only created for a
+   * location other than 0:0. The located nodes of the tree builders override
+   * this with fields of their own.
+   */
+  public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
   {
-    m_nLine = nLine;
-    m_nColumn = nColumn;
+    if (nLine != 0 || nColumn != 0 || m_aDetails != null)
+    {
+      final Details aDetails = _details ();
+      aDetails.m_nLine = nLine;
+      aDetails.m_nColumn = nColumn;
+    }
   }
 
   @NonNull

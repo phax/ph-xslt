@@ -270,9 +270,9 @@ final class XsdInstanceValidator
   @NonNull
   private static IXdmNode _probeOf (@NonNull final IXdmNode aElement)
   {
-    final IXdmNode ret = IXdmNode.createElement (new XdmQName (aElement.getName ().namespaceUri (), PROBE_NAME));
-    ret.setLocation (aElement.getLine (), aElement.getColumn ());
-    return ret;
+    return IXdmNode.createElement (new XdmQName (aElement.getName ().namespaceUri (), PROBE_NAME),
+                                   aElement.getLine (),
+                                   aElement.getColumn ());
   }
 
   /**
@@ -2045,7 +2045,7 @@ final class XsdInstanceValidator
     final IXdmNode aDocument;
     try
     {
-      aDocument = new XdmParser ().parse (aInstance);
+      aDocument = new XdmParser ().setRecordLocations (true).parse (aInstance);
     }
     catch (final XdmParseException ex)
     {
@@ -2074,7 +2074,7 @@ final class XsdInstanceValidator
     final IXdmNode aDocument;
     try
     {
-      aDocument = new XdmParser ().parse (sInstance);
+      aDocument = new XdmParser ().setRecordLocations (true).parse (sInstance);
     }
     catch (final XdmParseException ex)
     {

@@ -33,8 +33,8 @@ import com.helger.collection.commons.ICommonsList;
 /**
  * SAX2 handler that builds an {@link IXdmNode} tree. Adjacent character events
  * are merged into one text node, comments inside the DTD are dropped and the
- * location of an element is the position the parser reports at the end of its
- * start tag; a text node gets the position reported with its first character
+ * location of an element (if locations are recorded) is the position the
+ * parser reports at the end of its start tag; a text node gets the position reported with its first character
  * event. DTD attribute types ID, IDREF and IDREFS are recorded, and the
  * value of such an attribute as well as of <code>xml:id</code> is normalised
  * like a tokenised attribute (XDM 3.1 section 6.3.3). Schema information is
@@ -92,6 +92,37 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private int m_nNameCount;
   // The attributes of the element being started, before they are set on it
   private AbstractXdmNode [] m_aAttrBuffer = new AbstractXdmNode [8];
+  private final boolean m_bRecordLocations;
+
+  /**
+   * A builder that records the location of every node, as
+   * {@link XdmParser#DEFAULT_RECORD_LOCATIONS} does.
+   */
+  public XdmTreeBuilder ()
+  {
+    this (true);
+  }
+
+  /**
+   * @param bRecordLocations
+   *        <code>true</code> to give every node the location the parser
+   *        reports (8 bytes more per node), <code>false</code> to build the
+   *        nodes without location: {@link IXdmNode#getLine()} and
+   *        {@link IXdmNode#getColumn()} are then 0.
+   */
+  public XdmTreeBuilder (final boolean bRecordLocations)
+  {
+    m_bRecordLocations = bRecordLocations;
+  }
+
+  /**
+   * @return <code>true</code> if the nodes created now get a location: the
+   *         builder records locations and the parser provides a locator.
+   */
+  private boolean _isLocated ()
+  {
+    return m_bRecordLocations && m_aLocator != null;
+  }
 
   /**
    * Give a new node the next document order number, as long as the tree is
@@ -143,9 +174,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
       }
       else
         return;
-    final XdmTextNode aText = new XdmTextNode (sValue);
-    if (m_aLocator != null)
-      aText.setLocation (m_nTextLine, m_nTextColumn);
+    final XdmTextNode aText = _isLocated () ? new XdmTextNode.Located (sValue, m_nTextLine, m_nTextColumn)
+                                            : new XdmTextNode (sValue);
     _append (aText);
   }
 
@@ -440,9 +470,12 @@ public final class XdmTreeBuilder extends DefaultHandler2
                             final Attributes aAttrs)
   {
     _flushText ();
-    final XdmElementNode aElement = new XdmElementNode (_getName (sUri, sLocalName, sQName));
-    if (m_aLocator != null)
-      aElement.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
+    final XdmQName aName = _getName (sUri, sLocalName, sQName);
+    final boolean bLocated = _isLocated ();
+    final int nLine = bLocated ? m_aLocator.getLineNumber () : 0;
+    final int nColumn = bLocated ? m_aLocator.getColumnNumber () : 0;
+    final XdmElementNode aElement = bLocated ? new XdmElementNode.Located (aName, nLine, nColumn)
+                                             : new XdmElementNode (aName);
     for (int i = 0; i < m_aPendingPrefixes.size (); ++i)
       aElement.declareNamespace (m_aPendingPrefixes.get (i), m_aPendingUris.get (i));
     m_aPendingPrefixes.clear ();
@@ -463,11 +496,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
       EIDKind eIDKind = _getIDKind (aAttrs.getType (i));
       if (eIDKind == EIDKind.NONE && aAttrName.isSameName (XdmConstants.NS_XML, "id"))
         eIDKind = EIDKind.ID;
-      final XdmAttributeNode aAttr = new XdmAttributeNode (aAttrName,
-                                                           eIDKind == EIDKind.NONE ? sValue : normaliseTokenised (sValue));
+      final String sAttrValue = eIDKind == EIDKind.NONE ? sValue : normaliseTokenised (sValue);
+      final XdmAttributeNode aAttr = bLocated ? new XdmAttributeNode.Located (aAttrName, sAttrValue, nLine, nColumn)
+                                              : new XdmAttributeNode (aAttrName, sAttrValue);
       aAttr.setIDKind (eIDKind);
-      if (m_aLocator != null)
-        aAttr.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
       m_aAttrBuffer[nAttrCount++] = aAttr;
     }
     if (nAttrCount > 0)
@@ -516,7 +548,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
     if (m_sText == null && m_aText.isEmpty ())
     {
       // The first event of a text node: most text nodes have only one
-      if (m_aLocator != null)
+      if (_isLocated ())
       {
         m_nTextLine = m_aLocator.getLineNumber ();
         m_nTextColumn = m_aLocator.getColumnNumber ();
@@ -590,10 +622,13 @@ public final class XdmTreeBuilder extends DefaultHandler2
   public void processingInstruction (final String sTarget, final String sData)
   {
     _flushText ();
-    final XdmProcessingInstructionNode aPI = new XdmProcessingInstructionNode (new XdmQName (sTarget),
-                                                                              sData == null ? "" : sData);
-    if (m_aLocator != null)
-      aPI.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
+    final XdmQName aTarget = new XdmQName (sTarget);
+    final String sValue = sData == null ? "" : sData;
+    final XdmProcessingInstructionNode aPI = _isLocated () ? new XdmProcessingInstructionNode.Located (aTarget,
+                                                                                                      sValue,
+                                                                                                      m_aLocator.getLineNumber (),
+                                                                                                      m_aLocator.getColumnNumber ())
+                                                           : new XdmProcessingInstructionNode (aTarget, sValue);
     _applyEntityBase (aPI);
     _append (aPI);
   }
@@ -620,9 +655,11 @@ public final class XdmTreeBuilder extends DefaultHandler2
     if (m_bInDTD)
       return;
     _flushText ();
-    final XdmCommentNode aComment = new XdmCommentNode (new String (aChars, nStart, nLength));
-    if (m_aLocator != null)
-      aComment.setLocation (m_aLocator.getLineNumber (), m_aLocator.getColumnNumber ());
+    final String sValue = new String (aChars, nStart, nLength);
+    final XdmCommentNode aComment = _isLocated () ? new XdmCommentNode.Located (sValue,
+                                                                                m_aLocator.getLineNumber (),
+                                                                                m_aLocator.getColumnNumber ())
+                                                  : new XdmCommentNode (sValue);
     _append (aComment);
   }
 }

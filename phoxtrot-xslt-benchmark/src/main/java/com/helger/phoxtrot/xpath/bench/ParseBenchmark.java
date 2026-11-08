@@ -48,12 +48,16 @@ public class ParseBenchmark
   @Param ({ "1000", "10000" })
   public int m_nSize;
 
+  /** <code>parse</code>, or <code>unlocated</code> for a parse without node locations. */
+  @Param ({ "parse", "unlocated" })
+  public String m_sCase;
+
   private IWorkload m_aWorkload;
 
   @Setup
   public void setup () throws Exception
   {
-    m_aWorkload = EWorkloadGroup.PARSE.createVerified ("parse", m_nSize);
+    m_aWorkload = EWorkloadGroup.PARSE.createVerified (m_sCase, m_nSize);
   }
 
   @Benchmark
