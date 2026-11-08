@@ -297,6 +297,33 @@ public final class FunctionCallSiteTest
   }
 
   /**
+   * Every arity gets its arguments in order, literal and computed ones mixed,
+   * whatever list the evaluator passes for that arity.
+   */
+  @Test
+  public void testArgumentsOfEveryArity ()
+  {
+    final FunctionLibrary aLib = FunctionLibrary.createDefault ();
+    for (int nArity = 0; nArity <= 5; ++nArity)
+    {
+      final ICommonsList <SeqType> aParams = new CommonsArrayList <> ();
+      for (int i = 0; i < nArity; ++i)
+        aParams.add (STRING);
+      aLib.registerParsed (F, aParams, STRING, (aCtx, aArgs) -> {
+        final StringBuilder aSB = new StringBuilder ().append (aArgs.size ()).append (':');
+        for (final XdmSequence aArg : aArgs)
+          aSB.append (((XdmAtomic) aArg.get (0)).getString ());
+        return XdmSequence.of (XdmAtomic.string (aSB.toString ()));
+      }, false);
+    }
+    final IExpr aExpr = _parse ("t:f() || t:f('a') || t:f('a', string(1 + 1)) || t:f(string(3), 'b', 'c') ||" +
+                                " t:f('a', 'b', 'c', 'd') || t:f('a', 'b', string(5), 'd', 'e')",
+                                aLib);
+    for (int i = 0; i < 2; ++i)
+      assertEquals ("0:1:a2:a23:3bc4:abcd5:ab5de", _eval (aExpr, aLib));
+  }
+
+  /**
    * The site does not take part in the equality of the call node: two nodes
    * with the same name and argument list are equal, also after one of them
    * was evaluated.
