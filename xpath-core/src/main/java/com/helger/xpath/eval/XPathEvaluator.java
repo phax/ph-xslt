@@ -44,6 +44,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.fn.FnBoolean;
 import com.helger.xpath.fn.FnSequence;
+import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.fn.IXPathFunction;
 import com.helger.xpath.ops.AtomicCaster;
@@ -77,6 +78,9 @@ public final class XPathEvaluator
 
   private static final XdmSequence TRUE_SEQ = XdmSequence.of (XdmAtomic.TRUE);
   private static final XdmSequence FALSE_SEQ = XdmSequence.of (XdmAtomic.FALSE);
+  // Results of _evalFocusIndependentPredicate besides a 1-based position
+  private static final int SELECT_ALL = 0;
+  private static final int SELECT_NONE = -1;
 
   @PresentForCodeCoverage
   private static final XPathEvaluator INSTANCE = new XPathEvaluator ();
@@ -133,12 +137,13 @@ public final class XPathEvaluator
   }
 
   /**
-   * @return The position a numeric literal predicate selects, or a value below 1 if it selects
-   *         none: -1 for a fractional value, NaN, or a value above the int range (or, for
-   *         xs:double and xs:float, below 1); an xs:integer or xs:decimal literal of 0 or below is
-   *         returned as it is.
+   * @return The position a numeric predicate value selects (the one position
+   *         {@link #_isPosition(XdmAtomic, int)} accepts), or a value below 1 if it selects none:
+   *         -1 for a fractional value, NaN, or a value outside the int range (or, for xs:double
+   *         and xs:float, below 1); an xs:integer or xs:decimal value of 0 or below within the int
+   *         range is returned as it is.
    */
-  private static int _getLiteralPosition (@NonNull final XdmAtomic aValue)
+  private static int _getSelectedPosition (@NonNull final XdmAtomic aValue)
   {
     final Object aPayload = aValue.getValue ();
     if (aPayload instanceof final BigInteger aBigInt)
@@ -146,7 +151,9 @@ public final class XPathEvaluator
     if (aPayload instanceof final BigDecimal aBigDec)
     {
       final BigDecimal aStripped = aBigDec.stripTrailingZeros ();
-      if (aStripped.scale () > 0 || aStripped.compareTo (BigDecimal.valueOf (Integer.MAX_VALUE)) > 0)
+      if (aStripped.scale () > 0 ||
+          aStripped.compareTo (BigDecimal.valueOf (Integer.MAX_VALUE)) > 0 ||
+          aStripped.compareTo (BigDecimal.valueOf (Integer.MIN_VALUE)) < 0)
         return -1;
       return aStripped.intValue ();
     }
@@ -178,6 +185,63 @@ public final class XPathEvaluator
   }
 
   /**
+   * Is a predicate's value the same for every candidate, so that one evaluation decides for all
+   * of them? See {@link ExprWalker#isFocusIndependent(IExpr, java.util.function.Predicate)};
+   * every static function call in it must also resolve, in the function library of the static
+   * context, to the implementation of the shared default library, so that a host function
+   * registered under a built-in name is never assumed to be focus-free. A literal is left to the
+   * literal shortcut of the callers.
+   */
+  private static boolean _isFocusIndependentPredicate (@NonNull final IExpr aPredicate,
+                                                       @NonNull final DynamicContext aCtx)
+  {
+    if (aPredicate instanceof IExpr.LiteralExpr ||
+        aPredicate instanceof IExpr.PathExpr ||
+        aPredicate instanceof IExpr.ContextItemExpr)
+      return false;
+    return ExprWalker.isFocusIndependent (aPredicate, aCall -> {
+      final int nArity = aCall.args ().size ();
+      final FunctionDef aDef = aCall.site ()
+                                    .getFunction (aCtx.getStaticContext ().getFunctionLibrary (),
+                                                  aCall.name (),
+                                                  nArity);
+      if (aDef == null)
+        return false;
+      final FunctionDef aDefault = FunctionLibrary.getDefault ().getFunction (aCall.name (), nArity);
+      return aDefault != null && aDefault.getImpl () == aDef.getImpl ();
+    });
+  }
+
+  /**
+   * Evaluate a focus-independent predicate (see
+   * {@link #_isFocusIndependentPredicate(IExpr, DynamicContext)}) once, with the focus of the
+   * given candidate, exactly as {@link #_isPredicateTrue(IExpr, IXdmItem, int, int, DynamicContext)}
+   * evaluates it, and say which candidates it keeps: a single number selects the one position it
+   * equals, anything else all candidates or none by its effective boolean value.
+   *
+   * @return The 1-based position the predicate selects, {@link #SELECT_ALL} or
+   *         {@link #SELECT_NONE}.
+   */
+  private static int _evalFocusIndependentPredicate (@NonNull final IExpr aPredicate,
+                                                     @NonNull final IXdmItem aItem,
+                                                     final int nPosition,
+                                                     final int nSize,
+                                                     @NonNull final DynamicContext aCtx)
+  {
+    final DynamicContext aFocus = aCtx.withFocus (aItem, nPosition, nSize);
+    final Boolean aEarly = _tryEarlyEbv (aPredicate, aFocus, true);
+    if (aEarly != null)
+      return aEarly.booleanValue () ? SELECT_ALL : SELECT_NONE;
+    final XdmSequence aValue = evaluateInternal (aPredicate, aFocus);
+    if (aValue.isSingleton () && aValue.get (0) instanceof final XdmAtomic aAtomic && aAtomic.isNumeric ())
+    {
+      final int nPos = _getSelectedPosition (aAtomic);
+      return nPos >= 1 ? nPos : SELECT_NONE;
+    }
+    return _ebv (aValue) ? SELECT_ALL : SELECT_NONE;
+  }
+
+  /**
    * Find the first item of a sequence (in its current order) for which a predicate is true, with
    * the context positions and size of the whole sequence.
    *
@@ -193,8 +257,16 @@ public final class XPathEvaluator
     final int nSize = aSeq.size ();
     if (aPredicate instanceof final IExpr.LiteralExpr aLiteral && aLiteral.value ().isNumeric ())
     {
-      final int nPos = _getLiteralPosition (aLiteral.value ());
+      final int nPos = _getSelectedPosition (aLiteral.value ());
       return nPos > nFrom && nPos <= nSize ? nPos - 1 : -1;
+    }
+    if (nSize - nFrom >= 2 && _isFocusIndependentPredicate (aPredicate, aCtx))
+    {
+      aCtx.checkInterrupt ();
+      final int nSelected = _evalFocusIndependentPredicate (aPredicate, aSeq.get (nFrom), nFrom + 1, nSize, aCtx);
+      if (nSelected == SELECT_ALL)
+        return nFrom;
+      return nSelected > nFrom && nSelected <= nSize ? nSelected - 1 : -1;
     }
     for (int i = nFrom; i < nSize; ++i)
     {
@@ -219,8 +291,17 @@ public final class XPathEvaluator
     if (aPredicate instanceof final IExpr.LiteralExpr aLiteral && aLiteral.value ().isNumeric ())
     {
       // A numeric literal selects one position without evaluating per item
-      final int nPos = _getLiteralPosition (aLiteral.value ());
+      final int nPos = _getSelectedPosition (aLiteral.value ());
       return nPos >= 1 && nPos <= nSize ? XdmSequence.of (aSeq.get (nPos - 1)) : XdmSequence.EMPTY;
+    }
+    if (nSize >= 2 && _isFocusIndependentPredicate (aPredicate, aCtx))
+    {
+      // One evaluation decides for all candidates
+      aCtx.checkInterrupt ();
+      final int nSelected = _evalFocusIndependentPredicate (aPredicate, aSeq.get (0), 1, nSize, aCtx);
+      if (nSelected == SELECT_ALL)
+        return aSeq;
+      return nSelected >= 1 && nSelected <= nSize ? XdmSequence.of (aSeq.get (nSelected - 1)) : XdmSequence.EMPTY;
     }
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     for (int i = 0; i < nSize; ++i)

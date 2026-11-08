@@ -86,6 +86,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   names an element the document's index does not contain is empty without evaluating its prefix
   (`XPathEvaluator._isEmptyByNameIndex`, also in the complete evaluation), but only for prefixes that cannot raise an
   error (axis steps without predicates, unions of such paths, a node as context item in a tree with a document root).
+- Focus-independent predicates: a predicate that `ExprWalker.isFocusIndependent` accepts (no context item, no path
+  other than `$x/a/@b`, no function items, only the listed built-in functions, each resolving to the implementation of
+  `FunctionLibrary.getDefault ()`) is evaluated once per step or filter application with two or more candidates
+  (`XPathEvaluator._applyPredicate`, `_findPassing`): a number selects that position, anything else all or none.
+  The list fails closed; add a function to it only if it reads neither the focus nor anything that changes within a run.
 - xsl:number (`NumberInstruction`) counts from the document's name index where the count and from patterns name the
   elements they can match (`XsltPattern.getFinalNames`; patterns of single exact `child::` name steps and the default
   count pattern of an element are counted by binary search on the document order without testing): level="any" over
