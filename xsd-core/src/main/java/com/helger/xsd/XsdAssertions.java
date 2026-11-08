@@ -16,7 +16,7 @@
  */
 package com.helger.xsd;
 
-import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
@@ -121,18 +121,6 @@ final class XsdAssertions
   }
 
   /**
-   * One pending step of the iterative copy in {@link #_assertTree}: the source
-   * node still to be copied and the already created copy it is appended to.
-   *
-   * @param src
-   *        The source node to copy.
-   * @param dstParent
-   *        The copy that receives the copy of <code>src</code> as last child.
-   */
-  private record CloneStep (@NonNull IXdmNode src, @NonNull IXdmNode dstParent)
-  {}
-
-  /**
    * go-xslt <code>typedSimpleValue</code>: cast an already validated lexical to
    * its primitive's typed atomic; on a cast the engine cannot do, the untyped
    * reading stands in.
@@ -209,7 +197,10 @@ final class XsdAssertions
    * content. The root stays unannotated, as its type is the one being
    * validated.</li>
    * </ul>
-   * The source node is not modified.
+   * The root also declares the namespaces in scope at the source that it does
+   * not declare itself (the <code>xml</code> prefix excepted): the tree is
+   * detached, so the bindings declared on ancestors would be lost. The source
+   * node is not modified.
    *
    * @param aRun
    *        The validation run that holds the types and defaults.
@@ -231,12 +222,19 @@ final class XsdAssertions
     // The root gets the computed base URI; below it the explicit ones are
     // enough, as xml:base attributes are copied too
     ret.setBaseUri (bRoot ? FnAccessor.getBaseUri (aSrc) : aSrc.getBaseUri ());
-    for (final Map.Entry <String, String> aEntry : aSrc.getDeclaredNamespaces ().entrySet ())
+    final ICommonsOrderedMap <String, String> aDeclared = aSrc.getDeclaredNamespaces ();
+    for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
       ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
+    if (bRoot)
+      for (final Map.Entry <String, String> aEntry : aSrc.getInScopeNamespaces ().entrySet ())
+        if (!"xml".equals (aEntry.getKey ()) && !aDeclared.containsKey (aEntry.getKey ()))
+          ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     // Attributes are value-cloned so that their typed annotation lives only on
     // the assertion tree
-    for (final IXdmNode aAttr : aSrc.getAllAttributes ())
+    final int nAttrs = aSrc.getAttributeCount ();
+    for (int i = 0; i < nAttrs; ++i)
     {
+      final IXdmNode aAttr = aSrc.getAttributeAtIndex (i);
       final IXdmNode aCopy = IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
       _annotate (aRun, aCopy, aAttr);
       ret.addAttribute (aCopy);
@@ -271,33 +269,52 @@ final class XsdAssertions
    * against (3.13.4.2) - a detached copy of the element, so that '/', '//' and
    * the ancestor axes cannot escape it, with comment and processing
    * instruction nodes filtered out. Iterative, as the depth is
-   * input-controlled.
+   * input-controlled: a depth-first walk whose stack holds, per open source
+   * element, its copy and the index of the next child to copy, so nothing but
+   * the copies is allocated per node.
    */
   @NonNull
   private static IXdmNode _assertTree (@NonNull final XsdValidationRun aRun, @NonNull final IXdmNode aElement)
   {
     final IXdmNode ret = _cloneShallow (aRun, aElement, true);
-    final ArrayDeque <CloneStep> aStack = new ArrayDeque <> ();
-    for (int i = aElement.getChildCount () - 1; i >= 0; --i)
-      aStack.push (new CloneStep (aElement.getChildAtIndex (i), ret));
-    while (!aStack.isEmpty ())
+    IXdmNode [] aSrcOpen = new IXdmNode [16];
+    IXdmNode [] aDstOpen = new IXdmNode [16];
+    int [] aNextChild = new int [16];
+    int nTop = 0;
+    aSrcOpen[0] = aElement;
+    aDstOpen[0] = ret;
+    while (nTop >= 0)
     {
-      final CloneStep aStep = aStack.pop ();
-      final IXdmNode aSrc = aStep.src ();
+      final IXdmNode aSrcParent = aSrcOpen[nTop];
+      final int nIndex = aNextChild[nTop];
+      if (nIndex >= aSrcParent.getChildCount ())
+      {
+        aSrcOpen[nTop] = null;
+        aDstOpen[nTop] = null;
+        nTop--;
+        continue;
+      }
+      aNextChild[nTop] = nIndex + 1;
+      final IXdmNode aSrc = aSrcParent.getChildAtIndex (nIndex);
       final ENodeKind eKind = aSrc.getKind ();
       if (eKind != ENodeKind.ELEMENT && eKind != ENodeKind.TEXT)
         continue;
       final IXdmNode aCopy = _cloneShallow (aRun, aSrc, false);
-      aStep.dstParent ().appendChild (aCopy);
-      for (int i = aSrc.getChildCount () - 1; i >= 0; --i)
-        aStack.push (new CloneStep (aSrc.getChildAtIndex (i), aCopy));
+      aDstOpen[nTop].appendChild (aCopy);
+      if (eKind == ENodeKind.ELEMENT && aSrc.getChildCount () > 0)
+      {
+        nTop++;
+        if (nTop == aSrcOpen.length)
+        {
+          aSrcOpen = Arrays.copyOf (aSrcOpen, nTop * 2);
+          aDstOpen = Arrays.copyOf (aDstOpen, nTop * 2);
+          aNextChild = Arrays.copyOf (aNextChild, nTop * 2);
+        }
+        aSrcOpen[nTop] = aSrc;
+        aDstOpen[nTop] = aCopy;
+        aNextChild[nTop] = 0;
+      }
     }
-    // The tree is detached, so the namespace bindings declared on ancestors of
-    // the assertion root would be lost: materialise its in-scope bindings
-    final ICommonsOrderedMap <String, String> aDeclared = ret.getDeclaredNamespaces ();
-    for (final Map.Entry <String, String> aEntry : aElement.getInScopeNamespaces ().entrySet ())
-      if (!"xml".equals (aEntry.getKey ()) && !aDeclared.containsKey (aEntry.getKey ()))
-        ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     return ret;
   }
 
@@ -311,8 +328,12 @@ final class XsdAssertions
   {
     final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     final ICommonsSet <XsdName> aHave = new CommonsHashSet <> ();
-    for (final IXdmNode aAttr : aElement.getAllAttributes ())
-      aHave.add (new XsdName (aAttr.getName ().namespaceUri (), aAttr.getName ().localName ()));
+    final int nAttrs = aElement.getAttributeCount ();
+    for (int i = 0; i < nAttrs; ++i)
+    {
+      final XdmQName aName = aElement.getAttributeAtIndex (i).getName ();
+      aHave.add (new XsdName (aName.namespaceUri (), aName.localName ()));
+    }
     for (IXdmNode aAnc = aElement.getParent (); aAnc != null && aAnc.isElement (); aAnc = aAnc.getParent ())
     {
       if (!(aRun.elementTypeOf (aAnc) instanceof final XsdComplexType aCT))
@@ -508,8 +529,12 @@ final class XsdAssertions
     for (final Map.Entry <String, String> aEntry : aElement.getInScopeNamespaces ().entrySet ())
       if (!"xml".equals (aEntry.getKey ()))
         aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());
-    for (final IXdmNode aAttr : aElement.getAllAttributes ())
+    final int nAttrs = aElement.getAttributeCount ();
+    for (int i = 0; i < nAttrs; ++i)
+    {
+      final IXdmNode aAttr = aElement.getAttributeAtIndex (i);
       aCopy.addAttribute (IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ()));
+    }
     for (final IXdmNode aAttr : _inheritedAttrs (aRun, aElement))
       aCopy.addAttribute (IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ()));
     for (final XsdTypeAlternative aAlt : aDecl.m_aAlternatives)
