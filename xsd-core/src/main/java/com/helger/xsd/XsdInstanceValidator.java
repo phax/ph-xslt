@@ -37,6 +37,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.value.EAtomicType;
 import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmDocumentNode;
 import com.helger.xpath.xdm.XdmParseException;
 import com.helger.xpath.xdm.XdmParser;
 import com.helger.xpath.xdm.XdmQName;
@@ -1829,6 +1830,42 @@ final class XsdInstanceValidator
   }
 
   /**
+   * The element depth of a subtree for the choice of the stack in
+   * {@link #validateRoot(XsdValidationRun, IXdmNode, BiConsumer)}, from the
+   * maximum element depth the tree builder recorded for the document where it
+   * is known ({@link XdmDocumentNode#getMaxElementDepth()}), else from
+   * {@link #elementDepth(IXdmNode)}. The recorded value minus the element
+   * ancestors of the root is exact for the document element and an upper
+   * bound for a deeper root; such a bound is only used if it does not exceed
+   * {@link XsdValidationRun#MAX_DEPTH}, so the decision is the same as with
+   * the walk.
+   *
+   * @param aRoot
+   *        The root element.
+   * @return The depth as {@link #elementDepth(IXdmNode)} gives it, or an upper
+   *         bound of it that is at most {@link XsdValidationRun#MAX_DEPTH}.
+   */
+  @VisibleForTesting
+  static int elementDepthForStack (@NonNull final IXdmNode aRoot)
+  {
+    if (aRoot.getRoot () instanceof final XdmDocumentNode aDoc)
+    {
+      final int nDocDepth = aDoc.getMaxElementDepth ();
+      if (nDocDepth > 0)
+      {
+        int nAncestors = 0;
+        for (IXdmNode aCur = aRoot.getParent (); aCur != null; aCur = aCur.getParent ())
+          if (aCur.isElement ())
+            nAncestors++;
+        final int nBound = nDocDepth - nAncestors;
+        if (nAncestors == 0 || nBound <= XsdValidationRun.MAX_DEPTH)
+          return nBound;
+      }
+    }
+    return elementDepth (aRoot);
+  }
+
+  /**
    * Validate the document element (or the root of a subtree) of an instance,
    * on a thread with a big stack if it is nested deeper than
    * {@link XsdValidationRun#MAX_DEPTH} levels. go-xslt relies on its growable
@@ -1870,7 +1907,7 @@ final class XsdInstanceValidator
                             @NonNull final IXdmNode aRoot,
                             @NonNull final BiConsumer <XsdValidationRun, IXdmNode> aAssess)
   {
-    final int nDepth = elementDepth (aRoot);
+    final int nDepth = elementDepthForStack (aRoot);
     if (nDepth <= XsdValidationRun.MAX_DEPTH)
     {
       aRun.setMaxDepth (XsdValidationRun.MAX_DEPTH);

@@ -121,6 +121,17 @@ public final class XdmElementNode extends AbstractXdmParentNode
   }
 
   /**
+   * Create the attribute list with room for the given number of attributes,
+   * if there is none yet, so that an element built from a parser event does
+   * not carry the room of a default list ({@link XdmTreeBuilder}).
+   */
+  void internalReserveAttributes (@Nonnegative final int nCount)
+  {
+    if (m_aAttributes == null)
+      m_aAttributes = new CommonsArrayList <> (nCount);
+  }
+
+  /**
    * Record the declaration and drop the namespace nodes built so far for this
    * element, so that {@link #getNamespaceNodes()} builds them again. The
    * namespace nodes of descendant elements are not dropped.

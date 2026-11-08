@@ -17,6 +17,8 @@
 package com.helger.xpath.xdm;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Objects;
 
 import org.jspecify.annotations.NonNull;
 
@@ -35,12 +37,52 @@ import com.helger.collection.commons.ICommonsList;
 @NotThreadSafe
 public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permits XdmDocumentNode, XdmElementNode
 {
-  private ICommonsList <AbstractXdmNode> m_aChildren;
+  // The children in the first m_nChildCount slots; null until the first child
+  private AbstractXdmNode [] m_aChildren;
+  private int m_nChildCount;
   // Order of the last node of the subtree, see getEndOrder
   private int m_nEndOrder;
 
   AbstractXdmParentNode ()
   {}
+
+  /**
+   * Store a child in the next slot, growing the array if it is full: the first
+   * child gets an array of one (the common leaf element with one text node),
+   * the second one of four, and from then on the array grows by half.
+   */
+  private void _addChild (@NonNull final AbstractXdmNode aChild)
+  {
+    if (m_aChildren == null)
+      m_aChildren = new AbstractXdmNode [1];
+    else
+      if (m_nChildCount == m_aChildren.length)
+        m_aChildren = Arrays.copyOf (m_aChildren, Math.max (4, m_nChildCount + (m_nChildCount >> 1)));
+    m_aChildren[m_nChildCount++] = aChild;
+  }
+
+  /**
+   * Remove the child in a slot, moving the later children one slot to the
+   * front.
+   */
+  private void _removeChildAt (@Nonnegative final int nIndex)
+  {
+    final int nMoved = m_nChildCount - nIndex - 1;
+    if (nMoved > 0)
+      System.arraycopy (m_aChildren, nIndex + 1, m_aChildren, nIndex, nMoved);
+    m_aChildren[--m_nChildCount] = null;
+  }
+
+  /**
+   * @return The slot of a child searched by identity, -1 if it is no child.
+   */
+  private int _indexOfChild (@NonNull final AbstractXdmNode aChild)
+  {
+    for (int i = 0; i < m_nChildCount; ++i)
+      if (m_aChildren[i] == aChild)
+        return i;
+    return -1;
+  }
 
   /**
    * Append a parentless node as the last child and make this node its parent.
@@ -72,9 +114,7 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
     // A subtree numbered as a tree of its own must not keep that numbering
     aRealChild.internalInvalidateOrder ();
     aRealChild.internalSetParent (this);
-    if (m_aChildren == null)
-      m_aChildren = new CommonsArrayList <> ();
-    m_aChildren.add (aRealChild);
+    _addChild (aRealChild);
     internalInvalidateOrder ();
   }
 
@@ -95,8 +135,10 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
       throw new IllegalArgumentException ("Not a child of this node");
     // Before detaching, so that the removed subtree is reset as well
     internalInvalidateOrder ();
-    if (!m_aChildren.removeObject (aRealChild).isChanged ())
+    final int nIndex = _indexOfChild (aRealChild);
+    if (nIndex < 0)
       throw new IllegalArgumentException ("Not a child of this node");
+    _removeChildAt (nIndex);
     aRealChild.internalSetParent (null);
   }
 
@@ -107,9 +149,7 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   final void internalAppendNumbered (@NonNull final AbstractXdmNode aChild)
   {
     aChild.internalSetParent (this);
-    if (m_aChildren == null)
-      m_aChildren = new CommonsArrayList <> ();
-    m_aChildren.add (aChild);
+    _addChild (aChild);
   }
 
   /**
@@ -121,16 +161,26 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
    */
   final boolean internalDetachNumbered (@NonNull final AbstractXdmNode aChild)
   {
-    if (m_aChildren == null)
-      return false;
-    for (int i = m_aChildren.size () - 1; i >= 0; --i)
-      if (m_aChildren.get (i) == aChild)
+    for (int i = m_nChildCount - 1; i >= 0; --i)
+      if (m_aChildren[i] == aChild)
       {
-        m_aChildren.remove (i);
+        _removeChildAt (i);
         aChild.internalSetParent (null);
         return true;
       }
     return false;
+  }
+
+  /**
+   * Shrink the child array to the number of children if at least four slots
+   * are unused, for a parent that gets no more children while its tree is
+   * built ({@link XdmTreeBuilder}). Smaller gaps are kept, as copying the
+   * array would cost more than it saves.
+   */
+  final void internalTrimChildren ()
+  {
+    if (m_aChildren != null && m_aChildren.length - m_nChildCount >= 4)
+      m_aChildren = Arrays.copyOf (m_aChildren, m_nChildCount);
   }
 
   final void internalSetEndOrder (@Nonnegative final int nEndOrder)
@@ -149,16 +199,15 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   @Nonnegative
   public final int getChildCount ()
   {
-    return m_aChildren == null ? 0 : m_aChildren.size ();
+    return m_nChildCount;
   }
 
   @Override
   @NonNull
   public final AbstractXdmNode getChildAtIndex (@Nonnegative final int nIndex)
   {
-    if (m_aChildren == null)
-      throw new IndexOutOfBoundsException ("No children");
-    return m_aChildren.get (nIndex);
+    // Fails before the array is used, also when there are no children
+    return m_aChildren[Objects.checkIndex (nIndex, m_nChildCount)];
   }
 
   @Override
@@ -166,7 +215,10 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   @ReturnsMutableCopy
   public final ICommonsList <IXdmNode> getAllChildren ()
   {
-    return m_aChildren == null ? new CommonsArrayList <> () : new CommonsArrayList <> (m_aChildren);
+    final ICommonsList <IXdmNode> ret = new CommonsArrayList <> (m_nChildCount);
+    for (int i = 0; i < m_nChildCount; ++i)
+      ret.add (m_aChildren[i]);
+    return ret;
   }
 
   /**
@@ -178,16 +230,16 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   @NonNull
   public final String getStringValue ()
   {
-    if (m_aChildren == null)
+    if (m_nChildCount == 0)
       return "";
     // The common leaf element with one text child
-    if (m_aChildren.size () == 1 && m_aChildren.get (0) instanceof final XdmTextNode aText)
+    if (m_nChildCount == 1 && m_aChildren[0] instanceof final XdmTextNode aText)
       return aText.getValue ();
     // Do not recurse - trees may be very deep
     final StringBuilder aSB = new StringBuilder ();
     final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();
-    for (int i = m_aChildren.size () - 1; i >= 0; --i)
-      aStack.push (m_aChildren.get (i));
+    for (int i = m_nChildCount - 1; i >= 0; --i)
+      aStack.push (m_aChildren[i]);
     while (!aStack.isEmpty ())
     {
       final AbstractXdmNode aCur = aStack.pop ();

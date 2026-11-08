@@ -115,6 +115,9 @@ public final class NodeCopier
                                      @NonNull final IXdmNode aCopy,
                                      final boolean bAllInScope)
   {
+    // Most elements declare nothing: no copy of an empty map for them
+    if (!bAllInScope && !aSource.hasDeclaredNamespaces ())
+      return;
     final Map <String, String> aNamespaces = bAllInScope ? aSource.getInScopeNamespaces ()
                                                          : aSource.getDeclaredNamespaces ();
     for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())

@@ -37,7 +37,6 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
-import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.xpath.XPathException;
 import com.helger.xpath.xdm.ENodeKind;
 import com.helger.xpath.xdm.IXdmNode;
@@ -760,8 +759,10 @@ final class MarkupWriter
     final StringBuilder aDecls = new StringBuilder ();
     boolean bUndeclaresDefault = false;
 
-    final ICommonsOrderedMap <String, String> aNamespaces = bTop ? aElement.getInScopeNamespaces ()
-                                                                 : aElement.getDeclaredNamespaces ();
+    // Most elements declare nothing: no copy of an empty map for them
+    final Map <String, String> aNamespaces = bTop ? aElement.getInScopeNamespaces ()
+                                                  : aElement.hasDeclaredNamespaces () ? aElement.getDeclaredNamespaces ()
+                                                                                      : Map.of ();
     for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
     {
       final String sPrefix = aEntry.getKey ();

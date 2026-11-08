@@ -77,7 +77,7 @@ public final class NamespaceFixup
     {
       // Only declare if the element does not declare this prefix itself with
       // another URI (that conflict was rejected when the namespace was added)
-      final String sOwn = aElement.getDeclaredNamespaces ().get (sPrefix);
+      final String sOwn = aElement.getDeclaredNamespaceUri (sPrefix);
       if (sOwn == null || sOwn.isEmpty ())
         aElement.declareNamespace (sPrefix, sUri);
     }
@@ -89,8 +89,8 @@ public final class NamespaceFixup
           aAttrName.hasPrefix () &&
           !"xml".equals (aAttrName.prefix ()) &&
           !_isBound (aElement, aAttrName.prefix (), aAttrName.namespaceUri ()) &&
-          (aElement.getDeclaredNamespaces ().get (aAttrName.prefix ()) == null ||
-           aElement.getDeclaredNamespaces ().get (aAttrName.prefix ()).isEmpty ()))
+          (aElement.getDeclaredNamespaceUri (aAttrName.prefix ()) == null ||
+           aElement.getDeclaredNamespaceUri (aAttrName.prefix ()).isEmpty ()))
         aElement.declareNamespace (aAttrName.prefix (), aAttrName.namespaceUri ());
     }
   }
@@ -194,9 +194,8 @@ public final class NamespaceFixup
       final IXdmNode aChild = aElement.getChildAtIndex (i);
       if (!aChild.isElement ())
         continue;
-      final Map <String, String> aOwn = aChild.getDeclaredNamespaces ();
       for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
-        if (!aEntry.getValue ().isEmpty () && !aOwn.containsKey (aEntry.getKey ()))
+        if (!aEntry.getValue ().isEmpty () && aChild.getDeclaredNamespaceUri (aEntry.getKey ()) == null)
           aChild.declareNamespace (aEntry.getKey (), "");
     }
   }

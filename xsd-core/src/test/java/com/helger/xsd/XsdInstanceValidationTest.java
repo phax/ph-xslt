@@ -379,6 +379,48 @@ public final class XsdInstanceValidationTest
     assertEquals (XsdValidationRun.MAX_DEPTH_BIG_STACK + 1, XsdInstanceValidator.elementDepth (aRoot));
   }
 
+  /**
+   * The depth for the choice of the stack: the recorded document depth for
+   * the document element, a bound from it for a subtree root as long as it
+   * decides the same as the walk, and the walk for a changed or built tree.
+   */
+  @Test
+  public void testElementDepthForStack () throws XdmParseException
+  {
+    final XdmParser aParser = new XdmParser ();
+    final String sDoc = "<a>t<b/>u<c><d>v</d></c><e><f><g/></f></e><h/></a>";
+    final IXdmNode aA = XsdNodes.rootElement (aParser.parse (sDoc));
+    assertEquals (4, XsdInstanceValidator.elementDepthForStack (aA));
+    // c: 2 levels, the bound from the document is 3
+    final IXdmNode aC = aA.getChildAtIndex (3);
+    assertEquals ("c", aC.getName ().localName ());
+    assertEquals (3, XsdInstanceValidator.elementDepthForStack (aC));
+    assertEquals (2, XsdInstanceValidator.elementDepth (aC));
+    // A change drops the recorded depth: the walk counts the new level
+    final IXdmNode aX = IXdmNode.createElement (new XdmQName ("x"));
+    aX.appendChild (IXdmNode.createElement (new XdmQName ("y")));
+    aC.getChildAtIndex (0).appendChild (aX);
+    assertEquals (5, XsdInstanceValidator.elementDepthForStack (aA));
+    assertEquals (4, XsdInstanceValidator.elementDepthForStack (aC));
+
+    // Deeper than MAX_DEPTH: exact for the document element, the walk below it
+    final StringBuilder aSB = new StringBuilder ("<r>");
+    for (int i = 0; i < XsdValidationRun.MAX_DEPTH + 10; i++)
+      aSB.append ("<n>");
+    for (int i = 0; i < XsdValidationRun.MAX_DEPTH + 10; i++)
+      aSB.append ("</n>");
+    aSB.append ("<x/></r>");
+    final IXdmNode aR = XsdNodes.rootElement (aParser.parse (aSB.toString ()));
+    assertEquals (XsdValidationRun.MAX_DEPTH + 11, XsdInstanceValidator.elementDepthForStack (aR));
+    assertEquals (1, XsdInstanceValidator.elementDepthForStack (aR.getChildAtIndex (1)));
+    assertEquals (XsdValidationRun.MAX_DEPTH + 10, XsdInstanceValidator.elementDepthForStack (aR.getChildAtIndex (0)));
+
+    // A tree without document node
+    final IXdmNode aRoot = IXdmNode.createElement (new XdmQName ("n"));
+    aRoot.appendChild (IXdmNode.createElement (new XdmQName ("n")));
+    assertEquals (2, XsdInstanceValidator.elementDepthForStack (aRoot));
+  }
+
   @Test
   public void testSchemaLocationHint () throws IOException
   {

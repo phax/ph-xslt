@@ -27,7 +27,13 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   structural change to a numbered tree must go through `appendChild`/`removeChild`/`addAttribute`, which drop numbering
   and indexes. `XdmTreeBuilder` and `XdmStreamReader` number nodes as they create them (`internalAppendNumbered`,
   `internalStamp`), with the numbers `assignDocumentOrder` would give; a change from a wrapping handler while building
-  drops that numbering and `XdmTreeBuilder.endDocument` numbers the finished tree.
+  drops that numbering and `XdmTreeBuilder.endDocument` numbers the finished tree. The builder also records the
+  maximum element depth with its numbering (`XdmDocumentNode.getMaxElementDepth`, -1 once the numbering is gone), which
+  `XsdInstanceValidator` uses instead of walking the tree. Children are a plain array with a count in
+  `AbstractXdmParentNode` (trimmed by the builder at `endElement`); indentation text (a line end and spaces or tabs) is
+  one shared string per document.
+- Use `hasDeclaredNamespaces ()`/`getDeclaredNamespaceUri (prefix)` where only a check or a lookup is needed:
+  `getDeclaredNamespaces ()` returns a copy, also for an element without declarations.
 - Hosts that evaluate their own XPath against a stylesheet's declarations (Schematron) use
   `XsltExecutable.createStaticContext`/`createEvaluation`, never `Engine` directly; the start-up of a run lives in
   `XsltTransformer.initGlobalContextItem` and is shared by both. `CompiledXPath.evaluate` uses its own static context.

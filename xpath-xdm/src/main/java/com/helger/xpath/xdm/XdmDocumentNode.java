@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.base.enforce.ValueEnforcer;
@@ -74,6 +75,10 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   private volatile NameIndex m_aAttributeIndex;
   // Built by XdmStreamReader: only a part of the document is attached
   private boolean m_bStreamed;
+  // The maximum element depth recorded by XdmTreeBuilder, and the numbering it
+  // belongs to (0 = none)
+  private int m_nMaxElementDepth;
+  private long m_nMaxElementDepthTree;
 
   XdmDocumentNode ()
   {}
@@ -225,8 +230,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     else
       for (int i = 0; i < nCount; ++i)
       {
-        final IXdmNode aChild = aParent.getChildAtIndex (i);
-        if (aChild.getKind () == ENodeKind.ELEMENT && aName.equals (aChild.getName ()))
+        if (aParent.getChildAtIndex (i) instanceof final XdmElementNode aChild && aName.equals (aChild.getName ()))
           ret.add (aChild);
       }
     return List.copyOf (ret);
@@ -240,6 +244,41 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   {
     m_aNameIndex = null;
     m_aAttributeIndex = null;
+    m_nMaxElementDepthTree = 0;
+  }
+
+  /**
+   * Record the maximum element depth of the tree as it is numbered now. Called
+   * by {@link XdmTreeBuilder} at the end of a build that kept its numbering;
+   * the value is dropped with the numbering on the next structural change.
+   *
+   * @param nMaxElementDepth
+   *        The number of nested element levels, the document element counting
+   *        as one; 0 for a document without element.
+   */
+  void internalSetMaxElementDepth (@Nonnegative final int nMaxElementDepth)
+  {
+    m_nMaxElementDepth = nMaxElementDepth;
+    m_nMaxElementDepthTree = internalGetTree ();
+  }
+
+  /**
+   * The maximum element depth recorded while the tree was built: the number of
+   * nested element levels, the document element counting as one. It is only
+   * known for a tree built by {@link XdmParser} (or {@link XdmTreeBuilder})
+   * that has not changed structurally since; a change removes the numbering
+   * and with it the value.
+   *
+   * @return The depth, 0 for a document without element, or -1 if it is not
+   *         known (never recorded, changed since, or {@link #isStreamed()
+   *         streamed}).
+   */
+  public int getMaxElementDepth ()
+  {
+    final long nTree = internalGetTree ();
+    if (nTree == 0 || nTree != m_nMaxElementDepthTree || m_bStreamed)
+      return -1;
+    return m_nMaxElementDepth;
   }
 
   /**

@@ -27,9 +27,7 @@ import org.xml.sax.ext.DefaultHandler2;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.collection.commons.CommonsArrayList;
-import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
-import com.helger.collection.commons.ICommonsMap;
 
 /**
  * SAX2 handler that builds an {@link IXdmNode} tree. Adjacent character events
@@ -53,9 +51,20 @@ import com.helger.collection.commons.ICommonsMap;
 @NotThreadSafe
 public final class XdmTreeBuilder extends DefaultHandler2
 {
+  // Indentation text up to this length is shared, see _getText
+  private static final int MAX_SHARED_INDENT = 64;
+
   private final ICommonsList <String> m_aPendingPrefixes = new CommonsArrayList <> ();
   private final ICommonsList <String> m_aPendingUris = new CommonsArrayList <> ();
+  // The pending text of a single character event; null if there is none or
+  // more than one event was merged into m_aText
+  private String m_sText;
+  // The pending text of several character events
   private final StringBuilder m_aText = new StringBuilder ();
+  // The shared indentation strings (a line end and spaces, or a line end and
+  // tabs) by their length - 1
+  private final String [] m_aSpaceIndents = new String [MAX_SHARED_INDENT];
+  private final String [] m_aTabIndents = new String [MAX_SHARED_INDENT];
   // Location of the first character event of the pending text
   private int m_nTextLine;
   private int m_nTextColumn;
@@ -68,11 +77,18 @@ public final class XdmTreeBuilder extends DefaultHandler2
   // The next document order number
   private int m_nOrder;
   private boolean m_bInDTD = false;
+  // The number of open elements, and the maximum of it so far
+  private int m_nDepth;
+  private int m_nMaxDepth;
   // The system ID in effect for each open element
   private final ArrayDeque <String> m_aSystemIds = new ArrayDeque <> ();
   // One shared name instance per namespace URI and lexical name, so that the
-  // nodes of a document do not each carry their own copy
-  private final ICommonsMap <String, ICommonsMap <String, XdmQName>> m_aNames = new CommonsHashMap <> ();
+  // nodes of a document do not each carry their own copy: an open addressing
+  // table of the three parallel arrays, at most half full
+  private String [] m_aNameUris = new String [64];
+  private String [] m_aNameQNames = new String [64];
+  private XdmQName [] m_aNames = new XdmQName [64];
+  private int m_nNameCount;
 
   /**
    * Give a new node the next document order number, as long as the tree is
@@ -110,14 +126,60 @@ public final class XdmTreeBuilder extends DefaultHandler2
    */
   private void _flushText ()
   {
-    if (!m_aText.isEmpty ())
+    final String sValue;
+    if (m_sText != null)
     {
-      final XdmTextNode aText = new XdmTextNode (m_aText.toString ());
-      if (m_aLocator != null)
-        aText.setLocation (m_nTextLine, m_nTextColumn);
-      _append (aText);
-      m_aText.setLength (0);
+      sValue = m_sText;
+      m_sText = null;
     }
+    else
+      if (!m_aText.isEmpty ())
+      {
+        sValue = m_aText.toString ();
+        m_aText.setLength (0);
+      }
+      else
+        return;
+    final XdmTextNode aText = new XdmTextNode (sValue);
+    if (m_aLocator != null)
+      aText.setLocation (m_nTextLine, m_nTextColumn);
+    _append (aText);
+  }
+
+  /**
+   * The text of one character event as a string. The usual indentation
+   * between elements - a line end followed by up to
+   * {@link #MAX_SHARED_INDENT} - 1 spaces or tabs only - is a large part of
+   * the text nodes of most documents; it is shared within the document, one
+   * string per length and indentation character, created on first use. Any
+   * other text gives a new string.
+   */
+  @NonNull
+  private String _getText (@NonNull final char [] aChars, final int nStart, final int nLength)
+  {
+    if (nLength <= MAX_SHARED_INDENT && aChars[nStart] == '\n')
+    {
+      final int nEnd = nStart + nLength;
+      final char cIndent = nLength > 1 ? aChars[nStart + 1] : ' ';
+      if (cIndent == ' ' || cIndent == '\t')
+      {
+        int i = nStart + 1;
+        while (i < nEnd && aChars[i] == cIndent)
+          ++i;
+        if (i == nEnd)
+        {
+          final String [] aShared = cIndent == ' ' ? m_aSpaceIndents : m_aTabIndents;
+          String ret = aShared[nLength - 1];
+          if (ret == null)
+          {
+            ret = new String (aChars, nStart, nLength);
+            aShared[nLength - 1] = ret;
+          }
+          return ret;
+        }
+      }
+    }
+    return new String (aChars, nStart, nLength);
   }
 
   /**
@@ -171,19 +233,42 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private XdmQName _getName (@NonNull final String sUri, @NonNull final String sLocalName, @NonNull final String sQName)
   {
     // Keyed by the lexical name and not by XdmQName, whose equals ignores the
-    // prefix. Plain get/put instead of computeIfAbsent, so that no capturing
-    // lambda is created per name
-    ICommonsMap <String, XdmQName> aByQName = m_aNames.get (sUri);
-    if (aByQName == null)
+    // prefix. The strings of the JDK parser are canonical and keep their hash
+    // code, so a hit is mostly two identity checks
+    final int nHash = 31 * sQName.hashCode () + sUri.hashCode ();
+    int nMask = m_aNames.length - 1;
+    int nSlot = (nHash ^ (nHash >>> 16)) & nMask;
+    while (m_aNames[nSlot] != null)
     {
-      aByQName = new CommonsHashMap <> ();
-      m_aNames.put (sUri, aByQName);
+      if (m_aNameQNames[nSlot].equals (sQName) && m_aNameUris[nSlot].equals (sUri))
+        return m_aNames[nSlot];
+      nSlot = (nSlot + 1) & nMask;
     }
-    XdmQName ret = aByQName.get (sQName);
-    if (ret == null)
+    final XdmQName ret = new XdmQName (sUri, sLocalName, _getPrefix (sQName)).getInterned ();
+    m_aNameUris[nSlot] = sUri;
+    m_aNameQNames[nSlot] = sQName;
+    m_aNames[nSlot] = ret;
+    if (++m_nNameCount * 2 > m_aNames.length)
     {
-      ret = new XdmQName (sUri, sLocalName, _getPrefix (sQName)).getInterned ();
-      aByQName.put (sQName, ret);
+      // Double the table and insert all names again
+      final String [] aOldUris = m_aNameUris;
+      final String [] aOldQNames = m_aNameQNames;
+      final XdmQName [] aOldNames = m_aNames;
+      m_aNameUris = new String [aOldNames.length * 2];
+      m_aNameQNames = new String [aOldNames.length * 2];
+      m_aNames = new XdmQName [aOldNames.length * 2];
+      nMask = m_aNames.length - 1;
+      for (int i = 0; i < aOldNames.length; ++i)
+        if (aOldNames[i] != null)
+        {
+          final int nOldHash = 31 * aOldQNames[i].hashCode () + aOldUris[i].hashCode ();
+          int nNewSlot = (nOldHash ^ (nOldHash >>> 16)) & nMask;
+          while (m_aNames[nNewSlot] != null)
+            nNewSlot = (nNewSlot + 1) & nMask;
+          m_aNameUris[nNewSlot] = aOldUris[i];
+          m_aNameQNames[nNewSlot] = aOldQNames[i];
+          m_aNames[nNewSlot] = aOldNames[i];
+        }
     }
     return ret;
   }
@@ -291,25 +376,32 @@ public final class XdmTreeBuilder extends DefaultHandler2
       m_aDocument.setDocumentUri (m_aLocator.getSystemId ());
     m_nTree = AbstractXdmNode.internalNewTree ();
     m_nOrder = 0;
+    m_nDepth = 0;
+    m_nMaxDepth = 0;
     m_aDocument.internalStamp (m_nTree, m_nOrder++);
     m_aDocument.internalSetEndOrder (Integer.MAX_VALUE);
   }
 
   /**
-   * Append pending text and finish the numbering: the document ends with the
-   * last node numbered. If a change from outside removed the numbering while
-   * building, the finished tree is numbered in a second pass
-   * ({@link IXdmNode#assignDocumentOrder()}). Name indexes asked for while
-   * building would miss the later nodes and are dropped.
+   * Append pending text, trim the child array of the document and finish the
+   * numbering: the document ends with the last node numbered, and the
+   * maximum element depth is recorded with this numbering
+   * ({@link XdmDocumentNode#getMaxElementDepth()}). If a change from outside
+   * removed the numbering while building, the finished tree is numbered in a
+   * second pass ({@link IXdmNode#assignDocumentOrder()}) and the depth stays
+   * unknown. Name indexes asked for while building would miss the later nodes
+   * and are dropped.
    */
   @Override
   public void endDocument ()
   {
     _flushText ();
+    m_aDocument.internalTrimChildren ();
     if (m_nTree != 0 && m_aDocument.internalGetTree () == m_nTree)
     {
       m_aDocument.internalSetEndOrder (m_nOrder - 1);
       m_aDocument.internalDropNameIndex ();
+      m_aDocument.internalSetMaxElementDepth (m_nMaxDepth);
     }
     else
       m_aDocument.assignDocumentOrder ();
@@ -353,7 +445,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aPendingPrefixes.clear ();
     m_aPendingUris.clear ();
     final String sSystemId = _applyEntityBase (aElement);
-    for (int i = 0; i < aAttrs.getLength (); ++i)
+    final int nAttrs = aAttrs.getLength ();
+    if (nAttrs > 0)
+      aElement.internalReserveAttributes (nAttrs);
+    for (int i = 0; i < nAttrs; ++i)
     {
       final String sAttrQName = aAttrs.getQName (i);
       // Namespace declarations are not attributes in XDM
@@ -378,34 +473,56 @@ public final class XdmTreeBuilder extends DefaultHandler2
     aElement.internalSetEndOrder (Integer.MAX_VALUE);
     m_aCurrent = aElement;
     m_aSystemIds.push (sSystemId == null ? "" : sSystemId);
+    if (++m_nDepth > m_nMaxDepth)
+      m_nMaxDepth = m_nDepth;
   }
 
   /**
-   * Append pending text, end the closed element with the last node numbered
-   * and make its parent the current node.
+   * Append pending text, trim the child array of the closed element, end it
+   * with the last node numbered and make its parent the current node.
    */
   @Override
   public void endElement (final String sUri, final String sLocalName, final String sQName)
   {
     _flushText ();
+    m_aCurrent.internalTrimChildren ();
     m_aCurrent.internalSetEndOrder (m_nOrder - 1);
     m_aCurrent = (AbstractXdmParentNode) m_aCurrent.getParent ();
     m_aSystemIds.pop ();
+    m_nDepth--;
   }
 
   /**
    * Collect character data for the next text node; the location of the first
-   * event after a flush becomes the location of that node.
+   * event after a flush becomes the location of that node. The text of the
+   * first event is kept as a string (shared for indentation, see
+   * {@link #_getText(char[], int, int)}); only a second event merges the text
+   * in a buffer. An event without characters is ignored.
    */
   @Override
   public void characters (final char [] aChars, final int nStart, final int nLength)
   {
-    if (m_aText.isEmpty () && m_aLocator != null)
+    if (nLength == 0)
+      return;
+    if (m_sText == null && m_aText.isEmpty ())
     {
-      m_nTextLine = m_aLocator.getLineNumber ();
-      m_nTextColumn = m_aLocator.getColumnNumber ();
+      // The first event of a text node: most text nodes have only one
+      if (m_aLocator != null)
+      {
+        m_nTextLine = m_aLocator.getLineNumber ();
+        m_nTextColumn = m_aLocator.getColumnNumber ();
+      }
+      m_sText = _getText (aChars, nStart, nLength);
     }
-    m_aText.append (aChars, nStart, nLength);
+    else
+    {
+      if (m_sText != null)
+      {
+        m_aText.append (m_sText);
+        m_sText = null;
+      }
+      m_aText.append (aChars, nStart, nLength);
+    }
   }
 
   /**

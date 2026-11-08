@@ -29,7 +29,6 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
-import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.xpath.CompiledXPath;
 import com.helger.xpath.XPathException;
@@ -222,12 +221,13 @@ final class XsdAssertions
     // The root gets the computed base URI; below it the explicit ones are
     // enough, as xml:base attributes are copied too
     ret.setBaseUri (bRoot ? FnAccessor.getBaseUri (aSrc) : aSrc.getBaseUri ());
-    final ICommonsOrderedMap <String, String> aDeclared = aSrc.getDeclaredNamespaces ();
-    for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
-      ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
+    // Most elements declare nothing: no copy of an empty map for them
+    if (aSrc.hasDeclaredNamespaces ())
+      for (final Map.Entry <String, String> aEntry : aSrc.getDeclaredNamespaces ().entrySet ())
+        ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     if (bRoot)
       for (final Map.Entry <String, String> aEntry : aSrc.getInScopeNamespaces ().entrySet ())
-        if (!"xml".equals (aEntry.getKey ()) && !aDeclared.containsKey (aEntry.getKey ()))
+        if (!"xml".equals (aEntry.getKey ()) && aSrc.getDeclaredNamespaceUri (aEntry.getKey ()) == null)
           ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
     // Attributes are value-cloned so that their typed annotation lives only on
     // the assertion tree
