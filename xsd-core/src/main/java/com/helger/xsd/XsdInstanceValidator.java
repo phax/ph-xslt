@@ -17,6 +17,7 @@
 package com.helger.xsd;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.function.BiConsumer;
@@ -26,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.annotation.style.VisibleForTesting;
 import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
@@ -1773,28 +1775,57 @@ final class XsdInstanceValidator
     return ret;
   }
 
-  /** @return The number of nested element levels of a tree (iterative, level by level). */
-  private static int _elementDepth (@NonNull final IXdmNode aRoot)
+  /**
+   * The number of nested element levels of a tree, the root counting as one,
+   * by an iterative depth-first walk over the elements: the stack holds the
+   * open elements and, per element, the index of the next child to look at, so
+   * nothing is allocated per element. The walk stops as soon as the depth
+   * exceeds {@link XsdValidationRun#MAX_DEPTH_BIG_STACK}, the largest depth
+   * that is validated at all.
+   *
+   * @param aRoot
+   *        The root element.
+   * @return The depth, or a value above
+   *         {@link XsdValidationRun#MAX_DEPTH_BIG_STACK} if it is deeper.
+   */
+  @VisibleForTesting
+  static int elementDepth (@NonNull final IXdmNode aRoot)
   {
-    int nDepth = 0;
-    ICommonsList <IXdmNode> aLevel = new CommonsArrayList <> (aRoot);
-    while (aLevel.isNotEmpty ())
+    IXdmNode [] aOpen = new IXdmNode [64];
+    int [] aNextChild = new int [64];
+    int nTop = 0;
+    aOpen[0] = aRoot;
+    int nMaxDepth = 1;
+    while (nTop >= 0)
     {
-      nDepth++;
-      final ICommonsList <IXdmNode> aNext = new CommonsArrayList <> ();
-      for (final IXdmNode aNode : aLevel)
+      final IXdmNode aCur = aOpen[nTop];
+      final int nCount = aCur.getChildCount ();
+      int i = aNextChild[nTop];
+      while (i < nCount && !aCur.getChildAtIndex (i).isElement ())
+        i++;
+      if (i >= nCount)
       {
-        final int nCount = aNode.getChildCount ();
-        for (int i = 0; i < nCount; i++)
-        {
-          final IXdmNode aChild = aNode.getChildAtIndex (i);
-          if (aChild.isElement ())
-            aNext.add (aChild);
-        }
+        aOpen[nTop] = null;
+        nTop--;
+        continue;
       }
-      aLevel = aNext;
+      aNextChild[nTop] = i + 1;
+      nTop++;
+      if (nTop == aOpen.length)
+      {
+        aOpen = Arrays.copyOf (aOpen, nTop * 2);
+        aNextChild = Arrays.copyOf (aNextChild, nTop * 2);
+      }
+      aOpen[nTop] = aCur.getChildAtIndex (i);
+      aNextChild[nTop] = 0;
+      if (nTop + 1 > nMaxDepth)
+      {
+        nMaxDepth = nTop + 1;
+        if (nMaxDepth > XsdValidationRun.MAX_DEPTH_BIG_STACK)
+          return nMaxDepth;
+      }
     }
-    return nDepth;
+    return nMaxDepth;
   }
 
   /**
@@ -1839,7 +1870,7 @@ final class XsdInstanceValidator
                             @NonNull final IXdmNode aRoot,
                             @NonNull final BiConsumer <XsdValidationRun, IXdmNode> aAssess)
   {
-    final int nDepth = _elementDepth (aRoot);
+    final int nDepth = elementDepth (aRoot);
     if (nDepth <= XsdValidationRun.MAX_DEPTH)
     {
       aRun.setMaxDepth (XsdValidationRun.MAX_DEPTH);

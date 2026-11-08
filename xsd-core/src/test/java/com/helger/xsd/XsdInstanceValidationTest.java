@@ -32,6 +32,10 @@ import org.junit.rules.TemporaryFolder;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.xpath.context.EXsdVersion;
+import com.helger.xpath.xdm.IXdmNode;
+import com.helger.xpath.xdm.XdmParseException;
+import com.helger.xpath.xdm.XdmParser;
+import com.helger.xpath.xdm.XdmQName;
 import com.helger.xsd.XsdTestSupport.Compiled;
 import com.helger.xsd.XsdTestSupport.EVerdict;
 import com.helger.xsd.XsdTestSupport.Tally;
@@ -336,6 +340,43 @@ public final class XsdInstanceValidationTest
     aThread.start ();
     aThread.join ();
     assertTrue (aFailures.toString (), aFailures.isEmpty ());
+  }
+
+  /**
+   * The element depth of a tree, the root counting as one: text, comments and
+   * processing instructions do not count, the deepest branch may come anywhere,
+   * and the walk stops above the largest depth that is validated.
+   */
+  @Test
+  public void testElementDepth () throws XdmParseException
+  {
+    final XdmParser aParser = new XdmParser ();
+    assertEquals (1, XsdInstanceValidator.elementDepth (XsdNodes.rootElement (aParser.parse ("<a/>"))));
+    assertEquals (1, XsdInstanceValidator.elementDepth (XsdNodes.rootElement (aParser.parse ("<a>t<!--c--><?p d?></a>"))));
+    assertEquals (4,
+                  XsdInstanceValidator.elementDepth (XsdNodes.rootElement (aParser.parse ("<a>t<b/>u<c><d>v</d></c>" +
+                                                                                          "<e><f><g/></f></e><h/></a>"))));
+    assertEquals (3,
+                  XsdInstanceValidator.elementDepth (XsdNodes.rootElement (aParser.parse ("<a><b><c/></b><b><c/></b></a>"))));
+    // Deeper than the initial stack of the walk
+    final StringBuilder aSB = new StringBuilder ("<r><x/>");
+    for (int i = 0; i < 300; i++)
+      aSB.append ("<n>t<m/>");
+    for (int i = 0; i < 300; i++)
+      aSB.append ("</n>");
+    aSB.append ("<x/></r>");
+    assertEquals (302, XsdInstanceValidator.elementDepth (XsdNodes.rootElement (aParser.parse (aSB.toString ()))));
+    // A built tree deeper than the parser admits: the walk stops just above
+    // the bound
+    final IXdmNode aRoot = IXdmNode.createElement (new XdmQName ("n"));
+    IXdmNode aCur = aRoot;
+    for (int i = 0; i < XsdValidationRun.MAX_DEPTH_BIG_STACK + 100; i++)
+    {
+      final IXdmNode aChild = IXdmNode.createElement (new XdmQName ("n"));
+      aCur.appendChild (aChild);
+      aCur = aChild;
+    }
+    assertEquals (XsdValidationRun.MAX_DEPTH_BIG_STACK + 1, XsdInstanceValidator.elementDepth (aRoot));
   }
 
   @Test
