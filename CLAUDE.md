@@ -44,6 +44,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Hosts that evaluate their own XPath against a stylesheet's declarations (Schematron) use
   `XsltExecutable.createStaticContext`/`createEvaluation`, never `Engine` directly; the start-up of a run lives in
   `XsltTransformer.initGlobalContextItem` and is shared by both. `CompiledXPath.evaluate` uses its own static context.
+- Messages: `xsl:message` and failed `xsl:assert` go only through `Engine.addMessage`, which records an `XsltMessage`
+  and calls the request's `IXsltMessageListener` at once (on the transform thread); mode warnings
+  (`warning-on-no-match`/`-multiple-match`) go only to the listener (`Engine.addWarning`). `XsltTransformer.run`/
+  `_runTo` attach the run's messages to the thrown error (`XsltException.getCollectedMessages`, a plain
+  `XPathException` is wrapped; outer run before a nested `fn:transform`, which gets the caller's listener unless
+  `enable-messages` is false). The compiler produces no warnings, so `XsltCompileOptions` has no listener.
 - XML name characters (5th edition): only `XmlNames` (`phoxtrot-xdm`); do not add another copy of the tables.
 - `XdmMap` is a persistent hash trie and `XdmArray.append` shares a backing array; both stay immutable from the outside.
   Iterate with `entries ()`/`members ()` (views); `getAllEntries ()`/`getAllMembers ()` copy.

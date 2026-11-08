@@ -37,7 +37,9 @@ public interface XsltExecutable
    *        How to invoke the stylesheet.
    * @return The results.
    * @throws XsltException
-   *         for dynamic errors (and XPath errors wrapped with their code).
+   *         for dynamic errors (and XPath errors wrapped with their code),
+   *         carrying the messages produced until then
+   *         ({@link XsltException#getCollectedMessages()}).
    */
   @NonNull
   XsltTransformResult transform (@NonNull XsltTransformRequest aRequest);
@@ -64,7 +66,8 @@ public interface XsltExecutable
    *         as with {@link #transform(XsltTransformRequest)}.
    * @throws XsltException
    *         for dynamic errors (and XPath and serialization errors wrapped
-   *         with their code). Part of the output may have been written then.
+   *         with their code), carrying the messages produced until then.
+   *         Part of the output may have been written then.
    * @throws UnsupportedOperationException
    *         if this implementation does not support it
    */
@@ -93,7 +96,8 @@ public interface XsltExecutable
    *         as with {@link #transform(XsltTransformRequest)}.
    * @throws XsltException
    *         for dynamic errors (and XPath and serialization errors wrapped
-   *         with their code). Part of the output may have been written then.
+   *         with their code), carrying the messages produced until then.
+   *         Part of the output may have been written then.
    * @throws UnsupportedOperationException
    *         if this implementation does not support it
    */

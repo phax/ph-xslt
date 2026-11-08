@@ -16,16 +16,23 @@
  */
 package com.helger.phoxtrot.xslt;
 
+import java.util.List;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xslt.tree.XslNode;
 
 /**
  * A static or dynamic XSLT error with its W3C error code (e.g. XTSE0010,
  * XTDE0640) and, where known, the stylesheet location of the instruction it
- * was raised in.
+ * was raised in. An error that ends a transformation also carries the
+ * messages the transformation produced until then
+ * ({@link #getCollectedMessages()}).
  *
  * @author Philip Helger
  */
@@ -34,6 +41,7 @@ public class XsltException extends XPathException
   private final String m_sModuleUri;
   private final int m_nLine;
   private final int m_nColumn;
+  private final ICommonsList <XsltMessage> m_aCollectedMessages = new CommonsArrayList <> ();
 
   /**
    * Create an error with an explicit location.
@@ -63,7 +71,8 @@ public class XsltException extends XPathException
 
   /**
    * Wrap an XPath error with the stylesheet location of the instruction it was
-   * raised in. Error code (as QName), description and error object are kept.
+   * raised in. Error code (as QName), description and error object are kept,
+   * and so are the collected messages of an {@link XsltException}.
    *
    * @param aCause
    *        The original error.
@@ -84,6 +93,8 @@ public class XsltException extends XPathException
     m_sModuleUri = sModuleUri;
     m_nLine = nLine;
     m_nColumn = nColumn;
+    if (aCause instanceof final XsltException aXCause)
+      m_aCollectedMessages.addAll (aXCause.m_aCollectedMessages);
   }
 
   /**
@@ -150,5 +161,38 @@ public class XsltException extends XPathException
   public final int getColumn ()
   {
     return m_nColumn;
+  }
+
+  /**
+   * @return A copy of the messages (<code>xsl:message</code> and failed
+   *         <code>xsl:assert</code>, see {@link XsltMessage}) the
+   *         transformation produced before it failed with this error, in the
+   *         order they were produced; a terminating message is the last one.
+   *         When the error comes from a transformation started by
+   *         <code>fn:transform</code>, the messages of the calling
+   *         transformation come first, followed by those of the nested one.
+   *         Empty for compile errors and for errors not thrown by
+   *         <code>XsltExecutable.transform</code>.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public final ICommonsList <XsltMessage> getCollectedMessages ()
+  {
+    return m_aCollectedMessages.getClone ();
+  }
+
+  /**
+   * Add the messages of the transformation this error ends, in front of those
+   * already attached (by a nested transformation the error comes from).
+   * Called by the engine when the error leaves a transformation; not meant
+   * to be called by users.
+   *
+   * @param aMessages
+   *        The messages of the transformation, in the order they were
+   *        produced.
+   */
+  public final void internalAddOuterMessages (@NonNull final List <XsltMessage> aMessages)
+  {
+    m_aCollectedMessages.addAll (0, aMessages);
   }
 }

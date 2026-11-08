@@ -86,9 +86,11 @@ import com.helger.phoxtrot.xslt.tree.XsltNames;
  * initial-match-selection, global-context-item, initial-template,
  * initial-mode, initial-function, function-params, template-params,
  * tunnel-params, base-output-uri, delivery-format, serialization-params,
- * post-process and requested-properties. xslt-version, vendor-options, cache,
- * enable-messages, enable-trace and enable-assertions are type checked and
- * otherwise ignored, as the specification allows.
+ * post-process and requested-properties. enable-messages decides whether the
+ * messages of the nested run reach the message listener of the calling
+ * transformation (they are produced either way). xslt-version,
+ * vendor-options, cache, enable-trace and enable-assertions are type checked
+ * and otherwise ignored, as the specification allows.
  *
  * @author Philip Helger
  */
@@ -564,7 +566,8 @@ public final class XsltTransformHandler implements ITransformHandler
    * Build the request of the nested run from the options. It uses the run
    * resolver and the current date and time of the caller, and inside a
    * transformation
-   * shares the caller's execution budget and interrupt. It sets the initial
+   * shares the caller's execution budget and interrupt, and its message
+   * listener unless enable-messages is false. It sets the initial
    * template, mode and function (with function-params as arguments),
    * stylesheet-params, template-params and tunnel-params. source-node becomes
    * the initial match selection and the root of its tree the global context
@@ -593,6 +596,10 @@ public final class XsltTransformHandler implements ITransformHandler
     {
       ret.setSharedBudget (aHost.engine ().getBudget ());
       ret.setInterrupt (aHost.engine ().getRequest ().getInterrupt ());
+      final boolean bEnableMessages = !(aOpts.getItem ("enable-messages") instanceof final XdmAtomic aEnable) ||
+                                      aEnable.getBoolean ();
+      if (bEnableMessages)
+        ret.setMessageListener (aHost.engine ().getRequest ().getMessageListener ());
     }
     if (aOpts.has ("initial-template"))
       ret.setInitialTemplate (aOpts.getQName ("initial-template"));

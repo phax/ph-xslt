@@ -68,6 +68,7 @@ public final class XsltTransformRequest
   private IResourceResolver m_aResolver;
   private OffsetDateTime m_aCurrentDateTime;
   private BooleanSupplier m_aInterrupt;
+  private IXsltMessageListener m_aMessageListener;
   private long m_nMaxSteps;
   private int m_nMaxDepth;
   private ExecutionBudget m_aSharedBudget;
@@ -254,6 +255,40 @@ public final class XsltTransformRequest
   public XsltTransformRequest setInterrupt (@Nullable final BooleanSupplier aInterrupt)
   {
     m_aInterrupt = aInterrupt;
+    return this;
+  }
+
+  /**
+   * @return The listener that receives the messages and warnings of the
+   *         transformation while it runs, <code>null</code> for none.
+   */
+  @Nullable
+  public IXsltMessageListener getMessageListener ()
+  {
+    return m_aMessageListener;
+  }
+
+  /**
+   * Set a listener for the messages (<code>xsl:message</code>, failed
+   * <code>xsl:assert</code>) and processor warnings of the transformation. It
+   * is called synchronously in the order the messages are produced, on the
+   * thread that runs the transformation (normally the large-stack worker
+   * thread, see {@link IXsltMessageListener}). The messages are still
+   * collected in {@link XsltTransformResult#messages()} and, when the
+   * transformation fails, in {@link XsltException#getCollectedMessages()}.
+   * A transformation started by <code>fn:transform</code> reports its
+   * messages to the listener of its caller, unless the
+   * <code>enable-messages</code> option is false. Without a listener nothing
+   * changes.
+   *
+   * @param aMessageListener
+   *        The listener; <code>null</code> (the default) for none.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setMessageListener (@Nullable final IXsltMessageListener aMessageListener)
+  {
+    m_aMessageListener = aMessageListener;
     return this;
   }
 

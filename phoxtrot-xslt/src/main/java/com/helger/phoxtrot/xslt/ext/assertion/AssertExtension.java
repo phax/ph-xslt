@@ -27,6 +27,7 @@ import com.helger.phoxtrot.xpath.serialize.SerializationParams;
 import com.helger.phoxtrot.xpath.serialize.XdmSerializer;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.EXsltMessageKind;
 import com.helger.phoxtrot.xslt.compile.Avt;
 import com.helger.phoxtrot.xslt.compile.CompileContext;
 import com.helger.phoxtrot.xslt.compile.IXsltExtension;
@@ -102,7 +103,9 @@ public final class AssertExtension implements IXsltExtension
    * the result is empty. Otherwise the value of select (if present) and the
    * result of the content are collected in that order, the message text
    * (see {@link #_messageText}) is recorded with the engine like an
-   * xsl:message, and a dynamic error is raised whose error object is the
+   * xsl:message (kind {@link EXsltMessageKind#ASSERTION}, with the error
+   * code; XTMM9001 when evaluating error-code fails, before that error is
+   * thrown), and a dynamic error is raised whose error object is the
    * collected value and whose description is the message text (or
    * "xsl:assert failed" when it is empty). The error code is XTMM9001 unless
    * error-code is given: its value is whitespace-trimmed and resolved as an
@@ -144,15 +147,25 @@ public final class AssertExtension implements IXsltExtension
       aBody.execute (aRtCtx, aContent);
       final XdmSequence aValue = aContent.getSequence ();
       final String sMessage = _messageText (aValue);
-      aRtCtx.getEngine ().addMessage (sMessage);
       XdmQName aCode = XTMM9001;
-      if (aErrorCode != null)
+      try
       {
-        final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (aRtCtx));
-        final XdmQName aResolved = XsltNames.isEQName (s) ? aEl.resolveQName (s, false) : null;
-        if (aResolved != null)
-          aCode = aResolved;
+        if (aErrorCode != null)
+        {
+          final String s = XsltNames.trimXmlWhitespace (aErrorCode.evaluate (aRtCtx));
+          final XdmQName aResolved = XsltNames.isEQName (s) ? aEl.resolveQName (s, false) : null;
+          if (aResolved != null)
+            aCode = aResolved;
+        }
       }
+      catch (final XPathException ex)
+      {
+        // The message is still output, then the error of error-code ends the
+        // transformation
+        aRtCtx.getEngine ().addMessage (EXsltMessageKind.ASSERTION, sMessage, aValue, aCode, aEl);
+        throw ex;
+      }
+      aRtCtx.getEngine ().addMessage (EXsltMessageKind.ASSERTION, sMessage, aValue, aCode, aEl);
       throw new XPathException (aCode, sMessage.isEmpty () ? "xsl:assert failed" : sMessage, aValue);
     });
   }

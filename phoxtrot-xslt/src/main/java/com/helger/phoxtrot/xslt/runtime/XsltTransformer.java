@@ -87,6 +87,8 @@ public final class XsltTransformer
   private final XsltTransformRequest m_aRequest;
   // The drain of the current run, if its result is written while it is built
   private ResultDrain m_aDrain;
+  // The engine of the current run, for the messages of a failed run
+  private Engine m_aEngine;
 
   /**
    * Prepare one run; nothing happens before {@link #run()} or a
@@ -692,6 +694,7 @@ public final class XsltTransformer
   private XsltTransformResult _run (@Nullable final ResultTarget aTarget)
   {
     final Engine aEngine = new Engine (m_aSheet, m_aRequest);
+    m_aEngine = aEngine;
     final ICommonsMap <IXdmNode, IXdmNode> aStrippedRoots = new CommonsHashMap <> ();
     // A principal source to read as a stream: the initial match selection
     final String sStreamedUri = m_aRequest.getStreamedSourceUri ();
@@ -838,7 +841,7 @@ public final class XsltTransformer
                                       null,
                                       "",
                                       aEngine.getSecondaryResults ().getClone (),
-                                      aEngine.getMessages ().getClone (),
+                                      aEngine.getMessageTexts (),
                                       m_aSheet.getOutput ().getMethod (),
                                       false);
     }
@@ -888,7 +891,7 @@ public final class XsltTransformer
                                       null,
                                       "",
                                       aEngine.getSecondaryResults ().getClone (),
-                                      aEngine.getMessages ().getClone (),
+                                      aEngine.getMessageTexts (),
                                       sMethod,
                                       false);
     final SerializationParams aParams = _createSerializationParams (aOutputDef, sMethod);
@@ -904,7 +907,7 @@ public final class XsltTransformer
                                       null,
                                       "",
                                       aEngine.getSecondaryResults ().getClone (),
-                                      aEngine.getMessages ().getClone (),
+                                      aEngine.getMessageTexts (),
                                       sMethod,
                                       aParams.isIndent ());
     }
@@ -913,28 +916,58 @@ public final class XsltTransformer
                                     aTree,
                                     sSerialized,
                                     aEngine.getSecondaryResults ().getClone (),
-                                    aEngine.getMessages ().getClone (),
+                                    aEngine.getMessageTexts (),
                                     sMethod,
                                     aParams.isIndent ());
+  }
+
+  /**
+   * Attach the messages of the failed run to its error: an
+   * {@link XsltException} gets them in front of the messages it may carry
+   * from a nested run already, any other XPath error is wrapped in an
+   * {@link XsltException} without location that keeps its code, description
+   * and error object and has it as cause.
+   *
+   * @param ex
+   *        The error that ends the run.
+   * @return The error to throw.
+   */
+  @NonNull
+  private XsltException _withMessages (@NonNull final XPathException ex)
+  {
+    final XsltException ret = ex instanceof final XsltException aXEx ? aXEx : new XsltException (ex, null, 0, 0);
+    if (m_aEngine != null)
+      ret.internalAddOuterMessages (m_aEngine.getMessages ());
+    return ret;
   }
 
   /**
    * Run the transformation on a worker thread with a large stack.
    *
    * @return The result.
-   * @throws XPathException
-   *         for dynamic errors
+   * @throws XsltException
+   *         for dynamic errors (an XPath error is wrapped with its code), with
+   *         the messages produced until then
+   *         ({@link XsltException#getCollectedMessages()})
    */
   @NonNull
   public XsltTransformResult run ()
   {
-    return LargeStackRunner.run ( () -> _run (null), "phoxtrot-transform");
+    try
+    {
+      return LargeStackRunner.run ( () -> _run (null), "phoxtrot-transform");
+    }
+    catch (final XPathException ex)
+    {
+      throw _withMessages (ex);
+    }
   }
 
   /**
    * {@link #_run(ResultTarget)} on a large-stack worker thread; on an error
    * what was written so far is flushed to the target before the error is
-   * rethrown.
+   * rethrown with the messages of the run (see
+   * {@link #_withMessages(XPathException)}).
    *
    * @param aTarget
    *        The target.
@@ -943,20 +976,27 @@ public final class XsltTransformer
   @NonNull
   private XsltTransformResult _runTo (@NonNull final ResultTarget aTarget)
   {
-    return LargeStackRunner.run ( () -> {
-      try
-      {
-        return _run (aTarget);
-      }
-      catch (final RuntimeException ex)
-      {
-        // What was written so far is the caller's to discard
-        if (m_aDrain != null)
-          m_aDrain.flushQuietly ();
-        aTarget.flushQuietly ();
-        throw ex;
-      }
-    }, "phoxtrot-transform");
+    try
+    {
+      return LargeStackRunner.run ( () -> {
+        try
+        {
+          return _run (aTarget);
+        }
+        catch (final RuntimeException ex)
+        {
+          // What was written so far is the caller's to discard
+          if (m_aDrain != null)
+            m_aDrain.flushQuietly ();
+          aTarget.flushQuietly ();
+          throw ex;
+        }
+      }, "phoxtrot-transform");
+    }
+    catch (final XPathException ex)
+    {
+      throw _withMessages (ex);
+    }
   }
 
   /**
@@ -969,9 +1009,10 @@ public final class XsltTransformer
    * @return The result, with an empty principal result and serialized form
    *         (they went to the stream); the secondary results and messages as
    *         with {@link #run()}.
-   * @throws XPathException
-   *         for dynamic and serialization errors; part of the output may have
-   *         been written to the stream then
+   * @throws XsltException
+   *         for dynamic and serialization errors (an XPath error is wrapped
+   *         with its code), with the messages produced until then; part of
+   *         the output may have been written to the stream then
    */
   @NonNull
   public XsltTransformResult runTo (@NonNull final OutputStream aOS)
@@ -989,9 +1030,10 @@ public final class XsltTransformer
    * @return The result, with an empty principal result and serialized form
    *         (they went to the writer); the secondary results and messages as
    *         with {@link #run()}.
-   * @throws XPathException
-   *         for dynamic and serialization errors; part of the output may have
-   *         been written to the writer then
+   * @throws XsltException
+   *         for dynamic and serialization errors (an XPath error is wrapped
+   *         with its code), with the messages produced until then; part of
+   *         the output may have been written to the writer then
    */
   @NonNull
   public XsltTransformResult runTo (@NonNull final Writer aWriter)
