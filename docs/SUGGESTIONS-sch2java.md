@@ -1,7 +1,7 @@
 # Suggestions from ph-sch2java
 
-Suggestions for ph-xslt that came up in ph-sch2java (Schematron interpreter and Schematron → Java generator on top of
-ph-xslt), and from S9 on in the plan for a ph-schematron engine on ph-xslt (to be renamed phoxtrot). Proposals only;
+Suggestions for phoxtrot that came up in ph-sch2java (Schematron interpreter and Schematron → Java generator on top of
+phoxtrot), and from S9 on in the plan for a ph-schematron engine on phoxtrot. Proposals only;
 the numbering continues the earlier suggestions S1 to S6 and S8 (all done, see `PLAN.md`).
 
 ## S7 - Simple xsl:function bodies as XPath conditional (key indexes and calls)
@@ -17,7 +17,7 @@ Status: implemented on branch `sch-s7` (2026-11-05), no measurable gain, not mer
 
 **Correction of the finding:** the 36.6 % for `Engine._buildKeyIndex` on a transaction statistics report (TSR) with
 50,000 subtotals of each type was an inclusive figure: it counted all the XPath work of the `use` expressions and the
-match patterns. Split by self time (JFR, `-XX:+DebugNonSafepoints`, ph-xslt `main` 5fb228e, 2026-11-06), the key
+match patterns. Split by self time (JFR, `-XX:+DebugNonSafepoints`, phoxtrot `main` 5fb228e, 2026-11-06), the key
 index build is 41 % of the validation, of which the instruction interpreter (`SequenceConstructor`, `xsl:choose`,
 `xsl:value-of`, `xsl:text`, `UserFunction`) is 0.4 % of the validation; XDM navigation and values 9.5 %, the XPath
 evaluator 9.1 %, XPath functions 6.5 %, the walk over the document and the match patterns about 8 %. Only 8.4 % of the
@@ -25,20 +25,20 @@ validation is under a function call at all (inclusive).
 
 **Measured with ph-sch2java** (generated code, best warm run of six, three alternating rounds, load about 1): TSR with
 50,000 subtotals 2,506-2,602 ms (`main`) against 2,558-2,720 ms (`sch-s7`); TSR with 10,000 395-421 against 406-416 ms;
-end user statistics report with 10,000 subsets 403-423 against 404-413 ms. This confirms the measurement of ph-xslt: no
+end user statistics report with 10,000 subsets 403-423 against 404-413 ms. This confirms the measurement of phoxtrot: no
 gain.
 
 ## Suggestions from the ph-schematron engine plan (2026-11-08)
 
 Source: `../ph-schematron/docs/PLAN-phoxtrot-engine.md`. The plan adds a ph-schematron module that runs the ISO
-Schematron XSLT pipeline (three XSLT 2.0 steps, then the generated XSLT on the instance document) on ph-xslt, without
+Schematron XSLT pipeline (three XSLT 2.0 steps, then the generated XSLT on the instance document) on phoxtrot, without
 Saxon, behind the existing `ISchematronResource` API (W3C DOM in and out, JAXP `ErrorListener` and `URIResolver`).
 None of the points below blocks the plan; each one removes glue code or a documented limitation there.
 
 ### S9 - JAXP adapter (`TransformerFactory`, `Templates`, `Transformer`)
 
 Open in `PLAN.md` X3. ph-schematron's XSLT engines are built on JAXP (`ISchematronXSLTBasedProvider` returns a
-`Transformer`). With an adapter, the existing ISO, SchXslt and prebuilt-XSLT engines could run on ph-xslt by
+`Transformer`). With an adapter, the existing ISO, SchXslt and prebuilt-XSLT engines could run on phoxtrot by
 configuration, instead of each needing its own module. Needed: `URIResolver`, `ErrorListener`, parameters,
 `DOMSource`/`StreamSource`/`SAXSource` input, `DOMResult`/`StreamResult`/`SAXResult` output.
 
@@ -48,7 +48,7 @@ There is no conversion between W3C DOM and `IXdmNode` in either direction. The p
 - DOM input via a JDK identity transformer into `XdmTreeBuilder`;
 - an `IXdmNode` → `Document` walker for the SVRL result.
 
-A tested public helper in ph-xslt (namespaces, base URI, document URI, PIs, comments) would avoid every user doing
+A tested public helper in phoxtrot (namespaces, base URI, document URI, PIs, comments) would avoid every user doing
 this again, and could build the tree from a DOM without a SAX round trip.
 
 ### S11 - Error and message listener
@@ -84,7 +84,7 @@ to its own SAX parser into `XdmTreeBuilder` when one is configured. Proposal: `X
 
 ### S15 - Trace hook for template and rule execution
 
-ph-schematron offers per-rule execution telemetry on Saxon through a `TraceListener` (template enter and leave). ph-xslt
+ph-schematron offers per-rule execution telemetry on Saxon through a `TraceListener` (template enter and leave). phoxtrot
 has only the global `fn:trace` listener. Proposal: a per-run listener for template and instruction enter and leave,
 with the instruction's module URI, line and match pattern, and no cost when not set.
 
@@ -92,23 +92,23 @@ with the instruction's module URI, line and match pattern, and no cost when not 
 
 Open in `PLAN.md` X3. The ISO pipeline creates XSLT 2.0, so the plan does not need it. Prebuilt Schematron XSLT files
 are often XSLT 1.0 (`iso_svrl_for_xslt1`) and today run with XPath 3.1 semantics, e.g. XPTY0004 where XSLT 1.0 takes
-the first node. This mode is the precondition for a ph-xslt variant of ph-schematron's prebuilt-XSLT engine.
+the first node. This mode is the precondition for a phoxtrot variant of ph-schematron's prebuilt-XSLT engine.
 
 ### S17 - Java baseline
 
-Decided (2026-11-08): ph-xslt keeps Java 21 as baseline. ph-schematron stays on Java 17 and builds its ph-xslt
-module in a Maven profile that is active from JDK 21, so its CI matrix stays 17, 21 and 25. No change in ph-xslt.
+Decided (2026-11-08): phoxtrot keeps Java 21 as baseline. ph-schematron stays on Java 17 and builds its phoxtrot
+module in a Maven profile that is active from JDK 21, so its CI matrix stays 17, 21 and 25. No change in phoxtrot.
 
 ### S18 - Size of the XDM tree
 
 Decided (2026-11-08): to be tackled.
 
-- The ph-xdm tree needs 2.3 to 7.2 times the heap of the Saxon TinyTree (`xdm-memory-benchmark`).
+- The ph-xdm tree needs 2.3 to 7.2 times the heap of the Saxon TinyTree (`phoxtrot-xdm-memory-benchmark`).
 - For a validation server, the input tree is the largest per-request allocation.
 
 The proposals below are based on the field layout of `AbstractXdmNode`, `AbstractXdmParentNode`, `XdmElementNode`,
 `XdmAttributeNode` and `XdmTextNode`, and on the class footprint of the "Bank transactions" document in the
-`xdm-memory-benchmark` README. There, of 45.17 MB:
+`phoxtrot-xdm-memory-benchmark` README. There, of 45.17 MB:
 - `String` + `byte[]` take 14.50 MB;
 - `CommonsArrayList` + `Object[]` take 8.55 MB;
 - the attribute nodes take 10.68 MB.

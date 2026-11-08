@@ -1,7 +1,7 @@
 # XSLT 3.0 (`xslt30-test`): failing cases of the schema-aware run
 
 Schema-aware processor (`-Dxslt30.schemaAware=true`; no streaming or backwards compatibility claimed), with the
-native validator of `xsd-core` as schema processor (the default of the harness; it compiles imported schemas as XSD
+native validator of `phoxtrot-xsd` as schema processor (the default of the harness; it compiles imported schemas as XSD
 1.1): 9,298 of 9,310 applicable cases pass, 12 fail. Apache Xerces-J 2.12.2 (`-Dxdm.schemaProvider=xerces`, XSD 1.0
 only) additionally fails the XSD 1.1 cases listed below. Measured offline, on JDK 21 and 25. The default run (basic processor) and its failures are in `xslt30.md`; this run claims schema-awareness in both
 directions: the 686 cases that need it run, and the 31 cases written for a processor without it

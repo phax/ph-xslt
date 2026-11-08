@@ -928,7 +928,7 @@ public final class XsltTransformer
   @NonNull
   public XsltTransformResult run ()
   {
-    return LargeStackRunner.run ( () -> _run (null), "ph-xslt-transform");
+    return LargeStackRunner.run ( () -> _run (null), "phoxtrot-transform");
   }
 
   /**
@@ -956,7 +956,7 @@ public final class XsltTransformer
         aTarget.flushQuietly ();
         throw ex;
       }
-    }, "ph-xslt-transform");
+    }, "phoxtrot-transform");
   }
 
   /**

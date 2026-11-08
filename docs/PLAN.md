@@ -5,9 +5,9 @@ Suites are cloned next to this repo (`../../git-thirdparty/{qt3tests,xslt30-test
 
 Decisions:
 
-* Apache 2.0, Java 21 (CI also on 25), `com.helger.xpath`, no `ph-` artifact prefix.
-* XML parsing: JDK SAX. XSD: the native validator (`xsd-core`, XSD 1.0 and 1.1; schema-aware XPath and XSLT compile
-  as 1.1) is the default schema provider; Apache Xerces-J 2.12.2 (optional dependency of `xpath-xdm`, without
+* Apache 2.0, Java 21 (CI also on 25), groupId `com.helger.phoxtrot`, no `ph-` artifact prefix.
+* XML parsing: JDK SAX. XSD: the native validator (`phoxtrot-xsd`, XSD 1.0 and 1.1; schema-aware XPath and XSLT compile
+  as 1.1) is the default schema provider; Apache Xerces-J 2.12.2 (optional dependency of `phoxtrot-xdm`, without
   xml-apis, XSD 1.0) is the fallback; without either the JDK validator (`JdkSchemaProvider`, validation only).
 * Own XDM tree (`IXdmNode`). `IMicroDocument` from ph-xml becomes an optional adapter module, not the model.
 * Hungarian notation and camel case everywhere except records.
@@ -21,16 +21,16 @@ Decisions:
 | 4 | F&O 3.1 catalogue in family files | `fn_*.go` | done |
 | 5 | Regex (translation to `java.util.regex`, own matcher as fallback), collation (java.text.Collator, ICU4J undecided) | `regex_*.go`, `fn_collation.go` | done |
 | 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
-| X1 | XSLT: XSLT30 harness (`xslt-conformance`), match patterns (`xpath-core` `pattern`), core compiler and engine with the basic instructions (`xslt-core`) | `xslt30_test.go`, `pattern*.go`, `compile.go`, `transform.go`, `modes.go`, `loader.go`, `avt.go` | done |
+| X1 | XSLT: XSLT30 harness (`phoxtrot-xslt-conformance`), match patterns (`phoxtrot-xpath` `pattern`), core compiler and engine with the basic instructions (`phoxtrot-xslt`) | `xslt30_test.go`, `pattern*.go`, `compile.go`, `transform.go`, `modes.go`, `loader.go`, `avt.go` | done |
 | X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | done |
 | X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform`, schema-awareness (native validator, opt-in) and streaming (opt-in claim) done; backwards compatibility and JAXP `TransformerFactory` open |
 
 XSLT30 status (2026-11-04, after the open cases `function-lookup-005`/`006` and `glob-cxt-item-010`): 8,640 of 8,647
 applicable cases pass (99.9%) as a basic processor, identical on JDK 21 and 25; all 7 fails are documented in
-`xslt-conformance/docs/accepted-failures/xslt30.md` (`XSLT30IT` fails on any undocumented failure). Extension API for the families: `xslt-core/INSTRAPI.md`.
+`phoxtrot-xslt-conformance/docs/accepted-failures/xslt30.md` (`XSLT30IT` fails on any undocumented failure). Extension API for the families: `phoxtrot-xslt/INSTRAPI.md`.
 
 QT3 status (2026-10-26): 22,419 of 22,478 applicable cases pass (99.7%), 59 fail, all documented in
-`xpath-conformance/docs/accepted-failures/qt3.md` (`QT3IT` fails on any undocumented failure):
+`phoxtrot-xpath-conformance/docs/accepted-failures/qt3.md` (`QT3IT` fails on any undocumented failure):
 
 | Group | Fails | Status |
 |-------|-------|--------|
@@ -39,9 +39,9 @@ QT3 status (2026-10-26): 22,419 of 22,478 applicable cases pass (99.7%), 59 fail
 | Static typing (type inference) | 20 | Accepted: same 20 cases as go-xslt |
 | External entity in `fn:parse-xml`, network access | 2 | Accepted (same in go-xslt) |
 
-Schema-awareness (2026-11-05): the native validator (`xsd-core`) is the schema processor, Apache Xerces-J (optional,
+Schema-awareness (2026-11-05): the native validator (`phoxtrot-xsd`) is the schema processor, Apache Xerces-J (optional,
 loaded only when present, `XdmSchemaSupport`) the fallback. `-Dxslt30.schemaAware=true` runs XSLT30 schema-aware:
-9,298 of 9,310 pass, all 12 fails accepted (`xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`); the
+9,298 of 9,310 pass, all 12 fails accepted (`phoxtrot-xslt-conformance/docs/accepted-failures/xslt30-schema-aware.md`); the
 default run is unchanged (8,640/8,647).
 With `-Dqt3.schemaProcessor=jdk` the QT3 harness uses the JDK validator instead, and the 7 schema-validated source
 cases fail again.
@@ -51,7 +51,7 @@ cases fail again.
 Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests` for XSD 1.0 and 1.1), decided
 2026-10-26. Why Xerces-J is needed today and why it is only the fallback: [SCHEMA.md](SCHEMA.md).
 
-* New module `xsd-core` (package `com.helger.xsd`, depends on `xpath-core`) plus `xsd-conformance` for the harness.
+* New module `phoxtrot-xsd` (package `com.helger.phoxtrot.xsd`, depends on `phoxtrot-xpath`) plus `phoxtrot-xsd-conformance` for the harness.
 * XSD 1.0 first, then XSD 1.1 (assertions and conditional type assignment on our XPath engine, `xs:override`, open
   content) on the version switch that stayed in the code. Since V8 `XsdSchemaProvider` compiles as 1.1, like go-xslt's
   XSLT host (decided 2026-11-04).
@@ -62,13 +62,13 @@ Port of go-xslt's `internal/xsd` (about 16,700 lines of Go, 99.99% of `xsdtests`
 | Phase | Content | Go reference | Status |
 |-------|---------|--------------|--------|
 | V0 | Schema SPI independent of JAXP: `XdmSchemaType` holds an `IXdmTypeDefinition` instead of `TypeInfo`; no `getJaxpSchema`/`ValidatorHandler` access; validation parses with the JDK and then validates the tree in place; Xerces provider adapted, QT3 schema cache off JAXP. Gate: unchanged numbers | - | done: JAXP only in the `jaxp` and `xerces` packages, `JdkSchemaProvider` and the Xerces-J provider share `AbstractJaxpSchemaSet` |
-| V1 | `xsd-conformance`: `xsdtests` harness, accepted-failures gate, first run against Xerces-J as baseline | `test/conformance/xsd_test.go` | done: Xerces-J baseline XSD 1.0 39,145 of 39,401 (256 fails documented), same denominator as go-xslt; the native validator plugs in through `IXsdTestValidator` |
-| V2 | Loader and component model, include/import/redefine, schema-for-schemas checks, resolver and file-access rules | `loader.go`, `structure.go`, `components.go`, `imports.go`, `model.go`, `docs.go`, `schemavalid.go` | done: `xsd-core` with stubs and `xsd-core/XSDAPI.md` for V3 to V6; native run 0 fails (schema tests 2,144 pass, 12,226 unsupported; instance tests all unsupported). With permissive stubs the schema-test fail list equals go-xslt's (1,307 by name) |
+| V1 | `phoxtrot-xsd-conformance`: `xsdtests` harness, accepted-failures gate, first run against Xerces-J as baseline | `test/conformance/xsd_test.go` | done: Xerces-J baseline XSD 1.0 39,145 of 39,401 (256 fails documented), same denominator as go-xslt; the native validator plugs in through `IXsdTestValidator` |
+| V2 | Loader and component model, include/import/redefine, schema-for-schemas checks, resolver and file-access rules | `loader.go`, `structure.go`, `components.go`, `imports.go`, `model.go`, `docs.go`, `schemavalid.go` | done: `phoxtrot-xsd` with stubs and `phoxtrot-xsd/XSDAPI.md` for V3 to V6; native run 0 fails (schema tests 2,144 pass, 12,226 unsupported; instance tests all unsupported). With permissive stubs the schema-test fail list equals go-xslt's (1,307 by name) |
 | V3 | Simple types and facets (reusing casting and the XSD regex grammar) | `simpletype.go`, `facets.go`, `lexscan.go` | done (cyclic unions bounded; new `XsdRegexGrammar` for the XSD regex grammar) |
 | V4 | Content models: position-set NFA, linear matcher above 600 children, UPA, restriction derivation | `content.go`, `bigmatch.go`, `upa.go`, `restriction.go` | done (recursion bounded at 250 particle levels, `XsdUnsupportedException` beyond) |
 | V5 | Instance validation: attributes, identity constraints, `xsi:type`/`nil`/`schemaLocation` hints | `instance.go`, `attributes.go`, `identity.go` | done, first-error mode only (collect-all is V7). Merged V3-V5, native XSD 1.0: 39,396 of 39,401 pass, 0 unsupported; the 5 fails are go-xslt's documented five (`groupH021v`, `idB005`, `particlesZ001.i`, `particlesZ023/024`). Fail lists identical on JDK 21 and 25 |
-| V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | done: `XsdBridge` (`IXdmSchemaSet`) and `XsdSchemaProvider` in `xsd-core`; in place vs. from text agree on all 25,018 compared XSD 1.0 instances (`XsdBridgeDifferentialIT`); `XdmSchemaSupport` loads the native provider by default (`-Dxdm.schemaProvider=xerces` for Xerces-J); QT3 identical to Xerces-J by name (59), XSLT30 schema-aware 17 fails against 18 for Xerces-J (see `xslt30-schema-aware.md`); the native xsdtests gate is on (go-xslt's five fails) |
-| V7 | Public validation API: all errors in document order, content-model explanations, `msg:message` | `collect.go`, `explain.go`, `messages.go` | done: `XsdSchema.validate`/`validateText` collect all errors (`XsdValidationOptions`: language, max errors), `XsdExplain` names missing/too-many/unexpected/order, `msg:message` in namespace `urn:fdc:helger.com:ph-xslt:xsd:messages` (go-xslt's URI is not used); the in-place path stays first-error; native XSD 1.0 unchanged (39,396 of 39,401) |
+| V6 | Bridge as an `IXdmSchemaProvider`, in-place vs. from-text differential test over the whole suite, switch XSLT30 schema-aware and QT3 to it, compare by name with Xerces-J | `bridge.go` | done: `XsdBridge` (`IXdmSchemaSet`) and `XsdSchemaProvider` in `phoxtrot-xsd`; in place vs. from text agree on all 25,018 compared XSD 1.0 instances (`XsdBridgeDifferentialIT`); `XdmSchemaSupport` loads the native provider by default (`-Dxdm.schemaProvider=xerces` for Xerces-J); QT3 identical to Xerces-J by name (59), XSLT30 schema-aware 17 fails against 18 for Xerces-J (see `xslt30-schema-aware.md`); the native xsdtests gate is on (go-xslt's five fails) |
+| V7 | Public validation API: all errors in document order, content-model explanations, `msg:message` | `collect.go`, `explain.go`, `messages.go` | done: `XsdSchema.validate`/`validateText` collect all errors (`XsdValidationOptions`: language, max errors), `XsdExplain` names missing/too-many/unexpected/order, `msg:message` in namespace `urn:fdc:helger.com:phoxtrot:xsd:messages` (go-xslt's URI is not used); the in-place path stays first-error; native XSD 1.0 unchanged (39,396 of 39,401) |
 | V8 | XSD 1.1 | `xsd11.go`, `override.go`, version branches | done: `XsdAssertions` (assertions, type alternatives), `XsdOverride`, open content; native XSD 1.1 41,549 of 41,553, 0 unsupported, the 4 fails are go-xslt's documented four (`all308.xsd`, `particlesZ026`, `particlesZ033_g`, `ste110.i`); `XsdNativeIT` gates both versions; in place vs. from text agree on all 51,245 instances of both versions; `XsdSchemaProvider` compiles as 1.1: XSLT30 schema-aware 15 fails (was 17) |
 
 V3 to V5 run as parallel worktree agents once V2 is merged. Gate for each: the XSD 1.0 fail list by name, with
@@ -98,8 +98,8 @@ Result:
   eager, 48-51 ms lazy; a chain of three 60-62 ms eager, 67-77 ms lazy; only an unused binding is faster lazily
   (37-39 ms against 33-37 ms). The perfab workloads with local variables (`numbers`, `recursion`, `json-roundtrip`)
   and `templates`/`functions` are unchanged within noise with lazy `xsl:variable`s.
-* QT3 and XSLT30 fail lists unchanged by name on JDK 21 and 25; `LazyVariableTest` (xslt-core) and
-  `DynamicContextLazyVariableTest` (xpath-core).
+* QT3 and XSLT30 fail lists unchanged by name on JDK 21 and 25; `LazyVariableTest` (phoxtrot-xslt) and
+  `DynamicContextLazyVariableTest` (phoxtrot-xpath).
 * schexec binds document lets on its root context and rule lets per rule context node with `withLazyVariable`; its
   own resolver and caches are gone, so the engine's resolver (`_resolveGlobal`) stays in place.
   `SchematronExecCorpusTest`: 4518 comparisons, 0 differences, the 217 dynamic errors of the reference agree;
@@ -190,16 +190,16 @@ Result:
   context, so they are unaffected.
 * The parsed AST (`CompiledXPath.getExpression`, `XPathParser.parse`) and patterns with a given static context
   (`XsltPatternParser.parse`) were already public.
-* Tests: `XsltEvaluationTest` (xslt-core), `CompiledXPathTest` (xpath-core). QT3, XSLT30 and xsdtests fail lists
+* Tests: `XsltEvaluationTest` (phoxtrot-xslt), `CompiledXPathTest` (phoxtrot-xpath). QT3, XSLT30 and xsdtests fail lists
   unchanged by name on JDK 21 and 25.
 
 ## Early exit for existence tests
 
 Status: done (2026-11-05; suggestion S1 of ph-sch2java).
 
-ph-sch2java's differential harness against Saxon found dynamic errors that only ph-xslt raised, e.g. in Peppol MLS
+ph-sch2java's differential harness against Saxon found dynamic errors that only phoxtrot raised, e.g. in Peppol MLS
 `exists(cac:LineResponse[cac:Response[normalize-space(cac:Status/cbc:StatusReasonCode) = 'BV']])`: with a duplicated
-`cac:Status` in a later `cac:LineResponse`, Saxon stops at the first matching line, ph-xslt evaluated all lines and
+`cac:Status` in a later `cac:LineResponse`, Saxon stops at the first matching line, phoxtrot evaluated all lines and
 raised XPTY0004. XPath 3.1 section 2.3.4 allows an implementation to skip parts that do not change the result, and
 with them their errors.
 
@@ -233,7 +233,7 @@ Result (`XPathEvaluator`):
   0.56-0.61 ms, `exists(/Invoice/Line[Amount > 98])` 10.4-11.7 -> 1.3-1.4 ms, `boolean(Invoice/Line[ID = '10'])`
   8.7-9.6 -> 0.72-0.90 ms; without a match `exists(//Line[ID = 'none'])` 8.1-8.9 -> 8.6-8.7 ms (unchanged within
   noise), `count(//Line[ID = '10'])` 8.3-8.6 -> 8.1 ms.
-* Tests: `EarlyExitTest` (xpath-core), including the MLS case. QT3, XSLT30 and xsdtests fail lists unchanged by name.
+* Tests: `EarlyExitTest` (phoxtrot-xpath), including the MLS case. QT3, XSLT30 and xsdtests fail lists unchanged by name.
 
 ## Public operator API
 
@@ -244,7 +244,7 @@ but the helpers with the evaluator's semantics for comparisons, arithmetic, cast
 were private in `XPathEvaluator`. The generated code therefore built a small AST over operand variables per operator
 (`XRt.delegate`/`XRt.op`) and evaluated it in a new `DynamicContext` each time.
 
-Result: `com.helger.xpath.eval.XPathOperators`, next to `XPathEvaluator` (it needs `SequenceTypeMatcher` and the
+Result: `com.helger.phoxtrot.xpath.eval.XPathOperators`, next to `XPathEvaluator` (it needs `SequenceTypeMatcher` and the
 package-private parts of the evaluator; the `ops` package stays at the level of single atomic values). The code was
 moved there from `XPathEvaluator`, which now calls the same methods, so there is one implementation:
 
@@ -261,7 +261,7 @@ moved there from `XPathEvaluator`, which now calls the same methods, so there is
   before, through the same conversion method.
 * Not covered: the node step with the name index (S2 of the suggestions, `AxisNavigator`), set operators, ranges,
   `||`, `instance of` and `treat as`; generated code keeps the delegated AST for those.
-* Tests: `XPathOperatorsTest` (xpath-core). QT3, XSLT30 and xsdtests fail lists unchanged by name.
+* Tests: `XPathOperatorsTest` (phoxtrot-xpath). QT3, XSLT30 and xsdtests fail lists unchanged by name.
 
 ## Streaming
 
@@ -277,9 +277,9 @@ About 8,200 lines of Go: `internal/xpath/streamability.go`, `internal/xslt/strea
 
 | Stage | Content | Go reference | Status |
 |-------|---------|--------------|--------|
-| S1 | Claim: `-Dxslt30.streaming=true` in the harness (streaming supported in both directions, `<source streaming>`, own out dir and accepted-failures file), the compile option that makes `streamable="yes"` binding, `system-property('xsl:supports-streaming')`; baseline with buffered execution | `xslt30_test.go`, `stream_property.go`, `features.go` | done (2026-11-04): streaming run 11,111 of 11,291 applicable cases pass, 180 fail, all in `xslt-conformance/docs/accepted-failures/xslt30-streaming.md` (119 expect XTSE3430 and 2 XTSE3155 for S3, 6 need streamed execution for S4, 45 need undeclared schema-awareness, 1 contradicts XPath, the 7 of the default run) |
-| S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` | done (2026-11-04): `com.helger.xpath.stream.XPathStreamability` with go-xslt's test cases; not yet called. Deviation from go-xslt: a call to a stylesheet function is not assumed to return childless items (go-xslt classifies `string(f:filter(.))` as streamable although it reads the subtree) |
-| S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` | done (2026-11-05): `com.helger.xslt.stream.XsltStreamability`, run at the end of compilation when `setEnforceStreamability` is on; streaming run 11,224 of 11,291 pass, 67 fail (114 of the 119 expected XTSE3430 and both XTSE3155 fixed; 5 XTSE3430 cases and `streamable-100` to `-102` accepted with reasons, as in go-xslt) |
+| S1 | Claim: `-Dxslt30.streaming=true` in the harness (streaming supported in both directions, `<source streaming>`, own out dir and accepted-failures file), the compile option that makes `streamable="yes"` binding, `system-property('xsl:supports-streaming')`; baseline with buffered execution | `xslt30_test.go`, `stream_property.go`, `features.go` | done (2026-11-04): streaming run 11,111 of 11,291 applicable cases pass, 180 fail, all in `phoxtrot-xslt-conformance/docs/accepted-failures/xslt30-streaming.md` (119 expect XTSE3430 and 2 XTSE3155 for S3, 6 need streamed execution for S4, 45 need undeclared schema-awareness, 1 contradicts XPath, the 7 of the default run) |
+| S2 | XPath streamability: posture and sweep of expressions | `internal/xpath/streamability.go` | done (2026-11-04): `com.helger.phoxtrot.xpath.stream.XPathStreamability` with go-xslt's test cases; not yet called. Deviation from go-xslt: a call to a stylesheet function is not assumed to return childless items (go-xslt classifies `string(f:filter(.))` as streamable although it reads the subtree) |
+| S3 | XSLT streamability: instructions, modes, accumulators, `xsl:source-document`, `xsl:merge`; XTSE3430 when enforced | `internal/xslt/streamability.go` | done (2026-11-05): `com.helger.phoxtrot.xslt.stream.XsltStreamability`, run at the end of compilation when `setEnforceStreamability` is on; streaming run 11,224 of 11,291 pass, 67 fail (114 of the 119 expected XTSE3430 and both XTSE3155 fixed; 5 XTSE3430 cases and `streamable-100` to `-102` accepted with reasons, as in go-xslt) |
 | S4 | Streaming execution: incremental reader (JDK StAX) building `IXdmNode` records, the dispatcher, accumulators, grouping, `xsl:fork`; memory test with a large document | `internal/xmltree/stream.go`, `stream_exec/acc/group/fork.go` | done (2026-11-05): `XdmStreamReader`, `StreamedRun`, streamed accumulators, memory test; streaming run 11,230 of 11,291 pass, 61 fail (the 6 S4 cases fixed: `accumulator-061`, `si-fork-113` to `-115`, `merge-079`, `merge-097s`); streamed `xsl:iterate`, `xsl:for-each-group` and `xsl:fork` are left for S5 (they run buffered) |
 | S5 | Streamed `xsl:iterate`, `xsl:for-each-group`, `xsl:fork`, `xsl:merge-source`, record-path predicates and wrappers; bounded `generate-id` and snapshot origins; bounded-memory output: serialise while transforming | `stream_exec/group/fork.go`, `transform_to.go` | done (2026-11-05): streaming run unchanged at 11,230 of 11,291 (the newly streamed constructs passed buffered before; the gain is memory); `XsltExecutable.transform (request, OutputStream\|Writer)`, drained where the output definition allows it; the XSLT30 run through the writer (`-Dxslt30.writeTo=true`) gives the same output for every case |
 
@@ -313,13 +313,13 @@ Recommendation does not guarantee to run, and now get XTSE3430 (go-xslt accepts 
 and fixed on 2026-11-05 (default behaviour): `xsl:fork` mixing `xsl:sequence` and `xsl:for-each-group` children, or
 with two `xsl:for-each-group`, is rejected with XTSE0010; `xsl:fallback` is allowed among its children (section 17). Left for S4: the run-time XTSE3430 of go-xslt for `fn:key` over a streamed document.
 
-S4 notes: `com.helger.xpath.xdm.XdmStreamReader` reads with the JDK StAX parser (settings of `XdmParser`: internal
+S4 notes: `com.helger.phoxtrot.xdm.XdmStreamReader` reads with the JDK StAX parser (settings of `XdmParser`: internal
 subset read, external subset and entities not, same entity and depth limits) and builds ordinary nodes numbered as they
 are created (an open element covers what is read later; `drop`/`skipSubtree` do not renumber; a streamed document has
 no name index). It merges character data itself (the coalescing mode of the JDK parser reports element-content
 whitespace inconsistently) and refuses XML 1.1, external parsed entities and, when external entities are to be read, an
 external subset (`XdmStreamUnsupportedException`, before the first event; the caller reads in full). A stream that drops
-nothing builds the tree `XdmParser` builds. Dispatch (`com.helger.xslt.stream`): with the streaming claim the analysis
+nothing builds the tree `XdmParser` builds. Dispatch (`com.helger.phoxtrot.xslt.stream`): with the streaming claim the analysis
 also runs without enforcement and records its verdicts (`StreamVerdicts`; a failed declaration disables all of them);
 a streamable `xsl:source-document` proven grounded, or the template rule for the document node of a proven streamable
 initial mode (`XsltTransformRequest.setStreamedSourceUri`), is streamed when its sequence constructor is a chain of
@@ -541,7 +541,7 @@ workload, `getChildAtIndex` 14 %; the `ArrayList` copy is only about 6 %, so tha
 `HashMap` growth (about 10 %, pre-sizing), context allocation per call and focus (about 5 %),
 `EAtomicType.isNumeric` through `isDerivedFrom` (a flag would make it constant), pattern predicates of key matches.
 
-Benchmark (2026-11-06): module `xslt-benchmark` (JMH, standalone; `compare.sh <base> <new>` builds two commits in
+Benchmark (2026-11-06): module `phoxtrot-xslt-benchmark` (JMH, standalone; `compare.sh <base> <new>` builds two commits in
 temporary worktrees and compares them), baseline and ranked hot spots in `docs/benchmarks/2026-11-06-baseline.md`.
 Checked against the queued items: the `array(T)` check is already linear (uniform member type), dropped; the key
 index `HashMap` growth is 0.7 %, dropped; the `xsl:number` cost is the quadratic counting (`_countAny` 93 %), not the

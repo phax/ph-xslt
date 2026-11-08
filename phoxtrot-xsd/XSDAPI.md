@@ -1,6 +1,6 @@
-# xsd-core: structure, ownership and contracts
+# phoxtrot-xsd: structure, ownership and contracts
 
-`xsd-core` is the native W3C XML Schema validator, a port of go-xslt's `internal/xsd` (see `docs/PLAN.md`, section
+`phoxtrot-xsd` is the native W3C XML Schema validator, a port of go-xslt's `internal/xsd` (see `docs/PLAN.md`, section
 "Native XSD validator"). This document is the brief for the agents of phases V3 to V6: it says which file belongs to
 which phase, what each stub must do, and which parts of the component model a phase may rely on. Read
 `docs/PORTING.md` (rules for parallel work, coding conventions) and go-xslt's `CLAUDE.md` (the `internal/xsd`
@@ -8,12 +8,12 @@ paragraph) first.
 
 ## Module
 
-* Module `xsd-core`, one package `com.helger.xsd` (go-xslt keeps everything in one Go package; the port keeps the
+* Module `phoxtrot-xsd`, one package `com.helger.phoxtrot.xsd` (go-xslt keeps everything in one Go package; the port keeps the
   package-private access that implies).
-* Depends on `xpath-xdm` (the `IXdmNode` tree, `XdmParser`) and `xpath-core` (`EAtomicType`, `XdmAtomic`,
+* Depends on `phoxtrot-xdm` (the `IXdmNode` tree, `XdmParser`) and `phoxtrot-xpath` (`EAtomicType`, `XdmAtomic`,
   `AtomicCaster`, `AtomicComparator`, `XsdLexical`, `XPathCompiler`, `EXsdVersion`). Never on Xerces-J, never on
   JAXP validation.
-* The version switch is `com.helger.xpath.context.EXsdVersion` (`V10`, `V11`), threaded as `XsdCompiler.m_eVersion`
+* The version switch is `com.helger.phoxtrot.xpath.context.EXsdVersion` (`V10`, `V11`), threaded as `XsdCompiler.m_eVersion`
   / `XsdSchema.m_eVersion` exactly where go-xslt branches on `Version`.
 
 ## Public API (V2, stable)
@@ -95,7 +95,7 @@ These go-xslt functions live in V2 classes; use them, do not duplicate them:
 | `SimpleType.resolvePrim`, `effectiveWhiteSpace` | `XsdSimpleType.resolvePrim ()`, `effectiveWhiteSpace ()` |
 | `primitiveWhiteSpace`, `wsRank`, `strongerWS`, `applyWhiteSpace`, `collapseWhiteSpace` | `XsdWhiteSpace` |
 | `validQNameLexical`, `permissiveNCName`, `isNCName`, `validAnyURI10`, `xmlFields`, `lexEqualCollapsed`, `nonNegInt`, `atoiOr` | `XsdLexHelper` |
-| `reLanguage`, `reNCName` | `XsdLexical.isLanguage`, `XsdLexical.isNCName` (xpath-core) |
+| `reLanguage`, `reNCName` | `XsdLexical.isLanguage`, `XsdLexical.isNCName` (phoxtrot-xpath) |
 | `isIntegerLike` | `EAtomicType.isIntegerFamily ()` |
 | `xpath.AtomDerivesFrom` (XSD semantics: xs:error derives from nothing) | `XsdDerivation.atomDerivesFrom` |
 | `xpath.CastTo` + `xpath.CompareAtomic` for facet values | `XsdValueCompare.castOrNull`, `compare`, `compareLexical` (implicit timezone UTC; durations folded like go-xslt) |
@@ -132,7 +132,7 @@ the first error can differ).
 | `XsdWildcard` | `wildcard` | `m_sNsMode` (`any`/`other`/`list`), `m_aNamespaces`, `m_sTargetNS`, `m_sProcess` (raw value; `strict`/`lax`/`skip`), XSD 1.1 negations, `m_aParts` for unions. |
 | `XsdElementDecl` | `ElementDecl` | `m_aType` is never `null` after compile (xs:anyType by default; `m_bTypeDefaulted`). A global declaration is the one in `XsdSchema.m_aElements`; an `xs:element ref` particle points to that same object. |
 | `XsdAttributeDecl`, `XsdAttributeUse`, `XsdAttributeGroup` | `AttributeDecl`, `attrUse`, `attrGroupDef` | a use inherits the declaration's value constraint when it has none of its own (done at compile time). |
-| `XsdIdentityConstraint` | `identityConstraint` | selector and fields are `CompiledXPath`s, compiled with the in-scope namespaces of their schema elements and the xpathDefaultNamespace as default element namespace (names are resolved at compile time in xpath-core, unlike go-xslt). Raw sources and namespaces are kept as well. |
+| `XsdIdentityConstraint` | `identityConstraint` | selector and fields are `CompiledXPath`s, compiled with the in-scope namespaces of their schema elements and the xpathDefaultNamespace as default element namespace (names are resolved at compile time in phoxtrot-xpath, unlike go-xslt). Raw sources and namespaces are kept as well. |
 | `XsdSchema` | `Schema` | `m_aElements`, `m_aTypes`, `m_aAttributes` (with the four implicit `xsi:` attributes), `m_aSubstMembers` (head to direct members; `substMembersOf`), `m_aSourceDocs` (for hint merges), `m_aBaseDir`, `m_aFileAccess`, `m_eVersion`. No per-validation state. |
 
 ## Contracts of the stubs
@@ -140,7 +140,7 @@ the first error can differ).
 ### V3 (simple types and facets)
 
 * `XsdPattern.validateSyntax (pattern, version)`: `XsdInvalidException` if the facet value is not an XSD regular
-  expression of that version (go-xslt `validateXSDRegex`; the xpath-core regex translator implements the grammar).
+  expression of that version (go-xslt `validateXSDRegex`; the phoxtrot-xpath regex translator implements the grammar).
 * `XsdPattern.compile (pattern, version)`: anchored compiled pattern; a pattern the engine cannot run throws
   `XsdUnsupportedException`, never a verdict. `matches (value)` on the whitespace-normalised value.
 * `XsdFacetValidator.validateFacetValues (type, version)`: go-xslt `validateFacetValues`, called at the end of every
@@ -184,7 +184,7 @@ the first error can differ).
 
 ### V6 (bridge, done)
 
-* `XsdSchemaProvider` (public) is the `IXdmSchemaProvider` of `xpath-xdm`: `compile (List<XdmSchemaSource>)` compiles
+* `XsdSchemaProvider` (public) is the `IXdmSchemaProvider` of `phoxtrot-xdm`: `compile (List<XdmSchemaSource>)` compiles
   the documents as XSD 1.0 with local file access and returns an `XsdBridge`; `createSchemaSet (XsdSchema)` wraps a
   schema compiled otherwise. `XdmSchemaSupport` loads it by name.
 * `XsdBridge` is the `IXdmSchemaSet` (go-xslt `bridge.go`). Lookup by name goes over the schema's types and the
@@ -235,13 +235,13 @@ the first error can differ).
 * `msg:message` (go-xslt `messages.go`) in an `xs:appinfo` of an `xs:element`, `xs:attribute`, model group, `xs:assert` or
   `xs:assertion` gives the diagnostic its own wording and `rule`:
 
-      <xs:element name="a" xmlns:msg="urn:fdc:helger.com:ph-xslt:xsd:messages">
+      <xs:element name="a" xmlns:msg="urn:fdc:helger.com:phoxtrot:xsd:messages">
         <xs:annotation><xs:appinfo>
           <msg:message on="missing" rule="R1" xml:lang="en">a is required</msg:message>
         </xs:appinfo></xs:annotation>
       </xs:element>
 
-  The namespace is `XsdConstants.NS_MESSAGES` = `urn:fdc:helger.com:ph-xslt:xsd:messages`; go-xslt's
+  The namespace is `XsdConstants.NS_MESSAGES` = `urn:fdc:helger.com:phoxtrot:xsd:messages`; go-xslt's
   `https://github.com/tim-riep/go-xslt/xsd/messages` is NOT recognised (a schema written for go-xslt needs the
   namespace changed). `on` narrows a message to `missing` or `too-many` (absent: both). For a cardinality error the
   element declaration's own messages win, else those of the innermost group that holds all alternatives; for a missing
@@ -279,7 +279,7 @@ the first error can differ).
 * Occurrence values above `Integer.MAX_VALUE` are clamped to it (go-xslt: 64-bit).
 * Identity-constraint XPaths are compiled at schema compile time; a compile failure is unsupported.
 * Facet-value ordering of date/time values without timezone uses the implicit timezone UTC.
-* The `msg:message` namespace is `urn:fdc:helger.com:ph-xslt:xsd:messages` (go-xslt: its GitHub URL).
+* The `msg:message` namespace is `urn:fdc:helger.com:phoxtrot:xsd:messages` (go-xslt: its GitHub URL).
 * The copy a type alternative's `@test` is evaluated against has no parent (XSD 1.1 Part 1, 3.12.4, rule 1.2: "In the
   copy of E, the [parent] property is modified to have no value"); go-xslt keeps the parent.
 * Collecting is the default of `validate` / `validateText` (go-xslt's `Validate` does the same); there is no
@@ -287,14 +287,14 @@ the first error can differ).
 
 ## Testing
 
-* Unit tests: `mvn -o -q test -pl xsd-core -am`. The spec tests ported from go-xslt (`XsdSchemaRepresentationTest`,
+* Unit tests: `mvn -o -q test -pl phoxtrot-xsd -am`. The spec tests ported from go-xslt (`XsdSchemaRepresentationTest`,
   `XsdSchemaCompositionTest`, `XsdSchemaModelTest`) tolerate "unsupported" and count it; a decided verdict must be
   the expected one. As the stubs disappear, more cases are decided; model tests skip (assumption) while their schema
   does not compile yet.
-* Suite: `mvn -o -q verify -Pconformance -pl xsd-conformance -am -Dit.test=XsdIT -Dxsd.validator=native`
-  (fail list `xsd-conformance/target/xsd-native-fails.txt`; `-Dxsd.unsup=true` prints each
+* Suite: `mvn -o -q verify -Pconformance -pl phoxtrot-xsd-conformance -am -Dit.test=XsdIT -Dxsd.validator=native`
+  (fail list `phoxtrot-xsd-conformance/target/xsd-native-fails.txt`; `-Dxsd.unsup=true` prints each
   unsupported case with the stub it hit; `-Dxsd.faildump=true` the fails). The summary splits schema and instance
-  tests. Accepted failures: `xsd-conformance/docs/accepted-failures/xsd-native.md`, checked by default
+  tests. Accepted failures: `phoxtrot-xsd-conformance/docs/accepted-failures/xsd-native.md`, checked by default
   (`XsdNativeIT` always runs the native validator and gates on it). `XsdBridgeDifferentialIT` compares validation
   in place with validation of the text.
 * Differential check used for V2: replace the stubs locally (never committed) by permissive bodies (accept every

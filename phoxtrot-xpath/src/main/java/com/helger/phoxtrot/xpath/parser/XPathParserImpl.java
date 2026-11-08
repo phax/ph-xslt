@@ -560,7 +560,7 @@ final class XPathParserImpl
   @NonNull
   private static IExpr _getUserTypeConstructorFunction (@NonNull final IXdmTypeDefinition aUserType)
   {
-    final XdmQName aParam = new XdmQName ("http://www.w3.org/2005/xqt-errors/ph-xslt/constructor", "arg");
+    final XdmQName aParam = new XdmQName ("http://www.w3.org/2005/xqt-errors/phoxtrot/constructor", "arg");
     final SeqType aResult = new SeqType (false, _schemaAtomicItemType (aUserType), EOccurrence.ZERO_OR_ONE, false);
     return new IExpr.InlineFunctionExpr (new CommonsArrayList <> (new IExpr.Param (aParam,
                                                                                    new SeqType (false,

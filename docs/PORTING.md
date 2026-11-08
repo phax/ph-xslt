@@ -1,4 +1,4 @@
-# Porting guide (go-xslt to ph-xslt)
+# Porting guide (go-xslt to phoxtrot)
 
 Read this fully before writing code. It applies to every workstream.
 
@@ -14,14 +14,14 @@ Read this fully before writing code. It applies to every workstream.
 
 ## Architecture (the contract)
 
-Module `xpath-xdm` (`com.helger.xpath.xdm`): `IXdmNode` (node tree, document order; sealed `AbstractXdmNode` with one class per node kind; `XdmSchemaType` for schema-validated trees), `XdmQName` (record, prefix not part
+Module `phoxtrot-xdm` (`com.helger.phoxtrot.xdm`): `IXdmNode` (node tree, document order; sealed `AbstractXdmNode` with one class per node kind; `XdmSchemaType` for schema-validated trees), `XdmQName` (record, prefix not part
 of equality), `XdmParser`/`XdmTreeBuilder` (JDK SAX to tree), `IXdmItem` (marker for all items).
 
-Module `xpath-core` (`com.helger.xpath`):
+Module `phoxtrot-xpath` (`com.helger.phoxtrot.xpath`):
 
 | Package | Content |
 |---------|---------|
-| `com.helger.xpath` | `XPathException` (unchecked, carries the W3C error code), `XPathCompiler`, `CompiledXPath` |
+| `com.helger.phoxtrot.xpath` | `XPathException` (unchecked, carries the W3C error code), `XPathCompiler`, `CompiledXPath` |
 | `.value` | `XdmSequence` (immutable, 0-based), `XdmAtomic` (type + payload, see its Javadoc for payload classes), `EAtomicType`, `XdmMap`, `XdmArray`, `IXdmFunction`, `XdmDateTimeValue`, `XdmDurationValue`, `DateTimeOps`, `AtomicLexical` |
 | `.ast` | `IExpr` (sealed, nested records), `SeqType`, `ItemType`, `NodeTest`, enums. Names are resolved at parse time. |
 | `.parser` | `XPathParser` |
@@ -49,7 +49,7 @@ Differences to the Go design, on purpose:
 2. If you need a change in a file you do not own (a new method on `XdmAtomic`, a new field in `DynamicContext`, ...),
    keep it strictly additive, make it, and list it verbatim in your final report (file, signature, why). The
    integrator applies it to the main tree.
-3. Build with `mvn -o -q test -pl xpath-core -am` (or `-pl <your module> -am`). **Never run `mvn install`**: other
+3. Build with `mvn -o -q test -pl phoxtrot-xpath -am` (or `-pl <your module> -am`). **Never run `mvn install`**: other
    workstreams share `~/.m2`.
 4. JDK 21: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` in the same shell command as Maven.
 5. Your code must compile against the stubs of the other workstreams. Tests that need code of another workstream
@@ -94,8 +94,8 @@ The engine now runs end to end: parser, evaluator, atomic operations and the QT3
 do not touch those files.
 
 - Test through XPath: `XPathCompiler.compile (sExpr, new StaticContext ()).evaluate (...)`.
-- Run QT3 test sets: `mvn -o -q verify -Pconformance -pl xpath-conformance -am -Dqt3.only=<test-set name substring>`; fails are in
-  `xpath-conformance/target/qt3-fails.txt` (with `qt3.only` the expression, expected and actual result of every fail
+- Run QT3 test sets: `mvn -o -q verify -Pconformance -pl phoxtrot-xpath-conformance -am -Dqt3.only=<test-set name substring>`; fails are in
+  `phoxtrot-xpath-conformance/target/qt3-fails.txt` (with `qt3.only` the expression, expected and actual result of every fail
   are printed). Test-set names are in `/Users/philip/dev/git-thirdparty/qt3tests/catalog.xml`.
 - Compare fail lists **by name**, never by count.
 - You may fix clear bugs in non-owned engine code (evaluator, ops, parser, harness) if your test sets need it. Keep each

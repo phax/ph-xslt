@@ -1,4 +1,4 @@
-# xslt-core: how to add instructions, declarations and functions
+# phoxtrot-xslt: how to add instructions, declarations and functions
 
 Read this fully before adding an XSLT instruction family. It is the Java counterpart of go-xslt's
 `internal/xslt/INSTRAPI.md`. The coding conventions of `docs/PORTING.md` apply unchanged.
@@ -7,14 +7,14 @@ Read this fully before adding an XSLT instruction family. It is the Java counter
 
 | Package | Content |
 |---------|---------|
-| `com.helger.xslt` | Facade: `XsltCompiler`, `XsltExecutable`, `XsltCompileOptions`, `XsltTransformRequest`, `XsltTransformResult`, `XsltException` |
-| `com.helger.xslt.tree` | The stylesheet after static processing: `XslModule`, `XslElement`, `XslText`, `XsltNames` (lexical checks) |
-| `com.helger.xslt.compile` | `StylesheetLoader` (modules, use-when, static variables, shadow attributes), `ElementValidator` + `XsltElementSpecs` (static validation), `StylesheetCompiler` (declarations), `CompileContext` (the compile API), `XPathExpr`, `Avt`, `CompiledPattern`, the registry `XsltExtensionRegistry` and its SPI interfaces |
-| `com.helger.xslt.model` | Compiled declarations: `CompiledStylesheet`, `Template`, `TemplateRule`, `Mode`, `VariableDef`, `UserFunction`, `KeyDefinition`, `AttributeSet`, `OutputDefinition`, `SpaceRules` |
-| `com.helger.xslt.instr` | Instructions: `IInstruction`, `CompiledInstruction` (+ `IInstructionBody`), `SequenceConstructor`, `SortKeyDef`, `SimpleContent`, the core instruction families |
-| `com.helger.xslt.runtime` | `Engine` (one transformation), `XsltContext` + `XsltState` (run-time context), outputs (`IXsltOutput`, `SequenceOutput`, `ContentOutput`, `BufferedOutput`), `NodeCopier`, `NamespaceFixup`, `XsltTransformer` |
-| `com.helger.xslt.fn` | `XsltFunctions`: the XSLT functions of the core |
-| `com.helger.xslt.ext.<family>` | One package per instruction family of wave X2 (yours) |
+| `com.helger.phoxtrot.xslt` | Facade: `XsltCompiler`, `XsltExecutable`, `XsltCompileOptions`, `XsltTransformRequest`, `XsltTransformResult`, `XsltException` |
+| `com.helger.phoxtrot.xslt.tree` | The stylesheet after static processing: `XslModule`, `XslElement`, `XslText`, `XsltNames` (lexical checks) |
+| `com.helger.phoxtrot.xslt.compile` | `StylesheetLoader` (modules, use-when, static variables, shadow attributes), `ElementValidator` + `XsltElementSpecs` (static validation), `StylesheetCompiler` (declarations), `CompileContext` (the compile API), `XPathExpr`, `Avt`, `CompiledPattern`, the registry `XsltExtensionRegistry` and its SPI interfaces |
+| `com.helger.phoxtrot.xslt.model` | Compiled declarations: `CompiledStylesheet`, `Template`, `TemplateRule`, `Mode`, `VariableDef`, `UserFunction`, `KeyDefinition`, `AttributeSet`, `OutputDefinition`, `SpaceRules` |
+| `com.helger.phoxtrot.xslt.instr` | Instructions: `IInstruction`, `CompiledInstruction` (+ `IInstructionBody`), `SequenceConstructor`, `SortKeyDef`, `SimpleContent`, the core instruction families |
+| `com.helger.phoxtrot.xslt.runtime` | `Engine` (one transformation), `XsltContext` + `XsltState` (run-time context), outputs (`IXsltOutput`, `SequenceOutput`, `ContentOutput`, `BufferedOutput`), `NodeCopier`, `NamespaceFixup`, `XsltTransformer` |
+| `com.helger.phoxtrot.xslt.fn` | `XsltFunctions`: the XSLT functions of the core |
+| `com.helger.phoxtrot.xslt.ext.<family>` | One package per instruction family of wave X2 (yours) |
 
 ## Registering a family
 
@@ -25,19 +25,19 @@ needs; you do not edit any core file:
 
 | Family | Class |
 |--------|-------|
-| xsl:number | `com.helger.xslt.ext.number.NumberExtension` |
-| xsl:for-each-group, current-group(), current-grouping-key() | `com.helger.xslt.ext.grouping.GroupingExtension` |
-| xsl:merge, current-merge-group(), current-merge-key() | `com.helger.xslt.ext.merge.MergeExtension` |
-| xsl:iterate, xsl:break, xsl:next-iteration, xsl:on-completion | `com.helger.xslt.ext.iterate.IterateExtension` |
-| xsl:try, xsl:catch | `com.helger.xslt.ext.trycatch.TryCatchExtension` |
-| xsl:result-document | `com.helger.xslt.ext.resultdocument.ResultDocumentExtension` |
-| xsl:accumulator, accumulator-before(), accumulator-after() | `com.helger.xslt.ext.accumulator.AccumulatorExtension` |
-| xsl:evaluate | `com.helger.xslt.ext.evaluate.EvaluateExtension` |
-| xsl:map, xsl:map-entry, xsl:array (if any) | `com.helger.xslt.ext.map.MapExtension` |
-| xsl:source-document | `com.helger.xslt.ext.sourcedocument.SourceDocumentExtension` |
-| xsl:assert | `com.helger.xslt.ext.assertion.AssertExtension` |
-| xsl:fork | `com.helger.xslt.ext.fork.ForkExtension` |
-| xsl:character-map, use-character-maps | `com.helger.xslt.ext.charactermap.CharacterMapExtension` |
+| xsl:number | `com.helger.phoxtrot.xslt.ext.number.NumberExtension` |
+| xsl:for-each-group, current-group(), current-grouping-key() | `com.helger.phoxtrot.xslt.ext.grouping.GroupingExtension` |
+| xsl:merge, current-merge-group(), current-merge-key() | `com.helger.phoxtrot.xslt.ext.merge.MergeExtension` |
+| xsl:iterate, xsl:break, xsl:next-iteration, xsl:on-completion | `com.helger.phoxtrot.xslt.ext.iterate.IterateExtension` |
+| xsl:try, xsl:catch | `com.helger.phoxtrot.xslt.ext.trycatch.TryCatchExtension` |
+| xsl:result-document | `com.helger.phoxtrot.xslt.ext.resultdocument.ResultDocumentExtension` |
+| xsl:accumulator, accumulator-before(), accumulator-after() | `com.helger.phoxtrot.xslt.ext.accumulator.AccumulatorExtension` |
+| xsl:evaluate | `com.helger.phoxtrot.xslt.ext.evaluate.EvaluateExtension` |
+| xsl:map, xsl:map-entry, xsl:array (if any) | `com.helger.phoxtrot.xslt.ext.map.MapExtension` |
+| xsl:source-document | `com.helger.phoxtrot.xslt.ext.sourcedocument.SourceDocumentExtension` |
+| xsl:assert | `com.helger.phoxtrot.xslt.ext.assertion.AssertExtension` |
+| xsl:fork | `com.helger.phoxtrot.xslt.ext.fork.ForkExtension` |
+| xsl:character-map, use-character-maps | `com.helger.phoxtrot.xslt.ext.charactermap.CharacterMapExtension` |
 
 ```java
 public final class NumberExtension implements IXsltExtension
@@ -235,8 +235,8 @@ available-system-properties, current, key, document, regex-group, current-output
 
 ## Tests
 
-JUnit 4 in `src/test/java`, same package as your extension. `com.helger.xslt.XsltTestHelper` (test scope of
-xslt-core) runs whole stylesheets:
+JUnit 4 in `src/test/java`, same package as your extension. `com.helger.phoxtrot.xslt.XsltTestHelper` (test scope of
+phoxtrot-xslt) runs whole stylesheets:
 
 ```java
 assertEquals ("3", XsltTestHelper.text ("<xsl:template name='xsl:initial-template'><xsl:value-of select='1+2'/></xsl:template>", null));
@@ -245,13 +245,13 @@ assertEquals ("XTDE1450", XsltTestHelper.errorCode (XsltTestHelper.SHEET + "..."
 
 `text (body, source)` wraps the body in a stylesheet with `method="text"`; `transform (sheet, source, params)`
 returns the serialized result, `run (...)` the full `XsltTransformResult`. Then run the XSLT30 harness for your test
-sets: `mvn -o -q verify -Pconformance -pl xslt-conformance -am -Dit.test=XSLT30IT -Dxslt30.only=<set>` (fails in
-`xslt-conformance/target/xslt30-fails.txt`; `-Dxslt30.faildump=true` prints the reasons). Compare fail lists by
+sets: `mvn -o -q verify -Pconformance -pl phoxtrot-xslt-conformance -am -Dit.test=XSLT30IT -Dxslt30.only=<set>` (fails in
+`phoxtrot-xslt-conformance/target/xslt30-fails.txt`; `-Dxslt30.faildump=true` prints the reasons). Compare fail lists by
 name.
 
 ## Rules
 
-1. Only add files in your `com.helger.xslt.ext.<family>` package (main and test). If you need a change in a core
+1. Only add files in your `com.helger.phoxtrot.xslt.ext.<family>` package (main and test). If you need a change in a core
    file, keep it additive and list it in your report.
 2. Do not reimplement core helpers (outputs, copying, sorting, AVTs, variables, parameter binding).
 3. Keep compiled structures immutable; per-run state goes into `Engine.getRunData`, per-context state into

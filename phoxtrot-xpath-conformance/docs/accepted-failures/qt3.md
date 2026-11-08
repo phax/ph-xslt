@@ -1,7 +1,7 @@
 # QT3 (`qt3tests`, XPath 3.1 / F&O 3.1): failing cases
 
 22,419 of 22,478 applicable cases pass, 59 fail. Measured offline, on JDK 21 and 25, with the native validator of
-`xsd-core` as the schema processor (the default of the harness, see below). With Apache Xerces-J
+`phoxtrot-xsd` as the schema processor (the default of the harness, see below). With Apache Xerces-J
 (`-Dxdm.schemaProvider=xerces`) the fail list is identical by name.
 
 Every failing case is named here in backticks under a heading with its status and reason. `QT3IT` fails on any
@@ -13,7 +13,7 @@ Remove an entry when its case passes. Status **Open** means winnable later; **Ac
 
 **Status:** Accepted (decision).
 They depend on the feature `fn-transform-XSLT` (901, 902) or `fn-transform-XSLT30` (err-14) being *not* satisfied and
-expect `fn:transform` to report that no (XSLT 3.0) processor is available. With xslt-core on the class path
+expect `fn:transform` to report that no (XSLT 3.0) processor is available. With phoxtrot-xslt on the class path
 `fn:transform` is a real XSLT 3.0 processor, which necessarily contradicts them. go-xslt accepts the same cases.
 
 ### XQuery modules

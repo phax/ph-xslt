@@ -73,7 +73,7 @@ public final class XsdCollectExplainTest
   @Test
   public void testMessageNamespace ()
   {
-    assertEquals ("urn:fdc:helger.com:ph-xslt:xsd:messages", XsdConstants.NS_MESSAGES);
+    assertEquals ("urn:fdc:helger.com:phoxtrot:xsd:messages", XsdConstants.NS_MESSAGES);
   }
 
   @Test

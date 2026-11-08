@@ -1,6 +1,6 @@
 # XSD (`xsdtests`): failing cases of the native validator
 
-The native validator of `xsd-core` (a port of go-xslt's `internal/xsd`) is selected with `-Dxsd.validator=native`;
+The native validator of `phoxtrot-xsd` (a port of go-xslt's `internal/xsd`) is selected with `-Dxsd.validator=native`;
 `XsdNativeIT` always runs it, for XSD 1.0 and 1.1 unless `-Dxsd.version` selects one. Its fail lists are written to
 `target/xsd-native-fails.txt` (1.0) and `target/xsd-native11-fails.txt` (1.1). This file is its accepted-failures
 list, separate from the Xerces-J one (`xsd.md`).

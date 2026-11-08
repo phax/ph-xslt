@@ -1071,7 +1071,7 @@ public final class XPathStreamability
       case final IExpr.CastExpr e -> true;
       case final IExpr.InstanceOfExpr e -> true;
       case final IExpr.TreatExpr e -> true;
-      // go-xslt lists the arrow expression here; the parser of ph-xslt
+      // go-xslt lists the arrow expression here; the parser of phoxtrot
       // desugars "x => $f()" to a dynamic call, and the pattern grammar has
       // no dynamic call either
       case final IExpr.DynamicCallExpr e -> true;
@@ -1670,7 +1670,7 @@ public final class XPathStreamability
                                              : aEnv;
         final PostureSweep aPostfixPS = _expr (aStep.postfix (), ePosture, aStepEnv);
         // In go-xslt the predicates of a postfix step are part of the postfix
-        // expression (a filter expression); the AST of ph-xslt keeps them on the
+        // expression (a filter expression); the AST of phoxtrot keeps them on the
         // step, so the filter-expression rule (section 19.8.8.10) is applied
         // here
         aStepPS = aStep.predicates ().isEmpty () ? aPostfixPS

@@ -98,6 +98,6 @@ public final class XsltCompiler
   {
     ValueEnforcer.notNull (aStylesheet, "Stylesheet");
     ValueEnforcer.notNull (aOptions, "Options");
-    return LargeStackRunner.run ( () -> StylesheetCompiler.compile (aStylesheet, aOptions), "ph-xslt-compile");
+    return LargeStackRunner.run ( () -> StylesheetCompiler.compile (aStylesheet, aOptions), "phoxtrot-compile");
   }
 }

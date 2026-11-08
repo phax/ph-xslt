@@ -35,7 +35,7 @@ import com.helger.phoxtrot.xslt.XsltTransformRequest;
  * Port of go-xslt's <code>internal/xslt/validate_static_errors_test.go</code>:
  * each case is a stylesheet the XSLT 3.0 REC declares to be in error, with the
  * code the REC assigns. The cases that need a schema-aware or a backwards
- * compatible processor (go-xslt's Features) are not ported, as ph-xslt is
+ * compatible processor (go-xslt's Features) are not ported, as phoxtrot is
  * neither.
  *
  * @author Philip Helger

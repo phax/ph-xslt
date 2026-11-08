@@ -4,10 +4,10 @@ Processor claiming streaming (`-Dxslt30.streaming=true`; no schema-awareness or 
 11,230 of 11,291 applicable cases pass, 61 fail. Measured offline, on JDK 21 and 25, after stage S4 of the streaming
 plan (`docs/PLAN.md`), and unchanged on JDK 21 after the execution part of S5 (streamed `xsl:iterate`,
 `xsl:for-each-group`, `xsl:fork`, `xsl:merge-source`, record paths with predicates, wrappers with attribute value
-templates): the streamability analysis (`com.helger.xslt.stream.XsltStreamability`) makes `streamable="yes"` binding,
+templates): the streamability analysis (`com.helger.phoxtrot.xslt.stream.XsltStreamability`) makes `streamable="yes"` binding,
 and a construct it proves guaranteed streamable whose sequence constructor has the shape the dispatcher runs
-(`com.helger.xslt.stream.StreamPlanner`) reads its document as a stream (`com.helger.xpath.xdm.XdmStreamReader`,
-`com.helger.xslt.stream.StreamedRun`); everything else runs with the whole document in memory. The default run (basic processor) and its failures are in `xslt30.md`.
+(`com.helger.phoxtrot.xslt.stream.StreamPlanner`) reads its document as a stream (`com.helger.phoxtrot.xdm.XdmStreamReader`,
+`com.helger.phoxtrot.xslt.stream.StreamedRun`); everything else runs with the whole document in memory. The default run (basic processor) and its failures are in `xslt30.md`.
 
 The run claims streaming in both directions: the cases that need it run, and the one case written for a processor
 without it (`system-property-013`) is skipped. `streaming-fallback` stays unsupported: it names a processor configured

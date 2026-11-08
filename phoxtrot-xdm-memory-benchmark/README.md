@@ -5,7 +5,7 @@ documents:
 
 | Model | Library | Shape |
 |---|---|---|
-| **ph-xdm** | ph-xslt `xpath-xdm` 0.1.0-SNAPSHOT, `XdmParser` | One object per node, one class per node kind (`XdmElementNode`, `XdmAttributeNode`, `XdmTextNode`, ...) |
+| **ph-xdm** | phoxtrot `phoxtrot-xdm` 0.1.0-SNAPSHOT, `XdmParser` | One object per node, one class per node kind (`XdmElementNode`, `XdmAttributeNode`, `XdmTextNode`, ...) |
 | **MicroDOM** | ph-commons `ph-xml` 12.5.2, `MicroReader.readMicroXML` | One object per node, attributes in a per-element map |
 | **Saxon TinyTree** | Saxon-HE 12.10, `Configuration.buildDocumentTree` | No node objects: parallel `int` arrays, names as `NamePool` codes, all text in one shared buffer |
 
@@ -119,11 +119,11 @@ node count. In addition, an element whose only child is a text node is stored as
 
 ## Running it
 
-The benchmark lives in the standalone Maven module `xdm-memory-benchmark` of ph-xslt (not part of the reactor build).
-It expects the W3C test suites in `../../git-thirdparty` and `peppol-commons` as a sibling of ph-xslt.
+The benchmark lives in the standalone Maven module `phoxtrot-xdm-memory-benchmark` of phoxtrot (not part of the reactor build).
+It expects the W3C test suites in `../../git-thirdparty` and `peppol-commons` as a sibling of phoxtrot.
 
 ```bash
-mvn install -pl xpath-xdm -am -DskipTests
-cd xdm-memory-benchmark
+mvn install -pl phoxtrot-xdm -am -DskipTests
+cd phoxtrot-xdm-memory-benchmark
 mvn compile exec:exec
 ```

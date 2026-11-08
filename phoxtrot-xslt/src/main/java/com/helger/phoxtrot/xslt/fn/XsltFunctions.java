@@ -140,8 +140,9 @@ public final class XsltFunctions
     return switch (sLocalName)
     {
       case "version" -> "3.0";
-      case "vendor", "product-name" -> "ph-xslt";
-      case "vendor-url" -> "https://github.com/phax/ph-xslt";
+      case "vendor" -> "Philip Helger";
+      case "product-name" -> "phoxtrot";
+      case "vendor-url" -> "https://github.com/phax/phoxtrot";
       case "product-version" -> "0.1";
       case "is-schema-aware", "supports-backwards-compatibility", "supports-streaming", "supports-dynamic-evaluation" -> XsltExtensionRegistry.getInstance ()
                                                                                                                                               .isSystemPropertyYes (sLocalName) ? "yes"

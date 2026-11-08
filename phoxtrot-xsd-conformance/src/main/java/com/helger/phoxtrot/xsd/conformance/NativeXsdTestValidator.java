@@ -42,7 +42,7 @@ import com.helger.phoxtrot.xsd.XsdValidationResult;
 @NotThreadSafe
 public final class NativeXsdTestValidator implements IXsdTestValidator
 {
-  private static final String DISPLAY_NAME = "ph-xslt native XSD";
+  private static final String DISPLAY_NAME = "phoxtrot native XSD";
 
   /** A schema compiled by the native validator. */
   private static final class NativeSchema implements IXsdTestSchema

@@ -1,14 +1,14 @@
-# xslt-benchmark
+# phoxtrot-xslt-benchmark
 
-JMH benchmarks and profiling workloads of the ph-xslt engines: parsing, XPath, XSLT, XSD validation, streaming and
-compilation. The module is standalone like `xdm-memory-benchmark`: its own POM, not part of the reactor build, never
+JMH benchmarks and profiling workloads of the phoxtrot engines: parsing, XPath, XSLT, XSD validation, streaming and
+compilation. The module is standalone like `phoxtrot-xdm-memory-benchmark`: its own POM, not part of the reactor build, never
 installed or deployed. It uses the engine jars `0.1.0-SNAPSHOT` from the local Maven repository, or the jars of a given
 commit (see [Comparing two commits](#comparing-two-commits)).
 
 All input is generated in code from a fixed seed (`BenchData`): an indented invoice-like document with a given number of
 lines and ten elements per line (`line`, `item`, `sku`, `qty`, `price`, `tax`, `note`, `period`, `start`, `end`), so
 1,000 lines are about 10,000 elements and 300 KB. Nothing large is committed; the stylesheets and
-schemas are small resources in `src/main/resources/com/helger/xpath/bench/`.
+schemas are small resources in `src/main/resources/com/helger/phoxtrot/xpath/bench/`.
 
 Every workload is run once in the preparation and its result is compared with a result computed in Java from the
 generated lines (counts, sums, the expected output text or its length), so that a later change cannot silently make
@@ -55,7 +55,7 @@ JDK 21, offline, without touching the reactor:
 
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-mvn -o -q clean package -f xslt-benchmark/pom.xml
+mvn -o -q clean package -f phoxtrot-xslt-benchmark/pom.xml
 ```
 
 Always build with `clean`: an incremental compile can drop the JMH-generated `META-INF/BenchmarkList` (JMH then finds
@@ -64,7 +64,7 @@ the engine first (`mvn install -DskipTests` in the root), or use `compare.sh`, w
 
 ## Run
 
-From `xslt-benchmark` (JMH prints with the default locale; `-Duser.language=en` gives decimal points):
+From `phoxtrot-xslt-benchmark` (JMH prints with the default locale; `-Duser.language=en` gives decimal points):
 
 ```bash
 CP=target/classes:$(cat target/classpath.txt)
@@ -86,13 +86,13 @@ $J org.openjdk.jmh.Main -l
 
 The defaults are 3 warm-up and 5 measurement iterations of 1 second in one fork with `-Xmx3g -Xss8m`. With `-prof gc`
 the line `gc.alloc.rate.norm` is the allocation per operation in bytes (for `parse`: per parsed document); no JOL
-agent is needed. For the retained heap of a tree see `xdm-memory-benchmark`.
+agent is needed. For the retained heap of a tree see `phoxtrot-xdm-memory-benchmark`.
 
 Check all workloads without timing (default 1,000 lines):
 
 ```bash
-$J com.helger.xpath.bench.MainProfile verify
-$J com.helger.xpath.bench.MainProfile verify 10000
+$J com.helger.phoxtrot.xpath.bench.MainProfile verify
+$J com.helger.phoxtrot.xpath.bench.MainProfile verify 10000
 ```
 
 ## Profile
@@ -104,7 +104,7 @@ first fifth is a warm-up) and prints the mean time per run. With Java Flight Rec
 $JAVA_HOME/bin/java -Xmx3g -Xss8m -cp $CP \
   -XX:StartFlightRecording=filename=target/xslt-keys.jfr,settings=profile \
   -XX:FlightRecorderOptions:stackdepth=256 -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints \
-  com.helger.xpath.bench.MainProfile xslt keys 10000 20
+  com.helger.phoxtrot.xpath.bench.MainProfile xslt keys 10000 20
 
 jfr view hot-methods target/xslt-keys.jfr
 jfr view allocation-by-class target/xslt-keys.jfr
@@ -112,7 +112,7 @@ jfr print --events jdk.ExecutionSample --stack-depth 256 target/xslt-keys.jfr > 
 ```
 
 `hot-methods` gives the self time (top frame); for inclusive shares aggregate the stacks of `jfr print`. Stylesheets are
-compiled on a thread `ph-xslt-compile` and transformations run on a thread `ph-xslt-transform` (a new one per
+compiled on a thread `phoxtrot-compile` and transformations run on a thread `phoxtrot-transform` (a new one per
 transformation), not on `main`: include these threads when filtering samples. In the baseline JFR took almost no
 samples of the streamed transformation (71 in 12 seconds); the cause was not analysed.
 
@@ -127,8 +127,9 @@ For each commit the script creates a detached `git worktree` in a temporary dire
 with `mvn -o -q package -DskipTests` and runs JMH with those jars in place of the `0.1.0-SNAPSHOT` jars of `~/.m2`;
 nothing is installed. It prints the scores side by side with the ratio new/base and removes the worktrees at the end
 (`BENCH_KEEP=1` keeps them, `BENCH_WORK_DIR=<dir>` sets the directory and reuses worktrees found there). The benchmark
-classes are compiled once from the current checkout, so both commits need the engine API they use. Run both commits in
-the same session: absolute times depend on the machine and its load, compare ratios.
+classes are compiled once from the current checkout, so both commits need the engine API they use; commits from before
+the package rename to `com.helger.phoxtrot` are rejected. Run both commits in the same session: absolute times depend on the machine
+and its load, compare ratios.
 
 ## Reports
 

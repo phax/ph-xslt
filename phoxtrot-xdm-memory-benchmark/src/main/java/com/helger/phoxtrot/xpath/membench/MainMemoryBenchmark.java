@@ -44,7 +44,7 @@ import net.sf.saxon.om.TreeInfo;
 import net.sf.saxon.tree.tiny.TinyTree;
 
 /**
- * Measures the retained heap of one parsed document in three tree models: ph-xslt
+ * Measures the retained heap of one parsed document in three tree models: phoxtrot
  * {@link IXdmNode}, ph-xml MicroDOM and Saxon TinyTree. The primary figure is the deep size of
  * the object graph reachable from the tree (JOL); a heap delta after full GC is printed as a
  * cross-check.
@@ -147,7 +147,7 @@ public final class MainMemoryBenchmark
   }
 
   /**
-   * Parse a file into the ph-xslt XDM tree.
+   * Parse a file into the phoxtrot XDM tree.
    *
    * @param aFile
    *        The XML file.
