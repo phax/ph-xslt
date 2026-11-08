@@ -92,7 +92,10 @@ public final class Engine
   public static final XsltStateKey <String> CURRENT_OUTPUT_URI = new XsltStateKey <> ("current-output-uri",
                                                                                      XsltStateKey.EScope.CLEARED_IN_FUNCTIONS);
 
-  /** Default maximum number of executed instructions. */
+  /**
+   * Default maximum number of executed instructions, used when the request
+   * sets none (see {@link XsltTransformRequest#setMaxSteps(long)}).
+   */
   public static final long DEFAULT_MAX_STEPS = 20_000_000L;
   /** Default maximum nesting depth of templates and functions. */
   public static final int DEFAULT_MAX_DEPTH = 10_000;
@@ -134,7 +137,9 @@ public final class Engine
    * Set up the run-wide state of one transformation. The execution budget is
    * the shared one of the request (a nested <code>fn:transform</code>) or a new
    * one with the requested limits; a requested maximum depth is capped at
-   * {@link #DEFAULT_MAX_DEPTH}, a non-positive limit means the default. The
+   * {@link #DEFAULT_MAX_DEPTH}, a non-positive limit means the default, and
+   * a maximum number of steps of
+   * {@link XsltTransformRequest#UNLIMITED_STEPS} means no step limit. The
    * dynamic context gets the function library of the stylesheet, the static
    * base URI of the principal module, the current date/time and interrupt of
    * the request, a resolver that applies xsl:strip-space to every document it

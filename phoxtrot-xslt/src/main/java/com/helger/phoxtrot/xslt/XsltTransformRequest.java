@@ -31,6 +31,7 @@ import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.runtime.Engine;
 import com.helger.phoxtrot.xslt.runtime.ExecutionBudget;
 
 /**
@@ -44,6 +45,13 @@ import com.helger.phoxtrot.xslt.runtime.ExecutionBudget;
 @NotThreadSafe
 public final class XsltTransformRequest
 {
+  /**
+   * The value of {@link #setMaxSteps(long)} for "no step limit": the
+   * transformation may execute any number of instructions. The nesting depth
+   * limit ({@link #setMaxDepth(int)}) and the interrupt hook still apply.
+   */
+  public static final long UNLIMITED_STEPS = Long.MAX_VALUE;
+
   /** A template parameter of the initial template or initial mode. */
   public record TemplateParam (@NonNull XdmQName name, @NonNull XdmSequence value, boolean tunnel)
   {}
@@ -249,16 +257,41 @@ public final class XsltTransformRequest
     return this;
   }
 
-  /** @return The maximum number of instructions to execute, 0 for the default (20,000,000). */
+  /**
+   * @return The maximum number of instructions to execute as set by
+   *         {@link #setMaxSteps(long)}: 0 (the initial value) or a negative
+   *         value for the default of {@link Engine#DEFAULT_MAX_STEPS}
+   *         (20,000,000), {@link #UNLIMITED_STEPS} for no limit, any other
+   *         value for that limit.
+   */
   public long getMaxSteps ()
   {
     return m_nMaxSteps;
   }
 
   /**
+   * Set the maximum number of instructions the transformation may execute;
+   * the instruction that exceeds it fails the transformation with XPDY0130.
+   * One step is counted for each instruction of a sequence constructor that
+   * is executed (so a loop body of three instructions counts three per
+   * iteration) and for each accumulator rule applied; the XPath evaluation
+   * inside an instruction is not counted.
+   * <ul>
+   * <li>0 (the initial value) or a negative value: the default of
+   * {@link Engine#DEFAULT_MAX_STEPS} (20,000,000) instructions.</li>
+   * <li>{@link #UNLIMITED_STEPS} ({@link Long#MAX_VALUE}): no step limit. The
+   * nesting depth limit and the interrupt hook still apply, so a run that
+   * never ends can only be stopped by {@link #setInterrupt(BooleanSupplier)}.</li>
+   * <li>Any other positive value: that number of instructions.</li>
+   * </ul>
+   * The limit is ignored when a shared budget is set
+   * ({@link #setSharedBudget(ExecutionBudget)}), as for a transformation run by
+   * <code>fn:transform</code>, which spends from the budget of its caller;
+   * <code>xsl:evaluate</code> also counts against the budget of the
+   * transformation it runs in.
+   *
    * @param nMaxSteps
-   *        The maximum number of instructions to execute; when exceeded the
-   *        transformation fails with XPDY0130. 0 for the default.
+   *        The maximum number of instructions to execute, see above.
    * @return this for chaining
    */
   @NonNull
