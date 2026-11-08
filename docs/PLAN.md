@@ -23,7 +23,7 @@ Decisions:
 | 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
 | X1 | XSLT: XSLT30 harness (`phoxtrot-xslt-conformance`), match patterns (`phoxtrot-xpath` `pattern`), core compiler and engine with the basic instructions (`phoxtrot-xslt`) | `xslt30_test.go`, `pattern*.go`, `compile.go`, `transform.go`, `modes.go`, `loader.go`, `avt.go` | done |
 | X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | done |
-| X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform`, schema-awareness (native validator, opt-in) and streaming (opt-in claim) done; backwards compatibility and JAXP `TransformerFactory` open |
+| X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform`, schema-awareness (native validator, opt-in), streaming (opt-in claim) and the JAXP adapter (`com.helger.phoxtrot.xslt.jaxp`, 2026-11-09) done; backwards compatibility open |
 
 XSLT30 status (2026-11-04, after the open cases `function-lookup-005`/`006` and `glob-cxt-item-010`): 8,640 of 8,647
 applicable cases pass (99.9%) as a basic processor, identical on JDK 21 and 25; all 7 fails are documented in

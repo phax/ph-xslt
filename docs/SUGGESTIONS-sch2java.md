@@ -37,12 +37,16 @@ None of the points below blocks the plan; each one removes glue code or a docume
 
 ### S9 - JAXP adapter (`TransformerFactory`, `Templates`, `Transformer`)
 
+Status: done (2026-11-09): `com.helger.phoxtrot.xslt.jaxp.PhoxtrotTransformerFactory` with `Templates` and `Transformer`; not registered under `META-INF/services` (see README).
+
 Open in `PLAN.md` X3. ph-schematron's XSLT engines are built on JAXP (`ISchematronXSLTBasedProvider` returns a
 `Transformer`). With an adapter, the existing ISO, SchXslt and prebuilt-XSLT engines could run on phoxtrot by
 configuration, instead of each needing its own module. Needed: `URIResolver`, `ErrorListener`, parameters,
 `DOMSource`/`StreamSource`/`SAXSource` input, `DOMResult`/`StreamResult`/`SAXResult` output.
 
 ### S10 - Public W3C DOM bridge
+
+Status: done (2026-11-09): `com.helger.phoxtrot.xdm.bridge` (`DomToXdm`, `XdmToDom`, `XdmToSax`).
 
 There is no conversion between W3C DOM and `IXdmNode` in either direction. The plan writes both:
 - DOM input via a JDK identity transformer into `XdmTreeBuilder`;
@@ -52,6 +56,8 @@ A tested public helper in phoxtrot (namespaces, base URI, document URI, PIs, com
 this again, and could build the tree from a DOM without a SAX round trip.
 
 ### S11 - Error and message listener
+
+Status: done (2026-11-09): `IXsltMessageListener` on `XsltTransformRequest`, `XsltException.getCollectedMessages ()`.
 
 - Compile and dynamic errors are thrown one at a time, and `xsl:message` texts are only available after a successful
   run.
@@ -71,12 +77,16 @@ this again, and could build the tree from a DOM without a SAX round trip.
 
 ### S13 - Explicit "no step limit"
 
+Status: done (2026-11-09): `XsltTransformRequest.UNLIMITED_STEPS`.
+
 - `setMaxSteps (0)` means the default of 20,000,000 steps. Large business documents with many rules can exceed it
   (XPDY0130).
 - Proposal: a documented value for "unlimited", e.g. `Long.MAX_VALUE` or a constant, so an engine can offer the limit
   as an option without guessing.
 
 ### S14 - Entity resolver hook in `XdmParser`
+
+Status: done (2026-11-09): `XdmParser.setEntityResolver`.
 
 ph-schematron resources accept a SAX `EntityResolver`. `XdmParser` has no hook for it, so the plan has to fall back
 to its own SAX parser into `XdmTreeBuilder` when one is configured. Proposal: `XdmParser.setEntityResolver
