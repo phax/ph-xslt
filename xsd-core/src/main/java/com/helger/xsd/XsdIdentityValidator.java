@@ -87,15 +87,19 @@ final class XsdIdentityValidator
 
   /**
    * go-xslt <code>evalNodes</code>: the nodes a selector or field selects from
-   * a context node.
+   * a context node, in document order. A path parsed at compile time is
+   * walked directly on the tree; otherwise the compiled XPath is evaluated.
    *
    * @throws XsdUnsupportedException
    *         if the XPath engine cannot evaluate the expression
    */
   @NonNull
   private static ICommonsList <IXdmNode> _evalNodes (@NonNull final CompiledXPath aXPath,
+                                                    @Nullable final XsdIdentityPath aPath,
                                                     @NonNull final IXdmNode aContext)
   {
+    if (aPath != null)
+      return aPath.evaluate (aContext);
     final XdmSequence aSeq;
     try
     {
@@ -370,7 +374,9 @@ final class XsdIdentityValidator
     final ICommonsList <String> aVals = new CommonsArrayList <> ();
     for (int nField = 0; nField < aConstraint.m_aFields.size (); nField++)
     {
-      final ICommonsList <IXdmNode> aNodes = _evalNodes (aConstraint.m_aFields.get (nField), aTarget);
+      final ICommonsList <IXdmNode> aNodes = _evalNodes (aConstraint.m_aFields.get (nField),
+                                                         aConstraint.m_aFieldPaths.get (nField),
+                                                         aTarget);
       if (aNodes.isEmpty ())
       {
         // An absent attribute with a default/fixed value still contributes to
@@ -429,7 +435,9 @@ final class XsdIdentityValidator
                                  @NonNull final XsdIdentityConstraint aConstraint,
                                  @NonNull final IXdmNode aScope)
   {
-    final ICommonsList <IXdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector, aScope));
+    final ICommonsList <IXdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector,
+                                                                        aConstraint.m_aSelectorPath,
+                                                                        aScope));
     final KeyTable aTable = new KeyTable ();
     for (final IXdmNode aTarget : aTargets)
     {
@@ -469,7 +477,9 @@ final class XsdIdentityValidator
                            @NonNull final ICommonsMap <XsdName, KeyTable> aScopes)
   {
     final KeyTable aRef = aScopes.get (aConstraint.m_aRefer);
-    final ICommonsList <IXdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector, aScope));
+    final ICommonsList <IXdmNode> aTargets = aRun.icFilter (_evalNodes (aConstraint.m_aSelector,
+                                                                        aConstraint.m_aSelectorPath,
+                                                                        aScope));
     for (final IXdmNode aTarget : aTargets)
     {
       final String sTuple = _tupleFor (aRun, aConstraint, aTarget);
