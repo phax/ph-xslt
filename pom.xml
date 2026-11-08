@@ -24,13 +24,13 @@
     <artifactId>parent-pom</artifactId>
     <version>3.1.0</version>
   </parent>
-  <groupId>com.helger.xpath</groupId>
-  <artifactId>xpath-parent-pom</artifactId>
+  <groupId>com.helger.phoxtrot</groupId>
+  <artifactId>phoxtrot-parent-pom</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
-  <name>xpath-parent-pom</name>
-  <description>Pure Java XPath 3.1 and XSLT 3.0 engine</description>
-  <url>https://github.com/phax/ph-xslt</url>
+  <name>phoxtrot-parent-pom</name>
+  <description>phoxtrot - pure Java XPath 3.1 and XSLT 3.0 engine</description>
+  <url>https://github.com/phax/phoxtrot</url>
   <inceptionYear>2026</inceptionYear>
   
   <licenses>
@@ -42,9 +42,9 @@
   </licenses>
   
   <scm>
-    <connection>scm:git:https://github.com/phax/ph-xslt.git</connection>
-    <developerConnection>scm:git:https://github.com/phax/ph-xslt.git</developerConnection>
-    <url>http://github.com/phax/ph-xslt</url>
+    <connection>scm:git:https://github.com/phax/phoxtrot.git</connection>
+    <developerConnection>scm:git:https://github.com/phax/phoxtrot.git</developerConnection>
+    <url>https://github.com/phax/phoxtrot</url>
     <tag>HEAD</tag>
   </scm>
   
@@ -67,13 +67,13 @@
   </properties>
   
   <modules>
-    <module>xpath-xdm</module>
-    <module>xpath-core</module>
-    <module>xslt-core</module>
-    <module>xsd-core</module>
-    <module>xpath-conformance</module>
-    <module>xslt-conformance</module>
-    <module>xsd-conformance</module>
+    <module>phoxtrot-xdm</module>
+    <module>phoxtrot-xpath</module>
+    <module>phoxtrot-xslt</module>
+    <module>phoxtrot-xsd</module>
+    <module>phoxtrot-xpath-conformance</module>
+    <module>phoxtrot-xslt-conformance</module>
+    <module>phoxtrot-xsd-conformance</module>
   </modules>
   
   <dependencyManagement>
@@ -97,23 +97,23 @@
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>com.helger.xpath</groupId>
-        <artifactId>xpath-xdm</artifactId>
+        <groupId>com.helger.phoxtrot</groupId>
+        <artifactId>phoxtrot-xdm</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>com.helger.xpath</groupId>
-        <artifactId>xpath-core</artifactId>
+        <groupId>com.helger.phoxtrot</groupId>
+        <artifactId>phoxtrot-xpath</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>com.helger.xpath</groupId>
-        <artifactId>xslt-core</artifactId>
+        <groupId>com.helger.phoxtrot</groupId>
+        <artifactId>phoxtrot-xslt</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>com.helger.xpath</groupId>
-        <artifactId>xsd-core</artifactId>
+        <groupId>com.helger.phoxtrot</groupId>
+        <artifactId>phoxtrot-xsd</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>
