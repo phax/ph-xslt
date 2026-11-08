@@ -122,6 +122,19 @@ public final class XsdFeatures11Test
             "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n" +
                 "\t\t  <xs:element name=\"r\"><xs:complexType><xs:assert/></xs:complexType></xs:element></xs:schema>",
             false),
+        new Case ("assert-tree-shape",
+            VER_11,
+            "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" xmlns:p=\"urn:p\">\n" +
+                "\t\t  <xs:element name=\"w\"><xs:complexType><xs:sequence><xs:element ref=\"r\"/></xs:sequence></xs:complexType></xs:element>\n" +
+                "\t\t  <xs:element name=\"r\"><xs:complexType mixed=\"true\"><xs:sequence><xs:any processContents=\"skip\" minOccurs=\"0\" maxOccurs=\"unbounded\"/></xs:sequence>\n" +
+                "\t\t    <xs:attribute name=\"d\" type=\"xs:int\" default=\"7\"/>\n" +
+                "\t\t    <xs:assert test=\"empty(..) and count(.//comment()) = 0 and count(.//processing-instruction()) = 0 and count(.//text()) = 3 and count(.//*) = 19 and data(@d) instance of xs:int and @d = 7\"/>\n" +
+                "\t\t    <xs:assert test=\"in-scope-prefixes(.) = 'q' and not(in-scope-prefixes(.) = 'p') and namespace-uri-for-prefix('q', .) = 'urn:q' and namespace-uri-for-prefix('p', .//p:deep) = 'urn:p' and string(.) = 'abc'\"/>\n" +
+                "\t\t  </xs:complexType></xs:element></xs:schema>",
+            true,
+            new DocCheck ("<w xmlns:q=\"urn:q\"><r>a<!--c--><?pi x?><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n>b<p:deep xmlns:p=\"urn:p\"/>c</r></w>", true),
+            new DocCheck ("<w xmlns:q=\"urn:q\"><r>a<!--c--><?pi x?><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n>x</n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n>b<p:deep xmlns:p=\"urn:p\"/>c</r></w>", false),
+            new DocCheck ("<w xmlns:q=\"urn:q\"><r d=\"8\">a<!--c--><?pi x?><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n><n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n></n>b<p:deep xmlns:p=\"urn:p\"/>c</r></w>", false)),
         new Case ("assert-1.0",
             VER_10,
             "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n" +

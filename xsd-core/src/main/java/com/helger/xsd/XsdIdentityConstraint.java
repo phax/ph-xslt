@@ -41,10 +41,20 @@ final class XsdIdentityConstraint
   XsdName m_aRefer = XsdName.NONE;
   /** The restricted XPath of the selector, relative to the scope element. */
   CompiledXPath m_aSelector;
+  /**
+   * The selector evaluated directly on the tree, or <code>null</code> if only
+   * the compiled XPath can evaluate it.
+   */
+  XsdIdentityPath m_aSelectorPath;
   /** The selector's source text. */
   String m_sSelectorSrc = "";
   /** One compiled expression per xs:field. */
   ICommonsList <CompiledXPath> m_aFields = new CommonsArrayList <> ();
+  /**
+   * Per xs:field the path evaluated directly on the tree, an entry
+   * <code>null</code> if only the compiled XPath can evaluate it.
+   */
+  ICommonsList <XsdIdentityPath> m_aFieldPaths = new CommonsArrayList <> ();
   /** The fields' trimmed XPath (for defaults of absent attributes). */
   ICommonsList <String> m_aFieldRaw = new CommonsArrayList <> ();
   /** Each field's source XPath, for value-constraint lookup. */
@@ -72,8 +82,10 @@ final class XsdIdentityConstraint
     m_aName = aOther.m_aName;
     m_aRefer = aOther.m_aRefer;
     m_aSelector = aOther.m_aSelector;
+    m_aSelectorPath = aOther.m_aSelectorPath;
     m_sSelectorSrc = aOther.m_sSelectorSrc;
     m_aFields = aOther.m_aFields;
+    m_aFieldPaths = aOther.m_aFieldPaths;
     m_aFieldRaw = aOther.m_aFieldRaw;
     m_aFieldSrc = aOther.m_aFieldSrc;
     m_aNS = aOther.m_aNS;

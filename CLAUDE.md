@@ -50,7 +50,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   1.1. `XsdNativeIT` gates both versions (`xsd-conformance/target/xsd-native-fails.txt`, `xsd-native11-fails.txt`).
   A run claims the version tokens of `XsdSuiteRules.getClaimedTokens` (the version, and for 1.1 the CTA XPath subset of
   the validator: the native one claims `full-xpath-in-CTA`); a queried schema test whose compilation crashes counts as
-  queried, not as fail.
+  queried, not as fail. Identity-constraint selectors and fields are walked on the tree by `XsdIdentityPath` (parsed at
+  compile time); the compiled XPath of the constraint is only evaluated for a form it does not parse.
 - Streaming (plan: `docs/PLAN.md`, "Streaming"): `-Dxslt30.streaming=true` claims it in the XSLT30 harness (out dir
   `xslt-conformance/target/streaming`, accepted file `xslt30-streaming.md`); with `-Dxslt30.schemaAware=true` as well
   it writes to `target/schema-aware-streaming` and is no gate (`checkAccepted` off by default). The engine switches are

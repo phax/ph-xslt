@@ -375,6 +375,7 @@ final class XsdIdentityCompiler
       validateIdentityXPath (sSelector, false, aSel);
       aIC.m_sSelNS = resolveXPathDefaultNamespace (aSel);
       aIC.m_aSelector = _compile (sSelector, XsdNodes.inScopeNamespaces (aSel), aIC.m_sSelNS);
+      aIC.m_aSelectorPath = XsdIdentityPath.parse (sSelector, aSel, aIC.m_sSelNS);
       aIC.m_sSelectorSrc = sSelector;
       for (final IXdmNode aField : XsdNodes.children (aChild))
       {
@@ -384,6 +385,7 @@ final class XsdIdentityCompiler
         validateIdentityXPath (sFieldExpr, true, aField);
         final String sFieldNS = resolveXPathDefaultNamespace (aField);
         aIC.m_aFields.add (_compile (sFieldExpr, XsdNodes.inScopeNamespaces (aField), sFieldNS));
+        aIC.m_aFieldPaths.add (XsdIdentityPath.parse (sFieldExpr, aField, sFieldNS));
         aIC.m_aFieldRaw.add (sFieldExpr.strip ());
         aIC.m_aFieldSrc.add (sFieldExpr);
         aIC.m_aFieldNS.add (sFieldNS);
