@@ -68,6 +68,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   // The next document order number
   private int m_nOrder;
   private boolean m_bInDTD = false;
+  // The number of open elements, and the maximum of it so far
+  private int m_nDepth;
+  private int m_nMaxDepth;
   // The system ID in effect for each open element
   private final ArrayDeque <String> m_aSystemIds = new ArrayDeque <> ();
   // One shared name instance per namespace URI and lexical name, so that the
@@ -291,17 +294,21 @@ public final class XdmTreeBuilder extends DefaultHandler2
       m_aDocument.setDocumentUri (m_aLocator.getSystemId ());
     m_nTree = AbstractXdmNode.internalNewTree ();
     m_nOrder = 0;
+    m_nDepth = 0;
+    m_nMaxDepth = 0;
     m_aDocument.internalStamp (m_nTree, m_nOrder++);
     m_aDocument.internalSetEndOrder (Integer.MAX_VALUE);
   }
 
   /**
    * Append pending text, trim the child array of the document and finish the
-   * numbering: the document ends with the last node numbered. If a change
-   * from outside removed the numbering while
-   * building, the finished tree is numbered in a second pass
-   * ({@link IXdmNode#assignDocumentOrder()}). Name indexes asked for while
-   * building would miss the later nodes and are dropped.
+   * numbering: the document ends with the last node numbered, and the
+   * maximum element depth is recorded with this numbering
+   * ({@link XdmDocumentNode#getMaxElementDepth()}). If a change from outside
+   * removed the numbering while building, the finished tree is numbered in a
+   * second pass ({@link IXdmNode#assignDocumentOrder()}) and the depth stays
+   * unknown. Name indexes asked for while building would miss the later nodes
+   * and are dropped.
    */
   @Override
   public void endDocument ()
@@ -312,6 +319,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
     {
       m_aDocument.internalSetEndOrder (m_nOrder - 1);
       m_aDocument.internalDropNameIndex ();
+      m_aDocument.internalSetMaxElementDepth (m_nMaxDepth);
     }
     else
       m_aDocument.assignDocumentOrder ();
@@ -380,6 +388,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
     aElement.internalSetEndOrder (Integer.MAX_VALUE);
     m_aCurrent = aElement;
     m_aSystemIds.push (sSystemId == null ? "" : sSystemId);
+    if (++m_nDepth > m_nMaxDepth)
+      m_nMaxDepth = m_nDepth;
   }
 
   /**
@@ -394,6 +404,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
     m_aCurrent.internalSetEndOrder (m_nOrder - 1);
     m_aCurrent = (AbstractXdmParentNode) m_aCurrent.getParent ();
     m_aSystemIds.pop ();
+    m_nDepth--;
   }
 
   /**

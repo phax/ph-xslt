@@ -125,6 +125,41 @@ public final class XdmTreeBuilderNumberingTest
     _assertSameAsSecondPass (aSB.toString ());
   }
 
+  private static int _getMaxElementDepth (@NonNull final String sXml) throws XdmParseException
+  {
+    return ((XdmDocumentNode) new XdmParser ().parse (sXml)).getMaxElementDepth ();
+  }
+
+  @Test
+  public void testMaxElementDepth () throws XdmParseException
+  {
+    assertEquals (1, _getMaxElementDepth ("<r/>"));
+    assertEquals (1, _getMaxElementDepth ("<!-- c --><r a='1'>t<?p?></r><!-- d -->"));
+    assertEquals (4, _getMaxElementDepth ("<a>t<b/>u<c><d>v</d></c><e><f><g/></f></e><h/></a>"));
+    // Entity content counts like any other content
+    assertEquals (3, _getMaxElementDepth ("<!DOCTYPE r [<!ENTITY ent '<x><y/></x>'>]><r>&ent;</r>"));
+    final StringBuilder aSB = new StringBuilder ("<r>");
+    for (int i = 0; i < 300; ++i)
+      aSB.append ("<n>t");
+    for (int i = 0; i < 300; ++i)
+      aSB.append ("</n>");
+    aSB.append ("<x/></r>");
+    assertEquals (301, _getMaxElementDepth (aSB.toString ()));
+
+    // Dropped with the numbering: by a change, and by a new numbering
+    final XdmDocumentNode aDoc = (XdmDocumentNode) new XdmParser ().parse ("<r><x/></r>");
+    assertEquals (2, aDoc.getMaxElementDepth ());
+    aDoc.getChildAtIndex (0).appendChild (IXdmNode.createText ("t"));
+    assertEquals (-1, aDoc.getMaxElementDepth ());
+    final XdmDocumentNode aDoc2 = (XdmDocumentNode) new XdmParser ().parse ("<r><x/></r>");
+    aDoc2.assignDocumentOrder ();
+    assertEquals (-1, aDoc2.getMaxElementDepth ());
+    // A built document
+    final IXdmNode aDoc3 = IXdmNode.createDocument ();
+    aDoc3.appendChild (IXdmNode.createElement (new XdmQName ("r")));
+    assertEquals (-1, ((XdmDocumentNode) aDoc3).getMaxElementDepth ());
+  }
+
   @Test
   public void testEndOrders () throws XdmParseException
   {
@@ -194,6 +229,8 @@ public final class XdmTreeBuilderNumberingTest
     assertEquals (2, aRoot.getChildAtIndex (0).getOrder ());
     assertEquals (4, aRoot.getChildAtIndex (1).getOrder ());
     assertTrue (aRoot.getChildAtIndex (2).getOrder () > aRoot.getChildAtIndex (1).getOrder ());
+    // Numbered at the end: the depth is not known
+    assertEquals (-1, ((XdmDocumentNode) aDoc).getMaxElementDepth ());
     _assertSameAsSecondPass (aDoc);
   }
 }
