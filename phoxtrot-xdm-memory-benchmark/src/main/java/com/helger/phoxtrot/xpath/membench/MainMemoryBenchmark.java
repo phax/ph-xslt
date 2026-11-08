@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 import javax.xml.transform.stream.StreamSource;
 
 import org.jspecify.annotations.NonNull;
+import org.openjdk.jol.info.ClassLayout;
 import org.openjdk.jol.info.GraphLayout;
 
 import com.helger.phoxtrot.xdm.ENodeKind;
@@ -37,6 +38,7 @@ import com.helger.phoxtrot.xdm.XdmParseException;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.xml.microdom.IMicroDocument;
 import com.helger.xml.microdom.serialize.MicroReader;
+import com.sun.management.HotSpotDiagnosticMXBean;
 
 import net.sf.saxon.Configuration;
 import net.sf.saxon.om.NamePool;
@@ -220,6 +222,75 @@ public final class MainMemoryBenchmark
   }
 
   /**
+   * @return <code>true</code> if the JVM runs with compact object headers
+   *         (<code>-XX:+UseCompactObjectHeaders</code>, JDK 25 and later),
+   *         <code>false</code> if they are off or the JVM does not know the
+   *         option.
+   */
+  private static boolean _isCompactObjectHeaders ()
+  {
+    try
+    {
+      return Boolean.parseBoolean (ManagementFactory.getPlatformMXBean (HotSpotDiagnosticMXBean.class)
+                                                    .getVMOption ("UseCompactObjectHeaders")
+                                                    .getValue ());
+    }
+    catch (final IllegalArgumentException ex)
+    {
+      // Unknown option before JDK 24
+      return false;
+    }
+  }
+
+  /**
+   * The ph-xdm mode: only the phoxtrot tree is measured, as tab separated
+   * lines for <code>run.sh</code>, which joins the lines of several JVM runs
+   * into one table. First a <code>VM</code> line with the Java version and
+   * whether compact object headers are on, then a <code>CLASS</code> line
+   * with the JOL instance size of each node class (and of the
+   * <code>Details</code> holder), then one <code>DOC</code> line per
+   * document with its name, element, attribute and text node counts and the
+   * JOL deep size of the parsed tree in bytes.
+   *
+   * @throws Exception
+   *         if a document is missing or cannot be parsed
+   */
+  private static void _runXdmOnly () throws Exception
+  {
+    System.out.println ("VM\t" +
+                        System.getProperty ("java.version") +
+                        "\t" +
+                        (_isCompactObjectHeaders () ? "compact" : "normal"));
+    final StringBuilder aClasses = new StringBuilder ("CLASS");
+    for (final String sClass : new String [] { "XdmDocumentNode",
+                                               "XdmElementNode",
+                                               "XdmAttributeNode",
+                                               "XdmTextNode",
+                                               "AbstractXdmNode$Details" })
+      aClasses.append ('\t')
+              .append (sClass)
+              .append ('=')
+              .append (ClassLayout.parseClass (Class.forName ("com.helger.phoxtrot.xdm." + sClass)).instanceSize ());
+    System.out.println (aClasses);
+    _parseXdm (new File (DOCUMENTS[0][1]));
+    for (final String [] aDoc : DOCUMENTS)
+    {
+      final IXdmNode aXdm = _parseXdm (new File (aDoc[1]));
+      final long [] aCounts = _countXdmNodes (aXdm);
+      System.out.println ("DOC\t" +
+                          aDoc[0] +
+                          "\t" +
+                          aCounts[0] +
+                          "\t" +
+                          aCounts[1] +
+                          "\t" +
+                          aCounts[2] +
+                          "\t" +
+                          GraphLayout.parseInstance (aXdm).totalSize ());
+    }
+  }
+
+  /**
    * Run the benchmark over the fixed document list. The paths are relative to
    * the working directory, which must be the module directory (as with
    * <code>mvn exec:exec</code>, which also passes <code>-Xmx4g</code> and the
@@ -236,15 +307,29 @@ public final class MainMemoryBenchmark
    * NamePool while parsing, and the three sizes divided by the file size.
    * Finally a second table is printed with the heap delta after GC of a fresh
    * parse in each model, where the Saxon figure includes a new Configuration.
+   * <p>
+   * With the argument <code>xdm</code>, only the phoxtrot tree is measured
+   * (see {@link #_runXdmOnly()}).
    *
    * @param args
-   *        Ignored.
+   *        Nothing for all three models, <code>xdm</code> for the phoxtrot
+   *        tree only.
    * @throws Exception
    *         if a document is missing or cannot be parsed
    */
   public static void main (final String [] args) throws Exception
   {
-    System.out.println ("Java " + System.getProperty ("java.version") + ", " + System.getProperty ("java.vm.name"));
+    if (args.length > 0 && "xdm".equals (args[0]))
+    {
+      _runXdmOnly ();
+      return;
+    }
+    System.out.println ("Java " +
+                        System.getProperty ("java.version") +
+                        ", " +
+                        System.getProperty ("java.vm.name") +
+                        ", compact object headers " +
+                        (_isCompactObjectHeaders () ? "on" : "off"));
 
     // Warm-up so that one-off class and static initialisation is not attributed to the first document
     final File aWarmUp = new File (DOCUMENTS[0][1]);
