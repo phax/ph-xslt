@@ -404,7 +404,8 @@ public final class XPathEvaluator
     final EAxis eAxis = aStep.axis ();
     final NodeTest aTest = aStep.test ();
     final ENodeKind ePrincipal = AxisNavigator.getPrincipalNodeKind (eAxis);
-    final List <IXdmNode> aNodes = new ArrayList <> ();
+    // Filled in place, without the copy of XdmSequence.of (List)
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     final XdmQName aIndexName = _getIndexableName (aStep);
     final XdmQName aChildName = eAxis == EAxis.CHILD ? _getExactName (aTest) : null;
     if (aChildName != null)
@@ -415,7 +416,7 @@ public final class XPathEvaluator
                                aNode,
                                aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
                                aNodes);
-    return XdmSequence.of (aNodes);
+    return aNodes.build ();
   }
 
   /**
@@ -502,10 +503,10 @@ public final class XPathEvaluator
       aContextNodes.add (aNode);
     }
     aCtx.checkInterrupt ();
-    final List <IXdmNode> aNodes = new ArrayList <> ();
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     if (!AxisNavigator.collectNamedDescendants (aStep.axis (), aContextNodes, aIndexName, aNodes))
       return null;
-    return XdmSequence.of (aNodes);
+    return aNodes.build ();
   }
 
   /**
@@ -552,10 +553,10 @@ public final class XPathEvaluator
       aContextNodes.add (aNode);
     }
     aCtx.checkInterrupt ();
-    final List <IXdmNode> aNodes = new ArrayList <> ();
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     if (!AxisNavigator.collectNamedSubtreeAttributes (aContextNodes, aName, aNodes))
       return null;
-    return _applyPredicates (XdmSequence.of (aNodes), aAttributeStep.predicates (), aCtx);
+    return _applyPredicates (aNodes.build (), aAttributeStep.predicates (), aCtx);
   }
 
   /** Apply a step (not the first of a relative path) to every item of the previous step. */
@@ -1797,7 +1798,7 @@ public final class XPathEvaluator
   {
     return switch (aExpr)
     {
-      case final IExpr.LiteralExpr e -> XdmSequence.of (e.value ());
+      case final IExpr.LiteralExpr e -> e.sequence ();
       case final IExpr.VarRefExpr e -> _evalVarRef (e, aCtx);
       case final IExpr.ContextItemExpr e -> XdmSequence.of (_getContextItem (aCtx));
       case final IExpr.FunctionCallExpr e -> _evalFunctionCall (e, aCtx);

@@ -23,6 +23,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.xpath.fn.FunctionCallSite;
 import com.helger.xpath.value.XdmAtomic;
+import com.helger.xpath.value.XdmSequence;
 import com.helger.xpath.xdm.XdmQName;
 
 /**
@@ -37,9 +38,51 @@ import com.helger.xpath.xdm.XdmQName;
  */
 public sealed interface IExpr
 {
-  /** A string, integer, decimal or double literal. */
-  record LiteralExpr (@NonNull XdmAtomic value) implements IExpr
-  {}
+  /**
+   * A string, integer, decimal or double literal. The sequence of the value is
+   * built once with the expression and returned by every evaluation; it does
+   * not take part in equality.
+   */
+  record LiteralExpr (@NonNull XdmAtomic value, @NonNull XdmSequence sequence) implements IExpr
+  {
+    /**
+     * Checks that the sequence is the singleton sequence of the value.
+     */
+    public LiteralExpr
+    {
+      if (!sequence.isSingleton () || sequence.get (0) != value)
+        throw new IllegalArgumentException ("The sequence of a literal must be the singleton sequence of its value");
+    }
+
+    /**
+     * A literal with the singleton sequence of its value.
+     *
+     * @param value
+     *        The literal value.
+     */
+    public LiteralExpr (@NonNull final XdmAtomic value)
+    {
+      this (value, XdmSequence.of (value));
+    }
+
+    @Override
+    public boolean equals (final Object o)
+    {
+      return o instanceof final LiteralExpr aOther && value.equals (aOther.value);
+    }
+
+    @Override
+    public int hashCode ()
+    {
+      return value.hashCode ();
+    }
+
+    @Override
+    public String toString ()
+    {
+      return "LiteralExpr[value=" + value + "]";
+    }
+  }
 
   /** A variable reference <code>$name</code>. */
   record VarRefExpr (@NonNull XdmQName name) implements IExpr
