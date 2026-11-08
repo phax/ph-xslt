@@ -49,7 +49,6 @@ WORK_DIR=${BENCH_WORK_DIR:-$(mktemp -d -t xslt-benchmark)}
 mkdir -p "$WORK_DIR"
 JAVA_HOME=$(/usr/libexec/java_home -v 21)
 export JAVA_HOME
-ENGINE_MODULES="xpath-xdm xpath-core xslt-core xsd-core"
 
 # Remove the engine worktrees on exit, also after a failure
 cleanup ()
@@ -87,7 +86,8 @@ run_commit ()
   echo "Building the engine of $REV ($SHA) in $TREE" >&2
   (cd "$TREE" && mvn -o -q package -DskipTests -Dmaven.javadoc.skip=true -pl xpath-xdm,xpath-core,xslt-core,xsd-core -am)
   ENGINE_CP=""
-  for MODULE in $ENGINE_MODULES; do
+  # Listed literally: an unquoted variable is not split into words by every shell (zsh)
+  for MODULE in xpath-xdm xpath-core xslt-core xsd-core; do
     ENGINE_CP="$ENGINE_CP$TREE/$MODULE/target/$MODULE-0.1.0-SNAPSHOT.jar:"
   done
   echo "Running JMH against $REV ($SHA)" >&2
