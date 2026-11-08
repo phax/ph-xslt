@@ -17,11 +17,13 @@
 package com.helger.phoxtrot.xslt.model;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.base.array.ArrayHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsLinkedHashMap;
@@ -279,6 +281,125 @@ public final class OutputDefinition
   public void addInlineCharacterMapping (final int nCodePoint, @NonNull final String sReplacement)
   {
     m_aInlineCharacterMap.put (Integer.valueOf (nCodePoint), sReplacement);
+  }
+
+  /**
+   * Parse one name of a name list given through the API: an EQName
+   * <code>Q{uri}local</code>, the JAXP form <code>{uri}local</code>, or a
+   * local name in no namespace.
+   *
+   * @throws IllegalArgumentException
+   *         for a token that is none of these
+   */
+  @NonNull
+  private static XdmQName _parseExpandedName (@NonNull final String sToken)
+  {
+    String s = sToken;
+    if (s.startsWith ("Q{"))
+      s = s.substring (1);
+    if (s.startsWith ("{"))
+    {
+      final int nEnd = s.indexOf ('}');
+      if (nEnd < 0 || nEnd == s.length () - 1)
+        throw new IllegalArgumentException ("'" + sToken + "' is not an expanded name");
+      return new XdmQName (s.substring (1, nEnd), s.substring (nEnd + 1));
+    }
+    if (s.indexOf (':') >= 0 || s.isEmpty ())
+      throw new IllegalArgumentException ("'" + sToken + "' is not an expanded name or a local name");
+    return new XdmQName (s);
+  }
+
+  /**
+   * Create a copy of this definition with serialization parameters supplied
+   * by the calling application (XSLT 3.0 section 26.1), which take
+   * precedence over all declarations. Every value replaces the stored one
+   * and is trimmed like a declared value (except item-separator,
+   * doctype-public and doctype-system). cdata-section-elements and
+   * suppress-indentation replace the declared lists with the
+   * whitespace-separated names given, each an EQName
+   * (<code>Q{uri}local</code>), a JAXP name (<code>{uri}local</code>) or a
+   * local name in no namespace (there are no namespace declarations to
+   * resolve a prefix against). A method of the form <code>{uri}local</code>
+   * becomes the EQName <code>Q{uri}local</code>.
+   *
+   * @param aOverrides
+   *        Attribute name to value. May not be <code>null</code>.
+   * @return This definition if there are no overrides, otherwise a new one.
+   * @throws IllegalArgumentException
+   *         for a name that is no attribute of {@link #ATTRIBUTES}, for
+   *         use-character-maps (character maps are named by QNames of the
+   *         stylesheet) and for an invalid name in a name list
+   */
+  @NonNull
+  public OutputDefinition getWithOverrides (@NonNull final Map <String, String> aOverrides)
+  {
+    if (aOverrides.isEmpty ())
+      return this;
+    final OutputDefinition ret = getClone ();
+    for (final Map.Entry <String, String> aEntry : aOverrides.entrySet ())
+    {
+      final String sAttr = aEntry.getKey ();
+      final String sValue = aEntry.getValue ();
+      if (!ArrayHelper.contains (ATTRIBUTES, sAttr))
+        throw new IllegalArgumentException ("'" + sAttr + "' is not a serialization parameter of xsl:output");
+      switch (sAttr)
+      {
+        case "use-character-maps":
+          throw new IllegalArgumentException ("use-character-maps cannot be supplied by the API");
+        case "cdata-section-elements":
+        case "suppress-indentation":
+        {
+          final ICommonsList <XdmQName> aList = "cdata-section-elements".equals (sAttr) ? ret.m_aCdataSectionElements
+                                                                                       : ret.m_aSuppressIndentation;
+          aList.clear ();
+          for (final String sToken : XsltNames.tokenize (sValue))
+            aList.add (_parseExpandedName (sToken));
+          break;
+        }
+        default:
+        {
+          String sNorm = sValue;
+          if (!"item-separator".equals (sAttr) && !"doctype-public".equals (sAttr) && !"doctype-system".equals (sAttr))
+            sNorm = sValue.trim ();
+          if ("method".equals (sAttr) && sNorm.startsWith ("{"))
+            sNorm = _parseExpandedName (sNorm).getEQName ();
+          ret.m_aValues.put (sAttr, sNorm);
+          ret.m_aPrecedences.put (sAttr, Integer.valueOf (Integer.MAX_VALUE));
+          ret.m_aConflicts.remove (sAttr);
+          break;
+        }
+      }
+    }
+    return ret;
+  }
+
+  /**
+   * @return The attribute values of the merged declarations (without the
+   *         name lists cdata-section-elements, suppress-indentation and
+   *         use-character-maps), attribute name to value, in the order they
+   *         were first given.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsOrderedMap <String, String> getAllValues ()
+  {
+    return m_aValues.getClone ();
+  }
+
+  /** @return The element names of cdata-section-elements. */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <XdmQName> getCdataSectionElements ()
+  {
+    return m_aCdataSectionElements.getClone ();
+  }
+
+  /** @return The element names of suppress-indentation. */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <XdmQName> getSuppressIndentation ()
+  {
+    return m_aSuppressIndentation.getClone ();
   }
 
   /** @return The QNames of use-character-maps. */

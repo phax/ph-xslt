@@ -50,6 +50,20 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `_runTo` attach the run's messages to the thrown error (`XsltException.getCollectedMessages`, a plain
   `XPathException` is wrapped; outer run before a nested `fn:transform`, which gets the caller's listener unless
   `enable-messages` is false). The compiler produces no warnings, so `XsltCompileOptions` has no listener.
+- JAXP adapter (`phoxtrot-xslt`, package `com.helger.phoxtrot.xslt.jaxp`): `PhoxtrotTransformerFactory`,
+  `PhoxtrotTemplates` (wraps an `XsltExecutable`, thread-safe), `PhoxtrotTransformer`. Never register it in
+  `META-INF/services/javax.xml.transform.TransformerFactory` (it would replace the JDK transformer of every
+  application on the class path). Sources and DOM conversion go through `JaxpSources`, resources (include, import,
+  `document()`, `unparsed-text()`) through `JaxpResourceResolver` (URIResolver first, called with the absolute URI as
+  href and base, then direct access as `ACCESS_EXTERNAL_STYLESHEET` allows). JAXP output properties become
+  `XsltTransformRequest.outputOverrides ()`, applied by `XsltTransformer._withOverrides` through
+  `OutputDefinition.getWithOverrides` to the definition the principal result is serialized with (also for the
+  drain decision). `-Dxslt30.jaxp=true` reruns every XSLT30 case of a shape JAXP can express through the adapter
+  and fails it with "harness" on any difference.
+- W3C DOM bridge (`phoxtrot-xdm`, package `com.helger.phoxtrot.xdm.bridge`): `DomToXdm` feeds the DOM into
+  `XdmTreeBuilder` as SAX events (numbered while built, shared names), `XdmToDom` and `XdmToSax` write trees with
+  namespace fixup (`NamespaceScope`). All three walk iteratively. The JDK DOM leaves entity reference nodes empty
+  (`setExpandEntityReferences (false)`); tests that need their content use Xerces-J's DOM.
 - XML name characters (5th edition): only `XmlNames` (`phoxtrot-xdm`); do not add another copy of the tables.
 - `XdmMap` is a persistent hash trie and `XdmArray.append` shares a backing array; both stay immutable from the outside.
   Iterate with `entries ()`/`members ()` (views); `getAllEntries ()`/`getAllMembers ()` copy.

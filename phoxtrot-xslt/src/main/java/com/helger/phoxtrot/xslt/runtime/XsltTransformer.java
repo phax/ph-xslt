@@ -558,6 +558,28 @@ public final class XsltTransformer
 
   /**
    * @param aOutputDef
+   *        The output definition of the principal result.
+   * @return The definition with the serialization parameters the request
+   *         supplies ({@link XsltTransformRequest#outputOverrides()}) applied,
+   *         or the definition itself if it supplies none.
+   * @throws XsltException
+   *         SEPM0016 if a supplied parameter is not accepted
+   */
+  @NonNull
+  private OutputDefinition _withOverrides (@NonNull final OutputDefinition aOutputDef)
+  {
+    try
+    {
+      return aOutputDef.getWithOverrides (m_aRequest.outputOverrides ());
+    }
+    catch (final IllegalArgumentException ex)
+    {
+      throw new XsltException ("SEPM0016", "Invalid serialization parameter supplied by the API: " + ex.getMessage (), null, 0, 0);
+    }
+  }
+
+  /**
+   * @param aOutputDef
    *        The output definition.
    * @param sMethod
    *        The effective method.
@@ -631,7 +653,7 @@ public final class XsltTransformer
     // Schema-aware: validation may change or check a tree after it was built
     if (m_aSheet.isSchemaAware ())
       return null;
-    final OutputDefinition aOutputDef = m_aSheet.getOutput ();
+    final OutputDefinition aOutputDef = _withOverrides (m_aSheet.getOutput ());
     final String sMethod = aOutputDef.getMethod ();
     // The method must be known before the first character is written
     if (sMethod == null || !aOutputDef.isBuildTree (sMethod) || _hasItemSeparator (aOutputDef) || _hasResultDocument ())
@@ -842,7 +864,7 @@ public final class XsltTransformer
                                       "",
                                       aEngine.getSecondaryResults ().getClone (),
                                       aEngine.getMessageTexts (),
-                                      m_aSheet.getOutput ().getMethod (),
+                                      _withOverrides (m_aSheet.getOutput ()).getMethod (),
                                       false);
     }
 
@@ -854,8 +876,8 @@ public final class XsltTransformer
                                null,
                                0,
                                0);
-    final OutputDefinition aOutputDef = aEngine.getPrincipalOutputDefinition () != null ? aEngine.getPrincipalOutputDefinition ()
-                                                                                         : m_aSheet.getOutput ();
+    final OutputDefinition aOutputDef = _withOverrides (aEngine.getPrincipalOutputDefinition () != null ? aEngine.getPrincipalOutputDefinition ()
+                                                                                                        : m_aSheet.getOutput ());
     final String sDeclaredMethod = aOutputDef.getMethod ();
     // Raw delivery does not apply when the result is written to a target
     final boolean bRawOnly = aTarget == null && m_aRequest.isRawDelivery ();

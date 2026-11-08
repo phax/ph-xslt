@@ -212,6 +212,8 @@ public final class XSLT30Runner
                           " runs compared, " +
                           ResultDrain.getDrainedRunCount () +
                           " written while built");
+    if (XSLT30CaseRunner.JAXP)
+      System.out.println ("jaxp: " + XSLT30CaseRunner.JAXP_COMPARED.get () + " runs compared");
     ret.writeFiles (m_aSettings.outDir ());
     System.out.println ("fail list written to " +
                         m_aSettings.outDir ().resolve ("xslt30-fails.txt").toAbsolutePath ());

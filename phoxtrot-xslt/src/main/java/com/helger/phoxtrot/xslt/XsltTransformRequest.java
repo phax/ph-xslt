@@ -64,6 +64,7 @@ public final class XsltTransformRequest
   private final ICommonsList <XdmSequence> m_aFunctionArgs = new CommonsArrayList <> ();
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aParams = new CommonsLinkedHashMap <> ();
   private final ICommonsList <TemplateParam> m_aTemplateParams = new CommonsArrayList <> ();
+  private final ICommonsOrderedMap <String, String> m_aOutputOverrides = new CommonsLinkedHashMap <> ();
   private String m_sBaseOutputUri;
   private IResourceResolver m_aResolver;
   private OffsetDateTime m_aCurrentDateTime;
@@ -187,6 +188,26 @@ public final class XsltTransformRequest
   public ICommonsList <TemplateParam> templateParams ()
   {
     return m_aTemplateParams;
+  }
+
+  /**
+   * Serialization parameters supplied by the calling application for the
+   * principal result, which override those of the output definition the
+   * principal result is serialized with (XSLT 3.0 section 26.1 lets the
+   * invocation API supply them). The keys are the attribute names of
+   * xsl:output (e.g. <code>indent</code>, <code>method</code>,
+   * <code>encoding</code>), the values their lexical form; see
+   * {@link com.helger.phoxtrot.xslt.model.OutputDefinition#getWithOverrides(java.util.Map)}
+   * for the accepted names and the form of name lists. They apply only where
+   * the principal result is serialized; secondary results and the raw
+   * result are not affected.
+   *
+   * @return The overrides by attribute name (modifiable), empty by default.
+   */
+  @NonNull
+  public ICommonsOrderedMap <String, String> outputOverrides ()
+  {
+    return m_aOutputOverrides;
   }
 
   /**
