@@ -17,7 +17,10 @@
 package com.helger.xpath.fn;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
+
+import java.util.Locale;
 
 import org.jspecify.annotations.NonNull;
 import org.junit.Test;
@@ -108,6 +111,8 @@ public final class FnStringTest
   {
     assertEquals ("ab1true", eval ("concat('a', 'b', 1, true())"));
     assertEquals ("a", eval ("concat('a', ())"));
+    assertEquals ("", eval ("concat((), ())"));
+    assertEquals ("1.5xy", eval ("concat((), 1.5, 'x', (), xs:untypedAtomic('y'))"));
     assertEquals ("a-b-c", eval ("string-join(('a', 'b', 'c'), '-')"));
     assertEquals ("abc", eval ("string-join(('a', 'b', 'c'))"));
     assertEquals ("1 2", eval ("string-join((1, 2), ' ')"));
@@ -143,6 +148,67 @@ public final class FnStringTest
     assertError ("XPDY0002", "string-length()");
   }
 
+  /** The algorithm of normalize-space before its fast paths, as reference. */
+  @NonNull
+  private static String _normalizeSpaceReference (@NonNull final String s)
+  {
+    final StringBuilder aSB = new StringBuilder ();
+    boolean bPendingSpace = false;
+    for (int i = 0; i < s.length (); ++i)
+    {
+      final char c = s.charAt (i);
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+        bPendingSpace = aSB.length () > 0;
+      else
+      {
+        if (bPendingSpace)
+        {
+          aSB.append (' ');
+          bPendingSpace = false;
+        }
+        aSB.append (c);
+      }
+    }
+    return aSB.toString ();
+  }
+
+  @Test
+  public void testNormalizeSpaceFastPaths ()
+  {
+    for (final String s : new String [] { "", " ", "  ", "a", "a b", "ab cd e", "\u00e9 \u00e8" })
+    {
+      final String sNorm = FnString.normalizeSpace (s);
+      assertEquals (_normalizeSpaceReference (s), sNorm);
+      if (s.equals (sNorm))
+        assertSame (s, sNorm);
+    }
+    assertEquals ("a b", FnString.normalizeSpace (" a b "));
+    assertEquals ("a b", FnString.normalizeSpace ("a  b"));
+    assertEquals ("a b", FnString.normalizeSpace ("a\tb"));
+    assertEquals ("a b c", FnString.normalizeSpace ("a b\n\rc  "));
+    assertEquals ("ab c", FnString.normalizeSpace ("\r\nab \tc"));
+    // Every string of up to 6 characters from a small alphabet
+    final char [] aAlphabet = { 'a', ' ', '\t', '\n', '\r', '\u00e9' };
+    for (int nLen = 0; nLen <= 6; ++nLen)
+    {
+      int nCount = 1;
+      for (int i = 0; i < nLen; ++i)
+        nCount *= aAlphabet.length;
+      for (int nCode = 0; nCode < nCount; ++nCode)
+      {
+        final char [] aChars = new char [nLen];
+        int n = nCode;
+        for (int i = 0; i < nLen; ++i)
+        {
+          aChars[i] = aAlphabet[n % aAlphabet.length];
+          n /= aAlphabet.length;
+        }
+        final String s = new String (aChars);
+        assertEquals (s, _normalizeSpaceReference (s), FnString.normalizeSpace (s));
+      }
+    }
+  }
+
   @Test
   public void testNormalizeUnicode ()
   {
@@ -167,6 +233,13 @@ public final class FnStringTest
     // No final sigma rule
     assertEquals ("σσ", eval ("lower-case('ΣΣ')"));
     assertEquals ("", eval ("upper-case(())"));
+    // The ASCII prefix that stays, then other characters
+    assertEquals ("ABC", eval ("upper-case('ABC')"));
+    assertEquals ("abc", eval ("lower-case('abc')"));
+    assertEquals ("ABC-\u00c9X", eval ("upper-case('ABC-\u00e9x')"));
+    assertEquals ("abc-\u00e9x", eval ("lower-case('abc-\u00c9X')"));
+    assertEquals ("A" + new String (Character.toChars (0x10428)).toUpperCase (Locale.ROOT),
+                  eval ("upper-case('A' || codepoints-to-string(66600))"));
   }
 
   @Test

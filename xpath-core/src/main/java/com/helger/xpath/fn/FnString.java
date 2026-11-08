@@ -303,10 +303,24 @@ public final class FnString
   @NonNull
   private static XdmSequence _concat (@NonNull final List <XdmSequence> aArgs)
   {
-    final StringBuilder aSB = new StringBuilder ();
-    for (final XdmSequence aArg : aArgs)
+    // The parts first, so that the builder gets their total length
+    final int nArgs = aArgs.size ();
+    final String [] aParts = new String [nArgs];
+    int nLength = 0;
+    for (int i = 0; i < nArgs; ++i)
+    {
+      final XdmSequence aArg = aArgs.get (i);
       if (!aArg.isEmpty ())
-        aSB.append (((XdmAtomic) aArg.get (0)).getLexical ());
+      {
+        final String sPart = ((XdmAtomic) aArg.get (0)).getLexical ();
+        aParts[i] = sPart;
+        nLength += sPart.length ();
+      }
+    }
+    final StringBuilder aSB = new StringBuilder (nLength);
+    for (final String sPart : aParts)
+      if (sPart != null)
+        aSB.append (sPart);
     return _str (aSB.toString ());
   }
 
@@ -437,14 +451,28 @@ public final class FnString
 
   /**
    * Full Unicode case mapping without context- and language-sensitive rules:
-   * every code point is mapped on its own.
+   * every code point is mapped on its own. A string of ASCII characters that
+   * the mapping keeps is returned itself; otherwise the unchanged ASCII prefix
+   * is copied at once.
    */
   @NonNull
   private static String _mapCase (@NonNull final String s, final boolean bUpper)
   {
-    final StringBuilder aSB = new StringBuilder (s.length ());
+    // The leading ASCII characters that the mapping keeps
+    final int nLen = s.length ();
     int i = 0;
-    while (i < s.length ())
+    while (i < nLen)
+    {
+      final char c = s.charAt (i);
+      if (c >= 0x80 || (bUpper ? (c >= 'a' && c <= 'z') : (c >= 'A' && c <= 'Z')))
+        break;
+      i++;
+    }
+    if (i == nLen)
+      return s;
+    final StringBuilder aSB = new StringBuilder (nLen);
+    aSB.append (s, 0, i);
+    while (i < nLen)
     {
       final int c = s.codePointAt (i);
       i += Character.charCount (c);
@@ -687,27 +715,49 @@ public final class FnString
    * @param s
    *        Input string.
    * @return The string with leading and trailing XML whitespace removed and
-   *         internal whitespace sequences replaced by one space.
+   *         internal whitespace sequences replaced by one space: the input
+   *         itself if it is already normalised, a substring if only leading or
+   *         trailing whitespace is removed.
    */
   @NonNull
   public static String normalizeSpace (@NonNull final String s)
   {
-    final StringBuilder aSB = new StringBuilder (s.length ());
-    boolean bPendingSpace = false;
-    for (int i = 0; i < s.length (); ++i)
+    final int nLen = s.length ();
+    int nStart = 0;
+    while (nStart < nLen && _isXmlSpace (s.charAt (nStart)))
+      nStart++;
+    int nEnd = nLen;
+    while (nEnd > nStart && _isXmlSpace (s.charAt (nEnd - 1)))
+      nEnd--;
+    // The trimmed part up to the first whitespace that is not a single space;
+    // s[nEnd - 1] is no whitespace, so i + 1 stays in range
+    int i = nStart;
+    while (i < nEnd)
     {
       final char c = s.charAt (i);
-      if (_isXmlSpace (c))
-        bPendingSpace = aSB.length () > 0;
-      else
-      {
-        if (bPendingSpace)
-        {
-          aSB.append (' ');
-          bPendingSpace = false;
-        }
-        aSB.append (c);
-      }
+      if (_isXmlSpace (c) && (c != ' ' || _isXmlSpace (s.charAt (i + 1))))
+        break;
+      i++;
+    }
+    if (i == nEnd)
+    {
+      // Already normalised apart from leading and trailing whitespace: no copy
+      // at all, or one substring
+      return s.substring (nStart, nEnd);
+    }
+    // s[nStart, i) is normalised and ends with no whitespace; then the runs
+    // of other characters are appended at once, separated by one space
+    final StringBuilder aSB = new StringBuilder (nEnd - nStart);
+    aSB.append (s, nStart, i);
+    while (i < nEnd)
+    {
+      // Skip the whitespace; s[nEnd - 1] is no whitespace
+      while (_isXmlSpace (s.charAt (i)))
+        i++;
+      final int nRunStart = i;
+      while (i < nEnd && !_isXmlSpace (s.charAt (i)))
+        i++;
+      aSB.append (' ').append (s, nRunStart, i);
     }
     return aSB.toString ();
   }
