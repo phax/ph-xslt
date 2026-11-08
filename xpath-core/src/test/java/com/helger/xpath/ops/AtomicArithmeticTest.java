@@ -80,6 +80,78 @@ public final class AtomicArithmeticTest
     _assert (EAtomicType.INTEGER, "200", EBinaryOp.ADD, aByte, aByte);
   }
 
+  /**
+   * The long fast path against the BigInteger results on the boundaries of the
+   * long range: every pair of the values below, every operator but
+   * <code>div</code>, also with an integer subtype operand.
+   */
+  @Test
+  public void testIntegerBoundaries ()
+  {
+    final BigInteger [] aValues = { BigInteger.valueOf (Long.MIN_VALUE),
+                                    BigInteger.valueOf (Long.MIN_VALUE + 1),
+                                    BigInteger.valueOf (Long.MIN_VALUE / 2),
+                                    BigInteger.valueOf (-3037000500L),
+                                    BigInteger.valueOf (-4294967296L),
+                                    BigInteger.valueOf (-7),
+                                    BigInteger.valueOf (-2),
+                                    BigInteger.valueOf (-1),
+                                    BigInteger.ZERO,
+                                    BigInteger.ONE,
+                                    BigInteger.valueOf (2),
+                                    BigInteger.valueOf (3),
+                                    BigInteger.valueOf (7),
+                                    BigInteger.valueOf (3037000500L),
+                                    BigInteger.valueOf (4294967296L),
+                                    BigInteger.valueOf (Long.MAX_VALUE / 2 + 1),
+                                    BigInteger.valueOf (Long.MAX_VALUE - 1),
+                                    BigInteger.valueOf (Long.MAX_VALUE),
+                                    BigInteger.valueOf (Long.MAX_VALUE).add (BigInteger.ONE),
+                                    BigInteger.valueOf (Long.MIN_VALUE).subtract (BigInteger.ONE) };
+    final EBinaryOp [] aOps = { EBinaryOp.ADD,
+                                EBinaryOp.SUBTRACT,
+                                EBinaryOp.MULTIPLY,
+                                EBinaryOp.INTEGER_DIVIDE,
+                                EBinaryOp.MODULO };
+    for (final BigInteger a : aValues)
+      for (final BigInteger b : aValues)
+        for (final EBinaryOp eOp : aOps)
+        {
+          final String sMsg = a + " " + eOp + " " + b;
+          if (b.signum () == 0 && (eOp == EBinaryOp.INTEGER_DIVIDE || eOp == EBinaryOp.MODULO))
+          {
+            assertError ("FOAR0001", () -> _op (eOp, XdmAtomic.integer (a), XdmAtomic.integer (b)));
+            continue;
+          }
+          final BigInteger aExpected = switch (eOp)
+          {
+            case ADD -> a.add (b);
+            case SUBTRACT -> a.subtract (b);
+            case MULTIPLY -> a.multiply (b);
+            case INTEGER_DIVIDE -> a.divide (b);
+            default -> a.remainder (b);
+          };
+          final XdmAtomic aRes = _op (eOp, XdmAtomic.integer (a), XdmAtomic.integer (b));
+          assertSame (sMsg, EAtomicType.INTEGER, aRes.getType ());
+          assertEquals (sMsg, aExpected, aRes.getBigInteger ());
+          // A derived type as left operand gives xs:integer as well
+          final XdmAtomic aLong = XdmAtomic.of (EAtomicType.LONG, a);
+          final XdmAtomic aRes2 = _op (eOp, aLong, XdmAtomic.integer (b));
+          assertSame (sMsg, EAtomicType.INTEGER, aRes2.getType ());
+          assertEquals (sMsg, aExpected, aRes2.getBigInteger ());
+        }
+    // Truncation towards zero and the sign of the dividend
+    _assert (EAtomicType.INTEGER, "-2", EBinaryOp.INTEGER_DIVIDE, i (-7), i (3));
+    _assert (EAtomicType.INTEGER, "2", EBinaryOp.INTEGER_DIVIDE, i (-7), i (-3));
+    _assert (EAtomicType.INTEGER, "-1", EBinaryOp.MODULO, i (-7), i (-3));
+    _assert (EAtomicType.INTEGER, "9223372036854775808", EBinaryOp.INTEGER_DIVIDE, i (Long.MIN_VALUE), i (-1));
+    _assert (EAtomicType.INTEGER, "0", EBinaryOp.MODULO, i (Long.MIN_VALUE), i (-1));
+    _assert (EAtomicType.INTEGER, "-9223372036854775809", EBinaryOp.SUBTRACT, i (Long.MIN_VALUE), i (1));
+    _assert (EAtomicType.INTEGER, "85070591730234615847396907784232501249", EBinaryOp.MULTIPLY, i (Long.MAX_VALUE), i (Long.MAX_VALUE));
+    _assert (EAtomicType.DECIMAL, "-4611686018427387904", EBinaryOp.DIVIDE, i (Long.MIN_VALUE), i (2));
+    assertError ("FOAR0001", () -> _op (EBinaryOp.DIVIDE, i (Long.MIN_VALUE), i (0)));
+  }
+
   @Test
   public void testDivision ()
   {

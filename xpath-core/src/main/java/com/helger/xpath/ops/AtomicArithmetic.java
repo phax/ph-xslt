@@ -21,6 +21,7 @@ import java.math.BigInteger;
 import java.math.RoundingMode;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
@@ -68,13 +69,66 @@ public final class AtomicArithmetic
   }
 
   /**
+   * The <code>long</code> fast path of
+   * {@link #_integerArithmetic(EBinaryOp, BigInteger, BigInteger)} for
+   * <code>+</code>, <code>-</code>, <code>*</code>, <code>idiv</code> and
+   * <code>mod</code> on operands that fit into a <code>long</code>: the exact
+   * result as xs:integer, or <code>null</code> if it would overflow
+   * (<code>Long.MIN_VALUE idiv -1</code> included), if <code>b</code> is zero
+   * (the caller raises FOAR0001), or for <code>div</code>, which the caller
+   * computes as xs:decimal. Java's <code>/</code> and <code>%</code> truncate
+   * towards zero and give the remainder the sign of the dividend, as
+   * {@link BigInteger#divide(BigInteger)} and
+   * {@link BigInteger#remainder(BigInteger)} do.
+   */
+  @Nullable
+  private static XdmAtomic _longArithmetic (@NonNull final EBinaryOp eOp, final long a, final long b)
+  {
+    switch (eOp)
+    {
+      case ADD:
+      {
+        final long r = a + b;
+        // Overflow if both operands have the sign opposite to the result
+        return ((a ^ r) & (b ^ r)) < 0 ? null : XdmAtomic.integer (r);
+      }
+      case SUBTRACT:
+      {
+        final long r = a - b;
+        // Overflow if the operands have different signs and the result has
+        // the sign of b
+        return ((a ^ b) & (a ^ r)) < 0 ? null : XdmAtomic.integer (r);
+      }
+      case MULTIPLY:
+      {
+        final long nHigh = Math.multiplyHigh (a, b);
+        final long nLow = a * b;
+        // The product fits if the high word is only the sign extension of
+        // the low word
+        return (nHigh == 0 && nLow >= 0) || (nHigh == -1 && nLow < 0) ? XdmAtomic.integer (nLow) : null;
+      }
+      case INTEGER_DIVIDE:
+        if (b == 0 || (a == Long.MIN_VALUE && b == -1))
+          return null;
+        return XdmAtomic.integer (a / b);
+      case MODULO:
+        if (b == 0)
+          return null;
+        return XdmAtomic.integer (a % b);
+      default:
+        return null;
+    }
+  }
+
+  /**
    * Arithmetic on two xs:integer operands (F&amp;O 3.1 section 4.2). The
    * operands are unbounded, so <code>+</code>, <code>-</code> and
    * <code>*</code> never overflow and return xs:integer. <code>div</code>
    * returns an xs:decimal computed by {@link #divideDecimal}, as
    * op:numeric-divide does for two integers. <code>idiv</code> truncates
    * towards zero and <code>mod</code> keeps the sign of the dividend, both as
-   * xs:integer.
+   * xs:integer. Operands that fit into a <code>long</code> take
+   * {@link #_longArithmetic(EBinaryOp, long, long)} first.
    *
    * @return The result, of the primitive type xs:integer or xs:decimal, never
    *         of an integer subtype.
@@ -89,6 +143,12 @@ public final class AtomicArithmetic
                                                @NonNull final BigInteger a,
                                                @NonNull final BigInteger b)
   {
+    if (a.bitLength () < 64 && b.bitLength () < 64)
+    {
+      final XdmAtomic ret = _longArithmetic (eOp, a.longValue (), b.longValue ());
+      if (ret != null)
+        return ret;
+    }
     switch (eOp)
     {
       case ADD:
