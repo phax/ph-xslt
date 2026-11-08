@@ -19,6 +19,7 @@ package com.helger.xpath.eval;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -44,6 +45,7 @@ import com.helger.xpath.ast.SeqType;
 import com.helger.xpath.context.DynamicContext;
 import com.helger.xpath.fn.FnBoolean;
 import com.helger.xpath.fn.FnSequence;
+import com.helger.xpath.fn.FunctionCallSite;
 import com.helger.xpath.fn.FunctionLibrary;
 import com.helger.xpath.fn.FunctionLibrary.FunctionDef;
 import com.helger.xpath.fn.IXPathFunction;
@@ -404,7 +406,8 @@ public final class XPathEvaluator
     final EAxis eAxis = aStep.axis ();
     final NodeTest aTest = aStep.test ();
     final ENodeKind ePrincipal = AxisNavigator.getPrincipalNodeKind (eAxis);
-    final List <IXdmNode> aNodes = new ArrayList <> ();
+    // Filled in place, without the copy of XdmSequence.of (List)
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     final XdmQName aIndexName = _getIndexableName (aStep);
     final XdmQName aChildName = eAxis == EAxis.CHILD ? _getExactName (aTest) : null;
     if (aChildName != null)
@@ -415,7 +418,7 @@ public final class XPathEvaluator
                                aNode,
                                aTest == null ? null : x -> NodeTestMatcher.matches (aTest, x, ePrincipal),
                                aNodes);
-    return XdmSequence.of (aNodes);
+    return aNodes.build ();
   }
 
   /**
@@ -502,10 +505,10 @@ public final class XPathEvaluator
       aContextNodes.add (aNode);
     }
     aCtx.checkInterrupt ();
-    final List <IXdmNode> aNodes = new ArrayList <> ();
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     if (!AxisNavigator.collectNamedDescendants (aStep.axis (), aContextNodes, aIndexName, aNodes))
       return null;
-    return XdmSequence.of (aNodes);
+    return aNodes.build ();
   }
 
   /**
@@ -552,10 +555,10 @@ public final class XPathEvaluator
       aContextNodes.add (aNode);
     }
     aCtx.checkInterrupt ();
-    final List <IXdmNode> aNodes = new ArrayList <> ();
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     if (!AxisNavigator.collectNamedSubtreeAttributes (aContextNodes, aName, aNodes))
       return null;
-    return _applyPredicates (XdmSequence.of (aNodes), aAttributeStep.predicates (), aCtx);
+    return _applyPredicates (aNodes.build (), aAttributeStep.predicates (), aCtx);
   }
 
   /** Apply a step (not the first of a relative path) to every item of the previous step. */
@@ -1051,14 +1054,76 @@ public final class XPathEvaluator
   }
 
   /**
+   * The literal arguments of a static call converted to the parameter types of the resolved
+   * definition, from the call site if it holds them for this definition and compatibility mode,
+   * otherwise converted now and stored there. A literal whose conversion fails gets no entry, so
+   * that the call converts it again and raises the error at the time it always did. The conversion
+   * of a literal depends only on its value, the parameter type and the XPath 1.0 compatibility
+   * mode, and has no side effects.
+   *
+   * @return <code>null</code> if no argument is a literal.
+   */
+  private static FunctionCallSite.@Nullable ConvertedLiterals _getConvertedLiterals (final IExpr.@NonNull FunctionCallExpr aExpr,
+                                                                                    @NonNull final FunctionDef aDef,
+                                                                                    @NonNull final DynamicContext aCtx)
+  {
+    final FunctionCallSite aSite = aExpr.site ();
+    final List <IExpr> aArgExprs = aExpr.args ();
+    if (!aSite.hasLiteralArgument (aArgExprs))
+      return null;
+    final boolean bCompat = aCtx.getStaticContext ().isXPath10Compatibility ();
+    FunctionCallSite.ConvertedLiterals ret = aSite.getConvertedLiterals (aDef, bCompat);
+    if (ret == null)
+    {
+      final List <SeqType> aParamTypes = aDef.getParamTypes ();
+      final XdmSequence [] aValues = new XdmSequence [aArgExprs.size ()];
+      for (int i = 0; i < aValues.length; ++i)
+        if (aArgExprs.get (i) instanceof final IExpr.LiteralExpr aLiteral)
+          try
+          {
+            aValues[i] = XPathOperators.convertArgument (aLiteral.sequence (),
+                                                         aParamTypes.get (i),
+                                                         aCtx,
+                                                         aDef.getName (),
+                                                         i);
+          }
+          catch (final XPathException ex)
+          {
+            // Converted and raised again by the call itself
+          }
+      ret = new FunctionCallSite.ConvertedLiterals (aDef, bCompat, aValues);
+      aSite.setConvertedLiterals (ret);
+    }
+    return ret;
+  }
+
+  /**
+   * The argument list of a static call for the implementation, which only reads it: the shared
+   * empty list, an immutable list of the one or two values without an array (the most frequent
+   * arities), otherwise a fixed-size list over the array, which nobody else holds.
+   */
+  @NonNull
+  private static List <XdmSequence> _getArgumentList (@NonNull final XdmSequence [] aArgs)
+  {
+    return switch (aArgs.length)
+    {
+      case 0 -> List.of ();
+      case 1 -> List.of (aArgs[0]);
+      case 2 -> List.of (aArgs[0], aArgs[1]);
+      default -> Arrays.asList (aArgs);
+    };
+  }
+
+  /**
    * A static function call (XPath 3.1 section 3.1.5). The function is resolved by name and arity
    * in the function library of the static context, through the resolution cache of the call site
-   * (see {@link com.helger.xpath.fn.FunctionCallSite}). With an argument placeholder the result is a partially applied
+   * (see {@link FunctionCallSite}). With an argument placeholder the result is a partially applied
    * {@link BuiltInFunctionItem}. A one-argument call of <code>fn:exists</code>,
    * <code>fn:empty</code>, <code>fn:boolean</code> or <code>fn:not</code> is answered with early
    * exit. Otherwise every argument is evaluated, converted to its parameter type with the function
    * conversion rules (including the XPath 1.0 compatibility conversions) and the implementation is
-   * invoked.
+   * invoked; a literal argument is taken converted from the call site (see
+   * {@link #_getConvertedLiterals(IExpr.FunctionCallExpr, FunctionDef, DynamicContext)}).
    *
    * @throws XPathException
    *         XPST0017 (from the function lookup) if no function of that name and arity exists;
@@ -1080,14 +1145,21 @@ public final class XPathEvaluator
     }
 
     final List <SeqType> aParamTypes = aDef.getParamTypes ();
-    final ICommonsList <XdmSequence> aArgs = new CommonsArrayList <> (aArgExprs.size ());
-    for (int i = 0; i < aArgExprs.size (); ++i)
+    final FunctionCallSite.ConvertedLiterals aLiterals = _getConvertedLiterals (aExpr, aDef, aCtx);
+    final XdmSequence [] aArgs = new XdmSequence [aArgExprs.size ()];
+    for (int i = 0; i < aArgs.length; ++i)
     {
-      // XPath 1.0 compatibility rules are applied inside convert
-      final XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
-      aArgs.add (XPathOperators.convertArgument (aValue, aParamTypes.get (i), aCtx, aDef.getName (), i));
+      final XdmSequence aLiteral = aLiterals == null ? null : aLiterals.get (i);
+      if (aLiteral != null)
+        aArgs[i] = aLiteral;
+      else
+      {
+        // XPath 1.0 compatibility rules are applied inside convert
+        final XdmSequence aValue = evaluateInternal (aArgExprs.get (i), aCtx);
+        aArgs[i] = XPathOperators.convertArgument (aValue, aParamTypes.get (i), aCtx, aDef.getName (), i);
+      }
     }
-    return XPathOperators.invokeBuiltIn (aDef, aCtx, aArgs);
+    return XPathOperators.invokeBuiltIn (aDef, aCtx, _getArgumentList (aArgs));
   }
 
   /**
@@ -1797,7 +1869,7 @@ public final class XPathEvaluator
   {
     return switch (aExpr)
     {
-      case final IExpr.LiteralExpr e -> XdmSequence.of (e.value ());
+      case final IExpr.LiteralExpr e -> e.sequence ();
       case final IExpr.VarRefExpr e -> _evalVarRef (e, aCtx);
       case final IExpr.ContextItemExpr e -> XdmSequence.of (_getContextItem (aCtx));
       case final IExpr.FunctionCallExpr e -> _evalFunctionCall (e, aCtx);
