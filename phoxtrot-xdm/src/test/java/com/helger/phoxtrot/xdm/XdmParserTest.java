@@ -1,0 +1,344 @@
+/*
+ * Copyright (C) 2026 Philip Helger (www.helger.com)
+ * philip[at]helger[dot]com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.helger.phoxtrot.xdm;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.jspecify.annotations.NonNull;
+import org.junit.Test;
+import org.xml.sax.InputSource;
+
+import com.helger.base.io.nonblocking.NonBlockingStringReader;
+import com.helger.collection.commons.ICommonsOrderedMap;
+
+/**
+ * Test class for classes {@link XdmParser}, {@link XdmTreeBuilder} and {@link IXdmNode}.
+ *
+ * @author Philip Helger
+ */
+public final class XdmParserTest
+{
+  private static IXdmNode _parse (final String s) throws XdmParseException
+  {
+    return new XdmParser ().parse (s);
+  }
+
+  @Test
+  public void testStructure () throws XdmParseException
+  {
+    final IXdmNode aDoc = _parse ("<!--c1--><?pi data?>\n<a xmlns='urn:d' xmlns:p='urn:p' x='1' p:y='2'>t1<b/>t2<!--c2--></a>");
+    assertTrue (aDoc.isDocument ());
+    assertEquals (3, aDoc.getChildCount ());
+    assertEquals (ENodeKind.COMMENT, aDoc.getChildAtIndex (0).getKind ());
+    assertEquals ("c1", aDoc.getChildAtIndex (0).getValue ());
+    assertEquals (ENodeKind.PROCESSING_INSTRUCTION, aDoc.getChildAtIndex (1).getKind ());
+    assertEquals ("pi", aDoc.getChildAtIndex (1).getName ().localName ());
+    assertEquals ("data", aDoc.getChildAtIndex (1).getValue ());
+
+    final IXdmNode aA = aDoc.getChildAtIndex (2);
+    assertEquals (new XdmQName ("urn:d", "a"), aA.getName ());
+    assertEquals (4, aA.getChildCount ());
+    assertEquals (2, aA.getAttributeCount ());
+    assertEquals ("1", aA.getAttribute ("", "x").getValue ());
+    assertEquals ("2", aA.getAttribute ("urn:p", "y").getValue ());
+    assertEquals ("p", aA.getAttribute ("urn:p", "y").getName ().prefix ());
+    assertNull (aA.getAttribute ("urn:p", "x"));
+    assertSame (aDoc, aA.getParent ());
+    assertSame (aDoc, aA.getOwnerDocument ());
+    assertEquals ("t1t2", aA.getStringValue ());
+    assertEquals ("t1t2", aDoc.getStringValue ());
+  }
+
+  @Test
+  public void testNamespaces () throws XdmParseException
+  {
+    final IXdmNode aA = _parse ("<a xmlns='urn:d' xmlns:p='urn:p'><b xmlns='' xmlns:q='urn:q'><c/></b></a>").getChildAtIndex (0);
+    final IXdmNode aC = aA.getChildAtIndex (0).getChildAtIndex (0);
+
+    assertEquals (2, aA.getDeclaredNamespaces ().size ());
+    assertEquals ("urn:d", aA.lookupNamespaceUri (""));
+    assertNull (aC.lookupNamespaceUri (""));
+    assertEquals ("urn:p", aC.lookupNamespaceUri ("p"));
+    assertEquals ("urn:q", aC.lookupNamespaceUri ("q"));
+    assertNull (aA.lookupNamespaceUri ("q"));
+    assertEquals (XdmConstants.NS_XML, aC.lookupNamespaceUri ("xml"));
+
+    final ICommonsOrderedMap <String, String> aScope = aC.getInScopeNamespaces ();
+    assertEquals (3, aScope.size ());
+    assertTrue (aScope.containsKey ("xml"));
+    assertTrue (aScope.containsKey ("p"));
+    assertTrue (aScope.containsKey ("q"));
+    // The default namespace was undeclared on b
+    assertTrue (!aScope.containsKey (""));
+  }
+
+  @Test
+  public void testTextIsMergedAndCDATAIsText () throws XdmParseException
+  {
+    final IXdmNode aA = _parse ("<a>one<![CDATA[two]]>three&amp;&#x41;</a>").getChildAtIndex (0);
+    assertEquals (1, aA.getChildCount ());
+    assertEquals ("onetwothree&A", aA.getChildAtIndex (0).getValue ());
+  }
+
+  @Test
+  public void testWhitespaceIsKept () throws XdmParseException
+  {
+    final IXdmNode aA = _parse ("<a> <b/> </a>").getChildAtIndex (0);
+    assertEquals (3, aA.getChildCount ());
+    assertEquals (" ", aA.getChildAtIndex (0).getValue ());
+  }
+
+  @Test
+  public void testDtdCommentsAreDropped () throws XdmParseException
+  {
+    final IXdmNode aDoc = _parse ("<!DOCTYPE a [<!-- in dtd --><!ELEMENT a ANY>]><a/>");
+    assertEquals (1, aDoc.getChildCount ());
+    assertTrue (aDoc.getChildAtIndex (0).isElement ());
+  }
+
+  @Test
+  public void testInternalEntity () throws XdmParseException
+  {
+    final IXdmNode aA = _parse ("<!DOCTYPE a [<!ENTITY e 'text'>]><a>&e;</a>").getChildAtIndex (0);
+    assertEquals ("text", aA.getStringValue ());
+  }
+
+  @Test
+  public void testIDKinds () throws XdmParseException
+  {
+    final IXdmNode aA = _parse ("<!DOCTYPE a [<!ATTLIST a i ID #IMPLIED r IDREF #IMPLIED rs IDREFS #IMPLIED n CDATA #IMPLIED>]>" +
+                                "<a i=' x ' r='y' rs=' p   q ' n=' keep  me ' xml:id='  z  '/>").getChildAtIndex (0);
+    assertEquals (EIDKind.ID, aA.getAttribute ("", "i").getIDKind ());
+    assertEquals ("x", aA.getAttribute ("", "i").getValue ());
+    assertEquals (EIDKind.IDREF, aA.getAttribute ("", "r").getIDKind ());
+    assertEquals (EIDKind.IDREFS, aA.getAttribute ("", "rs").getIDKind ());
+    assertEquals ("p q", aA.getAttribute ("", "rs").getValue ());
+    assertEquals (EIDKind.NONE, aA.getAttribute ("", "n").getIDKind ());
+    assertEquals (" keep  me ", aA.getAttribute ("", "n").getValue ());
+    assertEquals (EIDKind.ID, aA.getAttribute (XdmConstants.NS_XML, "id").getIDKind ());
+    assertEquals ("z", aA.getAttribute (XdmConstants.NS_XML, "id").getValue ());
+  }
+
+  @Test
+  public void testLocation () throws XdmParseException
+  {
+    final IXdmNode aA = _parse ("<a>\n  <b/>\n</a>").getChildAtIndex (0);
+    assertEquals (1, aA.getLine ());
+    // The location is the end of the start tag
+    assertEquals (2, aA.getChildAtIndex (1).getLine ());
+  }
+
+  @Test
+  public void testDocumentOrder () throws XdmParseException
+  {
+    final IXdmNode aDoc = _parse ("<a x='1' y='2'><b z='3'/><c/></a>");
+    final IXdmNode aA = aDoc.getChildAtIndex (0);
+    final IXdmNode aB = aA.getChildAtIndex (0);
+    final IXdmNode aC = aA.getChildAtIndex (1);
+    assertTrue (IXdmNode.compareDocumentOrder (aDoc, aA) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aA, aA.getAttributeAtIndex (0)) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aA.getAttributeAtIndex (0), aA.getAttributeAtIndex (1)) < 0);
+    // Attributes come before the children of their element
+    assertTrue (IXdmNode.compareDocumentOrder (aA.getAttributeAtIndex (1), aB) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aB, aB.getAttributeAtIndex (0)) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aB.getAttributeAtIndex (0), aC) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aC, aB) > 0);
+    assertEquals (0, IXdmNode.compareDocumentOrder (aC, aC));
+  }
+
+  @Test
+  public void testDocumentOrderAcrossTrees () throws XdmParseException
+  {
+    final IXdmNode aFirst = _parse ("<a/>");
+    final IXdmNode aSecond = _parse ("<a/>");
+    assertTrue (IXdmNode.compareDocumentOrder (aFirst, aSecond) < 0);
+    assertTrue (IXdmNode.compareDocumentOrder (aSecond.getChildAtIndex (0), aFirst.getChildAtIndex (0)) > 0);
+  }
+
+  @Test
+  public void testUnnumberedTreeIsNumberedOnDemand ()
+  {
+    final IXdmNode aA = IXdmNode.createElement (new XdmQName ("a"));
+    final IXdmNode aB = IXdmNode.createElement (new XdmQName ("b"));
+    final IXdmNode aC = IXdmNode.createElement (new XdmQName ("c"));
+    aA.appendChild (aB);
+    aA.appendChild (aC);
+    assertTrue (IXdmNode.compareDocumentOrder (aC, aB) > 0);
+  }
+
+  @Test
+  public void testDeepTreeDoesNotOverflowTheStack () throws XdmParseException
+  {
+    final int nDepth = 9000;
+    final StringBuilder aSB = new StringBuilder ();
+    for (int i = 0; i < nDepth; ++i)
+      aSB.append ("<e>");
+    aSB.append ("x");
+    for (int i = 0; i < nDepth; ++i)
+      aSB.append ("</e>");
+    final IXdmNode aDoc = _parse (aSB.toString ());
+    assertEquals ("x", aDoc.getStringValue ());
+  }
+
+  @Test (expected = XdmParseException.class)
+  public void testElementDepthLimit () throws XdmParseException
+  {
+    new XdmParser ().setMaxElementDepth (3).parse ("<a><b><c><d/></c></b></a>");
+  }
+
+  @Test
+  public void testDocumentUri () throws XdmParseException
+  {
+    final InputSource aSource = new InputSource (new NonBlockingStringReader ("<a/>"));
+    aSource.setSystemId ("urn:test:doc");
+    final IXdmNode aDoc = new XdmParser ().parse (aSource);
+    assertEquals ("urn:test:doc", aDoc.getDocumentUri ());
+  }
+
+  @Test (expected = XdmParseException.class)
+  public void testNotWellFormed () throws XdmParseException
+  {
+    _parse ("<a><b></a>");
+  }
+
+  @Test
+  public void testExternalEntityIsNotLoadedByDefault () throws XdmParseException
+  {
+    final IXdmNode aDoc = _parse ("<!DOCTYPE a [<!ENTITY e SYSTEM 'file:///etc/hostname'>]><a>&e;</a>");
+    // A skipped external entity must not leak file content
+    assertEquals ("", aDoc.getStringValue ());
+  }
+
+  @Test
+  public void testExternalDtdAndEntityAreLoadedWhenEnabled () throws Exception
+  {
+    final Path aDir = Files.createTempDirectory ("xdmparser");
+    try
+    {
+      final Path aDtd = Files.writeString (aDir.resolve ("a.dtd"),
+                                           "<!ATTLIST a x CDATA 'def'><!ENTITY e SYSTEM 'e.txt'>",
+                                           StandardCharsets.UTF_8);
+      final Path aEnt = Files.writeString (aDir.resolve ("e.txt"), "ext", StandardCharsets.UTF_8);
+      final Path aDoc = Files.writeString (aDir.resolve ("a.xml"),
+                                           "<!DOCTYPE a SYSTEM 'a.dtd'><a>&e;</a>",
+                                           StandardCharsets.UTF_8);
+      try
+      {
+        final IXdmNode aRoot = new XdmParser ().setLoadExternalEntities (true).parse (aDoc).getChildAtIndex (0);
+        assertEquals ("ext", aRoot.getStringValue ());
+        assertEquals ("def", aRoot.getAttribute ("", "x").getValue ());
+      }
+      finally
+      {
+        Files.delete (aDoc);
+        Files.delete (aEnt);
+        Files.delete (aDtd);
+      }
+    }
+    finally
+    {
+      Files.delete (aDir);
+    }
+  }
+
+  @NonNull
+  private static String _parseError (@NonNull final String sXml)
+  {
+    try
+    {
+      _parse (sXml);
+    }
+    catch (final XdmParseException ex)
+    {
+      return ex.getMessage ();
+    }
+    fail ("Parsed: " + sXml);
+    return null;
+  }
+
+  @Test
+  public void testFifthEditionNamesExplained ()
+  {
+    // Names XML 1.0 (5th edition) allows, which the JDK parser rejects in an
+    // XML 1.0 document: the error says so
+    String sMsg = _parseError ("<\uD83D\uDE00/>");
+    assertTrue (sMsg, sMsg.contains ("U+1F600") && sMsg.contains ("5th edition"));
+    sMsg = _parseError ("<a><\u09EA/></a>");
+    assertTrue (sMsg, sMsg.contains ("U+09EA"));
+    sMsg = _parseError ("<?xml version='1.0'?>\n<r>\n<a \uD83D\uDE00x='1'/></r>");
+    assertTrue (sMsg, sMsg.contains ("line 3") && sMsg.contains ("U+1F600"));
+    // Other errors, also with such a character in text or an attribute value
+    assertFalse (_parseError ("<a></b>").contains ("5th edition"));
+    assertFalse (_parseError ("<a>\uD83D\uDE00</b>").contains ("5th edition"));
+    assertFalse (_parseError ("<a x='\uD83D\uDE00'></b>").contains ("5th edition"));
+    // Not names in either edition
+    assertFalse (_parseError ("<1a/>").contains ("5th edition"));
+  }
+
+  @Test
+  public void testFifthEditionNamesExplainedForFile () throws IOException
+  {
+    final Path aFile = Files.createTempFile ("xdm-names", ".xml");
+    try
+    {
+      Files.writeString (aFile, "<r><\u09EA/></r>", StandardCharsets.UTF_8);
+      new XdmParser ().parse (aFile);
+      fail ();
+    }
+    catch (final XdmParseException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().contains ("U+09EA"));
+    }
+    finally
+    {
+      Files.delete (aFile);
+    }
+  }
+
+  /** Equal lexical names in the same namespace share one name instance; another prefix gives another one. */
+  @Test
+  public void testSharedNames () throws Exception
+  {
+    final IXdmNode aRoot = _parse ("<a:x xmlns:a='urn:u' xmlns:b='urn:u' a:k='1'><x k='2'/><a:x b:k='3'/><b:x/></a:x>").getChildAtIndex (0);
+    final IXdmNode aX = aRoot.getChildAtIndex (0);
+    final IXdmNode aAX = aRoot.getChildAtIndex (1);
+    final IXdmNode aBX = aRoot.getChildAtIndex (2);
+    assertSame (aRoot.getName (), aAX.getName ());
+    assertNotSame (aRoot.getName (), aBX.getName ());
+    assertEquals (aRoot.getName (), aBX.getName ());
+    assertEquals ("b", aBX.getName ().prefix ());
+    assertEquals (new XdmQName ("x"), aX.getName ());
+    assertEquals ("a", aRoot.getAttributeAtIndex (0).getName ().prefix ());
+    assertEquals (new XdmQName ("k"), aX.getAttributeAtIndex (0).getName ());
+    assertEquals ("b", aAX.getAttributeAtIndex (0).getName ().prefix ());
+    assertEquals (aRoot.getAttributeAtIndex (0).getName (), aAX.getAttributeAtIndex (0).getName ());
+    // The names hold canonical strings
+    assertSame ("urn:u".intern (), aRoot.getName ().namespaceUri ());
+    assertSame ("x".intern (), aRoot.getName ().localName ());
+  }
+}

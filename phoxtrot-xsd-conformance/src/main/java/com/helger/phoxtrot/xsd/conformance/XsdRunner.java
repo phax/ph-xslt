@@ -1,0 +1,596 @@
+/*
+ * Copyright (C) 2026 Philip Helger (www.helger.com)
+ * philip[at]helger[dot]com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.helger.phoxtrot.xsd.conformance;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.Set;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
+
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+
+import com.helger.annotation.concurrent.Immutable;
+import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.base.enforce.ValueEnforcer;
+import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsSet;
+
+/**
+ * Runs the W3C XML Schema test suite (xsdtests) against an
+ * {@link IXsdTestValidator} and checks the top-level valid/invalid verdict, the
+ * only thing the suite asserts. A port of the Go harness
+ * <code>test/conformance/xsd_test.go</code>.
+ * <p>
+ * The suite groups tests as: <code>&lt;testGroup&gt;</code> with at most one
+ * <code>&lt;schemaTest&gt;</code> (compile a schema: valid/invalid) plus zero
+ * or more <code>&lt;instanceTest&gt;</code> (validate an instance against that
+ * schema: valid/invalid). Test sets, groups, tests and expected verdicts may
+ * carry a <code>version</code> token list; absent means both versions. Each
+ * version is a separate run, which claims the tokens of
+ * {@link XsdSuiteRules#getClaimedTokens} (the version, and for 1.1 the CTA
+ * XPath subset of the validator): a set, group or test applies if one of its
+ * tokens is claimed, an expected verdict if all of its tokens are. The schema
+ * of a group is compiled once and reused for all its instances.
+ * <p>
+ * Counting, as in Go: a case the validator cannot decide is
+ * <em>unsupported</em> (neither pass nor fail); a case whose latest
+ * <code>&lt;current&gt;</code> status is <code>queried</code> is counted as
+ * <em>queried</em>; a case without a definite verdict or with a missing file
+ * is <em>skipped</em>. One difference on purpose: where Go records a panic as
+ * an anonymous fail and drops the rest of the group, an exception thrown by
+ * the validator fails the case by its name (so the accepted-failures check
+ * sees it); a crash while compiling still drops the group's instance tests.
+ * A crash while compiling a queried schema test is counted as queried (and
+ * as queried crash), not as fail.
+ *
+ * @author Philip Helger
+ */
+@Immutable
+public final class XsdRunner
+{
+  private final XsdSettings m_aSettings;
+  private final Supplier <? extends IXsdTestValidator> m_aValidatorFactory;
+
+  /**
+   * @param aSettings
+   *        The settings.
+   * @param aValidatorFactory
+   *        Creates the validator under test; called once per test set, so a
+   *        validator is only ever used by one thread.
+   */
+  public XsdRunner (@NonNull final XsdSettings aSettings,
+                    @NonNull final Supplier <? extends IXsdTestValidator> aValidatorFactory)
+  {
+    ValueEnforcer.notNull (aSettings, "Settings");
+    ValueEnforcer.notNull (aValidatorFactory, "ValidatorFactory");
+    m_aSettings = aSettings;
+    m_aValidatorFactory = aValidatorFactory;
+  }
+
+  /**
+   * The fail message for a validator that threw instead of returning a
+   * verdict: <code>validator crashed: </code> plus the class name of the
+   * throwable and, if present, its message.
+   *
+   * @param aThrowable
+   *        The exception or error the validator threw.
+   * @return The message. Never <code>null</code>.
+   */
+  @NonNull
+  private static String _crashMessage (@NonNull final Throwable aThrowable)
+  {
+    return "validator crashed: " +
+           aThrowable.getClass ().getName () +
+           (aThrowable.getMessage () == null ? "" : ": " + aThrowable.getMessage ());
+  }
+
+  /**
+   * Make a validator message fit on one dump line: strip leading and trailing
+   * white space and replace every CR and LF by a space.
+   *
+   * @param sText
+   *        The message. May be <code>null</code>.
+   * @return The one-line text, empty for <code>null</code>.
+   */
+  @NonNull
+  private static String _oneLine (@Nullable final String sText)
+  {
+    return sText == null ? "" : sText.strip ().replace ('\n', ' ').replace ('\r', ' ');
+  }
+
+  /**
+   * Record a failing case under its test name, which is what the fail list
+   * and the accepted-failures check see. A dump line
+   * <code>FAIL exp=&lt;expected&gt; &lt;name&gt; &lt;&lt;href&gt;&gt; || &lt;message&gt;</code>
+   * is only built when {@link XsdSettings#isCollectFailLines()} is on
+   * (<code>xsd.faildump</code> or an <code>xsd.only</code> filter).
+   *
+   * @param aResult
+   *        The set result to book into.
+   * @param sName
+   *        The schema or instance test name.
+   * @param sExpected
+   *        The expected validity, for the dump line.
+   * @param sHref
+   *        The schema or instance document, for the dump line.
+   * @param sMessage
+   *        Why it failed (first validator error, crash message, ...). May be
+   *        <code>null</code>.
+   */
+  private void _fail (@NonNull final XsdSetResult aResult,
+                      @NonNull final String sName,
+                      @NonNull final String sExpected,
+                      @NonNull final String sHref,
+                      @Nullable final String sMessage)
+  {
+    aResult.addFail (sName,
+                     m_aSettings.isCollectFailLines () ? "FAIL exp=" +
+                                                         sExpected +
+                                                         " " +
+                                                         sName +
+                                                         " <<" +
+                                                         sHref +
+                                                         ">>" +
+                                                         (sMessage == null ? "" : " || " + _oneLine (sMessage))
+                                                       : null);
+  }
+
+  /**
+   * Record a case the validator cannot decide. It counts neither as pass nor
+   * as fail and is not named in the fail list; a dump line
+   * <code>UNSUP exp=&lt;expected&gt; &lt;name&gt; || &lt;message&gt;</code> is
+   * only built with <code>xsd.unsup=true</code>.
+   *
+   * @param aResult
+   *        The set result to book into.
+   * @param sName
+   *        The schema or instance test name.
+   * @param sExpected
+   *        The expected validity, for the dump line.
+   * @param sMessage
+   *        Why it is unsupported. May be <code>null</code>.
+   */
+  private void _unsupported (@NonNull final XsdSetResult aResult,
+                             @NonNull final String sName,
+                             @NonNull final String sExpected,
+                             @Nullable final String sMessage)
+  {
+    aResult.addUnsupported (m_aSettings.unsupDump () ? "UNSUP exp=" +
+                                                       sExpected +
+                                                       " " +
+                                                       sName +
+                                                       (sMessage == null ? "" : " || " + _oneLine (sMessage))
+                                                     : null);
+  }
+
+  /** Score one decided verdict against the expected one. */
+  private void _score (@NonNull final XsdSetResult aResult,
+                       @NonNull final String sName,
+                       @NonNull final String sExpected,
+                       @NonNull final String sHref,
+                       @NonNull final XsdVerdict aVerdict)
+  {
+    if (aVerdict.isUnsupported ())
+      _unsupported (aResult, sName, sExpected, aVerdict.message ());
+    else
+      if (XsdSuiteRules.isVerdictOK (aVerdict.isValid (), sExpected))
+        aResult.addPass ();
+      else
+        _fail (aResult, sName, sExpected, sHref, aVerdict.isValid () ? "validator says valid" : aVerdict.message ());
+  }
+
+  /**
+   * The applicable expected verdict of an instance test, or <code>null</code>
+   * after recording why it does not run (version, verdict, queried, file).
+   */
+  @Nullable
+  private static String _getInstanceExpected (@NonNull final XsdInstanceTest aTest,
+                                              @NonNull final Path aDir,
+                                              @NonNull final Set <String> aClaimed,
+                                              @NonNull final XsdSetResult aResult)
+  {
+    if (!XsdSuiteRules.isVersionApplicable (aTest.version (), aClaimed))
+    {
+      // Test-level version gate (e.g. a 1.1-only instance twin)
+      return null;
+    }
+    final String sExpected = XsdSuiteRules.getExpectedValidity (aTest.expected (), aClaimed);
+    if (sExpected == null || XsdSuiteRules.INDETERMINATE.equals (sExpected))
+    {
+      aResult.addSkip ("no-instance-verdict");
+      return null;
+    }
+    if (XsdSuiteRules.isQueried (aTest.currentStatuses ()))
+    {
+      // W3C-disputed verdict: excluded from the denominator
+      aResult.addQueried ();
+      return null;
+    }
+    if (!Files.isRegularFile (aDir.resolve (aTest.document ()).normalize ()))
+    {
+      aResult.addSkip ("missing-instance-file");
+      return null;
+    }
+    return sExpected;
+  }
+
+  /**
+   * Validate the instance document of one instance test (resolved against the
+   * test-set directory) and score the verdict. A {@link RuntimeException} or
+   * {@link StackOverflowError} thrown by the validator fails the case with the
+   * crash message instead of aborting the test set.
+   *
+   * @param aSchema
+   *        The compiled schema of the group (or the empty schema set).
+   * @param aTest
+   *        The instance test.
+   * @param sExpected
+   *        Its applicable expected validity, <code>valid</code> or
+   *        <code>invalid</code>.
+   * @param aDir
+   *        The directory of the test-set file.
+   * @param aResult
+   *        The set result to book into.
+   */
+  private void _validate (@NonNull final IXsdTestSchema aSchema,
+                          @NonNull final XsdInstanceTest aTest,
+                          @NonNull final String sExpected,
+                          @NonNull final Path aDir,
+                          @NonNull final XsdSetResult aResult)
+  {
+    final XsdVerdict aVerdict;
+    try
+    {
+      aVerdict = aSchema.validate (aDir.resolve (aTest.document ()).normalize ());
+    }
+    catch (final RuntimeException | StackOverflowError ex)
+    {
+      _fail (aResult, aTest.name (), sExpected, aTest.document (), _crashMessage (ex));
+      return;
+    }
+    _score (aResult, aTest.name (), sExpected, aTest.document (), aVerdict);
+  }
+
+  /**
+   * The instance tests of a group without schema test (msMeta's attMd*,
+   * addB*, stZ*, ...): each instance is validated against the empty schema
+   * set, so only the schema documents its own hints name and the built-in
+   * types govern it.
+   */
+  private void _runSchemalessInstances (@NonNull final XsdTestGroup aGroup,
+                                        @NonNull final Path aDir,
+                                        @NonNull final EXsdVersion eVersion,
+                                        @NonNull final Set <String> aClaimed,
+                                        @NonNull final IXsdTestValidator aValidator,
+                                        @NonNull final XsdSetResult aResult)
+  {
+    for (final XsdInstanceTest aTest : aGroup.instanceTests ())
+    {
+      final String sExpected = _getInstanceExpected (aTest, aDir, aClaimed, aResult);
+      if (sExpected == null)
+        continue;
+      final XsdCompileResult aCompiled;
+      try
+      {
+        aCompiled = aValidator.compile (new CommonsArrayList <> (), eVersion);
+      }
+      catch (final RuntimeException | StackOverflowError ex)
+      {
+        _fail (aResult, aTest.name (), sExpected, aTest.document (), _crashMessage (ex));
+        continue;
+      }
+      if (aCompiled.schema () == null)
+      {
+        if (aCompiled.verdict ().isUnsupported ())
+          _unsupported (aResult, aTest.name (), sExpected, aCompiled.verdict ().message ());
+        else
+          _fail (aResult, aTest.name (), sExpected, aTest.document (), aCompiled.verdict ().message ());
+        continue;
+      }
+      _validate (aCompiled.schema (), aTest, sExpected, aDir, aResult);
+    }
+  }
+
+  /**
+   * Run one test group for one version. Nothing is counted if the group or its
+   * schema test does not apply to the version; a group without schema test is
+   * handed to {@link #_runSchemalessInstances}. Otherwise the schema test is
+   * skipped (reason <code>no-schema-verdict</code>,
+   * <code>missing-schema-file</code> or <code>no-schema-doc</code>) when it
+   * has no definite expected validity or one of its documents is missing;
+   * in that case none of the instance tests is counted either.
+   * <p>
+   * The schema documents are compiled once. The schema test is then scored
+   * (or counted as queried; the schema is compiled in any case, and a crash
+   * while compiling a queried schema test counts as queried crash, otherwise
+   * it fails the schema test) and its
+   * outcome is also booked as schema-test outcome. The instance tests run
+   * only if the schema is expected to be valid: each against the compiled
+   * schema; if the validator rejected the schema they all fail with
+   * <code>schema rejected: ...</code>, if it could not decide they are all
+   * unsupported. A crash while compiling skips the instance tests without
+   * counting them.
+   *
+   * @param aGroup
+   *        The test group.
+   * @param aDir
+   *        The directory of the test-set file, against which all
+   *        <code>xlink:href</code> references resolve.
+   * @param eVersion
+   *        The run version.
+   * @param aClaimed
+   *        The version tokens the run claims.
+   * @param aValidator
+   *        The validator of this test set.
+   * @param aResult
+   *        The set result to book into.
+   */
+  private void _runGroup (@NonNull final XsdTestGroup aGroup,
+                          @NonNull final Path aDir,
+                          @NonNull final EXsdVersion eVersion,
+                          @NonNull final Set <String> aClaimed,
+                          @NonNull final IXsdTestValidator aValidator,
+                          @NonNull final XsdSetResult aResult)
+  {
+    if (!XsdSuiteRules.isVersionApplicable (aGroup.version (), aClaimed))
+    {
+      // Not applicable to this version: excluded from the denominator
+      return;
+    }
+    final XsdSchemaTest aSchemaTest = aGroup.schemaTest ();
+    if (aSchemaTest == null)
+    {
+      _runSchemalessInstances (aGroup, aDir, eVersion, aClaimed, aValidator, aResult);
+      return;
+    }
+    if (!XsdSuiteRules.isVersionApplicable (aSchemaTest.version (), aClaimed))
+    {
+      // Schema test out of scope: the instance verdicts have nothing to stand on
+      return;
+    }
+    final String sSchemaExpected = XsdSuiteRules.getExpectedValidity (aSchemaTest.expected (), aClaimed);
+    if (sSchemaExpected == null || XsdSuiteRules.INDETERMINATE.equals (sSchemaExpected))
+    {
+      aResult.addSkip ("no-schema-verdict");
+      return;
+    }
+
+    final ICommonsList <Path> aDocs = new CommonsArrayList <> ();
+    for (final String sHref : aSchemaTest.documents ())
+    {
+      final Path aDoc = aDir.resolve (sHref).normalize ();
+      if (!Files.isRegularFile (aDoc))
+      {
+        aResult.addSkip ("missing-schema-file");
+        return;
+      }
+      aDocs.add (aDoc);
+    }
+    if (aDocs.isEmpty ())
+    {
+      aResult.addSkip ("no-schema-doc");
+      return;
+    }
+    final String sSchemaHref = aSchemaTest.documents ().getFirstOrNull ();
+
+    final int nPassBefore = aResult.getPass ();
+    final int nFailBefore = aResult.getFail ();
+    final int nUnsupportedBefore = aResult.getUnsupported ();
+    final XsdCompileResult aCompiled;
+    try
+    {
+      aCompiled = aValidator.compile (aDocs, eVersion);
+    }
+    catch (final RuntimeException | StackOverflowError ex)
+    {
+      if (XsdSuiteRules.isQueried (aSchemaTest.currentStatuses ()))
+      {
+        // A W3C-disputed verdict stays out of the denominator, crash or not
+        aResult.addQueriedCrash (m_aSettings.isCollectFailLines () ? "QUERIED-CRASH " +
+                                                                     aSchemaTest.name () +
+                                                                     " <<" +
+                                                                     sSchemaHref +
+                                                                     ">> || " +
+                                                                     _oneLine (_crashMessage (ex))
+                                                                   : null);
+        return;
+      }
+      _fail (aResult, aSchemaTest.name (), sSchemaExpected, sSchemaHref, _crashMessage (ex));
+      aResult.addSchemaTestOutcome (0, 1, 0);
+      return;
+    }
+    if (XsdSuiteRules.isQueried (aSchemaTest.currentStatuses ()))
+    {
+      // W3C-disputed verdict: excluded from the denominator
+      aResult.addQueried ();
+    }
+    else
+      _score (aResult, aSchemaTest.name (), sSchemaExpected, sSchemaHref, aCompiled.verdict ());
+    aResult.addSchemaTestOutcome (aResult.getPass () - nPassBefore,
+                                  aResult.getFail () - nFailBefore,
+                                  aResult.getUnsupported () - nUnsupportedBefore);
+
+    // Instance tests only make sense when the schema is expected to be valid
+    if (!XsdSuiteRules.VALID.equals (sSchemaExpected))
+      return;
+    for (final XsdInstanceTest aTest : aGroup.instanceTests ())
+    {
+      final String sExpected = _getInstanceExpected (aTest, aDir, aClaimed, aResult);
+      if (sExpected == null)
+        continue;
+      final IXsdTestSchema aSchema = aCompiled.schema ();
+      if (aSchema != null)
+        _validate (aSchema, aTest, sExpected, aDir, aResult);
+      else
+        if (aCompiled.verdict ().isUnsupported ())
+        {
+          // The validator cannot compile the schema
+          _unsupported (aResult, aTest.name (), sExpected, aCompiled.verdict ().message ());
+        }
+        else
+        {
+          // A schema the suite says is valid was rejected; the instance verdict is unreachable
+          _fail (aResult, aTest.name (), sExpected, aTest.document (), "schema rejected: " + aCompiled.verdict ().message ());
+        }
+    }
+  }
+
+  /**
+   * Read one test set and run all its groups for one version with a fresh
+   * validator from the factory. With <code>xsd.progress=true</code> the set is
+   * announced on <code>System.err</code> first. A test set that cannot be read
+   * yields a result with only the load error set; a set whose
+   * <code>version</code> attribute excludes the run version yields an empty
+   * result (both still count as a test set in the summary).
+   *
+   * @param sHref
+   *        The test-set reference from <code>suite.xml</code>, relative to the
+   *        suite directory; also the name of the result.
+   * @param eVersion
+   *        The run version.
+   * @param aClaimed
+   *        The version tokens the run claims.
+   * @return The counts of the set. Never <code>null</code>.
+   */
+  @NonNull
+  private XsdSetResult _runSet (@NonNull final String sHref,
+                                @NonNull final EXsdVersion eVersion,
+                                @NonNull final Set <String> aClaimed)
+  {
+    if (m_aSettings.progress ())
+      System.err.println ("XSD " + eVersion.getID () + " SET " + sHref);
+    final XsdSetResult ret = new XsdSetResult (sHref);
+    final XsdTestSet aSet;
+    try
+    {
+      aSet = XsdCatalogReader.readTestSet (m_aSettings.suiteDir ().resolve (sHref));
+    }
+    catch (final IOException ex)
+    {
+      ret.setLoadError (ex.getMessage ());
+      return ret;
+    }
+    if (!XsdSuiteRules.isVersionApplicable (aSet.version (), aClaimed))
+    {
+      // The whole set is out of scope for this version (e.g. the 1.1-only sets)
+      return ret;
+    }
+    final IXsdTestValidator aValidator = m_aValidatorFactory.get ();
+    for (final XsdTestGroup aGroup : aSet.groups ())
+      _runGroup (aGroup, aSet.dir (), eVersion, aClaimed, aValidator, ret);
+    return ret;
+  }
+
+  /**
+   * Run one version of the suite: every test set referenced by
+   * <code>suite.xml</code> whose reference contains <code>xsd.only</code> (all
+   * if it is empty), in parallel on one thread per available processor (one
+   * thread with <code>xsd.seq=true</code>). The results stay in suite order.
+   * An exception escaping a test set is recorded as its load error
+   * (<code>harness error: ...</code>) instead of aborting the run.
+   *
+   * @param eVersion
+   *        The version.
+   * @return The result.
+   * @throws IOException
+   *         if <code>suite.xml</code> cannot be read
+   */
+  @NonNull
+  public XsdRunResult run (@NonNull final EXsdVersion eVersion) throws IOException
+  {
+    final ICommonsList <String> aRefs = new CommonsArrayList <> ();
+    for (final String sHref : XsdCatalogReader.readSuite (m_aSettings.getSuiteFile ()))
+      if (m_aSettings.only ().isEmpty () || sHref.contains (m_aSettings.only ()))
+        aRefs.add (sHref);
+
+    final IXsdTestValidator aInfo = m_aValidatorFactory.get ();
+    final ICommonsSet <String> aClaimed = XsdSuiteRules.getClaimedTokens (eVersion,
+                                                                         aInfo.isFullXPathInCtaSupported (eVersion));
+    final ICommonsList <XsdSetResult> aResults = new CommonsArrayList <> ();
+    final int nThreads = m_aSettings.sequential () ? 1 : Math.max (1, Runtime.getRuntime ().availableProcessors ());
+    final ExecutorService aExecutor = Executors.newFixedThreadPool (nThreads);
+    try
+    {
+      final ICommonsList <Future <XsdSetResult>> aFutures = new CommonsArrayList <> ();
+      for (final String sHref : aRefs)
+        aFutures.add (aExecutor.submit ( () -> _runSet (sHref, eVersion, aClaimed)));
+      for (int i = 0; i < aFutures.size (); ++i)
+      {
+        try
+        {
+          aResults.add (aFutures.get (i).get ());
+        }
+        catch (final ExecutionException ex)
+        {
+          // _runSet guards every validator call, so this is a harness bug
+          final XsdSetResult aBroken = new XsdSetResult (aRefs.get (i));
+          aBroken.setLoadError ("harness error: " + ex.getCause ());
+          aResults.add (aBroken);
+        }
+        catch (final InterruptedException ex)
+        {
+          Thread.currentThread ().interrupt ();
+          throw new IOException ("Interrupted", ex);
+        }
+      }
+    }
+    finally
+    {
+      aExecutor.shutdownNow ();
+    }
+    return new XsdRunResult (eVersion,
+                             m_aSettings.validator ().getFilePrefix (),
+                             aInfo.getDisplayName (),
+                             aInfo.isVersionSupported (eVersion),
+                             aResults);
+  }
+
+  /**
+   * Run every configured version, print the summary (and the collected lines
+   * if requested) and write the output files.
+   *
+   * @return One result per version, in the configured order.
+   * @throws IOException
+   *         if the suite cannot be read or the output cannot be written
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsList <XsdRunResult> runAndReport () throws IOException
+  {
+    final ICommonsList <XsdRunResult> ret = new CommonsArrayList <> ();
+    for (final EXsdVersion eVersion : m_aSettings.versions ())
+    {
+      final XsdRunResult aResult = run (eVersion);
+      for (final XsdSetResult aSet : aResult.getAllSets ())
+        for (final String sLine : aSet.getLines ())
+          System.out.println ("[" + eVersion.getID () + "] " + sLine);
+      System.out.print (aResult.getSummary ());
+      aResult.writeFiles (m_aSettings.outDir ());
+      System.out.println ("fail list written to " +
+                          m_aSettings.outDir ().resolve (aResult.getFailFileName ()).toAbsolutePath ());
+      ret.add (aResult);
+    }
+    return ret;
+  }
+}

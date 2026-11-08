@@ -67,7 +67,7 @@
             <argument>-Djol.magicFieldOffset=true</argument>
             <argument>-classpath</argument>
             <classpath />
-            <argument>com.helger.xpath.membench.MainMemoryBenchmark</argument>
+            <argument>com.helger.phoxtrot.xpath.membench.MainMemoryBenchmark</argument>
           </arguments>
         </configuration>
       </plugin>

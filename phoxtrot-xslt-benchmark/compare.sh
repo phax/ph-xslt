@@ -25,7 +25,9 @@
 # "mvn -o -q package -DskipTests" in a detached git worktree below the work directory, and its jars
 # replace the 0.1.0-SNAPSHOT jars of ~/.m2 on the class path. Nothing is installed: the local
 # repository stays untouched. The benchmark classes themselves are compiled once, from this
-# checkout, so both commits must have the engine API the benchmark uses.
+# checkout, so both commits must have the engine API the benchmark uses. That includes the package
+# names: commits before the rename to phoxtrot (com.helger.phoxtrot.*) cannot be compared and are
+# rejected before anything is built.
 #
 # Environment:
 #   BENCH_WORK_DIR  work directory for the worktrees and the result files (default: a new temporary
@@ -42,6 +44,14 @@ fi
 BASE_REV=$1
 NEW_REV=$2
 shift 2
+
+# The benchmark classes of this checkout only link against the engine packages com.helger.phoxtrot.*
+for REV in "$BASE_REV" "$NEW_REV"; do
+  if ! git -C "$(dirname "$0")" cat-file -e "$REV^{commit}:phoxtrot-xpath/src/main/java/com/helger/phoxtrot/xpath" 2> /dev/null; then
+    echo "Commit $REV predates the rename to phoxtrot (packages com.helger.phoxtrot.*) and cannot be compared" >&2
+    exit 2
+  fi
+done
 
 MODULE_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_DIR=$(cd "$MODULE_DIR/.." && pwd)
@@ -104,7 +114,7 @@ NEW_FILE=$RESULT_FILE
 
 # Join both CSV files on benchmark name and parameters; column 5 is the score, 7 the unit
 LC_ALL=C awk -F',' -v BASE="$BASE_REV" -v NEW="$NEW_REV" '
-  function rowkey(    k, i) { k = $1; for (i = 8; i <= NF; i++) k = k "," $i; gsub(/"/, "", k); sub(/^com\.helger\.xpath\.bench\./, "", k); return k }
+  function rowkey(    k, i) { k = $1; for (i = 8; i <= NF; i++) k = k "," $i; gsub(/"/, "", k); sub(/^com\.helger\.phoxtrot\.xpath\.bench\./, "", k); return k }
   FNR == 1 { next }
   NR == FNR { aBase[rowkey()] = $5; next }
   {

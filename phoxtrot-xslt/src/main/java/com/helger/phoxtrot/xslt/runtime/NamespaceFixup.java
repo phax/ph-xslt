@@ -1,0 +1,257 @@
+/*
+ * Copyright (C) 2026 Philip Helger (www.helger.com)
+ * philip[at]helger[dot]com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.helger.phoxtrot.xslt.runtime;
+
+import java.util.ArrayDeque;
+import java.util.Map;
+
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+
+import com.helger.annotation.concurrent.Immutable;
+import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xdm.XdmConstants;
+import com.helger.phoxtrot.xdm.XdmQName;
+
+/**
+ * Namespace fixup of constructed trees (XSLT 3.0 section 5.7.3): every element
+ * gets the namespace declarations its own name and the names of its attributes
+ * need, unless an ancestor already provides the same binding. It runs once on
+ * a finished tree, so the bindings of all ancestors are known. Afterwards the
+ * nodes of the tree are numbered in document order.
+ *
+ * @author Philip Helger
+ */
+@Immutable
+public final class NamespaceFixup
+{
+  @PresentForCodeCoverage
+  private static final NamespaceFixup INSTANCE = new NamespaceFixup ();
+
+  private NamespaceFixup ()
+  {}
+
+  /**
+   * @return <code>true</code> if the prefix is in scope on the element with
+   *         this URI; an unbound prefix counts as bound to the empty URI.
+   */
+  private static boolean _isBound (@NonNull final IXdmNode aElement,
+                                   @NonNull final String sPrefix,
+                                   @NonNull final String sUri)
+  {
+    final String sCur = aElement.lookupNamespaceUri (sPrefix);
+    return sCur == null ? sUri.isEmpty () : sCur.equals (sUri);
+  }
+
+  /**
+   * Declare on the element what its own name and its prefixed namespaced
+   * attribute names need and what is not already in scope with the same URI.
+   * The <code>xml</code> prefix is never declared. A prefix the element
+   * already declares with a non-empty URI is left alone; an empty
+   * declaration (an undeclaration, e.g. from
+   * {@link #applyNoInherit(IXdmNode)}) is replaced. An element in no
+   * namespace whose default namespace is inherited gets
+   * <code>xmlns=""</code>.
+   */
+  private static void _fixElement (@NonNull final IXdmNode aElement)
+  {
+    final XdmQName aName = aElement.getName ();
+    final String sPrefix = aName.prefix ();
+    final String sUri = aName.namespaceUri ();
+    if (!"xml".equals (sPrefix) && !_isBound (aElement, sPrefix, sUri))
+    {
+      // Only declare if the element does not declare this prefix itself with
+      // another URI (that conflict was rejected when the namespace was added)
+      final String sOwn = aElement.getDeclaredNamespaceUri (sPrefix);
+      if (sOwn == null || sOwn.isEmpty ())
+        aElement.declareNamespace (sPrefix, sUri);
+    }
+    final int nAttrs = aElement.getAttributeCount ();
+    for (int i = 0; i < nAttrs; ++i)
+    {
+      final XdmQName aAttrName = aElement.getAttributeAtIndex (i).getName ();
+      if (aAttrName.hasNamespace () &&
+          aAttrName.hasPrefix () &&
+          !"xml".equals (aAttrName.prefix ()) &&
+          !_isBound (aElement, aAttrName.prefix (), aAttrName.namespaceUri ()) &&
+          (aElement.getDeclaredNamespaceUri (aAttrName.prefix ()) == null ||
+           aElement.getDeclaredNamespaceUri (aAttrName.prefix ()).isEmpty ()))
+        aElement.declareNamespace (aAttrName.prefix (), aAttrName.namespaceUri ());
+    }
+  }
+
+  /**
+   * @param aElement
+   *        The element an attribute is added to.
+   * @param aDeclared
+   *        The namespaces the element declares.
+   * @param sPrefix
+   *        The candidate prefix.
+   * @param sUri
+   *        The attribute's namespace URI.
+   * @return <code>true</code> if the prefix is used on the element itself for
+   *         another URI: by its own declarations, by the element name or by
+   *         the name of one of its attributes. Bindings of ancestors are not
+   *         considered.
+   */
+  private static boolean _conflicts (@NonNull final IXdmNode aElement,
+                                     @NonNull final Map <String, String> aDeclared,
+                                     @NonNull final String sPrefix,
+                                     @NonNull final String sUri)
+  {
+    final String sOwn = aDeclared.get (sPrefix);
+    if (sOwn != null && !sOwn.equals (sUri))
+      return true;
+    final XdmQName aElName = aElement.getName ();
+    if (aElName.prefix ().equals (sPrefix) && !aElName.namespaceUri ().equals (sUri))
+      return true;
+    // Another attribute with this prefix and a different URI
+    final int nAttrs = aElement.getAttributeCount ();
+    for (int i = 0; i < nAttrs; ++i)
+    {
+      final XdmQName aOther = aElement.getAttributeAtIndex (i).getName ();
+      if (aOther.prefix ().equals (sPrefix) && !aOther.namespaceUri ().equals (sUri))
+        return true;
+    }
+    return false;
+  }
+
+  /**
+   * @param aElement
+   *        The element the attribute is added to.
+   * @param aName
+   *        The name of the attribute.
+   * @return The name to use: a namespaced attribute needs a prefix that is not
+   *         bound to another URI on the element itself. If the prefix is
+   *         changed, the new binding is declared on the element.
+   *         <p>
+   *         In detail: a name without a namespace loses any prefix; the XML
+   *         namespace always gets the prefix <code>xml</code>. A non-empty
+   *         prefix without a conflict is kept. Otherwise a prefix the element
+   *         already declares for the URI is reused, or a new one is made up
+   *         as the old prefix (or <code>ns</code>) plus <code>_0</code>,
+   *         <code>_1</code>, ... and declared on the element.
+   */
+  @NonNull
+  public static XdmQName getAttributeNameFor (@NonNull final IXdmNode aElement, @NonNull final XdmQName aName)
+  {
+    if (!aName.hasNamespace ())
+      return aName.hasPrefix () ? new XdmQName ("", aName.localName (), "") : aName;
+    final String sUri = aName.namespaceUri ();
+    if (XdmConstants.NS_XML.equals (sUri))
+      return "xml".equals (aName.prefix ()) ? aName : new XdmQName (sUri, aName.localName (), "xml");
+    final Map <String, String> aDeclared = aElement.getDeclaredNamespaces ();
+    final String sPrefix = aName.prefix ();
+    if (!sPrefix.isEmpty () && !_conflicts (aElement, aDeclared, sPrefix, sUri))
+      return aName;
+    // Reuse a prefix declared for the URI on the element, else make one up
+    for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
+      if (!aEntry.getKey ().isEmpty () && aEntry.getValue ().equals (sUri))
+        return new XdmQName (sUri, aName.localName (), aEntry.getKey ());
+    final String sBase = sPrefix.isEmpty () ? "ns" : sPrefix;
+    int n = 0;
+    String sNew;
+    do
+    {
+      sNew = sBase + "_" + n++;
+    } while (_conflicts (aElement, aDeclared, sNew, sUri));
+    aElement.declareNamespace (sNew, sUri);
+    return new XdmQName (sUri, aName.localName (), sNew);
+  }
+
+  /**
+   * inherit-namespaces="no" (XSLT 3.0 section 11.1.3): the element children of
+   * a new element do not inherit its namespaces. Every namespace the element
+   * declares and a child does not declare itself is undeclared on the child;
+   * the fixup declares again what the child's names need.
+   *
+   * @param aElement
+   *        The new element, with its content.
+   */
+  public static void applyNoInherit (@NonNull final IXdmNode aElement)
+  {
+    final Map <String, String> aDeclared = aElement.getDeclaredNamespaces ();
+    // The binding of the element's own name is a namespace node of it too
+    if (!aDeclared.containsKey (aElement.getName ().prefix ()) && !"xml".equals (aElement.getName ().prefix ()))
+      aDeclared.put (aElement.getName ().prefix (), aElement.getName ().namespaceUri ());
+    for (int i = 0; i < aElement.getChildCount (); ++i)
+    {
+      final IXdmNode aChild = aElement.getChildAtIndex (i);
+      if (!aChild.isElement ())
+        continue;
+      for (final Map.Entry <String, String> aEntry : aDeclared.entrySet ())
+        if (!aEntry.getValue ().isEmpty () && aChild.getDeclaredNamespaceUri (aEntry.getKey ()) == null)
+          aChild.declareNamespace (aEntry.getKey (), "");
+    }
+  }
+
+  /**
+   * Fix the namespaces of one element, as {@link #finish(IXdmNode)} does for
+   * every element of a tree: the names of the element and its attributes are
+   * declared where they are not bound.
+   *
+   * @param aElement
+   *        The element.
+   */
+  static void fixElement (@NonNull final IXdmNode aElement)
+  {
+    _fixElement (aElement);
+  }
+
+  /**
+   * Fix the namespaces of every element of a tree without numbering it.
+   *
+   * @param aRoot
+   *        The root of the tree (any node).
+   */
+  static void fixNamespaces (@NonNull final IXdmNode aRoot)
+  {
+    if (aRoot.isElement () || aRoot.isDocument ())
+    {
+      final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
+      aStack.push (aRoot);
+      while (!aStack.isEmpty ())
+      {
+        final IXdmNode aCur = aStack.pop ();
+        if (aCur.isElement ())
+          _fixElement (aCur);
+        final int nChildren = aCur.getChildCount ();
+        for (int i = nChildren - 1; i >= 0; --i)
+        {
+          final IXdmNode aChild = aCur.getChildAtIndex (i);
+          if (aChild.isElement ())
+            aStack.push (aChild);
+        }
+      }
+    }
+  }
+
+  /**
+   * Fix the namespaces of a finished tree and number it in document order.
+   *
+   * @param aRoot
+   *        The root of the tree (document, element or any other node).
+   */
+  public static void finish (@Nullable final IXdmNode aRoot)
+  {
+    if (aRoot == null)
+      return;
+    fixNamespaces (aRoot);
+    aRoot.assignDocumentOrder ();
+  }
+}
