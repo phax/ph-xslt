@@ -122,6 +122,22 @@ public final class LargeStackRunner
   }
 
   /**
+   * A caller that is already interrupted does not start a run on another
+   * thread: waiting for it would only notice the interrupt if the action had
+   * not finished yet (<code>Thread.join</code> and <code>Future.get</code>
+   * return a finished result without checking the flag), so the outcome
+   * would depend on timing. The flag stays set.
+   *
+   * @throws XPathException
+   *         FOER0000 if the calling thread is interrupted
+   */
+  private static void _checkNotInterrupted ()
+  {
+    if (Thread.currentThread ().isInterrupted ())
+      throw new XPathException ("FOER0000", "The processing was interrupted");
+  }
+
+  /**
    * Run an action on a new daemon worker thread and wait for it.
    */
   private static <T> T _runOnNewThread (@NonNull final Supplier <T> aAction, @NonNull final String sThreadName)
@@ -216,8 +232,9 @@ public final class LargeStackRunner
    * @return The result of the action.
    * @throws XPathException
    *         XPDY0130 when the action overflows the stack, FOER0000 when the
-   *         calling thread is interrupted while waiting for another thread
-   *         (its interrupt flag is set again; the action goes on)
+   *         calling thread is interrupted before a run on another thread
+   *         starts (the action is not started) or while waiting for it (the
+   *         action goes on); its interrupt flag is set in both cases
    */
   public static <T> T run (@NonNull final Supplier <T> aAction,
                            @NonNull final String sThreadName,
@@ -230,8 +247,16 @@ public final class LargeStackRunner
       return aAction.get ();
     return switch (eThreading)
     {
-      case NEW_THREAD -> _runOnNewThread (aAction, sThreadName);
-      case THREAD_POOL -> _runOnPool (aAction);
+      case NEW_THREAD ->
+      {
+        _checkNotInterrupted ();
+        yield _runOnNewThread (aAction, sThreadName);
+      }
+      case THREAD_POOL ->
+      {
+        _checkNotInterrupted ();
+        yield _runOnPool (aAction);
+      }
       case CALLING_THREAD -> _runHere (aAction);
     };
   }
