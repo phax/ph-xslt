@@ -452,6 +452,24 @@ final class XPathParserImpl
   }
 
   /**
+   * Check a static function call (not a named function reference) like
+   * {@link #_checkFunction(XdmQName, int, XPathToken)}, except that with a
+   * fallback error code in the static context (XSLT 3.0 section 3.9.1) an
+   * unknown function outside the standard function namespace is accepted: the
+   * call then raises that error when it is evaluated.
+   *
+   * @throws XPathException
+   *         XPST0017 for an unknown name/arity combination that is not bound
+   *         to the fallback error function.
+   */
+  private void _checkFunctionCall (@NonNull final XdmQName aName, final int nArity, @NonNull final XPathToken aTok)
+  {
+    if (m_aCtx.getUnknownFunctionErrorCode () != null && !XdmConstants.NS_FN.equals (aName.namespaceUri ()))
+      return;
+    _checkFunction (aName, nArity, aTok);
+  }
+
+  /**
    * Consume a variable name (the token after <code>$</code>). An unprefixed
    * name is in no namespace.
    *
@@ -1447,7 +1465,7 @@ final class XPathParserImpl
           final IExpr aConstructor = _getSchemaConstructor (aName, aArgs);
           if (aConstructor != null)
             return aConstructor;
-          _checkFunction (aName, aArgs.size (), aTok);
+          _checkFunctionCall (aName, aArgs.size (), aTok);
           return new IExpr.FunctionCallExpr (aName, aArgs);
         }
         throw _unexpected ("a primary expression");
@@ -1795,7 +1813,7 @@ final class XPathParserImpl
       final IExpr aConstructor = _getSchemaConstructor (aName, aArgs);
       if (aConstructor != null)
         return aConstructor;
-      _checkFunction (aName, aArgs.size (), aTok);
+      _checkFunctionCall (aName, aArgs.size (), aTok);
       return new IExpr.FunctionCallExpr (aName, aArgs);
     }
     final IExpr aFunc;

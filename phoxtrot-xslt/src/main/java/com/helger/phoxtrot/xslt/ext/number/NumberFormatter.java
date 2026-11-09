@@ -591,10 +591,13 @@ public final class NumberFormatter
 
   /**
    * Format numbers with an analysed format string, as
-   * {@link #format(List, String, String, int, String, String)} does.
+   * {@link #format(List, String, String, int, String, String)} does. A
+   * <code>null</code> number stands for a value that cannot be converted to an
+   * integer under XSLT 1.0 behaviour and is written as the string
+   * <code>NaN</code> in its position (XSLT 3.0 section 12.2).
    *
    * @param aNums
-   *        The numbers.
+   *        The numbers, <code>null</code> for NaN.
    * @param aPic
    *        The analysed format string, see {@link #parsePicture(String)}.
    * @param sGroupSep
@@ -627,7 +630,11 @@ public final class NumberFormatter
         else
           aSB.append ('.');
       }
-      aSB.append (_formatOne (aNums.get (i), aPic.tokens ().get (k), sGroupSep, nGroupSize, sLang, sOrdinal));
+      final BigInteger aNum = aNums.get (i);
+      if (aNum == null)
+        aSB.append ("NaN");
+      else
+        aSB.append (_formatOne (aNum, aPic.tokens ().get (k), sGroupSep, nGroupSize, sLang, sOrdinal));
     }
     aSB.append (aPic.suffix ());
     return aSB.toString ();

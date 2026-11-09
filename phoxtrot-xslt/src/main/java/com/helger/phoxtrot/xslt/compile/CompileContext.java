@@ -166,13 +166,29 @@ public final class CompileContext
   }
 
   /**
+   * @param aEl
+   *        A stylesheet element.
+   * @return <code>true</code> if the element is processed with XSLT 1.0
+   *         behaviour (XSLT 3.0 section 3.9.1), see
+   *         {@link StylesheetCompiler#isXslt10Behaviour(XslElement)}.
+   */
+  public boolean isXslt10Behaviour (@NonNull final XslElement aEl)
+  {
+    return m_aCompiler.isXslt10Behaviour (aEl);
+  }
+
+  /**
    * Create the XPath static context for expressions on an element: the
    * variables of {@link #getVariablesInScope()}, minus the globals that the
    * package of the element cannot see when several packages are compiled
    * together (XSLT 3.0 section 3.5), the function library and the decimal
    * formats that apply to the element's declaration or package, its
    * namespaces and base URI (via {@link StaticContexts}), and the schema set of
-   * the stylesheet.
+   * the stylesheet. For an element processed with XSLT 1.0 behaviour (see
+   * {@link #isXslt10Behaviour(XslElement)}) XPath 1.0 compatibility mode is on
+   * (XSLT 3.0 section 5.3.1) and unknown functions outside the standard
+   * function namespace are bound to the fallback error function, which raises
+   * XTDE1425 when called (section 3.9.1).
    *
    * @param aEl
    *        Element.
@@ -184,12 +200,56 @@ public final class CompileContext
     final ICommonsOrderedSet <XdmQName> aVariables = getVariablesInScope ();
     if (m_aCompiler.getPackages () != null && m_aCompiler.getPackages ().isMultiPackage ())
       aVariables.removeIf (x -> m_aCompiler.isGlobalVariableHidden (aEl, x));
-    return StaticContexts.create (aEl,
-                                  m_aCompiler.getFunctionLibraryFor (aEl),
-                                  aVariables,
-                                  m_aCompiler.getDefaultDecimalFormat (aEl),
-                                  m_aCompiler.getDecimalFormats (aEl))
-                         .setSchemaSet (m_aCompiler.getStylesheet ().getSchemaSet ());
+    final StaticContext ret = StaticContexts.create (aEl,
+                                                     m_aCompiler.getFunctionLibraryFor (aEl),
+                                                     aVariables,
+                                                     m_aCompiler.getDefaultDecimalFormat (aEl),
+                                                     m_aCompiler.getDecimalFormats (aEl))
+                                            .setSchemaSet (m_aCompiler.getStylesheet ().getSchemaSet ());
+    if (isXslt10Behaviour (aEl))
+      ret.setXPath10Compatibility (true).setUnknownFunctionErrorCode ("XTDE1425");
+    return ret;
+  }
+
+  /**
+   * Compile an XPath expression written on an element with a new static
+   * context from {@link #createStaticContext(XslElement)}, for a text value
+   * template without XPath 1.0 compatibility mode and without the fallback
+   * error function. When the compiler collects a {@link StreamabilityIndex},
+   * the parsed expression is recorded in it.
+   *
+   * @param aEl
+   *        The element (namespaces, base URI, ...).
+   * @param sExpr
+   *        The expression text.
+   * @param bTextValueTemplate
+   *        <code>true</code> for an expression of a text value template, which
+   *        is always compiled without XPath 1.0 compatibility mode (XSLT 3.0
+   *        section 3.9.1).
+   * @return The compiled expression.
+   * @throws XsltException
+   *         the static error of the parser, located at the element
+   */
+  @NonNull
+  private XPathExpr _compileExpression (@NonNull final XslElement aEl,
+                                        @NonNull final String sExpr,
+                                        final boolean bTextValueTemplate)
+  {
+    try
+    {
+      final StaticContext aSC = createStaticContext (aEl);
+      if (bTextValueTemplate)
+        aSC.setXPath10Compatibility (false).setUnknownFunctionErrorCode (null);
+      final IExpr aExpr = XPathParser.parse (sExpr, aSC);
+      final StreamabilityIndex aIndex = m_aCompiler.getStreamabilityIndex ();
+      if (aIndex != null)
+        aIndex.addExpression (aEl, sExpr, aExpr);
+      return new XPathExpr (sExpr, aExpr, aSC, aEl);
+    }
+    catch (final XPathException ex)
+    {
+      throw XsltException.locate (ex, aEl);
+    }
   }
 
   /**
@@ -210,19 +270,7 @@ public final class CompileContext
   @NonNull
   public XPathExpr compileExpression (@NonNull final XslElement aEl, @NonNull final String sExpr)
   {
-    try
-    {
-      final StaticContext aSC = createStaticContext (aEl);
-      final IExpr aExpr = XPathParser.parse (sExpr, aSC);
-      final StreamabilityIndex aIndex = m_aCompiler.getStreamabilityIndex ();
-      if (aIndex != null)
-        aIndex.addExpression (aEl, sExpr, aExpr);
-      return new XPathExpr (sExpr, aExpr, aSC, aEl);
-    }
-    catch (final XPathException ex)
-    {
-      throw XsltException.locate (ex, aEl);
-    }
+    return _compileExpression (aEl, sExpr, false);
   }
 
   /**
@@ -291,7 +339,7 @@ public final class CompileContext
     final ICommonsList <Object> aCompiled = new CommonsArrayList <> ();
     for (final Object aPart : aParts)
       if (aPart instanceof final AvtParser.ExprPart aExpr)
-        aCompiled.add (compileExpression (aEl, aExpr.text ()));
+        aCompiled.add (_compileExpression (aEl, aExpr.text (), bTvt));
       else
         aCompiled.add (aPart);
     return new Avt (aCompiled, bTvt);

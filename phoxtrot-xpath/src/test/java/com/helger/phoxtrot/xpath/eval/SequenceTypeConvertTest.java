@@ -284,5 +284,15 @@ public final class SequenceTypeConvertTest
     assertEquals ("[xs:string(1)]",
                   _convert (_s (XdmAtomic.integer (1), XdmAtomic.integer (2)), _t1 (EAtomicType.STRING), aCtx));
     assertEquals ("same [xs:double(1)]", _convert (_s (XdmAtomic.dbl (1)), _t1 (EAtomicType.DOUBLE), aCtx));
+    // A type that allows several items keeps all of them (the xs:string* of
+    // fn:id, xpath-compat-0501)
+    assertEquals ("[xs:string(a) xs:string(b)]",
+                  _convert (_s (XdmAtomic.untyped ("a"), XdmAtomic.untyped ("b")),
+                            _t (EAtomicType.STRING, EOccurrence.ZERO_OR_MORE),
+                            aCtx));
+    assertEquals ("[xs:double(NaN)]",
+                  _convert (_s (XdmAtomic.untyped ("x"), XdmAtomic.untyped ("2")),
+                            _t (EAtomicType.DOUBLE, EOccurrence.ZERO_OR_ONE),
+                            aCtx));
   }
 }

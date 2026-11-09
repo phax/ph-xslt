@@ -263,6 +263,21 @@ public final class StylesheetCompiler
     return m_aOptions;
   }
 
+  /**
+   * @param aEl
+   *        A stylesheet element.
+   * @return <code>true</code> if the element is processed with XSLT 1.0
+   *         behaviour (XSLT 3.0 section 3.9.1): the compilation claims
+   *         backwards compatibility
+   *         ({@link XsltCompileOptions#isBackwardsCompatibleClaim()}) and the
+   *         effective version of the element is below 2.0
+   *         ({@link XslElement#isXslt10Version()}).
+   */
+  public boolean isXslt10Behaviour (@NonNull final XslElement aEl)
+  {
+    return m_aOptions.isBackwardsCompatibleClaim () && aEl.isXslt10Version ();
+  }
+
   @NonNull
   public XsltExtensionRegistry getRegistry ()
   {
@@ -1431,8 +1446,9 @@ public final class StylesheetCompiler
    * pattern with the pattern function checks, the key value from either the
    * use attribute or the content, the effective collation (the collation
    * attribute resolved against the static base URI, else the default
-   * collation) and the composite flag. Several declarations of one key are
-   * added side by side; only those of the same package are compared.
+   * collation), the composite flag and whether the declaration is processed
+   * with XSLT 1.0 behaviour (section 20.2.2). Several declarations of one key
+   * are added side by side; only those of the same package are compared.
    *
    * @param aEl
    *        The xsl:key element.
@@ -1483,7 +1499,7 @@ public final class StylesheetCompiler
         if (aOther.isComposite () != bComposite)
           throw XsltException.at (aEl, "XTSE1222", "The declarations of key " + aName.getEQName () + " differ in composite");
       }
-    m_aStylesheet.addKey (new KeyDefinition (aEl, aName, aMatch, aUse, aBody, bComposite, sCollation));
+    m_aStylesheet.addKey (new KeyDefinition (aEl, aName, aMatch, aUse, aBody, bComposite, sCollation, isXslt10Behaviour (aEl)));
   }
 
   /**
@@ -2022,7 +2038,8 @@ public final class StylesheetCompiler
    * The checks across declarations once all are compiled. Each recorded
    * xsl:call-template must find a named template not hidden from its package
    * (XTSE0650), pass only non-tunnel parameters the template declares as
-   * non-tunnel (XTSE0680) and supply all its required non-tunnel parameters
+   * non-tunnel (XTSE0680, unless the call is processed with XSLT 1.0
+   * behaviour) and supply all its required non-tunnel parameters
    * (XTSE0690). Each use-attribute-sets reference must find a non-hidden
    * attribute set (XTSE0710); a streamable attribute set may only use
    * attribute sets all of whose declarations are streamable (XTSE0730). Then
@@ -2045,7 +2062,9 @@ public final class StylesheetCompiler
         for (final VariableDef aParam : aTemplate.params ())
           if (aParam.getName ().equals (aParamName) && !aParam.isTunnel ())
             bFound = true;
-        if (!bFound)
+        // Not an error for an xsl:call-template processed with XSLT 1.0
+        // behaviour (XSLT 3.0 section 10.1.2)
+        if (!bFound && !isXslt10Behaviour (aRef.element ()))
           throw XsltException.at (aRef.element (),
                                   "XTSE0680",
                                   "The template " + aRef.name ().getEQName () + " has no parameter $" + aParamName.getEQName ());
@@ -2153,8 +2172,7 @@ public final class StylesheetCompiler
     // The XSLT and stylesheet functions go into a child of the shared default library
     final FunctionLibrary aLib = FunctionLibrary.getDefault ().createChild ();
     m_aRegistry.contributeFunctions (aLib);
-    if (m_aOptions.isStreamingClaim ())
-      XsltFunctions.registerStreamingClaim (aLib);
+    XsltFunctions.registerClaims (aLib, m_aOptions.isStreamingClaim (), m_aOptions.isBackwardsCompatibleClaim ());
     m_aStylesheet = new CompiledStylesheet (aLib, aPrincipal);
     m_aStylesheet.setPackages (m_aPackages);
     m_aStylesheet.modules ().addAll (aLoader.getAllModules ());

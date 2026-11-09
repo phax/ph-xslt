@@ -153,7 +153,8 @@ public final class XSLT30Runner
                                                                m_aSettings.strictErrorCodes (),
                                                                m_aSettings.runUnicodeExcluded (),
                                                                m_aSettings.schemaAware (),
-                                                               m_aSettings.streaming ());
+                                                               m_aSettings.streaming (),
+                                                               m_aSettings.backwardsCompatible ());
     final ICommonsList <QT3SetResult> aResults = new CommonsArrayList <> ();
     final int nThreads = m_aSettings.sequential () ? 1 : Math.max (1, Runtime.getRuntime ().availableProcessors ());
     final ExecutorService aExecutor = Executors.newFixedThreadPool (nThreads);

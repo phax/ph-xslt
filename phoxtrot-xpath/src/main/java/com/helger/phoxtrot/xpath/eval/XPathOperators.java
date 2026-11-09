@@ -514,10 +514,23 @@ public final class XPathOperators
   }
 
   /**
+   * @return <code>true</code> if the operand is exactly one xs:boolean value.
+   */
+  private static boolean _isSingleBoolean (@NonNull final XdmSequence aSeq)
+  {
+    return aSeq.isSingleton () &&
+           aSeq.getFirst () instanceof final XdmAtomic aAtomic &&
+           aAtomic.getType () == EAtomicType.BOOLEAN;
+  }
+
+  /**
    * A general comparison (<code>=</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>,
    * <code>&gt;</code>, <code>&gt;=</code>): both operands are atomised and compared pairwise with
    * the default collation of the static context; true if any pair compares true. In XPath 1.0
-   * compatibility mode its comparison rules apply. For <code>=</code> one atomic value against a
+   * compatibility mode its comparison rules apply (XPath 3.1 section 3.7.2); its first rule, which
+   * turns the other operand of a single xs:boolean into its effective boolean value, is applied to
+   * the operand before atomisation, so that a node (also an empty element or document node) is
+   * <code>true</code>. For <code>=</code> one atomic value against a
    * long sequence is answered from a hash index of the sequence kept in the run cache of the
    * dynamic context (pass the same sequence object again to reuse it).
    *
@@ -542,6 +555,11 @@ public final class XPathOperators
   {
     if (!eOp.isGeneral ())
       throw new IllegalArgumentException ("Not a general comparison: " + eOp);
+    if (aCtx.getStaticContext ().isXPath10Compatibility () && (_isSingleBoolean (aLeft) || _isSingleBoolean (aRight)))
+      return generalCompareAtoms (eOp,
+                                  XdmSequence.of (XdmAtomic.bool (Atomizer.getEffectiveBooleanValue (aLeft))),
+                                  XdmSequence.of (XdmAtomic.bool (Atomizer.getEffectiveBooleanValue (aRight))),
+                                  aCtx);
     if (eOp == EComparisonOp.GENERAL_EQ && !aCtx.getStaticContext ().isXPath10Compatibility ())
     {
       final Boolean aFast = _getIndexedEquality (aLeft, aRight, aCtx);
@@ -814,6 +832,24 @@ public final class XPathOperators
   }
 
   /**
+   * The error of a static call of a function the library does not have: the dynamic error of the
+   * fallback error function when the static context binds unknown functions to one (XSLT 3.0
+   * section 3.9.1, see {@link com.helger.phoxtrot.xpath.context.StaticContext#setUnknownFunctionErrorCode(String)})
+   * and the name is not in the standard function namespace, XPST0017 otherwise.
+   */
+  @NonNull
+  private static XPathException _createUnknownFunctionError (@NonNull final DynamicContext aCtx,
+                                                             @NonNull final XdmQName aName,
+                                                             final int nArity)
+  {
+    final String sFallbackCode = aCtx.getStaticContext ().getUnknownFunctionErrorCode ();
+    if (sFallbackCode != null && !XdmConstants.NS_FN.equals (aName.namespaceUri ()))
+      return XPathException.of (sFallbackCode,
+                                "No implementation of the extension function " + aName.getEQName () + "#" + nArity + " is available");
+    return XPathException.of ("XPST0017", "Unknown function " + aName.getEQName () + "#" + nArity);
+  }
+
+  /**
    * Resolve a static function call against the function library of the static context.
    *
    * @param aCtx
@@ -833,7 +869,7 @@ public final class XPathOperators
   {
     final FunctionDef ret = aCtx.getStaticContext ().getFunctionLibrary ().getFunction (aName, nArity);
     if (ret == null)
-      throw XPathException.of ("XPST0017", "Unknown function " + aName.getEQName () + "#" + nArity);
+      throw _createUnknownFunctionError (aCtx, aName, nArity);
     return ret;
   }
 
@@ -863,7 +899,7 @@ public final class XPathOperators
   {
     final FunctionDef ret = aSite.getFunction (aCtx.getStaticContext ().getFunctionLibrary (), aName, nArity);
     if (ret == null)
-      throw XPathException.of ("XPST0017", "Unknown function " + aName.getEQName () + "#" + nArity);
+      throw _createUnknownFunctionError (aCtx, aName, nArity);
     return ret;
   }
 

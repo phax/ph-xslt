@@ -1204,7 +1204,9 @@ public final class XPathEvaluator
   /**
    * One operand of a range expression <code>a to b</code> (XPath 3.1 section 3.4.1): atomised,
    * an <code>xs:untypedAtomic</code> value cast to <code>xs:integer</code>, and then required to
-   * be of an integer type.
+   * be of an integer type. The operand is converted like an argument of type
+   * <code>xs:integer?</code>, so in XPath 1.0 compatibility mode only its first item counts
+   * (section 3.1.5.2).
    *
    * @return The integer value, or <code>null</code> for the empty sequence.
    * @throws XPathException
@@ -1214,7 +1216,9 @@ public final class XPathEvaluator
   @Nullable
   private static BigInteger _getRangeOperand (@NonNull final XdmSequence aSeq, @NonNull final DynamicContext aCtx)
   {
-    XdmAtomic aValue = XPathOperators.atomizeOptional (aSeq, "operand of 'to'");
+    final XdmSequence aOperand = aSeq.size () > 1 && aCtx.getStaticContext ().isXPath10Compatibility () ? XdmSequence.of (aSeq.getFirst ())
+                                                                                                         : aSeq;
+    XdmAtomic aValue = XPathOperators.atomizeOptional (aOperand, "operand of 'to'");
     if (aValue == null)
       return null;
     if (aValue.getType () == EAtomicType.UNTYPED_ATOMIC)

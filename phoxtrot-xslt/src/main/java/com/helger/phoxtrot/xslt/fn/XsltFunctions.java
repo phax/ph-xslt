@@ -161,10 +161,12 @@ public final class XsltFunctions
    * three overrides that depend on the stylesheet: is-schema-aware is "yes"
    * exactly when the static context has a schema set, xsd-version is the XSD
    * version of the built-in datatypes of the static context (the native schema
-   * provider still compiles imported schemas as XSD 1.1), and
+   * provider still compiles imported schemas as XSD 1.1),
    * supports-streaming is "yes" when the stylesheet was compiled with the
-   * streaming claim. Any
-   * other name gives the empty string.
+   * streaming claim, and supports-backwards-compatibility is "yes" when it
+   * was compiled with the backwards compatibility claim (section 20.4.4: the
+   * processor offers the XSLT 1.0 compatibility feature). Any other name gives
+   * the empty string.
    *
    * @param aCtx
    *        Dynamic context of the call.
@@ -173,6 +175,9 @@ public final class XsltFunctions
    * @param bStreamingClaim
    *        <code>true</code> for a stylesheet compiled with the streaming
    *        claim.
+   * @param bBackwardsCompatibleClaim
+   *        <code>true</code> for a stylesheet compiled with the backwards
+   *        compatibility claim.
    * @return The property value as a single <code>xs:string</code>.
    * @throws XPathException
    *         XTDE1390 if the name is not a valid QName or its prefix is
@@ -181,7 +186,8 @@ public final class XsltFunctions
   @NonNull
   private static XdmSequence _systemProperty (@NonNull final DynamicContext aCtx,
                                               @NonNull final List <XdmSequence> aArgs,
-                                              final boolean bStreamingClaim)
+                                              final boolean bStreamingClaim,
+                                              final boolean bBackwardsCompatibleClaim)
   {
     final String sName = _getString (aArgs.get (0));
     final XdmQName aName = _resolveName (aCtx.getStaticContext (), sName, "");
@@ -198,6 +204,12 @@ public final class XsltFunctions
       sValue = aCtx.getStaticContext ().getXsdVersion ().getID ();
     // So is the streaming claim (XsltCompileOptions.setStreamingClaim)
     if (bStreamingClaim && XsltNames.NS_XSL.equals (aName.namespaceUri ()) && "supports-streaming".equals (aName.localName ()))
+      sValue = "yes";
+    // And the backwards compatibility claim
+    // (XsltCompileOptions.setBackwardsCompatibleClaim)
+    if (bBackwardsCompatibleClaim &&
+        XsltNames.NS_XSL.equals (aName.namespaceUri ()) &&
+        "supports-backwards-compatibility".equals (aName.localName ()))
       sValue = "yes";
     return XdmSequence.of (XdmAtomic.string (sValue));
   }
@@ -356,7 +368,7 @@ public final class XsltFunctions
     aLib.register (NS,
                    "system-property",
                    "(xs:string) as xs:string",
-                   (aRtCtx, aFnArgs) -> _systemProperty (aRtCtx, aFnArgs, false));
+                   (aRtCtx, aFnArgs) -> _systemProperty (aRtCtx, aFnArgs, false, false));
     aLib.register (NS, "function-available", "(xs:string) as xs:boolean", XsltFunctions::_functionAvailable);
     aLib.register (NS, "function-available", "(xs:string, xs:integer) as xs:boolean", XsltFunctions::_functionAvailable);
     aLib.register (NS, "element-available", "(xs:string) as xs:boolean", XsltFunctions::_elementAvailable);
@@ -892,18 +904,29 @@ public final class XsltFunctions
   /**
    * Replace <code>system-property</code> in a library that already has the
    * static functions by one for a stylesheet compiled with the streaming
-   * claim: <code>system-property('xsl:supports-streaming')</code> reports
-   * "yes".
+   * claim or the backwards compatibility claim:
+   * <code>system-property('xsl:supports-streaming')</code> resp.
+   * <code>system-property('xsl:supports-backwards-compatibility')</code> then
+   * reports "yes". Without any claim the library is not changed.
    *
    * @param aLib
-   *        Library of a stylesheet compiled with the streaming claim.
+   *        Library of a stylesheet.
+   * @param bStreamingClaim
+   *        <code>true</code> if the stylesheet is compiled with the streaming
+   *        claim.
+   * @param bBackwardsCompatibleClaim
+   *        <code>true</code> if the stylesheet is compiled with the backwards
+   *        compatibility claim.
    */
-  public static void registerStreamingClaim (@NonNull final FunctionLibrary aLib)
+  public static void registerClaims (@NonNull final FunctionLibrary aLib,
+                                     final boolean bStreamingClaim,
+                                     final boolean bBackwardsCompatibleClaim)
   {
-    aLib.register (NS,
-                   "system-property",
-                   "(xs:string) as xs:string",
-                   (aRtCtx, aFnArgs) -> _systemProperty (aRtCtx, aFnArgs, true));
+    if (bStreamingClaim || bBackwardsCompatibleClaim)
+      aLib.register (NS,
+                     "system-property",
+                     "(xs:string) as xs:string",
+                     (aRtCtx, aFnArgs) -> _systemProperty (aRtCtx, aFnArgs, bStreamingClaim, bBackwardsCompatibleClaim));
   }
 
   /**

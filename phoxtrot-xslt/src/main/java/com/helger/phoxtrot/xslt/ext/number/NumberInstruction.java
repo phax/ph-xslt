@@ -187,6 +187,8 @@ public final class NumberInstruction extends AbstractInstruction
   // if they are computed per evaluation
   private final Picture m_aConstPicture;
   private final ICommonsList <BigInteger> m_aConstStartAt;
+  // Processed with XSLT 1.0 behaviour (XSLT 3.0 section 12.2)
+  private final boolean m_bXslt10;
 
   private NumberInstruction (@NonNull final XslElement aEl,
                              @Nullable final XPathExpr aValue,
@@ -201,7 +203,8 @@ public final class NumberInstruction extends AbstractInstruction
                              @NonNull final Avt aStartAt,
                              @Nullable final Avt aLang,
                              @Nullable final Picture aConstPicture,
-                             @Nullable final ICommonsList <BigInteger> aConstStartAt)
+                             @Nullable final ICommonsList <BigInteger> aConstStartAt,
+                             final boolean bXslt10)
   {
     super (aEl);
     m_aValue = aValue;
@@ -217,6 +220,7 @@ public final class NumberInstruction extends AbstractInstruction
     m_aLang = aLang;
     m_aConstPicture = aConstPicture;
     m_aConstStartAt = aConstStartAt;
+    m_bXslt10 = bXslt10;
   }
 
   /**
@@ -745,13 +749,19 @@ public final class NumberInstruction extends AbstractInstruction
    * value is converted like <code>xs:integer(round(number($V)))</code>
    * (integers are kept exactly, decimals are rounded without going through
    * xs:double) and XTDE0980 is raised if that is not possible (NaN or
-   * infinity) or if the rounded integer is negative. So -0.3 gives 0.
+   * infinity) or if the rounded integer is negative. So -0.3 gives 0. With
+   * XSLT 1.0 behaviour only the first atomized item counts, an empty value is
+   * taken as NaN, and a value that cannot be converted to an integer gives a
+   * <code>null</code> entry, which is formatted as the string NaN instead of
+   * raising XTDE0980; a negative integer is still XTDE0980.
    */
   @NonNull
   private ICommonsList <BigInteger> _computeValue (@NonNull final XsltContext aCtx)
   {
-    final XdmSequence aAtomized = Atomizer.atomize (m_aValue.evaluate (aCtx));
+    XdmSequence aAtomized = Atomizer.atomize (m_aValue.evaluate (aCtx));
     final ICommonsList <BigInteger> ret = new CommonsArrayList <> ();
+    if (m_bXslt10)
+      aAtomized = aAtomized.isEmpty () ? XdmSequence.of (XdmAtomic.dbl (Double.NaN)) : XdmSequence.of (aAtomized.getFirst ());
     for (final IXdmItem aItem : aAtomized)
     {
       final XdmAtomic aAtomic = (XdmAtomic) aItem;
@@ -774,6 +784,11 @@ public final class NumberInstruction extends AbstractInstruction
         continue;
       }
       final double d = AtomicComparator.toNumber (aAtomic);
+      if ((Double.isNaN (d) || Double.isInfinite (d)) && m_bXslt10)
+      {
+        ret.add (null);
+        continue;
+      }
       if (Double.isNaN (d) || Double.isInfinite (d))
         throw new XPathException ("XTDE0980",
                                   "The value '" + aAtomic.getLexical () + "' of xsl:number is not convertible to an integer");
@@ -947,7 +962,8 @@ public final class NumberInstruction extends AbstractInstruction
       for (int i = 0; i < aNums.size (); ++i)
       {
         final BigInteger aDelta = aStarts.get (Math.min (i, aStarts.size () - 1)).subtract (BigInteger.ONE);
-        if (aDelta.signum () != 0)
+        // NaN of XSLT 1.0 behaviour stays NaN
+        if (aDelta.signum () != 0 && aNums.get (i) != null)
           aNums.set (i, aNums.get (i).add (aDelta));
       }
     }
@@ -1133,6 +1149,7 @@ public final class NumberInstruction extends AbstractInstruction
                                   aStartAt,
                                   aLang,
                                   aFormat.isConstant () ? NumberFormatter.parsePicture (aFormat.getConstantValue ()) : null,
-                                  aConstStartAt);
+                                  aConstStartAt,
+                                  aCtx.isXslt10Behaviour (aEl));
   }
 }

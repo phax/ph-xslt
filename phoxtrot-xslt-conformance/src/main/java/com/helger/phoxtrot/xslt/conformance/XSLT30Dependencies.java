@@ -34,8 +34,8 @@ import com.helger.collection.commons.ICommonsSet;
  * schema-awareness and backwards compatibility. Packages, higher-order
  * functions, serialization and dynamic evaluation (<code>xsl:evaluate</code>)
  * are claimed; a test for a processor <em>without</em> a claimed feature does
- * not apply. A run may additionally claim schema-awareness or streaming, each
- * in both directions.
+ * not apply. A run may additionally claim schema-awareness, streaming or
+ * backwards compatibility, each in both directions.
  * <p>
  * The test-set dependencies are checked before the test-case ones, and within
  * one <code>&lt;dependencies&gt;</code> element the categories are checked in
@@ -57,7 +57,8 @@ public final class XSLT30Dependencies
    * {@link com.helger.phoxtrot.xslt.XsltCompileOptions#setEnforceStreamability(boolean)}),
    * and the two cannot hold at once: <code>streaming-fallback-005/006</code>
    * run the stylesheets for which <code>merge-094/095</code> expect XTSE3430.
-   * So it stays unsupported in every run.
+   * So it stays unsupported in every run. <code>backwards_compatibility</code>
+   * is supported in a run that claims it.
    */
   private static final ICommonsSet <String> UNSUPPORTED_FEATURES = new CommonsHashSet <> ("streaming",
                                                                                          "static_typing",
@@ -78,6 +79,12 @@ public final class XSLT30Dependencies
 
   /** The streaming feature, see {@link #UNSUPPORTED_FEATURES}. */
   private static final String STREAMING_FEATURE = "streaming";
+
+  /**
+   * The backwards compatibility feature (XSLT 1.0 compatibility, XSLT 3.0
+   * section 27.4), see {@link #UNSUPPORTED_FEATURES}.
+   */
+  private static final String BACKWARDS_COMPATIBILITY_FEATURE = "backwards_compatibility";
 
   /**
    * Optional features this processor claims: a test written for a processor
@@ -117,7 +124,8 @@ public final class XSLT30Dependencies
    * <li><code>spec</code> not admitting XSLT 3.0
    * (<code>spec:&lt;value&gt;</code>);</li>
    * <li><code>feature</code>: the schema-awareness spellings must match the
-   * claim in both directions, <code>streaming</code> in a streaming run too;
+   * claim in both directions, <code>streaming</code> in a streaming run and
+   * <code>backwards_compatibility</code> in a backwards compatible run too;
    * otherwise an unsupported feature required or a supported one required
    * absent skips (<code>feat:</code>/<code>feat-not:</code>);</li>
    * <li><code>xsd-version</code> 1.0 without 1.1 (<code>xsd1.0</code>);</li>
@@ -141,13 +149,16 @@ public final class XSLT30Dependencies
    *        <code>true</code> if the run claims schema-awareness.
    * @param bStreaming
    *        <code>true</code> if the run claims streaming.
+   * @param bBackwardsCompatible
+   *        <code>true</code> if the run claims backwards compatibility.
    * @return <code>null</code> if nothing in the list prevents the case,
    *         otherwise the short skip reason.
    */
   @Nullable
   private static String _getSkipReason (@NonNull final List <XSLT30Dependency> aDeps,
                                         final boolean bSchemaAware,
-                                        final boolean bStreaming)
+                                        final boolean bStreaming,
+                                        final boolean bBackwardsCompatible)
   {
     for (final XSLT30Dependency aDep : aDeps)
       if ("spec".equals (aDep.type ()) && !aDep.isNotSatisfied () && !_isSpecApplicable (aDep.value ()))
@@ -164,6 +175,13 @@ public final class XSLT30Dependencies
         }
         // A run that claims streaming claims it in both directions
         if (bStreaming && STREAMING_FEATURE.equals (aDep.value ()))
+        {
+          if (aDep.isNotSatisfied ())
+            return "feat-not:" + aDep.value ();
+          continue;
+        }
+        // So does a run that claims backwards compatibility
+        if (bBackwardsCompatible && BACKWARDS_COMPATIBILITY_FEATURE.equals (aDep.value ()))
         {
           if (aDep.isNotSatisfied ())
             return "feat-not:" + aDep.value ();
@@ -294,7 +312,31 @@ public final class XSLT30Dependencies
                                       final boolean bSchemaAware,
                                       final boolean bStreaming)
   {
-    final String ret = _getSkipReason (aSetDeps, bSchemaAware, bStreaming);
-    return ret != null ? ret : _getSkipReason (aCaseDeps, bSchemaAware, bStreaming);
+    return getSkipReason (aSetDeps, aCaseDeps, bSchemaAware, bStreaming, false);
+  }
+
+  /**
+   * @param aSetDeps
+   *        The dependencies of the test set.
+   * @param aCaseDeps
+   *        The dependencies of the test case.
+   * @param bSchemaAware
+   *        <code>true</code> if the run claims schema-awareness.
+   * @param bStreaming
+   *        <code>true</code> if the run claims streaming.
+   * @param bBackwardsCompatible
+   *        <code>true</code> if the run claims backwards compatibility.
+   * @return <code>null</code> if the case applies, otherwise a short skip
+   *         reason.
+   */
+  @Nullable
+  public static String getSkipReason (@NonNull final List <XSLT30Dependency> aSetDeps,
+                                      @NonNull final List <XSLT30Dependency> aCaseDeps,
+                                      final boolean bSchemaAware,
+                                      final boolean bStreaming,
+                                      final boolean bBackwardsCompatible)
+  {
+    final String ret = _getSkipReason (aSetDeps, bSchemaAware, bStreaming, bBackwardsCompatible);
+    return ret != null ? ret : _getSkipReason (aCaseDeps, bSchemaAware, bStreaming, bBackwardsCompatible);
   }
 }

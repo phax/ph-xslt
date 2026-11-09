@@ -16,7 +16,6 @@
  */
 package com.helger.phoxtrot.xslt.instr;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -405,31 +404,10 @@ public final class CoreInstructions
   }
 
   /**
-   * @param aEl
-   *        An instruction element.
-   * @return <code>true</code> if it is evaluated in backwards compatible mode:
-   *         the nearest [xsl:]version below the module's outermost element is
-   *         less than 2.0. The version of the outermost element is ignored, so
-   *         stylesheets written as version 1.0 run as 3.0.
-   */
-  private static boolean _isBackwardsCompatible (@NonNull final XslElement aEl)
-  {
-    for (XslElement aCur = aEl; aCur != null && aCur.getParent () != null; aCur = aCur.getParent ())
-    {
-      final String s = aCur.getStandardAttr ("version");
-      if (s != null)
-        return XsltNames.isDecimalLexical (s.trim ()) && new BigDecimal (s.trim ()).compareTo (BigDecimal.valueOf (2)) < 0;
-    }
-    return false;
-  }
-
-  /**
    * Compile an instruction element (see
-   * {@link CompileContext#compileInstruction(XslElement)}). In this order:
+   * {@link CompileContext#compileInstruction(XslElement)}), whatever its
+   * effective version. In this order:
    * <ul>
-   * <li>An element evaluated in backwards compatible mode compiles to an
-   * instruction that raises XTDE0160 when it is executed (XSLT 3.0 section
-   * 3.9): backwards compatible processing is not supported.</li>
    * <li>An XSLT element is compiled by the instruction compiler registered for
    * its local name. Without one, its xsl:fallback children are used if it is
    * an unknown element in forwards compatible mode (section 3.10) or a known
@@ -453,12 +431,8 @@ public final class CoreInstructions
    *         the compiled content.
    */
   @Nullable
-  public static IInstruction compileInstruction (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
+  private static IInstruction _compileInstruction (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
-    if (_isBackwardsCompatible (aEl))
-      return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-        throw new XPathException ("XTDE0160", "Backwards compatible processing is not supported");
-      });
     if (aEl.isXsl ())
     {
       final String sLocal = aEl.getLocalName ();
@@ -480,6 +454,43 @@ public final class CoreInstructions
     if (getExtensionNamespaces (aEl).contains (aEl.getName ().namespaceUri ()))
       return _compileFallback (aCtx, aEl, "The extension instruction");
     return _compileLiteralResultElement (aCtx, aEl);
+  }
+
+  /**
+   * Compile an instruction element (see
+   * {@link CompileContext#compileInstruction(XslElement)}) as
+   * {@link #_compileInstruction(CompileContext, XslElement)} does, so that the
+   * static errors of its content are reported. An instruction with an
+   * effective version below 2.0 (XSLT 3.0 section 3.9) that is compiled
+   * without the backwards compatibility claim is then replaced by an
+   * instruction that raises the dynamic error XTDE0160 when it is evaluated
+   * (sections 3.9 and 27.4: a processor without the XSLT 1.0 compatibility
+   * feature raises it only for an instruction that is actually evaluated).
+   * With the claim the instruction is processed with XSLT 1.0 behaviour.
+   *
+   * @param aCtx
+   *        Compile context.
+   * @param aEl
+   *        The element.
+   * @return The instruction or <code>null</code> if the registered compiler
+   *         produces none and no XTDE0160 is due.
+   * @throws XsltException
+   *         XTSE0010 for an XSLT element that is not allowed as an
+   *         instruction and has no usable fallback, and any static error of
+   *         the compiled content.
+   */
+  @Nullable
+  public static IInstruction compileInstruction (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
+  {
+    final IInstruction ret = _compileInstruction (aCtx, aEl);
+    if (aEl.isXslt10Version () && !aCtx.getCompiler ().getOptions ().isBackwardsCompatibleClaim ())
+      return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
+        throw new XPathException ("XTDE0160",
+                                  "The effective version " +
+                                              aEl.getEffectiveVersion ().toPlainString () +
+                                              " requests backwards compatible behaviour, which is not claimed (XsltCompileOptions.setBackwardsCompatibleClaim)");
+      });
+    return ret;
   }
 
   /**

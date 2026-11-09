@@ -118,6 +118,25 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   never answer a whole-document question from it. Tests tell streamed from buffered runs with
   `StreamedRun.getStreamedCount (<instruction>)`. The memory test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`,
   `-Dstreamed.memory.records=<n>`, one stylesheet per streamed construct).
+- Backwards compatibility (XSLT 3.0 sections 3.9 and 27.4, the XSLT 1.0 compatibility feature): the engine switch is
+  `XsltCompileOptions.setBackwardsCompatibleClaim` (default off; JAXP attribute
+  `PhoxtrotTransformerFactory.ATTR_BACKWARDS_COMPATIBLE`; a nested `fn:transform` inherits it;
+  `system-property('xsl:supports-backwards-compatibility')` follows it via `XsltFunctions.registerClaims`). An element
+  whose effective version (`XslElement.getEffectiveVersion`, the version of xsl:output itself does not count) is below
+  2.0 (`XslElement.isXslt10Version`: every value below 2.0 counts as 1.0, 2.0 up to 3.0 as 3.0) is processed with
+  XSLT 1.0 behaviour only with the claim (`StylesheetCompiler`/`CompileContext.isXslt10Behaviour`). Without it,
+  `CoreInstructions.compileInstruction` compiles such an instruction (its static errors stay static) and replaces it by
+  one that raises XTDE0160 when evaluated; the outermost element counts like any other. With it,
+  `CompileContext.createStaticContext` turns on XPath 1.0 compatibility mode and binds unknown functions outside the
+  `fn` namespace to the fallback error function (`StaticContext.setUnknownFunctionErrorCode ("XTDE1425")`), except for
+  text value templates; the XSLT rules are in `Avt` (first item), `NodeInstructions._compileValueOf`,
+  `NumberInstruction` (NaN), `SortKeyDef`, `Engine` keys (`KeyDefinition.isXslt10`, string comparison), the XTSE0680
+  check, `XsltTransformer._detectMethod` (no default xhtml) and `XsltStreamability._instr` (roaming and free-ranging).
+  The XPath 1.0 operator semantics stay in `XPathOperators`/`AtomicComparator`/`SequenceTypeMatcher`. XSLT30 harness:
+  `-Dxslt30.backwardsCompatible=true` (out dir `phoxtrot-xslt-conformance/target/backwards`, accepted file
+  `xslt30-backwards.md`; together with another claim it writes to `<that dir>-backwards` and is no gate). The default
+  run must keep claiming no backwards compatibility. QT3 sets XPath 1.0 compatibility mode per case for
+  `feature xpath-1.0-compatibility` (`QT3CaseRunner`); there is no switch for it.
 - Output to a stream (streaming plan S5): `XsltExecutable.transform (request, OutputStream|Writer)` writes the principal
   result instead of returning it (same characters as `principalSerialized ()`). Where the unnamed xsl:output allows it
   (`XsltTransformer._createDrain`: not schema-aware, explicit method, no xsl:result-document anywhere, a tree,

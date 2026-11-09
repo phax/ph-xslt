@@ -482,8 +482,10 @@ public final class XsltTransformHandler implements ITransformHandler
 
   /**
    * Build the compile options of the nested stylesheet: the given base URI,
-   * the compile resolver of the host, the load-external-entities setting and
-   * the library packages of the calling stylesheet if known, and the values
+   * the compile resolver of the host, the load-external-entities setting, the
+   * backwards compatibility claim (the same processor runs the nested
+   * stylesheet) and the library packages of the calling stylesheet if known,
+   * and the values
    * of the static-params option as static parameters.
    *
    * @param aOpts
@@ -505,6 +507,7 @@ public final class XsltTransformHandler implements ITransformHandler
     if (aHost.callerOptions () != null)
     {
       ret.setLoadExternalEntities (aHost.callerOptions ().isLoadExternalEntities ());
+      ret.setBackwardsCompatibleClaim (aHost.callerOptions ().isBackwardsCompatibleClaim ());
       ret.packages ().addAll (aHost.callerOptions ().packages ());
     }
     final XdmMap aStatics = aOpts.getMap ("static-params");

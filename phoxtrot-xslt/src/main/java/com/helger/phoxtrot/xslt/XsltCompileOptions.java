@@ -114,6 +114,13 @@ public final class XsltCompileOptions
    */
   public static final boolean DEFAULT_STREAMING_CLAIM = false;
 
+  /**
+   * The XSLT 1.0 compatibility feature (XSLT 3.0 section 27.4) is not claimed
+   * by default: an instruction with an effective version below 2.0 raises
+   * XTDE0160 when it is evaluated.
+   */
+  public static final boolean DEFAULT_BACKWARDS_COMPATIBLE_CLAIM = false;
+
   private String m_sBaseUri;
   private IResourceResolver m_aResolver;
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticParams = new CommonsLinkedHashMap <> ();
@@ -122,6 +129,7 @@ public final class XsltCompileOptions
   private boolean m_bSchemaAware = DEFAULT_SCHEMA_AWARE;
   private boolean m_bEnforceStreamability = DEFAULT_ENFORCE_STREAMABILITY;
   private boolean m_bStreamingClaim = DEFAULT_STREAMING_CLAIM;
+  private boolean m_bBackwardsCompatibleClaim = DEFAULT_BACKWARDS_COMPATIBLE_CLAIM;
   private final ICommonsList <HostSchema> m_aHostSchemas = new CommonsArrayList <> ();
   private EXsltThreading m_eThreading = EXsltThreading.DEFAULT;
 
@@ -333,6 +341,42 @@ public final class XsltCompileOptions
   {
     ValueEnforcer.notNull (eThreading, "Threading");
     m_eThreading = eThreading;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if the stylesheet is compiled by a processor
+   *         that claims the XSLT 1.0 compatibility feature. Default
+   *         {@link #DEFAULT_BACKWARDS_COMPATIBLE_CLAIM}.
+   */
+  public boolean isBackwardsCompatibleClaim ()
+  {
+    return m_bBackwardsCompatibleClaim;
+  }
+
+  /**
+   * Claim the optional XSLT 1.0 compatibility feature (XSLT 3.0 sections 3.9
+   * and 27.4) for the stylesheet. With the claim, every element whose
+   * effective version is below 2.0 is processed with XSLT 1.0 behaviour: the
+   * XPath expressions and patterns in its attributes are compiled in XPath
+   * 1.0 compatibility mode (text value templates excepted), a call of an
+   * unknown function outside the standard function namespace raises XTDE1425
+   * only when it is evaluated, and the XSLT constructs of section 3.9.1 take
+   * their XSLT 1.0 behaviour (first item of an attribute value template, of
+   * xsl:value-of without separator, of xsl:number value and of an xsl:sort
+   * key; xsl:call-template may pass undeclared parameters; keys compare as
+   * strings). <code>system-property('xsl:supports-backwards-compatibility')</code>
+   * then reports "yes". Without the claim such an instruction raises the
+   * dynamic error XTDE0160 when it is evaluated.
+   *
+   * @param bBackwardsCompatibleClaim
+   *        <code>true</code> to claim backwards compatible processing.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions setBackwardsCompatibleClaim (final boolean bBackwardsCompatibleClaim)
+  {
+    m_bBackwardsCompatibleClaim = bBackwardsCompatibleClaim;
     return this;
   }
 }
