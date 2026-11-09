@@ -747,7 +747,8 @@ public final class XSLT30CaseRunner
         final IXdmNode aDoc;
         try
         {
-          aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aStylesheet);
+          // A stylesheet: with node locations, as the compiler's own parse
+          aDoc = new XdmParser ().setRecordLocations (true).setLoadExternalEntities (true).parse (aStylesheet);
         }
         catch (final XdmParseException ex)
         {
@@ -798,7 +799,7 @@ public final class XSLT30CaseRunner
             final InputSource aIS = new InputSource (new NonBlockingStringReader (aSrc.content ()));
             if (!aEnv.catalogLevel () && aSet.file () != null)
               aIS.setSystemId (XSLT30ResourceResolver.getFileUri (aSet.file ()));
-            aSource = new XdmParser ().setLoadExternalEntities (true).parse (aIS);
+            aSource = new XdmParser ().setRecordLocations (false).setLoadExternalEntities (true).parse (aIS);
             sSourceSelect = aSrc.select ().strip ();
             if (sValidation != null)
               XSLT30SchemaSupport.validateSource (aSource, sValidation, aExecutable, aEnv);
@@ -812,7 +813,7 @@ public final class XSLT30CaseRunner
               if (sValidation != null)
               {
                 // A fresh tree, as validation annotates it in place
-                aSource = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
+                aSource = new XdmParser ().setRecordLocations (false).setLoadExternalEntities (true).parse (aPath);
                 XSLT30SchemaSupport.validateSource (aSource, sValidation, aExecutable, aEnv);
               }
               else
@@ -855,7 +856,7 @@ public final class XSLT30CaseRunner
         final Path aPath = XSLT30ResourceResolver.getAbsolutePath (aEnv.baseDir (), aSrc.file ());
         try
         {
-          final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aPath);
+          final IXdmNode aDoc = new XdmParser ().setRecordLocations (false).setLoadExternalEntities (true).parse (aPath);
           XSLT30SchemaSupport.validateSource (aDoc, sMode, aExecutable, aEnv);
           aResolver.putDocument (aPath, aDoc);
         }

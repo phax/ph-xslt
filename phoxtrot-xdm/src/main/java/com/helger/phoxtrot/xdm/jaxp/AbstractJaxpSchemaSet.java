@@ -326,7 +326,8 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
         throw new IllegalArgumentException ("Cannot validate against an anonymous type");
       aValidator.setProperty (PROPERTY_ROOT_TYPE, new QName (aTypeName.namespaceUri (), aTypeName.localName ()));
     }
-    final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+    // The events come from a tree, without locations; the original keeps its own
+    final XdmTreeBuilder aBuilder = new XdmTreeBuilder (false);
     aValidator.setContentHandler (new JaxpTypeAnnotator (aBuilder,
                                                          aValidator.getTypeInfoProvider (),
                                                          getDeclaredAttributeTypes (aValidator),

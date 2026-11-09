@@ -149,13 +149,13 @@ public final class QT3XmlCompare
     final String sWrapped = "<" + WRAPPER + ">" + _stripDecl (sXml) + "</" + WRAPPER + ">";
     try
     {
-      return new XdmParser ().parse (sWrapped);
+      return new XdmParser ().setRecordLocations (false).parse (sWrapped);
     }
     catch (final XdmParseException ex)
     {
       try
       {
-        return new XdmParser ().parse ("<?xml version=\"1.1\"?>" + sWrapped);
+        return new XdmParser ().setRecordLocations (false).parse ("<?xml version=\"1.1\"?>" + sWrapped);
       }
       catch (final XdmParseException ex2)
       {

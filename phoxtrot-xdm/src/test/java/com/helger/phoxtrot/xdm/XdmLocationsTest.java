@@ -30,8 +30,9 @@ import javax.xml.parsers.SAXParserFactory;
 import org.junit.Test;
 
 /**
- * Test class for node locations: recorded by default, left out with
- * {@link XdmParser#setRecordLocations(boolean)}, the located node variants,
+ * Test class for node locations: recorded with
+ * {@link XdmParser#setRecordLocations(boolean)}, left out by default, the
+ * located node variants,
  * the location of a node created without one and attributes and text nodes,
  * which report the location of their parent.
  *
@@ -68,11 +69,11 @@ public final class XdmLocationsTest
   }
 
   @Test
-  public void testDefaultRecordsLocations () throws XdmParseException
+  public void testRecordLocations () throws XdmParseException
   {
-    assertTrue (XdmParser.DEFAULT_RECORD_LOCATIONS);
-    assertTrue (new XdmParser ().isRecordLocations ());
-    final IXdmNode aDoc = new XdmParser ().parse (XML);
+    final XdmParser aParser = new XdmParser ().setRecordLocations (true);
+    assertTrue (aParser.isRecordLocations ());
+    final IXdmNode aDoc = aParser.parse (XML);
     final IXdmNode aR = aDoc.getChildAtIndex (0);
     assertEquals (2, aR.getLine ());
     assertTrue (aR.getColumn () > 0);
@@ -99,8 +100,10 @@ public final class XdmLocationsTest
   @Test
   public void testWithoutLocations () throws XdmParseException
   {
-    final XdmParser aParser = new XdmParser ().setRecordLocations (false);
-    assertFalse (aParser.isRecordLocations ());
+    // The default
+    assertFalse (XdmParser.DEFAULT_RECORD_LOCATIONS);
+    assertFalse (new XdmParser ().isRecordLocations ());
+    final XdmParser aParser = new XdmParser ();
     final IXdmNode aDoc = aParser.parse (XML);
     int nNodes = 0;
     for (final IXdmNode aNode : _allNodes (aDoc))
@@ -114,7 +117,7 @@ public final class XdmLocationsTest
     assertEquals (10, nNodes);
 
     // The same tree otherwise: the same values in the same order
-    final Deque <IXdmNode> aLocated = _allNodes (new XdmParser ().parse (XML));
+    final Deque <IXdmNode> aLocated = _allNodes (new XdmParser ().setRecordLocations (true).parse (XML));
     for (final IXdmNode aNode : _allNodes (aDoc))
     {
       final IXdmNode aOther = aLocated.pop ();
@@ -129,12 +132,19 @@ public final class XdmLocationsTest
   public void testTreeBuilderOption () throws Exception
   {
     final byte [] aBytes = XML.getBytes (StandardCharsets.UTF_8);
-    final XdmTreeBuilder aBuilder = new XdmTreeBuilder (false);
     final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
     aFactory.setNamespaceAware (true);
-    aFactory.newSAXParser ().parse (new ByteArrayInputStream (aBytes), aBuilder);
-    for (final IXdmNode aNode : _allNodes (aBuilder.getDocument ()))
-      assertEquals (0, aNode.getLine ());
+    // Without locations, explicitly and by default
+    for (final XdmTreeBuilder aBuilder : new XdmTreeBuilder [] { new XdmTreeBuilder (false), new XdmTreeBuilder () })
+    {
+      aFactory.newSAXParser ().parse (new ByteArrayInputStream (aBytes), aBuilder);
+      for (final IXdmNode aNode : _allNodes (aBuilder.getDocument ()))
+        assertEquals (0, aNode.getLine ());
+    }
+    final XdmTreeBuilder aLocated = new XdmTreeBuilder (true);
+    aFactory.newSAXParser ().parse (new ByteArrayInputStream (aBytes), aLocated);
+    for (final IXdmNode aNode : _allNodes (aLocated.getDocument ()))
+      assertTrue (aNode.getLine () > 0);
   }
 
   @Test

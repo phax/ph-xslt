@@ -100,12 +100,12 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private final boolean m_bRecordLocations;
 
   /**
-   * A builder that records the location of every node, as
-   * {@link XdmParser#DEFAULT_RECORD_LOCATIONS} does.
+   * A builder that records node locations as
+   * {@link XdmParser#DEFAULT_RECORD_LOCATIONS} says (not by default).
    */
   public XdmTreeBuilder ()
   {
-    this (true);
+    this (XdmParser.DEFAULT_RECORD_LOCATIONS);
   }
 
   /**

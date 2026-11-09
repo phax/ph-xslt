@@ -147,7 +147,7 @@ public final class XdmParserTest
   @Test
   public void testLocation () throws XdmParseException
   {
-    final IXdmNode aA = _parse ("<a>\n  <b/>\n</a>").getChildAtIndex (0);
+    final IXdmNode aA = new XdmParser ().setRecordLocations (true).parse ("<a>\n  <b/>\n</a>").getChildAtIndex (0);
     assertEquals (1, aA.getLine ());
     // The location is the end of the start tag
     assertEquals (2, aA.getChildAtIndex (1).getLine ());

@@ -90,9 +90,11 @@ final class JaxpSources
    * switched on (namespace-prefixes off) where the parser allows it.
    */
   @NonNull
-  private static IXdmNode _parseWithReader (@NonNull final XMLReader aReader, @NonNull final InputSource aInput) throws TransformerException
+  private static IXdmNode _parseWithReader (@NonNull final XMLReader aReader,
+                                            @NonNull final InputSource aInput,
+                                            final boolean bRecordLocations) throws TransformerException
   {
-    final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+    final XdmTreeBuilder aBuilder = new XdmTreeBuilder (bRecordLocations);
     try
     {
       aReader.setFeature (FEATURE_NAMESPACES, true);
@@ -140,11 +142,15 @@ final class JaxpSources
    *         secure processing).
    */
   @NonNull
-  private static IXdmNode _parse (@NonNull final InputSource aInput, final boolean bLoadExternalEntities) throws TransformerException
+  private static IXdmNode _parse (@NonNull final InputSource aInput,
+                                  final boolean bLoadExternalEntities,
+                                  final boolean bRecordLocations) throws TransformerException
   {
     try
     {
-      return new XdmParser ().setLoadExternalEntities (bLoadExternalEntities).parse (aInput);
+      return new XdmParser ().setLoadExternalEntities (bLoadExternalEntities)
+                             .setRecordLocations (bRecordLocations)
+                             .parse (aInput);
     }
     catch (final XdmParseException ex)
     {
@@ -181,7 +187,7 @@ final class JaxpSources
    * <li>{@link StreamSource}: parsed with {@link XdmParser} from its byte
    * stream, character stream or system ID;</li>
    * <li>{@link SAXSource}: with its XML reader if it has one (see
-   * {@link #_parseWithReader(XMLReader, InputSource)}), otherwise parsed
+   * {@link #_parseWithReader(XMLReader, InputSource, boolean)}), otherwise parsed
    * with {@link XdmParser} from its input source;</li>
    * <li>any other source with a system ID: parsed from the system ID.</li>
    * </ul>
@@ -190,13 +196,21 @@ final class JaxpSources
    *        The source.
    * @param bLoadExternalEntities
    *        Whether {@link XdmParser} loads external DTDs and entities.
+   * @param bRecordLocations
+   *        Whether a parsed source gets node locations
+   *        ({@link XdmParser#setRecordLocations(boolean)}): <code>true</code>
+   *        for a stylesheet (error locations, <code>xsl:try</code>),
+   *        <code>false</code> for a source document. A DOM source has no
+   *        locations either way.
    * @return The node: a document node, or for a DOM source the node that
    *         corresponds to the DOM node.
    * @throws TransformerException
    *         if the source cannot be read or is of an unsupported kind
    */
   @NonNull
-  static IXdmNode toXdm (@NonNull final Source aSource, final boolean bLoadExternalEntities) throws TransformerException
+  static IXdmNode toXdm (@NonNull final Source aSource,
+                         final boolean bLoadExternalEntities,
+                         final boolean bRecordLocations) throws TransformerException
   {
     if (aSource instanceof final XdmSource aXdmSource)
       return aXdmSource.getNode ();
@@ -221,7 +235,7 @@ final class JaxpSources
       }
     }
     if (aSource instanceof final StreamSource aStreamSource)
-      return _parse (_toInputSource (aStreamSource), bLoadExternalEntities);
+      return _parse (_toInputSource (aStreamSource), bLoadExternalEntities, bRecordLocations);
     if (aSource instanceof final SAXSource aSAXSource)
     {
       InputSource aInput = aSAXSource.getInputSource ();
@@ -232,11 +246,11 @@ final class JaxpSources
         aInput = new InputSource (aSAXSource.getSystemId ());
       }
       if (aSAXSource.getXMLReader () != null)
-        return _parseWithReader (aSAXSource.getXMLReader (), aInput);
-      return _parse (aInput, bLoadExternalEntities);
+        return _parseWithReader (aSAXSource.getXMLReader (), aInput, bRecordLocations);
+      return _parse (aInput, bLoadExternalEntities, bRecordLocations);
     }
     if (aSource.getSystemId () != null)
-      return _parse (new InputSource (aSource.getSystemId ()), bLoadExternalEntities);
+      return _parse (new InputSource (aSource.getSystemId ()), bLoadExternalEntities, bRecordLocations);
     throw new TransformerException ("Unsupported Source " + aSource.getClass ().getName ());
   }
 }

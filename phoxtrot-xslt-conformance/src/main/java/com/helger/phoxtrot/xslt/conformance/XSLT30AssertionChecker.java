@@ -206,7 +206,7 @@ public final class XSLT30AssertionChecker
   {
     try
     {
-      return new XdmParser ().parse (sXml);
+      return new XdmParser ().setRecordLocations (false).parse (sXml);
     }
     catch (final XdmParseException ex)
     {

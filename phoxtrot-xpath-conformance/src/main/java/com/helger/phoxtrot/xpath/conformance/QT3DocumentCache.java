@@ -71,7 +71,7 @@ public final class QT3DocumentCache
     }
     try
     {
-      final IXdmNode aDoc = new XdmParser ().parse (aFile);
+      final IXdmNode aDoc = new XdmParser ().setRecordLocations (false).parse (aFile);
       m_aDocs.put (aFile, aDoc);
       return aDoc;
     }
@@ -110,7 +110,7 @@ public final class QT3DocumentCache
     }
     try
     {
-      final IXdmNode aDoc = new XdmParser ().setSchemaSet (aSchemaSet).parse (aFile);
+      final IXdmNode aDoc = new XdmParser ().setRecordLocations (false).setSchemaSet (aSchemaSet).parse (aFile);
       m_aValidatedDocs.put (sKey, aDoc);
       return aDoc;
     }
