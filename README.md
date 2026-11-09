@@ -12,7 +12,9 @@ Status: work in progress. The XPath 3.1 engine runs and passes 99.7% of the appl
 processor (8,640 of 8,647). The native XML Schema validator passes 99.99% of the applicable W3C xsdtests cases for
 XSD 1.0 (39,396 of 39,401) and XSD 1.1 (41,596 of 41,600). Schema-awareness and streaming are available as opt-ins
 (streaming: the streamability analysis, streamed execution of guaranteed-streamable constructs and output written while
-it is built); backwards compatibility is not done yet.
+it is built). XSLT 1.0 stylesheets run with backwards compatible behaviour (claimed by default; 8,752 of 8,762 cases
+with the claim), with the EXSLT - Common functions `exsl:node-set` and `exsl:object-type`. A JAXP
+`TransformerFactory` and a W3C DOM bridge are included.
 See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Modules

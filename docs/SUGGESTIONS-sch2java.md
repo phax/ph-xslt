@@ -102,6 +102,8 @@ with the instruction's module URI, line and match pattern, and no cost when not 
 
 ### S16 - XSLT 1.0 backwards compatible mode
 
+Status: done (2026-11-09): XSLT 1.0 backwards compatible processing, claimed by default (`XsltCompileOptions.setBackwardsCompatibleClaim`), plus EXSLT - Common (`exsl:node-set`, `exsl:object-type`).
+
 Open in `PLAN.md` X3. The ISO pipeline creates XSLT 2.0, so the plan does not need it. Prebuilt Schematron XSLT files
 are often XSLT 1.0 (`iso_svrl_for_xslt1`) and today run with XPath 3.1 semantics, e.g. XPTY0004 where XSLT 1.0 takes
 the first node. This mode is the precondition for a phoxtrot variant of ph-schematron's prebuilt-XSLT engine.

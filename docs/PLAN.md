@@ -23,7 +23,7 @@ Decisions:
 | 6 | QT3 harness, triage, accepted-failures file | `test/conformance/qt3_test.go` | done |
 | X1 | XSLT: XSLT30 harness (`phoxtrot-xslt-conformance`), match patterns (`phoxtrot-xpath` `pattern`), core compiler and engine with the basic instructions (`phoxtrot-xslt`) | `xslt30_test.go`, `pattern*.go`, `compile.go`, `transform.go`, `modes.go`, `loader.go`, `avt.go` | done |
 | X2 | XSLT instruction families and XSLT functions (number, grouping, merge, iterate, try/catch, result-document, accumulators, evaluate, keys, ...) | `instr_*.go`, `functions.go` | done |
-| X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform`, schema-awareness (native validator, opt-in), streaming (opt-in claim) and the JAXP adapter (`com.helger.phoxtrot.xslt.jaxp`, 2026-11-09) done; backwards compatibility open |
+| X3 | Packages, `fn:transform`, backwards compatibility, streaming, schema-awareness (Xerces-J vs. own XSD), JAXP `TransformerFactory` | `packages.go`, `fn_transform.go`, `stream_*.go`, ... | packages, `fn:transform`, schema-awareness (native validator, opt-in), streaming (opt-in claim) and the JAXP adapter (`com.helger.phoxtrot.xslt.jaxp`, 2026-11-09) and backwards compatibility (claimed by default, 2026-11-09; `xslt30-backwards.md`) done |
 
 XSLT30 status (2026-11-04, after the open cases `function-lookup-005`/`006` and `glob-cxt-item-010`): 8,640 of 8,647
 applicable cases pass (99.9%) as a basic processor, identical on JDK 21 and 25; all 7 fails are documented in
@@ -580,4 +580,14 @@ shared `TreeStamp`, `m_eIDKind` and the namespace nodes in `Details`, short attr
 another 15 to 25 %; the gap to Saxon's TinyTree 1.6 to 5.0 times. `EXsltThreading` (`NEW_THREAD` default,
 `THREAD_POOL`, `CALLING_THREAD`) on `XsltCompileOptions` and `XsltTransformRequest`: a 1 KB transform 48.7 µs on a new
 thread, 15.3 µs on the pool, 11.8 µs on the calling thread (8 threads: 237, 42, 22 µs). Gate unchanged.
+
+## Backwards compatibility and EXSLT (2026-11-09)
+
+Done. XSLT 3.0 sections 3.9 and 27.4: `XsltCompileOptions.setBackwardsCompatibleClaim` (default on; the XSLT30 harness
+sets it explicitly), elements with an effective version below 2.0 get XPath 1.0 compatibility mode and the XSLT 1.0
+behaviours of section 3.9.1; without the claim such an instruction raises XTDE0160 when evaluated. `fn:transform`
+honours the requested property `xsl:supports-backwards-compatibility`. Harness: `-Dxslt30.backwardsCompatible=true`,
+8,752 of 8,762 cases (`xslt30-backwards.md`: the 7 of the default run, `docbook-001` needs the unstable extension
+element `exsl:document`, two cases expect NaN for `round(())` against XPath 3.1 section 3.1.5.2). EXSLT - Common:
+`exsl:node-set` and `exsl:object-type` (`ExsltCommon`); no other EXSLT module.
 
