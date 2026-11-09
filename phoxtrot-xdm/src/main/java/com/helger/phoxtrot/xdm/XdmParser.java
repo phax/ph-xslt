@@ -275,9 +275,10 @@ public class XdmParser
 
   /**
    * Decide whether the nodes get the line and column the parser reports
-   * (see {@link IXdmNode#getLine()}). Without, every element, attribute,
-   * text, comment and processing instruction node is 8 bytes smaller, which
-   * saves 7 to 9 % of a typical tree; the locations are then 0. Switch it
+   * (see {@link IXdmNode#getLine()}). Only elements, comments and processing
+   * instructions have location fields (attributes and text nodes report the
+   * location of their parent); without, each of them is 8 bytes smaller and
+   * all locations are 0. Switch it
    * off for input documents whose node locations nobody reads: they are used
    * in the error messages of stylesheets and schemas, by
    * <code>xsl:try</code>, and for the line of instance validation errors of

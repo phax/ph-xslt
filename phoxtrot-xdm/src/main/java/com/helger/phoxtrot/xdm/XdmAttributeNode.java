@@ -29,7 +29,7 @@ import com.helger.base.enforce.ValueEnforcer;
  * @author Philip Helger
  */
 @NotThreadSafe
-public sealed class XdmAttributeNode extends AbstractXdmValueNode
+public final class XdmAttributeNode extends AbstractXdmValueNode
 {
   private final XdmQName m_aName;
   // Only set on nodes of a schema-validated tree; shared between nodes
@@ -72,6 +72,32 @@ public sealed class XdmAttributeNode extends AbstractXdmValueNode
     internalSetIDKind (eIDKind);
   }
 
+  /**
+   * An attribute has no location fields: with a parent element it reports the
+   * line of that element (the SAX location of an attribute is the one of its
+   * start tag anyway), without a parent the line kept in the details holder
+   * ({@link #setLocation(int, int)}), 0 if none was set.
+   */
+  @Override
+  @Nonnegative
+  public int getLine ()
+  {
+    final AbstractXdmNode aParent = getParent ();
+    return aParent != null ? aParent.getLine () : super.getLine ();
+  }
+
+  /**
+   * Like {@link #getLine()}: the column of the parent element, or without a
+   * parent the column kept in the details holder.
+   */
+  @Override
+  @Nonnegative
+  public int getColumn ()
+  {
+    final AbstractXdmNode aParent = getParent ();
+    return aParent != null ? aParent.getColumn () : super.getColumn ();
+  }
+
   @Override
   @Nullable
   public XdmSchemaType getSchemaType ()
@@ -83,45 +109,5 @@ public sealed class XdmAttributeNode extends AbstractXdmValueNode
   public void setSchemaType (@Nullable final XdmSchemaType aSchemaType)
   {
     m_aSchemaType = aSchemaType;
-  }
-
-  /**
-   * An attribute with the location of its source, created by the tree builders
-   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
-   * and by the factories of {@link IXdmNode} that take a location. The
-   * location is kept in two fields of its own instead of the details holder.
-   */
-  static final class Located extends XdmAttributeNode
-  {
-    private int m_nLine;
-    private int m_nColumn;
-
-    Located (@NonNull final XdmQName aName, @NonNull final String sValue, @Nonnegative final int nLine, @Nonnegative final int nColumn)
-    {
-      super (aName, sValue);
-      m_nLine = nLine;
-      m_nColumn = nColumn;
-    }
-
-    @Override
-    @Nonnegative
-    public int getLine ()
-    {
-      return m_nLine;
-    }
-
-    @Override
-    @Nonnegative
-    public int getColumn ()
-    {
-      return m_nColumn;
-    }
-
-    @Override
-    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
-    {
-      m_nLine = nLine;
-      m_nColumn = nColumn;
-    }
   }
 }

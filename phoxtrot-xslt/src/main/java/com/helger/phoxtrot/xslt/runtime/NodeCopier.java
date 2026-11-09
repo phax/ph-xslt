@@ -60,40 +60,13 @@ public final class NodeCopier
   @NonNull
   public static IXdmNode createAttribute (@NonNull final XdmQName aName, @NonNull final String sValue)
   {
-    return createAttribute (aName, sValue, 0, 0);
-  }
-
-  /**
-   * Like {@link #createAttribute(XdmQName, String)}, for a copy that keeps
-   * the location of its original
-   * ({@link IXdmNode#createAttribute(XdmQName, String, int, int)}).
-   *
-   * @param aName
-   *        Name.
-   * @param sValue
-   *        Value.
-   * @param nLine
-   *        The line in the source, 0 if unknown.
-   * @param nColumn
-   *        The column in the source, 0 if unknown.
-   * @return The new attribute.
-   */
-  @NonNull
-  public static IXdmNode createAttribute (@NonNull final XdmQName aName,
-                                          @NonNull final String sValue,
-                                          final int nLine,
-                                          final int nColumn)
-  {
     if (aName.isSameName (XdmConstants.NS_XML, "id"))
     {
-      final IXdmNode ret = IXdmNode.createAttribute (aName,
-                                                     sValue.trim ().replaceAll ("[ \\t\\r\\n]+", " "),
-                                                     nLine,
-                                                     nColumn);
+      final IXdmNode ret = IXdmNode.createAttribute (aName, sValue.trim ().replaceAll ("[ \\t\\r\\n]+", " "));
       ret.setIDKind (EIDKind.ID);
       return ret;
     }
-    return IXdmNode.createAttribute (aName, sValue, nLine, nColumn);
+    return IXdmNode.createAttribute (aName, sValue);
   }
 
   /**

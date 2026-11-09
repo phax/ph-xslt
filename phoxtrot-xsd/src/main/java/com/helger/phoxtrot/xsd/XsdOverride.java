@@ -82,9 +82,10 @@ final class XsdOverride
 
   /**
    * Copy one node without its children: an element with its name, declared
-   * namespaces and attributes (with their locations), or a text, comment or
-   * processing instruction node with its value. The copy keeps the location
-   * of the source.
+   * namespaces and attributes, or a text, comment or processing instruction
+   * node with its value. An element, comment or processing instruction copy
+   * keeps the location of the source; attribute and text copies report the
+   * location of the element they are added to.
    *
    * @param aSrc
    *        The node to copy.
@@ -104,15 +105,14 @@ final class XsdOverride
           ret.declareNamespace (aEntry.getKey (), aEntry.getValue ());
         for (final IXdmNode aAttr : aSrc.getAllAttributes ())
         {
-          final IXdmNode aAttrCopy = IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
-          aAttrCopy.setLocation (aAttr.getLine (), aAttr.getColumn ());
-          ret.addAttribute (aAttrCopy);
+          // The copy reports the location of its element
+          ret.addAttribute (IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ()));
         }
         break;
       }
       case TEXT:
-        ret = IXdmNode.createText (aSrc.getValue ());
-        break;
+        // The copy is appended to a copied element, whose location it reports
+        return IXdmNode.createText (aSrc.getValue ());
       case COMMENT:
         ret = IXdmNode.createComment (aSrc.getValue ());
         break;

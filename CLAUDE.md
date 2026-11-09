@@ -28,10 +28,13 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Traversals over input-controlled structure are iterative or depth-limited, never unbounded recursion.
 - Nodes are `IXdmNode` (own model, built from JDK SAX; one implementation class per node kind below the sealed
   `AbstractXdmNode`). Do not switch to DOM or IMicroDom as the model.
-- Node locations: element, attribute, text, comment and PI have a nested `Located` subclass with line and column
-  fields, created by the tree builders when they record locations (`XdmParser.setRecordLocations`, default on) and by
-  the `IXdmNode.create*` factories that take a location; any other node keeps a set location in its `Details` holder.
-  A copy that must keep its original's location uses those factories, not `setLocation` (one holder per node).
+- Node locations: element, comment and PI have a nested `Located` subclass with line and column fields, created by
+  the tree builders when they record locations (`XdmParser.setRecordLocations`, default on) and by
+  `IXdmNode.createElement (name, line, column)`; any other node keeps a set location in its `Details` holder.
+  Attribute and text nodes have no location of their own: with a parent they report the parent's (`getLine`/
+  `getColumn`), only a parentless one reports what `setLocation` or the `createAttribute`/`createText` factories with
+  a location put in its holder. An element copy that must keep its original's location uses `createElement` with the
+  location, not `setLocation` (one holder per node); attribute and text copies added to a copy take no location.
   Stylesheet, schema and XSD instance parses (error locations, `xsl:try`, XSD error lines) set it on explicitly.
 - Document order: `getOrder ()`/`getEndOrder ()` (end = last node of the subtree, attributes included); a document node
   has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children)

@@ -212,11 +212,10 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
         IXdmNode aOrigAttr = aOrig.getAttribute (aName.namespaceUri (), aName.localName ());
         if (aOrigAttr == null)
         {
-          // A default attribute added by the schema
+          // A default attribute added by the schema; it reports the
+          // location of its element
           if (bDocument)
-          {
-            aOrigAttr = IXdmNode.createAttribute (aName, aCopyAttr.getValue (), aOrig.getLine (), aOrig.getColumn ());
-          }
+            aOrigAttr = IXdmNode.createAttribute (aName, aCopyAttr.getValue ());
           else
             aOrigAttr = IXdmNode.createAttribute (_fixupAttributeName (aOrig, aName), aCopyAttr.getValue ());
           aOrig.addAttribute (aOrigAttr);

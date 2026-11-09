@@ -34,8 +34,9 @@ import com.helger.collection.commons.ICommonsList;
  * SAX2 handler that builds an {@link IXdmNode} tree. Adjacent character events
  * are merged into one text node, comments inside the DTD are dropped and the
  * location of an element (if locations are recorded) is the position the
- * parser reports at the end of its start tag; a text node gets the position reported with its first character
- * event. DTD attribute types ID, IDREF and IDREFS are recorded, and the
+ * parser reports at the end of its start tag, which its attributes and text
+ * children report as well (they have no location of their own); comments and
+ * processing instructions get the position reported with their event. DTD attribute types ID, IDREF and IDREFS are recorded, and the
  * value of such an attribute as well as of <code>xml:id</code> is normalised
  * like a tokenised attribute (XDM 3.1 section 6.3.3). Schema information is
  * added afterwards, by {@link com.helger.phoxtrot.xdm.schema.IXdmSchemaSet}.
@@ -73,9 +74,6 @@ public final class XdmTreeBuilder extends DefaultHandler2
   // The shared short attribute values, by the low bits of their hash code;
   // created on first use
   private String [] m_aSharedValues;
-  // Location of the first character event of the pending text
-  private int m_nTextLine;
-  private int m_nTextColumn;
   private Locator m_aLocator;
   private XdmDocumentNode m_aDocument;
   private AbstractXdmParentNode m_aCurrent;
@@ -112,8 +110,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
 
   /**
    * @param bRecordLocations
-   *        <code>true</code> to give every node the location the parser
-   *        reports (8 bytes more per node), <code>false</code> to build the
+   *        <code>true</code> to give every element, comment and processing
+   *        instruction the location the parser reports (8 bytes more per such
+   *        node; attributes and text nodes report the location of their
+   *        parent), <code>false</code> to build the
    *        nodes without location: {@link IXdmNode#getLine()} and
    *        {@link IXdmNode#getColumn()} are then 0.
    */
@@ -161,8 +161,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
 
   /**
    * Append the character data collected since the last node as one text node
-   * to the current node, with the location of its first character event, and
-   * clear the buffer. Nothing happens if no character data is pending, so no
+   * to the current node and clear the buffer. Nothing happens if no character data is pending, so no
    * empty text node is ever created.
    */
   private void _flushText ()
@@ -181,9 +180,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
       }
       else
         return;
-    final XdmTextNode aText = _isLocated () ? new XdmTextNode.Located (sValue, m_nTextLine, m_nTextColumn)
-                                            : new XdmTextNode (sValue);
-    _append (aText);
+    _append (new XdmTextNode (sValue));
   }
 
   /**
@@ -549,8 +546,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
       if (eIDKind == EIDKind.NONE && aAttrName.isSameName (XdmConstants.NS_XML, "id"))
         eIDKind = EIDKind.ID;
       final String sAttrValue = eIDKind == EIDKind.NONE ? sValue : normaliseTokenised (sValue);
-      final XdmAttributeNode aAttr = bLocated ? new XdmAttributeNode.Located (aAttrName, sAttrValue, nLine, nColumn)
-                                              : new XdmAttributeNode (aAttrName, sAttrValue);
+      // An attribute reports the location of its element
+      final XdmAttributeNode aAttr = new XdmAttributeNode (aAttrName, sAttrValue);
       aAttr.setIDKind (eIDKind);
       m_aAttrBuffer[nAttrCount++] = aAttr;
     }
@@ -586,8 +583,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Collect character data for the next text node; the location of the first
-   * event after a flush becomes the location of that node. The text of the
+   * Collect character data for the next text node. The text of the
    * first event is kept as a string (shared for indentation, see
    * {@link #_getText(char[], int, int)}); only a second event merges the text
    * in a buffer. An event without characters is ignored.
@@ -600,11 +596,6 @@ public final class XdmTreeBuilder extends DefaultHandler2
     if (m_sText == null && m_aText.isEmpty ())
     {
       // The first event of a text node: most text nodes have only one
-      if (_isLocated ())
-      {
-        m_nTextLine = m_aLocator.getLineNumber ();
-        m_nTextColumn = m_aLocator.getColumnNumber ();
-      }
       m_sText = _getText (aChars, nStart, nLength);
     }
     else

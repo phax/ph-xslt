@@ -31,7 +31,7 @@ import com.helger.base.enforce.ValueEnforcer;
  * @author Philip Helger
  */
 @NotThreadSafe
-public sealed class XdmTextNode extends AbstractXdmValueNode
+public final class XdmTextNode extends AbstractXdmValueNode
 {
   // Guards joining the pending text of all text nodes (one lock per node would
   // cost memory on every node)
@@ -106,49 +106,35 @@ public sealed class XdmTextNode extends AbstractXdmValueNode
     });
   }
 
+  /**
+   * A text node has no location fields: with a parent it reports the line of
+   * the parent (the element that contains the text), without a parent the
+   * line kept in the details holder ({@link #setLocation(int, int)}), 0 if
+   * none was set.
+   */
+  @Override
+  @Nonnegative
+  public int getLine ()
+  {
+    final AbstractXdmNode aParent = getParent ();
+    return aParent != null ? aParent.getLine () : super.getLine ();
+  }
+
+  /**
+   * Like {@link #getLine()}: the column of the parent, or without a parent
+   * the column kept in the details holder.
+   */
+  @Override
+  @Nonnegative
+  public int getColumn ()
+  {
+    final AbstractXdmNode aParent = getParent ();
+    return aParent != null ? aParent.getColumn () : super.getColumn ();
+  }
+
   @NonNull
   public ENodeKind getKind ()
   {
     return ENodeKind.TEXT;
-  }
-
-  /**
-   * A text node with the location of its source, created by the tree builders
-   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
-   * and by the factories of {@link IXdmNode} that take a location. The
-   * location is kept in two fields of its own instead of the details holder.
-   */
-  static final class Located extends XdmTextNode
-  {
-    private int m_nLine;
-    private int m_nColumn;
-
-    Located (@NonNull final String sValue, @Nonnegative final int nLine, @Nonnegative final int nColumn)
-    {
-      super (sValue);
-      m_nLine = nLine;
-      m_nColumn = nColumn;
-    }
-
-    @Override
-    @Nonnegative
-    public int getLine ()
-    {
-      return m_nLine;
-    }
-
-    @Override
-    @Nonnegative
-    public int getColumn ()
-    {
-      return m_nColumn;
-    }
-
-    @Override
-    public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
-    {
-      m_nLine = nLine;
-      m_nColumn = nColumn;
-    }
   }
 }
