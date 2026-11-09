@@ -26,7 +26,10 @@ import com.helger.base.enforce.ValueEnforcer;
 /**
  * A text node. While a tree is built, text can be appended in pieces with
  * {@link #appendValue(String)}; the pieces are joined once, when the value is
- * read, so building a long text from many pieces stays linear.
+ * read, so building a long text from many pieces stays linear. The pieces are
+ * collected in a {@link StringBuilder} that takes the place of the value in
+ * the value field until they are joined, so a text node needs no field of its
+ * own for them.
  *
  * @author Philip Helger
  */
@@ -37,34 +40,42 @@ public final class XdmTextNode extends AbstractXdmValueNode
   // cost memory on every node)
   private static final SimpleReadWriteLock PENDING_TEXT_LOCK = new SimpleReadWriteLock ();
 
-  // Appended text not yet part of the value; null if there is none
-  private volatile StringBuilder m_aPendingText;
-
   XdmTextNode (@NonNull final String sValue)
   {
     super (sValue);
   }
 
   /**
-   * Move the text appended with {@link #appendValue(String)} into the value,
-   * under the lock shared by all text nodes. A no-op without pending text.
+   * Replace a {@link StringBuilder} in the value field by its text, under the
+   * lock shared by all text nodes. Readers of a finished tree may call this
+   * concurrently: the field is read once outside the lock, and a
+   * {@link String} seen there is safe to use without the lock (its fields are
+   * final); a builder is only read under the lock, where the first reader
+   * replaces it and every later one sees the string.
+   *
+   * @return The complete value.
    */
-  private void _joinPendingText ()
+  @NonNull
+  private String _joinPendingText ()
   {
-    if (m_aPendingText != null)
-      PENDING_TEXT_LOCK.writeLocked ( () -> {
-        final StringBuilder aPending = m_aPendingText;
-        if (aPending != null)
-        {
-          super.setValue (super.getValue () + aPending);
-          m_aPendingText = null;
-        }
-      });
+    final Object aValue = internalGetRawValue ();
+    if (aValue instanceof final String sValue)
+      return sValue;
+    return PENDING_TEXT_LOCK.writeLockedGet ( () -> {
+      final Object aCur = internalGetRawValue ();
+      if (aCur instanceof final String sCur)
+        return sCur;
+      final String ret = aCur.toString ();
+      internalSetRawValue (ret);
+      return ret;
+    });
   }
 
   /**
    * Append text to the value, for building a tree only: the call must not
-   * overlap with reading the value from another thread.
+   * overlap with reading the value from another thread. The first append
+   * puts a {@link StringBuilder} with the value and the text into the value
+   * field, later ones append to it.
    *
    * @param sText
    *        The text to append. May not be <code>null</code>.
@@ -74,11 +85,13 @@ public final class XdmTextNode extends AbstractXdmValueNode
     ValueEnforcer.notNull (sText, "Text");
     if (sText.isEmpty ())
       return;
-    final StringBuilder aPending = m_aPendingText;
-    if (aPending == null)
-      m_aPendingText = new StringBuilder (sText);
-    else
+    final Object aValue = internalGetRawValue ();
+    if (aValue instanceof final StringBuilder aPending)
       aPending.append (sText);
+    else
+    {
+      internalSetRawValue (new StringBuilder ((String) aValue).append (sText));
+    }
   }
 
   /**
@@ -89,8 +102,7 @@ public final class XdmTextNode extends AbstractXdmValueNode
   @NonNull
   public String getValue ()
   {
-    _joinPendingText ();
-    return super.getValue ();
+    return _joinPendingText ();
   }
 
   /**
@@ -100,10 +112,13 @@ public final class XdmTextNode extends AbstractXdmValueNode
   public void setValue (@NonNull final String sValue)
   {
     ValueEnforcer.notNull (sValue, "Value");
-    PENDING_TEXT_LOCK.writeLocked ( () -> {
-      m_aPendingText = null;
-      super.setValue (sValue);
-    });
+    PENDING_TEXT_LOCK.writeLocked ( () -> super.setValue (sValue));
+  }
+
+  @NonNull
+  public ENodeKind getKind ()
+  {
+    return ENodeKind.TEXT;
   }
 
   /**
@@ -132,9 +147,4 @@ public final class XdmTextNode extends AbstractXdmValueNode
     return aParent != null ? aParent.getColumn () : super.getColumn ();
   }
 
-  @NonNull
-  public ENodeKind getKind ()
-  {
-    return ENodeKind.TEXT;
-  }
 }
