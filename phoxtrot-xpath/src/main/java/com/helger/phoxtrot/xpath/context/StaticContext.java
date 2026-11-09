@@ -59,6 +59,7 @@ public final class StaticContext
   private String m_sBaseUri;
   private FunctionLibrary m_aFunctions = FunctionLibrary.getDefault ();
   private boolean m_bXPath10Compatibility = false;
+  private String m_sUnknownFunctionErrorCode;
   private boolean m_bStaticTyping = false;
   private String m_sDefaultCollation = CollationRegistry.CODEPOINT_URI;
   private FormatDecimalFormat m_aDefaultDecimalFormat = FormatDecimalFormat.DEFAULT;
@@ -240,6 +241,40 @@ public final class StaticContext
   public StaticContext setXPath10Compatibility (final boolean bXPath10Compatibility)
   {
     m_bXPath10Compatibility = bXPath10Compatibility;
+    return this;
+  }
+
+  /**
+   * @return The error code of the fallback error function of a host language,
+   *         or <code>null</code> (the default) if a static call of an unknown
+   *         function is the static error XPST0017. See
+   *         {@link #setUnknownFunctionErrorCode(String)}.
+   */
+  @Nullable
+  public String getUnknownFunctionErrorCode ()
+  {
+    return m_sUnknownFunctionErrorCode;
+  }
+
+  /**
+   * Bind the static calls of unknown functions to a fallback error function,
+   * as XSLT 3.0 section 3.9.1 asks for expressions processed with XSLT 1.0
+   * behaviour: a static function call whose name is not in the standard
+   * function namespace (<code>fn</code>) and for which the function library
+   * has no function of that name and arity is then no static error XPST0017;
+   * evaluating it raises a dynamic error with this code (XTDE1425 for XSLT).
+   * Named function references (<code>f#1</code>) and names in the standard
+   * function namespace stay static errors.
+   *
+   * @param sUnknownFunctionErrorCode
+   *        The error code of the fallback error function, or
+   *        <code>null</code> for the XPath rule (XPST0017).
+   * @return this for chaining
+   */
+  @NonNull
+  public StaticContext setUnknownFunctionErrorCode (@Nullable final String sUnknownFunctionErrorCode)
+  {
+    m_sUnknownFunctionErrorCode = sUnknownFunctionErrorCode;
     return this;
   }
 

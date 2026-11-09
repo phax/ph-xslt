@@ -153,6 +153,7 @@ public final class XSLT30CaseRunner
   private final boolean m_bRunUnicodeExcluded;
   private final boolean m_bSchemaAware;
   private final boolean m_bStreaming;
+  private final boolean m_bBackwardsCompatible;
 
   /**
    * @param aCatalog
@@ -242,6 +243,45 @@ public final class XSLT30CaseRunner
                            final boolean bSchemaAware,
                            final boolean bStreaming)
   {
+    this (aCatalog, aCompiler, aCache, aNow, bStrictErrorCodes, bRunUnicodeExcluded, bSchemaAware, bStreaming, false);
+  }
+
+  /**
+   * @param aCatalog
+   *        The catalog (for catalog level environments).
+   * @param aCompiler
+   *        The stylesheet compiler, normally {@link IXSLT30Compiler#ENGINE}.
+   * @param aCache
+   *        The compile cache of the run.
+   * @param aNow
+   *        The current date/time of the run.
+   * @param bStrictErrorCodes
+   *        <code>true</code> to require matching error codes.
+   * @param bRunUnicodeExcluded
+   *        <code>true</code> to run the cases excluded for their Unicode
+   *        version.
+   * @param bSchemaAware
+   *        <code>true</code> to claim schema-awareness, see
+   *        {@link #XSLT30CaseRunner(XSLT30Catalog, IXSLT30Compiler, XSLT30StylesheetCache, OffsetDateTime, boolean, boolean, boolean)}.
+   * @param bStreaming
+   *        <code>true</code> to claim streaming, see
+   *        {@link #XSLT30CaseRunner(XSLT30Catalog, IXSLT30Compiler, XSLT30StylesheetCache, OffsetDateTime, boolean, boolean, boolean, boolean)}.
+   * @param bBackwardsCompatible
+   *        <code>true</code> to claim backwards compatibility: stylesheets are
+   *        compiled with the XSLT 1.0 compatibility feature
+   *        ({@link XsltCompileOptions#setBackwardsCompatibleClaim(boolean)}),
+   *        also in the JAXP check.
+   */
+  public XSLT30CaseRunner (@NonNull final XSLT30Catalog aCatalog,
+                           @NonNull final IXSLT30Compiler aCompiler,
+                           @NonNull final XSLT30StylesheetCache aCache,
+                           @NonNull final OffsetDateTime aNow,
+                           final boolean bStrictErrorCodes,
+                           final boolean bRunUnicodeExcluded,
+                           final boolean bSchemaAware,
+                           final boolean bStreaming,
+                           final boolean bBackwardsCompatible)
+  {
     ValueEnforcer.notNull (aCatalog, "Catalog");
     ValueEnforcer.notNull (aCompiler, "Compiler");
     ValueEnforcer.notNull (aCache, "Cache");
@@ -254,6 +294,7 @@ public final class XSLT30CaseRunner
     m_bRunUnicodeExcluded = bRunUnicodeExcluded;
     m_bSchemaAware = bSchemaAware;
     m_bStreaming = bStreaming;
+    m_bBackwardsCompatible = bBackwardsCompatible;
   }
 
   /**
@@ -425,9 +466,11 @@ public final class XSLT30CaseRunner
    * Run the transformation again through the JAXP adapter and compare: the
    * stylesheet compiled from its URI, the principal source from its file
    * (or as XDM source), the parameters set as XDM values, the documents and
-   * texts of the case given by a URI resolver over the case's resolver.
+   * texts of the case given by a URI resolver over the case's resolver, and
+   * the backwards compatibility claim of the run as factory attribute.
    */
-  private static void _compareJaxp (@NonNull final String sStylesheetUri,
+  private static void _compareJaxp (final boolean bBackwardsCompatible,
+                                    @NonNull final String sStylesheetUri,
                                     @NonNull final IXdmNode aSource,
                                     @Nullable final Path aSourcePath,
                                     @NonNull final XsltTransformRequest aRequest,
@@ -447,6 +490,7 @@ public final class XSLT30CaseRunner
     aTF.setURIResolver (aURIResolver);
     aTF.setErrorListener (QUIET_ERROR_LISTENER);
     aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_LOAD_EXTERNAL_ENTITIES, Boolean.TRUE);
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_BACKWARDS_COMPATIBLE, Boolean.valueOf (bBackwardsCompatible));
     aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MESSAGE_LISTENER, (IXsltMessageListener) aMessage -> {});
     final StringWriter aSW = new StringWriter ();
     String sCode = null;
@@ -692,6 +736,8 @@ public final class XSLT30CaseRunner
       }
       if (m_bStreaming)
         aOptions.setStreamingClaim (true).setEnforceStreamability (true);
+      if (m_bBackwardsCompatible)
+        aOptions.setBackwardsCompatibleClaim (true);
       for (final XSLT30Param aParam : aStaticParams.values ())
         aOptions.setStaticParam (aParam.name (), _evaluateParam (aParam, null, aResolver, sBaseUri));
       if (bEmbedded)
@@ -940,13 +986,20 @@ public final class XSLT30CaseRunner
       if (WRITE_TO)
         _compareWriteTo (aExecutable, aRequest, null, ex.getCode ());
       if (bJaxp)
-        _compareJaxp (sBaseUri, aSource, aStreamablePath, aRequest, aResolver, null, ex.getCode ());
+        _compareJaxp (m_bBackwardsCompatible, sBaseUri, aSource, aStreamablePath, aRequest, aResolver, null, ex.getCode ());
       throw ex;
     }
     if (WRITE_TO && !aRequest.isRawDelivery ())
       _compareWriteTo (aExecutable, aRequest, aResult.principalSerialized (), null);
     if (bJaxp)
-      _compareJaxp (sBaseUri, aSource, aStreamablePath, aRequest, aResolver, aResult.principalSerialized (), null);
+      _compareJaxp (m_bBackwardsCompatible,
+                    sBaseUri,
+                    aSource,
+                    aStreamablePath,
+                    aRequest,
+                    aResolver,
+                    aResult.principalSerialized (),
+                    null);
     return XSLT30Actual.ofResult (aResult,
                                   aFunction != null || (aOutput != null && "no".equals (aOutput.tree ())),
                                   sResultVar,
@@ -987,7 +1040,8 @@ public final class XSLT30CaseRunner
     final String sSkip = XSLT30Dependencies.getSkipReason (aSet.dependencies (),
                                                            aCase.dependencies (),
                                                            m_bSchemaAware,
-                                                           m_bStreaming);
+                                                           m_bStreaming,
+                                                           m_bBackwardsCompatible);
     if (sSkip != null)
       return CaseResult.skip (sSkip);
     if (!m_bRunUnicodeExcluded)

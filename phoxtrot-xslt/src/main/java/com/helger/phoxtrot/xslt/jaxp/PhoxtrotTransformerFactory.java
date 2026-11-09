@@ -94,7 +94,8 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * {@link XMLConstants#ACCESS_EXTERNAL_DTD} (accepted and kept; phoxtrot reads
  * no external DTD unless {@link #ATTR_LOAD_EXTERNAL_ENTITIES} is set), and
  * the phoxtrot attributes {@link #ATTR_LOAD_EXTERNAL_ENTITIES},
- * {@link #ATTR_SCHEMA_AWARE}, {@link #ATTR_MESSAGE_LISTENER} and
+ * {@link #ATTR_SCHEMA_AWARE}, {@link #ATTR_BACKWARDS_COMPATIBLE},
+ * {@link #ATTR_MESSAGE_LISTENER} and
  * {@link #ATTR_MAX_STEPS}. Other names are rejected.</li>
  * </ul>
  *
@@ -117,6 +118,14 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
    * {@link XsltCompileOptions#setSchemaAware(boolean)}).
    */
   public static final String ATTR_SCHEMA_AWARE = ATTR_PREFIX + "schema-aware";
+  /**
+   * Attribute ({@link Boolean} or "true"/"false"): compile stylesheets with
+   * the XSLT 1.0 compatibility feature, so that elements with an effective
+   * version below 2.0 are processed with XSLT 1.0 behaviour instead of raising
+   * XTDE0160 (default <code>false</code>, see
+   * {@link XsltCompileOptions#setBackwardsCompatibleClaim(boolean)}).
+   */
+  public static final String ATTR_BACKWARDS_COMPATIBLE = ATTR_PREFIX + "backwards-compatible";
   /**
    * Attribute ({@link IXsltMessageListener} or <code>null</code>): the
    * initial message listener of the transformers, which then receives
@@ -154,6 +163,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   private String m_sAccessExternalDtd = DEFAULT_ACCESS_EXTERNAL;
   private boolean m_bLoadExternalEntities = XdmParser.DEFAULT_LOAD_EXTERNAL_ENTITIES;
   private boolean m_bSchemaAware = XsltCompileOptions.DEFAULT_SCHEMA_AWARE;
+  private boolean m_bBackwardsCompatible = XsltCompileOptions.DEFAULT_BACKWARDS_COMPATIBLE_CLAIM;
   private IXsltMessageListener m_aMessageListener;
   private long m_nMaxSteps = 0;
 
@@ -209,7 +219,8 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
                                                                                                          m_sAccessExternalStylesheet,
                                                                                                          m_bLoadExternalEntities))
                                                                  .setLoadExternalEntities (m_bLoadExternalEntities)
-                                                                 .setSchemaAware (m_bSchemaAware);
+                                                                 .setSchemaAware (m_bSchemaAware)
+                                                                 .setBackwardsCompatibleClaim (m_bBackwardsCompatible);
     final XsltExecutable aExecutable;
     try
     {
@@ -469,6 +480,9 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
       case ATTR_SCHEMA_AWARE:
         m_bSchemaAware = _toBoolean (sName, aValue);
         break;
+      case ATTR_BACKWARDS_COMPATIBLE:
+        m_bBackwardsCompatible = _toBoolean (sName, aValue);
+        break;
       case ATTR_MESSAGE_LISTENER:
       {
         if (aValue != null && !(aValue instanceof IXsltMessageListener))
@@ -519,6 +533,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
       case XMLConstants.ACCESS_EXTERNAL_DTD -> m_sAccessExternalDtd;
       case ATTR_LOAD_EXTERNAL_ENTITIES -> Boolean.valueOf (m_bLoadExternalEntities);
       case ATTR_SCHEMA_AWARE -> Boolean.valueOf (m_bSchemaAware);
+      case ATTR_BACKWARDS_COMPATIBLE -> Boolean.valueOf (m_bBackwardsCompatible);
       case ATTR_MESSAGE_LISTENER -> m_aMessageListener;
       case ATTR_MAX_STEPS -> Long.valueOf (m_nMaxSteps);
       default -> throw new IllegalArgumentException ("The attribute '" + sName + "' is not supported");

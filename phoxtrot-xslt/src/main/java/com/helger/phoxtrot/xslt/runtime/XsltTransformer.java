@@ -151,17 +151,23 @@ public final class XsltTransformer
    * tree: the first element child of the document node decides if no text
    * node with non-whitespace content comes before it (XSLT 3.0 section 26.1).
    * The local name "html" in any case gives the html method in no namespace,
-   * the lower-case "html" in the XHTML namespace gives the xhtml method;
-   * everything else (another element, a
-   * non-whitespace text before it, no element at all, no tree) gives xml.
+   * the lower-case "html" in the XHTML namespace gives the xhtml method,
+   * unless the tree is the implicit principal result of a stylesheet whose
+   * principal module has an outermost element with effective version 1.0
+   * (any value below 2.0, see {@link XslElement#isXslt10Version()}), which
+   * gives xml; everything else (another element, a non-whitespace text
+   * before it, no element at all, no tree) gives xml.
    *
    * @param aTree
    *        The result document node, or <code>null</code> if no tree was
    *        built.
+   * @param bXhtmlAllowed
+   *        <code>false</code> for the implicit principal result of a
+   *        stylesheet with version 1.0.
    * @return The method name, never <code>null</code>.
    */
   @NonNull
-  private static String _detectMethod (@Nullable final IXdmNode aTree)
+  private static String _detectMethod (@Nullable final IXdmNode aTree, final boolean bXhtmlAllowed)
   {
     if (aTree != null)
       for (int i = 0; i < aTree.getChildCount (); ++i)
@@ -172,7 +178,7 @@ public final class XsltTransformer
           final XdmQName aName = aChild.getName ();
           if (!aName.hasNamespace () && "html".equals (aName.localName ().toLowerCase (Locale.ROOT)))
             return SerializationParams.METHOD_HTML;
-          if (NS_XHTML.equals (aName.namespaceUri ()) && "html".equals (aName.localName ()))
+          if (NS_XHTML.equals (aName.namespaceUri ()) && "html".equals (aName.localName ()) && bXhtmlAllowed)
             return SerializationParams.METHOD_XHTML;
           return SerializationParams.METHOD_XML;
         }
@@ -701,7 +707,7 @@ public final class XsltTransformer
    * (and there is no target), a result tree is built if build-tree allows
    * (SENR0001 for attributes, namespaces, maps and functions at the top
    * level); the method comes from the definition or
-   * {@link #_detectMethod(IXdmNode)}; and the tree (or the raw sequence, with
+   * {@link #_detectMethod(IXdmNode, boolean)}; and the tree (or the raw sequence, with
    * an item-separator or without a tree) is serialised to the target or a
    * string.</li>
    * </ol>
@@ -907,7 +913,13 @@ public final class XsltTransformer
     }
     else
       aRaw = aBuffer.getSequence ();
-    final String sMethod = sDeclaredMethod != null ? sDeclaredMethod : _detectMethod (aTree);
+    // XSLT 3.0 section 26.1: the implicit result of a 1.0 stylesheet is never
+    // xhtml by default
+    final XslElement aPrincipalRoot = m_aSheet.getPrincipalModule ().getRoot ();
+    final boolean bXhtmlAllowed = aEngine.getPrincipalOutputDefinition () != null ||
+                                  aPrincipalRoot == null ||
+                                  !aPrincipalRoot.isXslt10Version ();
+    final String sMethod = sDeclaredMethod != null ? sDeclaredMethod : _detectMethod (aTree, bXhtmlAllowed);
     if (bRawOnly)
       return new XsltTransformResult (aRaw,
                                       null,

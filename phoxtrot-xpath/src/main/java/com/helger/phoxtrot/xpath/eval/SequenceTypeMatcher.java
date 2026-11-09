@@ -1083,14 +1083,18 @@ public final class SequenceTypeMatcher
   /**
    * The XPath 1.0 compatibility mode conversions (XPath 3.1 section 3.1.5.2),
    * applied to a value that is not of the expected type: the first item for a
-   * single item type, then fn:string for xs:string and fn:number for xs:double
-   * (and xs:numeric, whose members include xs:double).
+   * single item type, then fn:string for xs:string or xs:string? and fn:number
+   * for xs:double or xs:double? (and xs:numeric, whose members include
+   * xs:double). A sequence type that allows several items (such as the
+   * xs:string* of fn:id) gets neither.
    */
   @NonNull
   private static XdmSequence _applyXPath10Conversions (@NonNull final XdmSequence aSeq, @NonNull final SeqType aType)
   {
+    if (aType.occurrence ().allowsMany ())
+      return aSeq;
     XdmSequence ret = aSeq;
-    if (!aType.occurrence ().allowsMany () && ret.size () > 1)
+    if (ret.size () > 1)
       ret = XdmSequence.of (ret.getFirst ());
     if (aType.itemType ().kind () == ItemType.Kind.ATOMIC)
     {

@@ -55,9 +55,15 @@ import com.helger.collection.commons.ICommonsList;
  * <li><code>xslt30.streaming=true</code> - claim streaming (out dir
  * <code>target/streaming</code>, accepted failures
  * {@value #DEFAULT_ACCEPTED_FILE_STREAMING})</li>
+ * <li><code>xslt30.backwardsCompatible=true</code> - claim backwards
+ * compatibility, the XSLT 1.0 compatibility feature (out dir
+ * <code>target/backwards</code>, accepted failures
+ * {@value #DEFAULT_ACCEPTED_FILE_BACKWARDS})</li>
  * </ul>
- * Both claims together write to <code>target/schema-aware-streaming</code>.
- * That combination has no accepted-failures file of its own and is not a
+ * Schema-awareness and streaming together write to
+ * <code>target/schema-aware-streaming</code>; backwards compatibility with
+ * one or both of the others appends <code>-backwards</code> to their out dir.
+ * These combinations have no accepted-failures file of their own and are no
  * gate, so <code>xslt30.checkAccepted</code> is off by default there; it can
  * be switched on together with <code>xslt30.accepted</code>.
  *
@@ -87,6 +93,8 @@ import com.helger.collection.commons.ICommonsList;
  *        Claim schema-awareness.
  * @param streaming
  *        Claim streaming.
+ * @param backwardsCompatible
+ *        Claim backwards compatibility.
  * @author Philip Helger
  */
 public record XSLT30Settings (@NonNull Path suiteDir,
@@ -101,7 +109,8 @@ public record XSLT30Settings (@NonNull Path suiteDir,
                               @NonNull Path outDir,
                               @NonNull Path acceptedFile,
                               boolean schemaAware,
-                              boolean streaming)
+                              boolean streaming,
+                              boolean backwardsCompatible)
 {
   public static final String DEFAULT_SUITE_DIR = "/Users/philip/dev/git-thirdparty/xslt30-test";
   public static final String DEFAULT_ACCEPTED_FILE = "docs/accepted-failures/xslt30.md";
@@ -109,6 +118,8 @@ public record XSLT30Settings (@NonNull Path suiteDir,
   public static final String DEFAULT_ACCEPTED_FILE_SCHEMA_AWARE = "docs/accepted-failures/xslt30-schema-aware.md";
   /** The accepted failures of a run that claims streaming. */
   public static final String DEFAULT_ACCEPTED_FILE_STREAMING = "docs/accepted-failures/xslt30-streaming.md";
+  /** The accepted failures of a run that claims backwards compatibility. */
+  public static final String DEFAULT_ACCEPTED_FILE_BACKWARDS = "docs/accepted-failures/xslt30-backwards.md";
 
   /** @return The catalog file. */
   @NonNull
@@ -147,8 +158,10 @@ public record XSLT30Settings (@NonNull Path suiteDir,
     final boolean bSchemaAware = Boolean.getBoolean ("xslt30.schemaAware");
     // -Dxslt30.streaming=true claims streaming
     final boolean bStreaming = Boolean.getBoolean ("xslt30.streaming");
-    final String sDefaultOutDir;
-    final String sDefaultAccepted;
+    // -Dxslt30.backwardsCompatible=true claims backwards compatibility
+    final boolean bBackwards = Boolean.getBoolean ("xslt30.backwardsCompatible");
+    String sDefaultOutDir;
+    String sDefaultAccepted;
     if (bStreaming)
     {
       sDefaultOutDir = bSchemaAware ? "target/schema-aware-streaming" : "target/streaming";
@@ -159,10 +172,15 @@ public record XSLT30Settings (@NonNull Path suiteDir,
       sDefaultOutDir = bSchemaAware ? "target/schema-aware" : "target";
       sDefaultAccepted = bSchemaAware ? DEFAULT_ACCEPTED_FILE_SCHEMA_AWARE : DEFAULT_ACCEPTED_FILE;
     }
-    // The combination of both claims is no gate
+    if (bBackwards)
+    {
+      sDefaultOutDir = bSchemaAware || bStreaming ? sDefaultOutDir + "-backwards" : "target/backwards";
+      sDefaultAccepted = DEFAULT_ACCEPTED_FILE_BACKWARDS;
+    }
+    // A combination of claims is no gate
+    final int nClaims = (bSchemaAware ? 1 : 0) + (bStreaming ? 1 : 0) + (bBackwards ? 1 : 0);
     final String sCheckAccepted = System.getProperty ("xslt30.checkAccepted");
-    final boolean bCheckAccepted = bSchemaAware && bStreaming ? "true".equals (sCheckAccepted)
-                                                              : !"false".equals (sCheckAccepted);
+    final boolean bCheckAccepted = nClaims > 1 ? "true".equals (sCheckAccepted) : !"false".equals (sCheckAccepted);
     final ICommonsList <String> aSkipSets = new CommonsArrayList <> ();
     for (final String sPart : System.getProperty ("xslt30.skip", "").split (","))
       if (!sPart.isBlank ())
@@ -179,6 +197,7 @@ public record XSLT30Settings (@NonNull Path suiteDir,
                                Path.of (System.getProperty ("xslt30.out", sDefaultOutDir)),
                                Path.of (System.getProperty ("xslt30.accepted", sDefaultAccepted)),
                                bSchemaAware,
-                               bStreaming);
+                               bStreaming,
+                               bBackwards);
   }
 }

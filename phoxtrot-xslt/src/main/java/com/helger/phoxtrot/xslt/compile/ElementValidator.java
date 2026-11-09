@@ -16,7 +16,6 @@
  */
 package com.helger.phoxtrot.xslt.compile;
 
-import java.math.BigDecimal;
 import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
@@ -538,8 +537,10 @@ public final class ElementValidator
    * validation values other than strip, preserve and lax are rejected; with it
    * they are checked by
    * {@link #_checkSchemaAwareValidation(XslElement, String, String, boolean)}.
-   * An xsl:version below 2.0 is rejected, as backwards compatible processing
-   * is not supported. Unless in forwards compatible mode, only the attributes
+   * An xsl:version must be a decimal number (one below 2.0 is handled when
+   * the element is evaluated, see
+   * {@link com.helger.phoxtrot.xslt.instr.CoreInstructions#compileInstruction(CompileContext, XslElement)}).
+   * Unless in forwards compatible mode, only the attributes
    * of {@link #LRE_XSL_ATTRS} may be in the XSLT namespace. The prefixes of
    * xsl:exclude-result-prefixes and xsl:extension-element-prefixes must be
    * bound, xsl:inherit-namespaces and xsl:expand-text must be booleans.
@@ -550,7 +551,7 @@ public final class ElementValidator
    *        <code>true</code> for a schema-aware processor.
    * @throws XsltException
    *         XTSE1660, XTSE1505, XTSE0020, XTSE0110 (xsl:version not a
-   *         number), XTDE0160 (xsl:version below 2.0), XTSE0805, XTSE0808,
+   *         number), XTSE0805, XTSE0808,
    *         XTSE0809, XTSE1430
    */
   private static void _validateLiteralResultElement (@NonNull final XslElement aEl, final boolean bSchemaAware)
@@ -577,10 +578,6 @@ public final class ElementValidator
       final String s = sVersion.trim ();
       if (!XsltNames.isDecimalLexical (s))
         throw XsltException.at (aEl, "XTSE0110", "xsl:version='" + sVersion + "' is not a valid number");
-      if (new BigDecimal (s).compareTo (BigDecimal.valueOf (2)) < 0)
-        throw XsltException.at (aEl,
-                                "XTDE0160",
-                                "xsl:version='" + sVersion + "' requests backwards compatible behaviour, which this processor does not support");
     }
     for (final XdmQName aName : aEl.getAllAttributes ().keySet ())
       if (XsltNames.NS_XSL.equals (aName.namespaceUri ()) &&

@@ -112,19 +112,19 @@ public final class StylesheetLoader
   /**
    * Create a loader. The function library for static expressions is a child
    * of the shared default library with the XSLT functions allowed in static expressions,
-   * and the streaming-related functions when the options claim streaming.
+   * and the system-property function of the claims of the options (streaming,
+   * backwards compatibility).
    *
    * @param aOptions
    *        The compile options (resolver, static parameter values,
-   *        schema-awareness, streaming claim).
+   *        schema-awareness, streaming and backwards compatibility claims).
    */
   public StylesheetLoader (@NonNull final XsltCompileOptions aOptions)
   {
     m_aOptions = aOptions;
     m_aStaticFunctions = FunctionLibrary.getDefault ().createChild ();
     XsltFunctions.registerStatic (m_aStaticFunctions);
-    if (aOptions.isStreamingClaim ())
-      XsltFunctions.registerStreamingClaim (m_aStaticFunctions);
+    XsltFunctions.registerClaims (m_aStaticFunctions, aOptions.isStreamingClaim (), aOptions.isBackwardsCompatibleClaim ());
   }
 
   /** @return The static variables and parameters with their values. */

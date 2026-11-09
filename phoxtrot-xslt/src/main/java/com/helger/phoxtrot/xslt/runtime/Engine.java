@@ -1274,11 +1274,46 @@ public final class Engine
   }
 
   /**
+   * @param aDefs
+   *        The declarations of a key (not empty).
+   * @return <code>true</code> if the key is processed in backwards compatible
+   *         mode (XSLT 3.0 section 20.2.2): at least one declaration is
+   *         processed with XSLT 1.0 behaviour and the key is not composite.
+   *         Its key values and searched values are then cast to xs:string and
+   *         compared as strings.
+   */
+  private static boolean _isBackwardsCompatibleKey (@NonNull final ICommonsList <KeyDefinition> aDefs)
+  {
+    return !aDefs.getFirst ().isComposite () && aDefs.containsAny (KeyDefinition::isXslt10);
+  }
+
+  /**
+   * @param aAtom
+   *        A key value or a searched value, atomised.
+   * @param aCollation
+   *        The collation, or <code>null</code> for the codepoint collation.
+   * @param bAsString
+   *        <code>true</code> for a key in backwards compatible mode (see
+   *        {@link #_isBackwardsCompatibleKey(ICommonsList)}): the value is
+   *        cast to xs:string first.
+   * @return The lookup key of the value, see
+   *         {@link #_getKeyValue(XdmAtomic, ICollation)}.
+   */
+  @NonNull
+  private static Object _getKeyValue (@NonNull final IXdmItem aAtom,
+                                      @Nullable final ICollation aCollation,
+                                      final boolean bAsString)
+  {
+    final XdmAtomic aValue = (XdmAtomic) aAtom;
+    return _getKeyValue (bAsString ? XdmAtomic.string (Atomizer.getStringValue (aValue)) : aValue, aCollation);
+  }
+
+  /**
    * Add one node to a key index: for every xsl:key declaration whose match
    * pattern matches the node, the key specifier (use attribute or content) is
    * evaluated with the node as focus and atomised. With composite keys the
    * whole sequence of values forms one key, otherwise each value is a key of
-   * its own.
+   * its own, cast to xs:string first for a key in backwards compatible mode.
    *
    * @param aNode
    *        The node.
@@ -1290,6 +1325,8 @@ public final class Engine
    *        The collation, or <code>null</code> for the codepoint collation.
    * @param bComposite
    *        <code>true</code> for a composite key.
+   * @param bAsStrings
+   *        <code>true</code> for a key in backwards compatible mode.
    * @param aIndex
    *        The index to fill.
    */
@@ -1298,6 +1335,7 @@ public final class Engine
                            @NonNull final XsltContext aUseCtx,
                            @Nullable final ICollation aCollation,
                            final boolean bComposite,
+                           final boolean bAsStrings,
                            @NonNull final ICommonsMap <Object, ICommonsList <IXdmNode>> aIndex)
   {
     for (final KeyDefinition aDef : aDefs)
@@ -1324,7 +1362,7 @@ public final class Engine
       }
       else
         for (final IXdmItem aAtom : aAtoms)
-          _addToIndex (aIndex, _getKeyValue ((XdmAtomic) aAtom, aCollation), aNode);
+          _addToIndex (aIndex, _getKeyValue (aAtom, aCollation, bAsStrings), aNode);
     }
   }
 
@@ -1436,13 +1474,14 @@ public final class Engine
     final ICollation aCollation = CollationRegistry.CODEPOINT_URI.equals (sCollation) ? null
                                                                                        : CollationRegistry.getCollationOrThrow (sCollation);
     final boolean bComposite = aDefs.getFirst ().isComposite ();
+    final boolean bAsStrings = _isBackwardsCompatibleKey (aDefs);
     final XsltContext aUseCtx = createRootContext ().withState (XsltState.EMPTY);
     final List <IXdmNode> aCandidates = _getKeyCandidatesFromNames (aDefs, aRoot);
     if (aCandidates != null)
     {
       KEY_INDEXES_FROM_NAMES.incrementAndGet ();
       for (final IXdmNode aNode : aCandidates)
-        _indexNode (aNode, aDefs, aUseCtx, aCollation, bComposite, ret);
+        _indexNode (aNode, aDefs, aUseCtx, aCollation, bComposite, bAsStrings, ret);
       return ret;
     }
     boolean bNamespaces = false;
@@ -1454,12 +1493,12 @@ public final class Engine
     while (!aStack.isEmpty ())
     {
       final IXdmNode aNode = aStack.pop ();
-      _indexNode (aNode, aDefs, aUseCtx, aCollation, bComposite, ret);
+      _indexNode (aNode, aDefs, aUseCtx, aCollation, bComposite, bAsStrings, ret);
       if (bNamespaces)
         for (final IXdmNode aNS : aNode.getNamespaceNodes ())
-          _indexNode (aNS, aDefs, aUseCtx, aCollation, bComposite, ret);
+          _indexNode (aNS, aDefs, aUseCtx, aCollation, bComposite, bAsStrings, ret);
       for (int i = 0; i < aNode.getAttributeCount (); ++i)
-        _indexNode (aNode.getAttributeAtIndex (i), aDefs, aUseCtx, aCollation, bComposite, ret);
+        _indexNode (aNode.getAttributeAtIndex (i), aDefs, aUseCtx, aCollation, bComposite, bAsStrings, ret);
       for (int i = aNode.getChildCount () - 1; i >= 0; --i)
         aStack.push (aNode.getChildAtIndex (i));
     }
@@ -1471,7 +1510,8 @@ public final class Engine
    * xsl:key declarations of the package of the calling expression are used.
    * The index is built on first use per key name, tree root and package, and
    * cached for the run. Values are atomised; with a non-composite key each
-   * value is looked up separately (NaN finds nothing), with a composite key
+   * value is looked up separately (NaN finds nothing; in backwards compatible
+   * mode, section 20.2.2, as its string value), with a composite key
    * the whole sequence is one lookup key. The result is restricted to
    * <code>aTop</code> and its descendants when it is not the root.
    *
@@ -1548,14 +1588,17 @@ public final class Engine
           aResult.add (aNode);
     }
     else
+    {
+      final boolean bAsStrings = _isBackwardsCompatibleKey (aDefs);
       for (final IXdmItem aAtom : aAtoms)
       {
-        final Object aKey = _getKeyValue ((XdmAtomic) aAtom, aCollation);
+        final Object aKey = _getKeyValue (aAtom, aCollation, bAsStrings);
         final ICommonsList <IXdmNode> aNodes = aKey == NAN_KEY ? null : aIndex.get (aKey);
         if (aNodes != null)
           for (final IXdmNode aNode : aNodes)
             aResult.add (aNode);
       }
+    }
     XdmSequence ret = NodeSorter.sortAndDeduplicate (aResult.build ());
     if (aTop != aRoot)
     {

@@ -1716,13 +1716,16 @@ public final class XsltStreamability
 
   /**
    * Classify one instruction. Every instruction the walk does not know is
-   * roaming and free-ranging.
+   * roaming and free-ranging, and so is an instruction processed with XSLT 1.0
+   * behaviour (XSLT 3.0 section 3.9.1).
    */
   @NonNull
   private PostureSweep _instr (@NonNull final XslElement aEl, @NonNull final StreamContext aCtx)
   {
     if (m_nDepth >= MAX_DEPTH)
       return _reject (aEl, "the instructions are nested too deeply for the analysis");
+    if (m_aCompiler.isXslt10Behaviour (aEl))
+      return _reject (aEl, _what (aEl) + " is processed with XSLT 1.0 behaviour, which is roaming and free-ranging");
     m_nDepth++;
     try
     {

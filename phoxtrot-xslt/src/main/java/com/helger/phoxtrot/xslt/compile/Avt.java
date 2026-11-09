@@ -65,11 +65,20 @@ public final class Avt
    *        Run-time context.
    * @return The string value of the part, "" for an empty sequence.
    */
+  /**
+   * The effective value of one expression of the template (XSLT 3.0 sections
+   * 5.6.1 and 5.6.2): zero-length text nodes are dropped and adjacent text
+   * nodes merged before the items are joined with spaces. In an attribute
+   * value template on an element processed with XSLT 1.0 behaviour (its
+   * expressions are compiled in XPath 1.0 compatibility mode) only the first
+   * atomized item counts (section 5.6.1); a text value template never has
+   * that mode.
+   */
   @NonNull
   private String _evaluatePart (@NonNull final XPathExpr aExpr, @NonNull final XsltContext aCtx)
   {
-    // XSLT 3.0 sections 5.6.1/5.6.2: zero-length text nodes are dropped and
-    // adjacent text nodes merged before the items are joined with spaces
+    if (!m_bTextValueTemplate && aExpr.getStaticContext ().isXPath10Compatibility ())
+      return SimpleContent.getFirstItemString (aExpr.evaluate (aCtx));
     return SimpleContent.join (aExpr.evaluate (aCtx), " ");
   }
 

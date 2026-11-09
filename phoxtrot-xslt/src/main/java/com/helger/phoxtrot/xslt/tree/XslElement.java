@@ -42,6 +42,8 @@ public final class XslElement extends XslNode
 {
   /** XSLT 3.0 as a version number. */
   public static final BigDecimal VERSION_30 = new BigDecimal ("3.0");
+  /** XSLT 2.0 as a version number. */
+  public static final BigDecimal VERSION_20 = new BigDecimal ("2.0");
 
   private final IXdmNode m_aSource;
   private final XdmQName m_aName;
@@ -326,13 +328,20 @@ public final class XslElement extends XslNode
   }
 
   /**
-   * @return The effective [xsl:]version of this element (inherited), or
-   *         {@link #VERSION_30} if none is given or it is not a number.
+   * The effective version (XSLT 3.0 section 3.9): the decimal value of the
+   * [xsl:]version attribute of this element or of the nearest ancestor that
+   * has one. The version attribute of an xsl:output element names the version
+   * of the output method and is not taken into account, so for xsl:output the
+   * lookup starts at its parent.
+   *
+   * @return The effective version of this element, or {@link #VERSION_30} if
+   *         none is given or it is not a number.
    */
   @NonNull
   public BigDecimal getEffectiveVersion ()
   {
-    final String s = getInheritedStandardAttr ("version");
+    final XslElement aStart = isXsl ("output") ? getParent () : this;
+    final String s = aStart == null ? null : aStart.getInheritedStandardAttr ("version");
     if (s != null)
     {
       final String sTrimmed = s.trim ();
@@ -340,6 +349,22 @@ public final class XslElement extends XslNode
         return new BigDecimal (sTrimmed);
     }
     return VERSION_30;
+  }
+
+  /**
+   * Whether this element asks for XSLT 1.0 behaviour (XSLT 3.0 section 3.9.1):
+   * its effective version is below 2.0. Section 3.9 defines XSLT 1.0 behaviour
+   * for the value 1.0 and leaves any other value below 3.0 to the
+   * implementation; every value below 2.0 (such as 0.5, 1.1 or 1.9) is
+   * treated like 1.0 here, every value from 2.0 up to 3.0 like 3.0. Whether
+   * the behaviour is applied or XTDE0160 raised depends on the backwards
+   * compatibility claim of the compilation.
+   *
+   * @return <code>true</code> if the effective version is less than 2.0.
+   */
+  public boolean isXslt10Version ()
+  {
+    return getEffectiveVersion ().compareTo (VERSION_20) < 0;
   }
 
   /**

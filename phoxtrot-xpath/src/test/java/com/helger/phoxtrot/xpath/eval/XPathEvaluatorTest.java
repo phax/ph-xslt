@@ -761,4 +761,64 @@ public final class XPathEvaluatorTest
     assertEquals ("NaN", _adaptive ("-()", true, null));
     _assertCode ("XPTY0004", "(1, 2) + 1", false, null);
   }
+
+  @Test
+  public void testXPath10CompatibilityBooleanRuleAndRange ()
+  {
+    assumeParser ();
+    final IXdmNode aDoc = _doc ();
+    // XPath 3.1 section 3.7.2 rule 1: the effective boolean value of the other
+    // operand is taken before atomisation, so the empty element d is true
+    assertEquals ("true", _adaptive ("//d = true()", true, aDoc));
+    assertEquals ("false", _adaptive ("//x = true()", true, aDoc));
+    assertEquals ("true", _adaptive ("true() = 'false'", true, null));
+    assertEquals ("true", _adaptive ("false() != //b", true, aDoc));
+    _assertCode ("FORG0001", "//d = true()", false, aDoc);
+    _assertCode ("FORG0006", "true() = (1, 2)", true, null);
+    // Section 3.4.1: a range operand is converted like an xs:integer? argument,
+    // so only its first item counts in compatibility mode
+    assertEquals ("1 2 3", _adaptive ("(1 to 5) to (3, 4)", true, null));
+    _assertCode ("XPTY0004", "(1 to 5) to (3, 4)", false, null);
+  }
+
+  @Test
+  public void testUnknownFunctionFallback ()
+  {
+    assumeParser ();
+    final StaticContext aSC = new StaticContext ().declareNamespace ("ext", "urn:ext").setUnknownFunctionErrorCode ("XTDE1425");
+    // Not evaluated: no error; evaluated: the fallback error
+    final CompiledXPath aNotCalled = XPathCompiler.compile ("if (false()) then ext:f(1) else 'x'", aSC);
+    assertEquals ("x", ((XdmAtomic) aNotCalled.evaluate (aNotCalled.createDynamicContext ()).getFirst ()).getString ());
+    final CompiledXPath aCalled = XPathCompiler.compile ("ext:f(1)", aSC);
+    try
+    {
+      aCalled.evaluate (aCalled.createDynamicContext ());
+      fail ("want XTDE1425");
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("XTDE1425", ex.getCode ());
+    }
+    // The standard function namespace and named function references stay
+    // static errors, and so does every unknown function without the code
+    for (final String sExpr : new String [] { "unknown-function(1)", "ext:f#1" })
+      try
+      {
+        XPathCompiler.compile (sExpr, aSC);
+        fail ("want XPST0017 for " + sExpr);
+      }
+      catch (final XPathException ex)
+      {
+        assertEquals ("XPST0017", ex.getCode ());
+      }
+    try
+    {
+      XPathCompiler.compile ("ext:f(1)", new StaticContext ().declareNamespace ("ext", "urn:ext"));
+      fail ("want XPST0017");
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("XPST0017", ex.getCode ());
+    }
+  }
 }

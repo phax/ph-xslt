@@ -114,6 +114,36 @@ public final class XSLT30DependenciesTest
                                                   true));
   }
 
+  @Nullable
+  private static String _skipBackwards (final XSLT30Dependency... aCaseDeps)
+  {
+    return XSLT30Dependencies.getSkipReason (new CommonsArrayList <> (),
+                                             new CommonsArrayList <> (aCaseDeps),
+                                             false,
+                                             false,
+                                             true);
+  }
+
+  @Test
+  public void testBackwardsCompatibleClaim ()
+  {
+    // Unclaimed: only the variants for a processor without it run
+    assertNull (_skip (_not ("feature", "backwards_compatibility")));
+    // Claimed in both directions
+    assertNull (_skipBackwards (_d ("feature", "backwards_compatibility")));
+    assertEquals ("feat-not:backwards_compatibility", _skipBackwards (_not ("feature", "backwards_compatibility")));
+    // Also as a test-set dependency
+    assertEquals ("feat-not:backwards_compatibility",
+                  XSLT30Dependencies.getSkipReason (new CommonsArrayList <> (_not ("feature", "backwards_compatibility")),
+                                                    new CommonsArrayList <> (),
+                                                    false,
+                                                    false,
+                                                    true));
+    // The other claims are untouched
+    assertEquals ("feat:streaming", _skipBackwards (_d ("feature", "streaming")));
+    assertEquals ("feat:schema_aware", _skipBackwards (_d ("feature", "schema_aware")));
+  }
+
   @Test
   public void testOtherDependencies ()
   {

@@ -100,7 +100,9 @@ public final class NodeInstructions
    * select attribute and the zero-length string with content; the separator
    * attribute value template overrides both. The text node is created even if
    * its value is empty, and is marked for disabled output escaping if
-   * disable-output-escaping is yes.
+   * disable-output-escaping is yes. Processed with XSLT 1.0 behaviour, a
+   * select attribute without separator gives the string value of the first
+   * atomized item only (section 11.4.3).
    */
   @NonNull
   private static IInstruction _compileValueOf (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
@@ -109,8 +111,11 @@ public final class NodeInstructions
     final SequenceConstructor aBody = aSelect == null ? aCtx.compileContent (aEl) : null;
     final Avt aSep = aCtx.compileOptionalAvt (aEl, "separator");
     final boolean bDoe = XsltNames.isXsltTrue (aEl.getAttr ("disable-output-escaping"));
+    final boolean bFirstItemOnly = aSelect != null && aSep == null && aCtx.isXslt10Behaviour (aEl);
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
-      final IXdmNode aText = IXdmNode.createText (_evaluateValue (aRtCtx, aSelect, aBody, aSep, false));
+      final String sValue = bFirstItemOnly ? SimpleContent.getFirstItemString (aSelect.evaluate (aRtCtx))
+                                           : _evaluateValue (aRtCtx, aSelect, aBody, aSep, false);
+      final IXdmNode aText = IXdmNode.createText (sValue);
       if (bDoe)
         aText.setDisableOutputEscaping (true);
       aRtOut.appendNew (aText);

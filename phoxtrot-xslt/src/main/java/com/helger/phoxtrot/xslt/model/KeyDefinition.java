@@ -45,6 +45,7 @@ public final class KeyDefinition
   private final SequenceConstructor m_aBody;
   private final boolean m_bComposite;
   private final String m_sCollation;
+  private final boolean m_bXslt10;
 
   public KeyDefinition (@NonNull final XslElement aElement,
                         @NonNull final XdmQName aName,
@@ -52,7 +53,8 @@ public final class KeyDefinition
                         @Nullable final XPathExpr aUse,
                         @Nullable final SequenceConstructor aBody,
                         final boolean bComposite,
-                        @NonNull final String sCollation)
+                        @NonNull final String sCollation,
+                        final boolean bXslt10)
   {
     m_aElement = aElement;
     m_aName = aName;
@@ -61,6 +63,7 @@ public final class KeyDefinition
     m_aBody = aBody;
     m_bComposite = bComposite;
     m_sCollation = sCollation;
+    m_bXslt10 = bXslt10;
   }
 
   @NonNull
@@ -113,5 +116,15 @@ public final class KeyDefinition
   public String getCollation ()
   {
     return m_sCollation;
+  }
+
+  /**
+   * @return <code>true</code> if this declaration is processed with XSLT 1.0
+   *         behaviour (XSLT 3.0 section 20.2.2): with composite="no" one such
+   *         declaration puts the whole key into backwards compatible mode.
+   */
+  public boolean isXslt10 ()
+  {
+    return m_bXslt10;
   }
 }

@@ -63,6 +63,8 @@ public final class SortKeyDef
   private final Avt m_aLang;
   private final Avt m_aStable;
   private final String m_sDefaultCollation;
+  // An xsl:sort processed with XSLT 1.0 behaviour (XSLT 3.0 section 13.1.2)
+  private final boolean m_bXslt10;
 
   private SortKeyDef (@NonNull final XslElement aElement,
                       @Nullable final XPathExpr aSelect,
@@ -73,7 +75,8 @@ public final class SortKeyDef
                       @Nullable final Avt aCollation,
                       @Nullable final Avt aLang,
                       @Nullable final Avt aStable,
-                      @NonNull final String sDefaultCollation)
+                      @NonNull final String sDefaultCollation,
+                      final boolean bXslt10)
   {
     m_aElement = aElement;
     m_aSelect = aSelect;
@@ -85,6 +88,7 @@ public final class SortKeyDef
     m_aLang = aLang;
     m_aStable = aStable;
     m_sDefaultCollation = sDefaultCollation;
+    m_bXslt10 = bXslt10;
   }
 
   @NonNull
@@ -139,7 +143,8 @@ public final class SortKeyDef
                            aCtx.compileOptionalAvt (aEl, "collation"),
                            aCtx.compileOptionalAvt (aEl, "lang"),
                            aCtx.compileOptionalAvt (aEl, "stable"),
-                           StaticContexts.getDefaultCollation (aEl));
+                           StaticContexts.getDefaultCollation (aEl),
+                           aEl.isXsl ("sort") && aCtx.isXslt10Behaviour (aEl));
   }
 
   /** The evaluated attributes of a sort key. */
@@ -252,7 +257,9 @@ public final class SortKeyDef
    * Compute the sort key value of one item (XSLT 3.0 section 13.1.2): the
    * select expression, or else the content evaluated in temporary output
    * state, is atomised. An empty result is the empty key
-   * (<code>null</code>), more than one item is XTTE1020. With data-type text
+   * (<code>null</code>), more than one item is XTTE1020, except for an
+   * xsl:sort processed with XSLT 1.0 behaviour, whose key is then the first
+   * item. With data-type text
    * the value becomes its string value. With data-type number the value is
    * converted like fn:number: a numeric value becomes an xs:double, a boolean
    * 1 or 0, a string or untyped value is cast from its trimmed value to
@@ -281,7 +288,7 @@ public final class SortKeyDef
     final XdmSequence aAtoms = Atomizer.atomize (aValue);
     if (aAtoms.isEmpty ())
       return null;
-    if (aAtoms.size () > 1)
+    if (aAtoms.size () > 1 && !m_bXslt10)
       throw new XPathException ("XTTE1020", "A sort key evaluates to more than one item");
     final XdmAtomic aAtom = (XdmAtomic) aAtoms.get (0);
     if ("text".equals (aSettings.dataType ()))

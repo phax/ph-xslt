@@ -83,4 +83,21 @@ public final class SimpleContent
     }
     return aSB.toString ();
   }
+
+  /**
+   * The string value of XSLT 1.0 behaviour (XSLT 3.0 sections 5.6.1 and
+   * 11.4.3): the value is atomized, every item but the first is discarded and
+   * the first is converted to a string; an empty atomized value gives the
+   * zero-length string.
+   *
+   * @param aSeq
+   *        The result of the expression.
+   * @return The string value of the first atomized item.
+   */
+  @NonNull
+  public static String getFirstItemString (@NonNull final XdmSequence aSeq)
+  {
+    final XdmSequence aAtoms = Atomizer.atomize (aSeq);
+    return aAtoms.isEmpty () ? "" : Atomizer.getStringValue (aAtoms.getFirst ());
+  }
 }
