@@ -37,7 +37,6 @@ public final class XsdDerivationMiscTest
   private static final int VER_BOTH = XsdTestSupport.VER_BOTH;
   private static final int VER_10 = XsdTestSupport.VER_10;
   private static final int VER_11 = XsdTestSupport.VER_11;
-  private static final int SKIP_BUG = XsdTestSupport.SKIP_BUG;
   private static final String XSI_DECL = " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"";
 
   private static final Case [] CASES = { new Case ("open-restriction-narrows",

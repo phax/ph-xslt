@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xsd;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Base64;
 import java.util.Random;
@@ -30,8 +31,7 @@ import com.helger.phoxtrot.xpath.ops.XsdLexical;
 
 /**
  * The hand-written scanners (go-xslt <code>lexscan_test.go</code> and
- * <code>lexical_large_test.go</code>) against the regular expressions they
- * replace.
+ * <code>lexical_large_test.go</code>) against the regular expressions they replace.
  *
  * @author Philip Helger
  */
@@ -47,9 +47,11 @@ public final class XsdLexScanTest
 
   private static void _check (@NonNull final String sValue)
   {
-    assertEquals ("isIntegerLex '" + sValue + "'", RE_INTEGER.matcher (sValue).matches (), XsdLexScan.isIntegerLex (sValue));
-    assertEquals ("isDecimalLex '" + sValue + "'", RE_DECIMAL.matcher (sValue).matches (), XsdLexScan.isDecimalLex (sValue));
-    assertEquals ("isNCNameLex '" + sValue + "'", XsdLexical.isNCName (sValue), XsdLexScan.isNCNameLex (sValue));
+    assertTrue ("isIntegerLex '" + sValue + "'",
+                RE_INTEGER.matcher (sValue).matches () == XsdLexScan.isIntegerLex (sValue));
+    assertTrue ("isDecimalLex '" + sValue + "'",
+                RE_DECIMAL.matcher (sValue).matches () == XsdLexScan.isDecimalLex (sValue));
+    assertTrue ("isNCNameLex '" + sValue + "'", XsdLexical.isNCName (sValue) == XsdLexScan.isNCNameLex (sValue));
   }
 
   private static void _generate (@NonNull final String sPrefix,
@@ -163,15 +165,21 @@ public final class XsdLexScanTest
                                   "00 " };
     for (final String sValue : aExamples)
     {
-      assertEquals ("base64Binary '" + sValue + "'", RE_BASE64.matcher (sValue).matches (), XsdLexScan.isBase64BinaryLex (sValue));
-      assertEquals ("hexBinary '" + sValue + "'", RE_HEX.matcher (sValue).matches (), XsdLexScan.isHexBinaryLex (sValue));
+      assertTrue ("base64Binary '" + sValue + "'",
+                  RE_BASE64.matcher (sValue).matches () == XsdLexScan.isBase64BinaryLex (sValue));
+      assertTrue ("hexBinary '" + sValue + "'",
+                  RE_HEX.matcher (sValue).matches () == XsdLexScan.isHexBinaryLex (sValue));
     }
-    _generate ("", 8, "AEB= \t!".split (""), s -> assertEquals ("base64Binary '" + s + "'",
-                                                               RE_BASE64.matcher (s).matches (),
-                                                               XsdLexScan.isBase64BinaryLex (s)));
-    _generate ("", 7, "0aFg ".split (""), s -> assertEquals ("hexBinary '" + s + "'",
-                                                          RE_HEX.matcher (s).matches (),
-                                                          XsdLexScan.isHexBinaryLex (s)));
+    _generate ("",
+               8,
+               "AEB= \t!".split (""),
+               s -> assertTrue ("base64Binary '" + s + "'",
+                                RE_BASE64.matcher (s).matches () == XsdLexScan.isBase64BinaryLex (s)));
+    _generate ("",
+               7,
+               "0aFg ".split (""),
+               s -> assertTrue ("hexBinary '" + s + "'",
+                                RE_HEX.matcher (s).matches () == XsdLexScan.isHexBinaryLex (s)));
     // Real encodings of every length, plain and wrapped
     final Random aRandom = new Random (2);
     for (int n = 0; n < 200; n++)
@@ -181,9 +189,8 @@ public final class XsdLexScanTest
       final String sEncoded = Base64.getEncoder ().encodeToString (aRaw);
       for (final String sValue : new String [] { sEncoded, _wrap (sEncoded, 5) })
         for (final String sCandidate : new String [] { sValue, XsdWhiteSpace.collapse (sValue) })
-          assertEquals ("base64Binary '" + sCandidate + "'",
-                        RE_BASE64.matcher (sCandidate).matches (),
-                        XsdLexScan.isBase64BinaryLex (sCandidate));
+          assertTrue ("base64Binary '" + sCandidate + "'",
+                      RE_BASE64.matcher (sCandidate).matches () == XsdLexScan.isBase64BinaryLex (sCandidate));
     }
   }
 
@@ -191,7 +198,9 @@ public final class XsdLexScanTest
   public void testCollapse ()
   {
     final Consumer <String> aCheck = s -> assertEquals ("collapse '" + s + "'",
-                                                        RE_WS_RUN.matcher (s).replaceAll (" ").replaceAll ("^ +| +$", ""),
+                                                        RE_WS_RUN.matcher (s)
+                                                                 .replaceAll (" ")
+                                                                 .replaceAll ("^ +| +$", ""),
                                                         XsdWhiteSpace.collapse (s));
     for (final String s : new String [] { "",
                                           " ",

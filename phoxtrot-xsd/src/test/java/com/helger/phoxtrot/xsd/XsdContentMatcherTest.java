@@ -37,8 +37,8 @@ import com.helger.phoxtrot.xsd.XsdTestSupport.Compiled;
 import com.helger.phoxtrot.xsd.XsdTestSupport.EVerdict;
 
 /**
- * Tests of the content matcher ({@link XsdContentMatcher}) and the linear counting matcher
- * ({@link XsdBigMatch}), driven directly on the effective content model of the declaration
+ * Tests of the content matcher ({@code XsdContentMatcher}) and the linear counting matcher
+ * ({@code XsdBigMatch}), driven directly on the effective content model of the declaration
  * <code>doc</code>, so they do not depend on the instance validator. The large-model cases are
  * ported from go-xslt <code>content_bigmatch_test.go</code>; they exercise the counting matcher
  * above 600 children.
@@ -426,7 +426,7 @@ public final class XsdContentMatcherTest
         assertTrue (sLabel + " kids", aCase.kids ().size () > 600);
         final XsdMatchResult aResult = _match (aSchema, aCase.kids ());
         assertTrue (sLabel + " decided", aResult.decided ());
-        assertEquals (sLabel, aCase.valid (), aResult.matched ());
+        assertTrue (sLabel, aCase.valid () == aResult.matched ());
       }
   }
 
@@ -451,7 +451,7 @@ public final class XsdContentMatcherTest
       final XsdMatchResult aNfa = XsdContentMatcher.contentMatches (aSchema, aModel, _kids (aSmall));
       final XsdMatchResult aCount = XsdBigMatch.countMatch (aSchema, aModel, _kids (aSmall));
       if (aNfa.decided () && aCount.decided ())
-        assertEquals (aCase.name (), aNfa.matched (), aCount.matched ());
+        assertTrue (aCase.name (), aNfa.matched () == aCount.matched ());
     }
   }
 

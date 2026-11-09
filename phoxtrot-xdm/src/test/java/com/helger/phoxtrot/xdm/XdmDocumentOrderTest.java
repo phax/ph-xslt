@@ -46,15 +46,15 @@ public final class XdmDocumentOrderTest
   {
     final XdmDocumentNode aFirst = _parse ("<a><b/></a>");
     final XdmDocumentNode aSecond = _parse ("<a><b/></a>");
-    final IXdmNode aFirstB = aFirst.getChildAtIndex (0).getChildAtIndex (0);
-    final IXdmNode aSecondA = aSecond.getChildAtIndex (0);
+    final AbstractXdmNode aFirstB = aFirst.getChildAtIndex (0).getChildAtIndex (0);
+    final AbstractXdmNode aSecondA = aSecond.getChildAtIndex (0);
     // Same document order numbers, but different trees: ordered by numbering
     assertEquals (aFirstB.getOrder (), aSecondA.getOrder () + 1);
     assertTrue (IXdmNode.compareDocumentOrder (aFirstB, aSecondA) < 0);
     assertTrue (IXdmNode.compareDocumentOrder (aSecondA, aFirstB) > 0);
     assertTrue (IXdmNode.compareDocumentOrder (aFirst, aSecond) < 0);
     // Nodes of one numbering share the stamp
-    assertSame (((AbstractXdmNode) aFirst).internalGetTree (), ((AbstractXdmNode) aFirstB).internalGetTree ());
+    assertSame (aFirst.internalGetTree (), aFirstB.internalGetTree ());
     // A tree numbered again sorts after the trees numbered before
     aFirst.assignDocumentOrder ();
     assertTrue (IXdmNode.compareDocumentOrder (aFirstB, aSecondA) > 0);

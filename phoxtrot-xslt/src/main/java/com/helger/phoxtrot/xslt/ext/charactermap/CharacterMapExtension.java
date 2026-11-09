@@ -45,13 +45,12 @@ import com.helger.phoxtrot.xslt.tree.XslModule;
 import com.helger.phoxtrot.xslt.tree.XsltNames;
 
 /**
- * xsl:character-map and xsl:output-character (XSLT 3.0 section 26.1), and the
- * use-character-maps attribute of xsl:output and xsl:result-document: the
- * declarations are collected per stylesheet (the highest import precedence
- * wins, XTSE1580 for two of the same name and precedence), references are
- * checked after compilation (XTSE1590 for an unknown map, XTSE1600 for a
- * circular use-character-maps chain), and the merged mapping is handed to the
- * serializer through an output customizer.
+ * xsl:character-map and xsl:output-character (XSLT 3.0 section 26.1), and the use-character-maps
+ * attribute of xsl:output and xsl:result-document: the declarations are collected per stylesheet
+ * (the highest import precedence wins, XTSE1580 for two of the same name and precedence),
+ * references are checked after compilation (XTSE1590 for an unknown map, XTSE1600 for a circular
+ * use-character-maps chain), and the merged mapping is handed to the serializer through an output
+ * customizer.
  *
  * @author Philip Helger
  */
@@ -68,13 +67,13 @@ public final class CharacterMapExtension implements IXsltExtension
   {}
 
   /**
-   * Get the character maps of a stylesheet from its extension data, creating
-   * and storing an empty map on first access.
+   * Get the character maps of a stylesheet from its extension data, creating and storing an empty
+   * map on first access.
    *
    * @param aSheet
    *        The stylesheet.
-   * @return The mutable map from the package-qualified name to the winning
-   *         declaration. Never <code>null</code>.
+   * @return The mutable map from the package-qualified name to the winning declaration. Never
+   *         <code>null</code>.
    */
   @NonNull
   @SuppressWarnings ("unchecked")
@@ -90,19 +89,18 @@ public final class CharacterMapExtension implements IXsltExtension
   }
 
   /**
-   * Resolve the whitespace-separated names of a use-character-maps attribute
-   * against the in-scope namespaces of the element (an unprefixed name is in
-   * no namespace) and qualify each with the package of the element.
+   * Resolve the whitespace-separated names of a use-character-maps attribute against the in-scope
+   * namespaces of the element (an unprefixed name is in no namespace) and qualify each with the
+   * package of the element.
    *
    * @param aEl
    *        The element carrying the attribute.
    * @param sValue
    *        The attribute value, may be <code>null</code>.
-   * @return The names in attribute order; empty for a <code>null</code>
-   *         value. Never <code>null</code>.
+   * @return The names in attribute order; empty for a <code>null</code> value. Never
+   *         <code>null</code>.
    * @throws XsltException
-   *         XTSE0280 if a token is not a valid QName or EQName or its prefix
-   *         is unbound.
+   *         XTSE0280 if a token is not a valid QName or EQName or its prefix is unbound.
    */
   @NonNull
   private static ICommonsList <XdmQName> _resolveNames (@NonNull final XslElement aEl, @Nullable final String sValue)
@@ -122,15 +120,13 @@ public final class CharacterMapExtension implements IXsltExtension
   }
 
   /**
-   * Compile one xsl:character-map declaration (XSLT 3.0 section 26.1) into
-   * the per-stylesheet table. A declaration of the same name with the same
-   * import precedence as an already registered one raises XTSE1580; one with
-   * a lower precedence is ignored; one with a higher precedence replaces the
-   * registered one. Every xsl:output-character child must have a character
-   * attribute of exactly one code point (XTSE0020 otherwise); its string
-   * (empty if absent) becomes the replacement, a later child for the same
-   * character replacing an earlier one. Unknown and circular references are
-   * only checked in {@link #_finish}.
+   * Compile one xsl:character-map declaration (XSLT 3.0 section 26.1) into the per-stylesheet
+   * table. A declaration of the same name with the same import precedence as an already registered
+   * one raises XTSE1580; one with a lower precedence is ignored; one with a higher precedence
+   * replaces the registered one. Every xsl:output-character child must have a character attribute
+   * of exactly one code point (XTSE0020 otherwise); its string (empty if absent) becomes the
+   * replacement, a later child for the same character replacing an earlier one. Unknown and
+   * circular references are only checked in {@link #_finish}.
    *
    * @param aCtx
    *        Compile context.
@@ -146,8 +142,8 @@ public final class CharacterMapExtension implements IXsltExtension
       throw XsltException.at (aEl,
                               "XTSE1580",
                               "There are two xsl:character-map declarations named " +
-                                   aName.getEQName () +
-                                   " with the same import precedence");
+                                          aName.getEQName () +
+                                          " with the same import precedence");
     if (aPrev != null && aPrev.precedence () > aEl.getPrecedence ())
       return;
     final ICommonsOrderedMap <Integer, String> aMappings = new CommonsLinkedHashMap <> ();
@@ -161,12 +157,16 @@ public final class CharacterMapExtension implements IXsltExtension
                                 "The character attribute of xsl:output-character must be a single character");
       aMappings.put (Integer.valueOf (sChar.codePointAt (0)), sString == null ? "" : sString);
     }
-    aMaps.put (aName, new CharacterMap (aEl, aEl.getPrecedence (), _resolveNames (aEl, aEl.getAttr ("use-character-maps")), aMappings));
+    aMaps.put (aName,
+               new CharacterMap (aEl,
+                                 aEl.getPrecedence (),
+                                 _resolveNames (aEl, aEl.getAttr ("use-character-maps")),
+                                 aMappings));
   }
 
   /**
-   * XTSE1600: a character map must not use itself, directly or indirectly.
-   * Iterative depth-first search with three colours.
+   * XTSE1600: a character map must not use itself, directly or indirectly. Iterative depth-first
+   * search with three colours.
    */
   private static void _checkCycles (@NonNull final ICommonsMap <XdmQName, CharacterMap> aMaps)
   {
@@ -231,8 +231,8 @@ public final class CharacterMapExtension implements IXsltExtension
   }
 
   /**
-   * Check the use-character-maps attribute of xsl:result-document (XTSE1590)
-   * and the declarations themselves after compilation.
+   * Check the use-character-maps attribute of xsl:result-document (XTSE1590) and the declarations
+   * themselves after compilation.
    */
   private static void _finish (@NonNull final CompileContext aCtx)
   {
@@ -262,20 +262,18 @@ public final class CharacterMapExtension implements IXsltExtension
   }
 
   /**
-   * Merge the mappings of the named character maps: the maps a map uses come
-   * before its own mappings, and later mappings replace earlier ones for the
-   * same character.
+   * Merge the mappings of the named character maps: the maps a map uses come before its own
+   * mappings, and later mappings replace earlier ones for the same character.
    *
    * @param aSheet
    *        The stylesheet.
    * @param aNames
    *        The names from use-character-maps, in order.
-   * @return The merged mapping (code point to replacement), never
-   *         <code>null</code>.
+   * @return The merged mapping (code point to replacement), never <code>null</code>.
    */
   @NonNull
   public static ICommonsOrderedMap <Integer, String> resolve (@NonNull final CompiledStylesheet aSheet,
-                                                             @NonNull final List <XdmQName> aNames)
+                                                              @NonNull final List <XdmQName> aNames)
   {
     final ICommonsOrderedMap <Integer, String> ret = new CommonsLinkedHashMap <> ();
     if (aNames.isEmpty ())
@@ -292,7 +290,7 @@ public final class CharacterMapExtension implements IXsltExtension
       while (!aStack.isEmpty ())
       {
         final Object [] aEntry = aStack.peek ();
-        final CharacterMap aMap = aMaps.get ((XdmQName) aEntry[0]);
+        final CharacterMap aMap = aMaps.get (aEntry[0]);
         final int nNext = ((Integer) aEntry[1]).intValue ();
         if (nNext < aMap.uses ().size ())
         {
@@ -310,9 +308,9 @@ public final class CharacterMapExtension implements IXsltExtension
   }
 
   /**
-   * Apply the character maps named by an output definition to serialization
-   * parameters. Mappings given inline (in a serialization parameter document)
-   * that are already in the parameters take precedence.
+   * Apply the character maps named by an output definition to serialization parameters. Mappings
+   * given inline (in a serialization parameter document) that are already in the parameters take
+   * precedence.
    *
    * @param aSheet
    *        The stylesheet.

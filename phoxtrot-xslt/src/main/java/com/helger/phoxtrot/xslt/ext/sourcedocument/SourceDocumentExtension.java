@@ -47,12 +47,11 @@ import com.helger.phoxtrot.xslt.tree.XslElement;
 import com.helger.phoxtrot.xslt.tree.XsltNames;
 
 /**
- * xsl:source-document (XSLT 3.0 section 18.1). With the streaming claim, a
- * document declared streamable whose body the streamability analysis proved
- * guaranteed streamable, and whose body has the shape the dispatcher runs
- * ({@link StreamPlanner}), is read as a stream ({@link StreamedRun}).
- * Otherwise it is read in full; the declaration still counts for the
- * accumulator rules that depend on it (XTDE3362).
+ * xsl:source-document (XSLT 3.0 section 18.1). With the streaming claim, a document declared
+ * streamable whose body the streamability analysis proved guaranteed streamable, and whose body has
+ * the shape the dispatcher runs ({@link StreamPlanner}), is read as a stream ({@link StreamedRun}).
+ * Otherwise it is read in full; the declaration still counts for the accumulator rules that depend
+ * on it (XTDE3362).
  *
  * @author Philip Helger
  */
@@ -61,8 +60,7 @@ public final class SourceDocumentExtension implements IXsltExtension
   /**
    * Run the body over the document read as a stream.
    *
-   * @return <code>false</code> if the document is not streamed (and nothing
-   *         was done).
+   * @return <code>false</code> if the document is not streamed (and nothing was done).
    */
   private static boolean _runStreamed (@NonNull final XsltContext aCtx,
                                        @NonNull final IXsltOutput aOut,
@@ -104,25 +102,21 @@ public final class SourceDocumentExtension implements IXsltExtension
   }
 
   /**
-   * Compile xsl:source-document (XSLT 3.0 section 18.1). Static checks:
-   * streamable must be an XSLT boolean (XTSE0020); validation must be one of
-   * strict, lax, preserve or strip (XTSE0020), and strict or lax as well as a
-   * type attribute need a schema-aware stylesheet (XTSE1660). The
+   * Compile xsl:source-document (XSLT 3.0 section 18.1). Static checks: streamable must be an XSLT
+   * boolean (XTSE0020); validation must be one of strict, lax, preserve or strip (XTSE0020), and
+   * strict or lax as well as a type attribute need a schema-aware stylesheet (XTSE1660). The
    * use-accumulators names are registered with the accumulator family.
    * <p>
-   * At run time the href AVT is trimmed, converted from an IRI and resolved
-   * against the static base URI if that is absolute (a resolution failure is
-   * FODC0005). The document is streamed through {@link #_runStreamed} only if
-   * streamable is yes, no validation is requested, the streamability verdicts
-   * say the instruction is guaranteed streamable, the {@link StreamPlanner}
-   * finds a consumer that is registered as one, and all used accumulators
-   * are streamable. Otherwise the document is loaded in full through the
-   * document cache of the engine (a <code>null</code> result, i.e. a fragment
-   * identifier that selects nothing, is FODC0002); with validation other than
-   * preserve a deep copy (type annotations dropped for strip) is validated
-   * and used instead, so the cached document stays unchanged. The body runs
-   * with the loaded node as context item (position and size 1) while the
-   * accumulators applicable to the tree are restricted to the
+   * At run time the href AVT is trimmed, converted from an IRI and resolved against the static base
+   * URI if that is absolute (a resolution failure is FODC0005). The document is streamed through
+   * {@link #_runStreamed} only if streamable is yes, no validation is requested, the streamability
+   * verdicts say the instruction is guaranteed streamable, the {@link StreamPlanner} finds a
+   * consumer that is registered as one, and all used accumulators are streamable. Otherwise the
+   * document is loaded in full through the document cache of the engine (a <code>null</code>
+   * result, i.e. a fragment identifier that selects nothing, is FODC0002); with validation other
+   * than preserve a deep copy (type annotations dropped for strip) is validated and used instead,
+   * so the cached document stays unchanged. The body runs with the loaded node as context item
+   * (position and size 1) while the accumulators applicable to the tree are restricted to the
    * use-accumulators names.
    *
    * @param aCtx
@@ -153,7 +147,9 @@ public final class SourceDocumentExtension implements IXsltExtension
       throw XsltException.at (aEl, "XTSE1660", "The type attribute requires a schema-aware processor");
     // Schema-aware: the document is validated (as a copy, the document itself
     // is shared by all retrievals of its URI)
-    final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.SOURCE_DOCUMENT);
+    final ValidationRequest aValidation = ValidationRequest.compile (aCtx,
+                                                                     aEl,
+                                                                     ValidationRequest.EKind.SOURCE_DOCUMENT);
     final ICommonsList <XdmQName> aAccumulators = AccumulatorExtension.registerUseAccumulators (aCtx, aEl);
     final SequenceConstructor aBody = aCtx.compileContent (aEl);
     final String sBase = aEl.getStaticBaseUri ();
@@ -176,8 +172,8 @@ public final class SourceDocumentExtension implements IXsltExtension
       final Engine aEngine = aRtCtx.getEngine ();
       final XslElement aConsumer = bStreamCandidate &&
                                    aSheet.getStreamVerdicts () != null &&
-                                   aSheet.getStreamVerdicts ().isSourceDocumentStreamable (aEl)
-                                                                                                ? StreamPlanner.findConsumer (aEl,
+                                   aSheet.getStreamVerdicts ().isSourceDocumentStreamable (aEl) ? StreamPlanner
+                                                                                                               .findConsumer (aEl,
                                                                                                                               aSheet.getStreamVerdicts ())
                                                                                                 : null;
       if (aConsumer != null &&

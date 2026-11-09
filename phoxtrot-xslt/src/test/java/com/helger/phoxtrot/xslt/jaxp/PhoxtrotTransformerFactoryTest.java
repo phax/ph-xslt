@@ -62,6 +62,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
@@ -69,10 +70,10 @@ import org.xml.sax.ext.DefaultHandler2;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
-import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
@@ -81,8 +82,8 @@ import com.helger.phoxtrot.xslt.XsltTraceTemplate;
 import com.helger.phoxtrot.xslt.XsltTransformResult;
 
 /**
- * Test class for the JAXP adapter: {@link PhoxtrotTransformerFactory},
- * {@link PhoxtrotTemplates} and {@link PhoxtrotTransformer}.
+ * Test class for the JAXP adapter: {@link PhoxtrotTransformerFactory}, {@link PhoxtrotTemplates}
+ * and {@link PhoxtrotTransformer}.
  *
  * @author Philip Helger
  */
@@ -198,7 +199,8 @@ public final class PhoxtrotTransformerFactoryTest
   }
 
   @NonNull
-  private static String _transform (@NonNull final Transformer aTransformer, @NonNull final Source aSource) throws TransformerException
+  private static String _transform (@NonNull final Transformer aTransformer,
+                                    @NonNull final Source aSource) throws TransformerException
   {
     final StringWriter aSW = new StringWriter ();
     aTransformer.transform (aSource, new StreamResult (aSW));
@@ -234,7 +236,8 @@ public final class PhoxtrotTransformerFactoryTest
     assertEquals (sExpected, _transform (aT, _source (SOURCE)));
     // Input stream
     assertEquals (sExpected,
-                  _transform (aT, new StreamSource (new ByteArrayInputStream (SOURCE.getBytes (StandardCharsets.UTF_8)))));
+                  _transform (aT,
+                              new StreamSource (new ByteArrayInputStream (SOURCE.getBytes (StandardCharsets.UTF_8)))));
     // System ID
     final Path aSrcFile = m_aTempDir.getRoot ().toPath ().resolve ("src.xml");
     Files.writeString (aSrcFile, SOURCE, StandardCharsets.UTF_8);
@@ -290,21 +293,24 @@ public final class PhoxtrotTransformerFactoryTest
     final String sExpected = "<out name=\"root\" n=\"3\"/>";
     // Without reader: phoxtrot's parser
     assertEquals (sExpected,
-                  _transform (aTemplates.newTransformer (), new SAXSource (new InputSource (new StringReader (SOURCE)))));
+                  _transform (aTemplates.newTransformer (),
+                              new SAXSource (new InputSource (new StringReader (SOURCE)))));
     // With a reader of the caller
     final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
     aFactory.setNamespaceAware (true);
     final XMLReader aReader = aFactory.newSAXParser ().getXMLReader ();
     assertEquals (sExpected,
                   _transform (aTemplates.newTransformer (),
-                              new SAXSource (aReader, new InputSource (new StringReader ("<!--c--><root><x/><y/><z/></root>")))));
+                              new SAXSource (aReader,
+                                             new InputSource (new StringReader ("<!--c--><root><x/><y/><z/></root>")))));
   }
 
   @Test
   public void testXdmSource () throws Exception
   {
     final IXdmNode aDoc = new XdmParser ().parse (SOURCE);
-    assertEquals ("<out name=\"root\" n=\"3\"/>", _transform (_compile (COUNT_SHEET).newTransformer (), new XdmSource (aDoc)));
+    assertEquals ("<out name=\"root\" n=\"3\"/>",
+                  _transform (_compile (COUNT_SHEET).newTransformer (), new XdmSource (aDoc)));
     // As stylesheet too
     final IXdmNode aSheet = new XdmParser ().parse (COUNT_SHEET);
     final Templates aTemplates = new PhoxtrotTransformerFactory ().newTemplates (new XdmSource (aSheet));
@@ -322,7 +328,7 @@ public final class PhoxtrotTransformerFactoryTest
     aResult.setSystemId ("http://example.org/result.xml");
     aTemplates.newTransformer ().transform (_source (SOURCE), aResult);
     final Document aDoc = (Document) aResult.getNode ();
-    assertEquals (Document.COMMENT_NODE, aDoc.getFirstChild ().getNodeType ());
+    assertEquals (Node.COMMENT_NODE, aDoc.getFirstChild ().getNodeType ());
     final Element aRoot = aDoc.getDocumentElement ();
     assertEquals ("urn:p", aRoot.getNamespaceURI ());
     assertEquals ("p:r", aRoot.getTagName ());
@@ -334,7 +340,7 @@ public final class PhoxtrotTransformerFactoryTest
     final Document aHostDoc = _parseDom ("<host><last/></host>");
     final Element aHost = aHostDoc.getDocumentElement ();
     aTemplates.newTransformer ().transform (_source (SOURCE), new DOMResult (aHost, aHost.getFirstChild ()));
-    assertEquals (Document.COMMENT_NODE, aHost.getFirstChild ().getNodeType ());
+    assertEquals (Node.COMMENT_NODE, aHost.getFirstChild ().getNodeType ());
     assertEquals ("r", aHost.getChildNodes ().item (1).getLocalName ());
     assertEquals ("last", aHost.getLastChild ().getLocalName ());
   }
@@ -412,7 +418,9 @@ public final class PhoxtrotTransformerFactoryTest
   @Test
   public void testParameterTypeError () throws Exception
   {
-    final Transformer aT = _compile (XSL_START + "<xsl:param name='i' as='xs:integer'/><xsl:template match='/'/>" + XSL_END).newTransformer ();
+    final Transformer aT = _compile (XSL_START +
+                                     "<xsl:param name='i' as='xs:integer'/><xsl:template match='/'/>" +
+                                     XSL_END).newTransformer ();
     aT.setParameter ("i", "no number");
     final RecordingErrorListener aEL = new RecordingErrorListener ();
     aT.setErrorListener (aEL);
@@ -423,7 +431,8 @@ public final class PhoxtrotTransformerFactoryTest
     }
     catch (final TransformerException ex)
     {
-      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("FORG0001") || ex.getMessage ().startsWith ("XTTE0590"));
+      assertTrue (ex.getMessage (),
+                  ex.getMessage ().startsWith ("FORG0001") || ex.getMessage ().startsWith ("XTTE0590"));
       assertEquals (1, aEL.m_aFatals.size ());
     }
   }
@@ -433,13 +442,15 @@ public final class PhoxtrotTransformerFactoryTest
   {
     final ICommonsList <String> aCalls = new CommonsArrayList <> ();
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
-    aTF.setURIResolver ( (sHref, sBase) -> {
+    aTF.setURIResolver ((sHref, sBase) -> {
       aCalls.add (sHref + "|" + sBase);
       if ("http://example.org/xsl/inc.xsl".equals (sHref))
         return _source (XSL_START + "<xsl:template match='/'><included/></xsl:template>" + XSL_END);
       return null;
     });
-    final StreamSource aMain = _source (XSL_START + "<xsl:output omit-xml-declaration='yes'/><xsl:include href='inc.xsl'/>" + XSL_END);
+    final StreamSource aMain = _source (XSL_START +
+                                        "<xsl:output omit-xml-declaration='yes'/><xsl:include href='inc.xsl'/>" +
+                                        XSL_END);
     aMain.setSystemId ("http://example.org/xsl/main.xsl");
     final Templates aTemplates = aTF.newTemplates (aMain);
     assertEquals ("[http://example.org/xsl/inc.xsl|http://example.org/xsl/inc.xsl]", aCalls.toString ());
@@ -450,7 +461,7 @@ public final class PhoxtrotTransformerFactoryTest
   public void testUriResolverForDocument () throws Exception
   {
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
-    aTF.setURIResolver ( (sHref, sBase) -> sHref.endsWith ("factory.xml") ? _source ("<from-factory/>") : null);
+    aTF.setURIResolver ((sHref, sBase) -> sHref.endsWith ("factory.xml") ? _source ("<from-factory/>") : null);
     final StreamSource aMain = _source (XSL_START +
                                         "<xsl:output method='text'/>" +
                                         "<xsl:template match='/'><xsl:value-of select=\"document('factory.xml')/*/name(), doc('transformer.xml')/*/name(), unparsed-text('text.txt')\"/></xsl:template>" +
@@ -461,7 +472,7 @@ public final class PhoxtrotTransformerFactoryTest
     // The transformer starts with the factory's resolver
     assertNotNull (aT.getURIResolver ());
     final Document aTransformerDoc = _parseDom ("<from-transformer/>");
-    aT.setURIResolver ( (sHref, sBase) -> {
+    aT.setURIResolver ((sHref, sBase) -> {
       if (sHref.equals ("http://example.org/xsl/factory.xml"))
         return _source ("<from-factory/>");
       if (sHref.equals ("http://example.org/xsl/transformer.xml"))
@@ -543,7 +554,9 @@ public final class PhoxtrotTransformerFactoryTest
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
     final RecordingErrorListener aEL = new RecordingErrorListener ();
     aTF.setErrorListener (aEL);
-    final StreamSource aSrc = _source (XSL_START + "\n  <xsl:template match='/'>\n    <xsl:value-of select='1 +'/>\n  </xsl:template>\n" + XSL_END);
+    final StreamSource aSrc = _source (XSL_START +
+                                       "\n  <xsl:template match='/'>\n    <xsl:value-of select='1 +'/>\n  </xsl:template>\n" +
+                                       XSL_END);
     aSrc.setSystemId ("http://example.org/bad.xsl");
     try
     {
@@ -754,7 +767,8 @@ public final class PhoxtrotTransformerFactoryTest
     assertEquals ("ISO-8859-1", aT.getOutputProperty (OutputKeys.ENCODING));
     final ByteArrayOutputStream aBAOS = new ByteArrayOutputStream ();
     aT.transform (_source (SOURCE), new StreamResult (aBAOS));
-    assertEquals ("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><r><e>é</e></r>", aBAOS.toString (StandardCharsets.ISO_8859_1));
+    assertEquals ("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><r><e>é</e></r>",
+                  aBAOS.toString (StandardCharsets.ISO_8859_1));
 
     aT.setOutputProperty (OutputKeys.OMIT_XML_DECLARATION, "yes");
     aT.setOutputProperty (OutputKeys.INDENT, "yes");
@@ -824,7 +838,8 @@ public final class PhoxtrotTransformerFactoryTest
                                      "<xsl:template match='/'><r><e xmlns='urn:x'>a&lt;b</e><f>c</f></r></xsl:template>" +
                                      XSL_END).newTransformer ();
     aT.setOutputProperty (OutputKeys.CDATA_SECTION_ELEMENTS, "{urn:x}e f");
-    assertEquals ("<r><e xmlns=\"urn:x\"><![CDATA[a<b]]></e><f><![CDATA[c]]></f></r>", _transform (aT, _source (SOURCE)));
+    assertEquals ("<r><e xmlns=\"urn:x\"><![CDATA[a<b]]></e><f><![CDATA[c]]></f></r>",
+                  _transform (aT, _source (SOURCE)));
   }
 
   @Test
@@ -846,7 +861,8 @@ public final class PhoxtrotTransformerFactoryTest
 
     // SAX in, SAX out
     final RecordingHandler aHandler = new RecordingHandler ();
-    aTF.newTransformer ().transform (new SAXSource (new InputSource (new StringReader (sXml))), new SAXResult (aHandler));
+    aTF.newTransformer ()
+       .transform (new SAXSource (new InputSource (new StringReader (sXml))), new SAXResult (aHandler));
     assertEquals ("[doc]<!--c-->[ns p=urn:p]<{urn:p}p:r a=1><{}e>t</e><?pi d?></p:r>[/doc]", aHandler.toString ());
 
     // An HTML document stays XML
@@ -872,7 +888,7 @@ public final class PhoxtrotTransformerFactoryTest
       for (int i = 0; i < 64; ++i)
       {
         final int nIndex = i;
-        aFutures.add (aES.submit ( () -> {
+        aFutures.add (aES.submit (() -> {
           final Transformer aT = aTemplates.newTransformer ();
           aT.setParameter ("p", Integer.valueOf (nIndex));
           final StringBuilder aSB = new StringBuilder ("<r>");
@@ -987,7 +1003,8 @@ public final class PhoxtrotTransformerFactoryTest
     final StreamSource aDoc2 = _source ("<?xml-stylesheet href='screen.xsl' type='text/xsl' media='screen'?>" +
                                         "<?xml-stylesheet href='print.xsl' type='text/xsl' media='print'?><r/>");
     aDoc2.setSystemId ("http://example.org/doc/d.xml");
-    assertEquals ("http://example.org/doc/print.xsl", aTF.getAssociatedStylesheet (aDoc2, "print", null, null).getSystemId ());
+    assertEquals ("http://example.org/doc/print.xsl",
+                  aTF.getAssociatedStylesheet (aDoc2, "print", null, null).getSystemId ());
 
     // Several match: a stylesheet that imports them
     final StreamSource aDoc3 = _source ("<?xml-stylesheet href='one.xsl' type='text/xsl'?>" +
@@ -998,7 +1015,8 @@ public final class PhoxtrotTransformerFactoryTest
     final StringWriter aCombinedText = new StringWriter ();
     aCombined.getReader ().transferTo (aCombinedText);
     final String sCombined = aCombinedText.toString ();
-    assertTrue (sCombined, sCombined.contains ("<xsl:import href='http://example.org/doc/one.xsl'/><xsl:import href='http://example.org/doc/two.xsl'/>"));
+    assertTrue (sCombined,
+                sCombined.contains ("<xsl:import href='http://example.org/doc/one.xsl'/><xsl:import href='http://example.org/doc/two.xsl'/>"));
 
     assertNull (aTF.getAssociatedStylesheet (_source ("<r/>"), null, null, null));
   }
@@ -1008,8 +1026,7 @@ public final class PhoxtrotTransformerFactoryTest
   {
     final PhoxtrotTransformer aT = new PhoxtrotTransformerFactory ().newTemplates (_source (XSL_START +
                                                                                             "<xsl:template match='/'><main/><xsl:result-document href='second.xml'><second/></xsl:result-document></xsl:template>" +
-                                                                                            XSL_END))
-                                                                    .newTransformer ();
+                                                                                            XSL_END)).newTransformer ();
     final DOMResult aResult = new DOMResult ();
     aResult.setSystemId ("http://example.org/out/main.xml");
     aT.transform (_source (SOURCE), aResult);

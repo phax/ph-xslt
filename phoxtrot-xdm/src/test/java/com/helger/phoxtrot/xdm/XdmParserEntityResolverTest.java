@@ -50,9 +50,8 @@ public final class XdmParserEntityResolverTest
   private static final String BASE = "http://example.org/doc/";
 
   /**
-   * Answers from a map of absolute system IDs to texts, returns
-   * <code>null</code> for any other system ID and records every system ID it
-   * was asked for.
+   * Answers from a map of absolute system IDs to texts, returns <code>null</code> for any other
+   * system ID and records every system ID it was asked for.
    */
   private static final class MapResolver implements EntityResolver
   {
@@ -111,7 +110,9 @@ public final class XdmParserEntityResolverTest
     final Path aDir = Files.createTempDirectory ("xdmresolver");
     try
     {
-      final Path aDtd = Files.writeString (aDir.resolve ("a.dtd"), "<!ATTLIST a x CDATA 'def'>", StandardCharsets.UTF_8);
+      final Path aDtd = Files.writeString (aDir.resolve ("a.dtd"),
+                                           "<!ATTLIST a x CDATA 'def'>",
+                                           StandardCharsets.UTF_8);
       final Path aDoc = Files.writeString (aDir.resolve ("a.xml"),
                                            "<!DOCTYPE a SYSTEM 'a.dtd'><a/>",
                                            StandardCharsets.UTF_8);
@@ -147,7 +148,7 @@ public final class XdmParserEntityResolverTest
                                                            BASE + "e.xml",
                                                            "<b>ext</b>"));
     final XdmParser aParser = new XdmParser ().setEntityResolver (aResolver);
-    assertEquals (XdmParser.DEFAULT_LOAD_EXTERNAL_ENTITIES, aParser.isLoadExternalEntities ());
+    assertTrue (XdmParser.DEFAULT_LOAD_EXTERNAL_ENTITIES == aParser.isLoadExternalEntities ());
     final IXdmNode aRoot = aParser.parse (_source ("<!DOCTYPE a SYSTEM 'a.dtd' [<!ENTITY e SYSTEM 'e.xml'>]><a>&e;</a>"))
                                   .getChildAtIndex (0);
     assertNull (aRoot.getAttribute ("", "x"));
@@ -193,9 +194,7 @@ public final class XdmParserEntityResolverTest
   @Test
   public void testResolverException ()
   {
-    final EntityResolver aResolver = (sPublicID, sSystemID) -> {
-      throw new SAXException ("refused " + sSystemID);
-    };
+    final EntityResolver aResolver = (sPublicID, sSystemID) -> { throw new SAXException ("refused " + sSystemID); };
     try
     {
       new XdmParser ().setLoadExternalEntities (true)
@@ -212,9 +211,7 @@ public final class XdmParserEntityResolverTest
   @Test
   public void testIOExceptionFromResolver ()
   {
-    final EntityResolver aResolver = (sPublicID, sSystemID) -> {
-      throw new IOException ("unreachable " + sSystemID);
-    };
+    final EntityResolver aResolver = (sPublicID, sSystemID) -> { throw new IOException ("unreachable " + sSystemID); };
     try
     {
       new XdmParser ().setLoadExternalEntities (true)
