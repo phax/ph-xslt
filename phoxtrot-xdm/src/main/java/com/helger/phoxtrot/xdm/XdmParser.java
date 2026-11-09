@@ -70,12 +70,13 @@ public class XdmParser
    */
   public static final int DEFAULT_MAX_ELEMENT_DEPTH = 10_000;
   /**
-   * Whether the nodes get the location the parser reports. On by default:
-   * stylesheet modules, schema documents and documents whose validation
-   * errors are reported with a line all need it, and they also come through
-   * resolvers that only call <code>new XdmParser ()</code>.
+   * Whether the nodes get the location the parser reports. Off by default:
+   * an input document of a transformation or query needs none. Every parse
+   * of a stylesheet module, a schema document or a document whose validation
+   * errors are reported with a line switches it on explicitly
+   * ({@link #setRecordLocations(boolean)}).
    */
-  public static final boolean DEFAULT_RECORD_LOCATIONS = true;
+  public static final boolean DEFAULT_RECORD_LOCATIONS = false;
 
   private static final Logger LOGGER = LoggerFactory.getLogger (XdmParser.class);
   /**
@@ -275,14 +276,17 @@ public class XdmParser
 
   /**
    * Decide whether the nodes get the line and column the parser reports
-   * (see {@link IXdmNode#getLine()}). Without, every element, attribute,
-   * text, comment and processing instruction node is 8 bytes smaller, which
-   * saves 7 to 9 % of a typical tree; the locations are then 0. Switch it
-   * off for input documents whose node locations nobody reads: they are used
-   * in the error messages of stylesheets and schemas, by
-   * <code>xsl:try</code>, and for the line of instance validation errors of
-   * the native XSD validator (without, such an error has line 0 and only its
-   * path).
+   * (see {@link IXdmNode#getLine()}). Only elements, comments and processing
+   * instructions have location fields (attributes and text nodes report the
+   * location of their parent); without, each of them is 8 bytes smaller and
+   * all locations are 0. Off by default
+   * ({@link #DEFAULT_RECORD_LOCATIONS}); switch it on for documents whose
+   * node locations are read: the error messages of stylesheets and schemas
+   * and <code>xsl:try</code> use them, and so does the line of an instance
+   * validation error of the native XSD validator (without, such an error has
+   * line 0 and only its path). The stylesheet, schema and XSD instance
+   * parses of phoxtrot and its resolvers for stylesheet modules
+   * (<code>FileResourceResolver</code>, the JAXP adapter) switch it on.
    *
    * @param bRecordLocations
    *        <code>true</code> to record them.

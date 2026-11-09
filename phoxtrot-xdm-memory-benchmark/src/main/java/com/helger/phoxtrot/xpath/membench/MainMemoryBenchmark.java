@@ -174,20 +174,23 @@ public final class MainMemoryBenchmark
   }
 
   /**
-   * Parse a file into the phoxtrot XDM tree without node locations, if the
-   * engine on the class path has the option
+   * Parse a file into the phoxtrot XDM tree with or without node locations,
+   * if the engine on the class path has the option
    * (<code>XdmParser.setRecordLocations</code>, called by reflection so that
-   * the benchmark also runs against older engine jars).
+   * the benchmark also runs against older engine jars). The option is set
+   * explicitly, as its default changed (on before, off since).
    *
    * @param aFile
    *        The XML file.
-   * @return The document node, or <code>null</code> if the engine cannot
-   *         parse without locations.
+   * @param bRecordLocations
+   *        <code>true</code> to record node locations.
+   * @return The document node, or <code>null</code> if the engine has no such
+   *         option.
    * @throws IllegalStateException
    *         wrapping the exception of a file that cannot be parsed
    */
   @Nullable
-  private static IXdmNode _parseXdmWithoutLocations (@NonNull final File aFile)
+  private static IXdmNode _parseXdmLocations (@NonNull final File aFile, final boolean bRecordLocations)
   {
     final Method aSetter;
     try
@@ -201,7 +204,7 @@ public final class MainMemoryBenchmark
     try
     {
       final XdmParser aParser = new XdmParser ();
-      aSetter.invoke (aParser, Boolean.FALSE);
+      aSetter.invoke (aParser, Boolean.valueOf (bRecordLocations));
       return aParser.parse (aFile.toPath ());
     }
     catch (final ReflectiveOperationException | XdmParseException ex)
@@ -289,8 +292,9 @@ public final class MainMemoryBenchmark
    * with the JOL instance size of each node class the engine has (and of the
    * <code>Details</code> holder), then one <code>DOC</code> line per
    * document with its name, element, attribute and text node counts, the
-   * JOL deep size of the parsed tree in bytes and the deep size of the tree
-   * parsed without node locations (-1 if the engine has no such option).
+   * JOL deep size in bytes of the tree parsed with node locations and the
+   * deep size of the tree parsed without (-1 if the engine has no such
+   * option).
    *
    * @throws Exception
    *         if a document is missing or cannot be parsed
@@ -315,18 +319,21 @@ public final class MainMemoryBenchmark
         final Class <?> aClass = Class.forName ("com.helger.phoxtrot.xdm." + sClass);
         aClasses.append ('\t').append (sClass).append ('=').append (ClassLayout.parseClass (aClass).instanceSize ());
       }
-      catch (final ClassNotFoundException ex)
+      catch (final ClassNotFoundException | LinkageError ex)
       {
-        // Not in this version of the engine
+        // Not in this version of the engine (a class of the engine jar in
+        // the local repository behind the measured jar does not link)
       }
     System.out.println (aClasses);
     _parseXdm (new File (DOCUMENTS[0][1]));
     for (final String [] aDoc : DOCUMENTS)
     {
-      final IXdmNode aXdm = _parseXdm (new File (aDoc[1]));
+      // An engine without the option always records locations
+      final IXdmNode aLocated = _parseXdmLocations (new File (aDoc[1]), true);
+      final IXdmNode aXdm = aLocated != null ? aLocated : _parseXdm (new File (aDoc[1]));
       final long [] aCounts = _countXdmNodes (aXdm);
       final long nXdm = GraphLayout.parseInstance (aXdm).totalSize ();
-      final IXdmNode aUnlocated = _parseXdmWithoutLocations (new File (aDoc[1]));
+      final IXdmNode aUnlocated = _parseXdmLocations (new File (aDoc[1]), false);
       final long nUnlocated = aUnlocated == null ? -1 : GraphLayout.parseInstance (aUnlocated).totalSize ();
       System.out.println ("DOC\t" +
                           aDoc[0] +

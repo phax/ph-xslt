@@ -214,7 +214,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
     final IXdmNode aSheet;
     try
     {
-      aSheet = JaxpSources.toXdm (aSource, m_bLoadExternalEntities);
+      aSheet = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, true);
     }
     catch (final TransformerException ex)
     {
@@ -232,7 +232,8 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
     final XsltCompileOptions aOptions = new XsltCompileOptions ().setBaseUri (sBaseUri)
                                                                  .setResolver (new JaxpResourceResolver (m_aURIResolver,
                                                                                                          m_sAccessExternalStylesheet,
-                                                                                                         m_bLoadExternalEntities))
+                                                                                                         m_bLoadExternalEntities,
+                                                                                                         true))
                                                                  .setLoadExternalEntities (m_bLoadExternalEntities)
                                                                  .setSchemaAware (m_bSchemaAware)
                                                                  .setBackwardsCompatibleClaim (m_bBackwardsCompatible);
@@ -318,7 +319,8 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
     final IXdmNode aDoc;
     try
     {
-      aDoc = JaxpSources.toXdm (aSource, m_bLoadExternalEntities).getRoot ();
+      // Only the processing instructions are read
+      aDoc = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, false).getRoot ();
     }
     catch (final TransformerException ex)
     {

@@ -330,7 +330,8 @@ public final class DomToXdm
                                   @Nullable final Node aTarget,
                                   @NonNull final Wrapper <IXdmNode> aTargetOut)
   {
-    final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+    // A DOM has no locations to record
+    final XdmTreeBuilder aBuilder = new XdmTreeBuilder (false);
     final LocatorImpl aLocator = new LocatorImpl ();
     aLocator.setSystemId (sSystemId);
     aBuilder.setDocumentLocator (aLocator);

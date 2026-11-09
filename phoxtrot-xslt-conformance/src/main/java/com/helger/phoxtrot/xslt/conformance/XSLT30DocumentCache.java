@@ -71,7 +71,9 @@ public final class XSLT30DocumentCache
     }
     try
     {
-      final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).parse (aFile);
+      // The cache serves stylesheet modules as well as source documents, and
+      // stylesheet modules need node locations
+      final IXdmNode aDoc = new XdmParser ().setRecordLocations (true).setLoadExternalEntities (true).parse (aFile);
       m_aDocs.put (aFile, aDoc);
       return aDoc;
     }

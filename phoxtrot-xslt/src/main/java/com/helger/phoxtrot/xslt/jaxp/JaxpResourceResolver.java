@@ -68,6 +68,7 @@ final class JaxpResourceResolver implements IResourceResolver
   private final URIResolver m_aURIResolver;
   private final String m_sAllowedSchemes;
   private final boolean m_bLoadExternalEntities;
+  private final boolean m_bRecordLocations;
 
   /**
    * @param aURIResolver
@@ -77,14 +78,21 @@ final class JaxpResourceResolver implements IResourceResolver
    *        the direct access.
    * @param bLoadExternalEntities
    *        Whether documents read here load external DTDs and entities.
+   * @param bRecordLocations
+   *        Whether documents parsed here get node locations
+   *        ({@link XdmParser#setRecordLocations(boolean)}): <code>true</code>
+   *        for the resolver of stylesheet modules, <code>false</code> for
+   *        the one of the documents a transformation reads.
    */
   JaxpResourceResolver (@Nullable final URIResolver aURIResolver,
                         @NonNull final String sAllowedSchemes,
-                        final boolean bLoadExternalEntities)
+                        final boolean bLoadExternalEntities,
+                        final boolean bRecordLocations)
   {
     m_aURIResolver = aURIResolver;
     m_sAllowedSchemes = sAllowedSchemes;
     m_bLoadExternalEntities = bLoadExternalEntities;
+    m_bRecordLocations = bRecordLocations;
   }
 
   /**
@@ -163,7 +171,7 @@ final class JaxpResourceResolver implements IResourceResolver
       final IXdmNode ret;
       try
       {
-        ret = JaxpSources.toXdm (aSource, m_bLoadExternalEntities);
+        ret = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, m_bRecordLocations);
       }
       catch (final TransformerException ex)
       {
@@ -177,10 +185,11 @@ final class JaxpResourceResolver implements IResourceResolver
     if (!_checkAccess (sAbsoluteUri))
       return null;
     if (sAbsoluteUri.startsWith ("file:"))
-      return new FileResourceResolver (m_bLoadExternalEntities).resolveDocument (sAbsoluteUri);
+      return new FileResourceResolver (m_bLoadExternalEntities, m_bRecordLocations).resolveDocument (sAbsoluteUri);
     try
     {
       final IXdmNode ret = new XdmParser ().setLoadExternalEntities (m_bLoadExternalEntities)
+                                           .setRecordLocations (m_bRecordLocations)
                                            .parse (new InputSource (sAbsoluteUri));
       if (ret.getDocumentUri () == null)
         ret.setDocumentUri (sAbsoluteUri);

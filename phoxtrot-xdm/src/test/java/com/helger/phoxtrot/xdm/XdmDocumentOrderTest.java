@@ -22,7 +22,11 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.Test;
 
@@ -239,5 +243,32 @@ public final class XdmDocumentOrderTest
       aExpected.append ('y');
     }
     assertEquals (aExpected.toString (), aText.getValue ());
+  }
+
+  @Test
+  public void testTextAppendValueConcurrentRead () throws Exception
+  {
+    final ExecutorService aExecutor = Executors.newFixedThreadPool (8);
+    try
+    {
+      for (int nRound = 0; nRound < 200; ++nRound)
+      {
+        final XdmTextNode aText = (XdmTextNode) IXdmNode.createText ("a");
+        for (int i = 0; i < 50; ++i)
+          aText.appendValue ("b");
+        final String sExpected = "a" + "b".repeat (50);
+        // The finished node is read by several threads at once: all see the
+        // complete text
+        final List <Future <String>> aResults = new ArrayList <> ();
+        for (int i = 0; i < 8; ++i)
+          aResults.add (aExecutor.submit (aText::getValue));
+        for (final Future <String> aResult : aResults)
+          assertEquals (sExpected, aResult.get ());
+      }
+    }
+    finally
+    {
+      aExecutor.shutdownNow ();
+    }
   }
 }

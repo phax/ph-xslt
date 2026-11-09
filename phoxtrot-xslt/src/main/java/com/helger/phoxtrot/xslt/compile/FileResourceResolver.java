@@ -39,25 +39,46 @@ import com.helger.phoxtrot.xpath.context.IResourceResolver;
 
 /**
  * A resolver that reads <code>file:</code> URIs and nothing else. Used for
- * stylesheet modules when the compile options give no resolver.
+ * stylesheet modules when the compile options give no resolver. The parsed
+ * documents get node locations unless the resolver is created without (for
+ * the documents a transformation reads, which need none).
  *
  * @author Philip Helger
  */
 @Immutable
 public final class FileResourceResolver implements IResourceResolver
 {
-  /** The shared instance, without external entities. */
+  /** The shared instance, without external entities, with node locations. */
   public static final FileResourceResolver INSTANCE = new FileResourceResolver (false);
 
   private final boolean m_bLoadExternalEntities;
+  private final boolean m_bRecordLocations;
 
   /**
+   * A resolver whose documents get node locations, as stylesheet modules
+   * need them.
+   *
    * @param bLoadExternalEntities
    *        <code>true</code> to load external DTDs and entities.
    */
   public FileResourceResolver (final boolean bLoadExternalEntities)
   {
+    this (bLoadExternalEntities, true);
+  }
+
+  /**
+   * @param bLoadExternalEntities
+   *        <code>true</code> to load external DTDs and entities.
+   * @param bRecordLocations
+   *        <code>true</code> to give the parsed documents node locations
+   *        ({@link XdmParser#setRecordLocations(boolean)}), as stylesheet
+   *        modules need them; <code>false</code> for documents nobody reads
+   *        the locations of (<code>fn:doc</code>, <code>document()</code>).
+   */
+  public FileResourceResolver (final boolean bLoadExternalEntities, final boolean bRecordLocations)
+  {
     m_bLoadExternalEntities = bLoadExternalEntities;
+    m_bRecordLocations = bRecordLocations;
   }
 
   /**
@@ -105,7 +126,9 @@ public final class FileResourceResolver implements IResourceResolver
       return null;
     try
     {
-      final IXdmNode ret = new XdmParser ().setRecordLocations (true).setLoadExternalEntities (m_bLoadExternalEntities).parse (aPath);
+      final IXdmNode ret = new XdmParser ().setRecordLocations (m_bRecordLocations)
+                                           .setLoadExternalEntities (m_bLoadExternalEntities)
+                                           .parse (aPath);
       if (ret.getDocumentUri () == null)
         ret.setDocumentUri (sAbsoluteUri);
       return ret;

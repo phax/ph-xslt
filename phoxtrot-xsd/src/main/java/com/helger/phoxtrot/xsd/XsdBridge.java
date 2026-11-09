@@ -303,10 +303,8 @@ final class XsdBridge implements IXdmSchemaSet
         aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());
       for (final IXdmNode aAttr : aOrig.getAllAttributes ())
       {
-        final IXdmNode aAttrCopy = IXdmNode.createAttribute (aAttr.getName (),
-                                                             aAttr.getValue (),
-                                                             aAttr.getLine (),
-                                                             aAttr.getColumn ());
+        // The copy reports the location of its copied element
+        final IXdmNode aAttrCopy = IXdmNode.createAttribute (aAttr.getName (), aAttr.getValue ());
         aCopy.addAttribute (aAttrCopy);
         aClones.add (aAttrCopy);
         aOriginals.add (aAttr);
@@ -540,10 +538,9 @@ final class XsdBridge implements IXdmSchemaSet
         // by more than one episode
         if (aOrig.getAttribute (aDefault.name ().space (), aDefault.name ().local ()) != null)
           continue;
+        // The default attribute reports the location of its element
         final IXdmNode aAttr = IXdmNode.createAttribute (_fixupAttributeName (aOrig, aDefault.name ()),
-                                                         aDefault.value (),
-                                                         aOrig.getLine (),
-                                                         aOrig.getColumn ());
+                                                         aDefault.value ());
         aOrig.addAttribute (aAttr);
         bChanged = true;
         if (aDefault.type () != null)
@@ -592,8 +589,8 @@ final class XsdBridge implements IXdmSchemaSet
       final String sNormalised = XsdWhiteSpace.apply (aWSType.effectiveWhiteSpace (), aDefault.value ());
       if (sNormalised.isEmpty ())
         continue;
-      final IXdmNode aText = IXdmNode.createText (sNormalised, aOrig.getLine (), aOrig.getColumn ());
-      aOrig.appendChild (aText);
+      // The text node reports the location of its element
+      aOrig.appendChild (IXdmNode.createText (sNormalised));
       aCopy.appendChild (IXdmNode.createText (sNormalised));
       bChanged = true;
     }

@@ -48,7 +48,7 @@ public class ParseBenchmark
   @Param ({ "1000", "10000" })
   public int m_nSize;
 
-  /** <code>parse</code>, or <code>unlocated</code> for a parse without node locations. */
+  /** <code>parse</code> with node locations, or <code>unlocated</code> for a parse without. */
   @Param ({ "parse", "unlocated" })
   public String m_sCase;
 

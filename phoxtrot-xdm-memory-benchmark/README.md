@@ -12,18 +12,19 @@ documents:
 ## Results
 
 Retained heap of one parsed document, measured on Temurin 21.0.13 and 25.0.5 without compact object headers (identical
-figures), ph-xdm with the default parser settings (node locations recorded). 1 MB = 2^20 bytes.
+figures), ph-xdm with the default parser settings (no node locations since batch 5; the ph-xdm figures are from
+`run.sh xdm`, MicroDOM and TinyTree from the last `run.sh full`, 2026-11-09). 1 MB = 2^20 bytes.
 
 | Document | Character | File size | Elements | Attributes | Text nodes | ph-xdm | MicroDOM | Saxon TinyTree |
 |---|---|--:|--:|--:|--:|--:|--:|--:|
-| UBL invoice (Peppol) | small business document, namespaces | 0.01 MB | 136 | 98 | 271 | 0.05 MB | 0.07 MB | 0.02 MB |
-| XMark auction | mixed data and prose | 3.34 MB | 50,198 | 11,526 | 91,070 | 13.44 MB | 20.20 MB | 5.35 MB |
-| iTunes plist | very many tiny elements | 9.98 MB | 393,688 | 1 | 607,488 | 81.82 MB | 114.03 MB | 16.26 MB |
-| Bank transactions | empty elements with 2 attributes each | 4.74 MB | 100,002 | 200,001 | 100,003 | 29.27 MB | 55.85 MB | 16.13 MB |
-| Unicode characters | empty elements with 5 attributes each | 6.08 MB | 116,767 | 583,830 | 116,767 | 60.62 MB | 109.60 MB | 38.05 MB |
-| Old Testament | prose, long text nodes | 3.33 MB | 25,317 | 0 | 49,638 | 8.66 MB | 11.36 MB | 4.35 MB |
-| XSLT 3.0 spec (XHTML) | document markup, mixed content | 2.92 MB | 47,867 | 52,503 | 66,267 | 14.34 MB | 24.11 MB | 7.70 MB |
-| XSLT test stylesheets | many namespace declarations | 6.53 MB | 71,672 | 84,618 | 127,382 | 25.60 MB | 40.99 MB | 10.45 MB |
+| UBL invoice (Peppol) | small business document, namespaces | 0.01 MB | 136 | 98 | 271 | 0.04 MB | 0.07 MB | 0.02 MB |
+| XMark auction | mixed data and prose | 3.34 MB | 50,198 | 11,526 | 91,070 | 11.58 MB | 20.20 MB | 5.35 MB |
+| iTunes plist | very many tiny elements | 9.98 MB | 393,688 | 1 | 607,488 | 69.55 MB | 114.03 MB | 16.26 MB |
+| Bank transactions | empty elements with 2 attributes each | 4.74 MB | 100,002 | 200,001 | 100,003 | 25.45 MB | 55.85 MB | 16.13 MB |
+| Unicode characters | empty elements with 5 attributes each | 6.08 MB | 116,767 | 583,830 | 116,767 | 53.50 MB | 109.60 MB | 38.05 MB |
+| Old Testament | prose, long text nodes | 3.33 MB | 25,317 | 0 | 49,638 | 7.71 MB | 11.36 MB | 4.35 MB |
+| XSLT 3.0 spec (XHTML) | document markup, mixed content | 2.92 MB | 47,867 | 52,503 | 66,267 | 12.56 MB | 24.11 MB | 7.70 MB |
+| XSLT test stylesheets | many namespace declarations | 6.53 MB | 71,672 | 84,618 | 127,382 | 22.37 MB | 40.99 MB | 10.45 MB |
 
 Node counts are taken from the ph-xdm tree. All three models keep whitespace-only text nodes and hold the same nodes
 (checked against the MicroDOM class counts and the TinyTree node kinds).
@@ -31,62 +32,70 @@ Node counts are taken from the ph-xdm tree. All three models keep whitespace-onl
 ### Compact object headers
 
 The same documents on Temurin 25.0.5 with `-XX:+UseCompactObjectHeaders` (JEP 519), which shrinks every object header
-from 12 to 8 bytes (16 to 12 for arrays), for all three models (measured 2026-11-09, `run.sh full`; Temurin 25.0.5
-without the option gives the same figures as JDK 21):
+from 12 to 8 bytes (16 to 12 for arrays), for all three models (measured 2026-11-09, `run.sh full`, ph-xdm with the
+default parser settings from `run.sh xdm`; Temurin 25.0.5 without the option gives the same figures as JDK 21):
 
 | Document | ph-xdm | MicroDOM | Saxon TinyTree | ph-xdm saving | MicroDOM saving | TinyTree saving |
 |---|--:|--:|--:|--:|--:|--:|
 | UBL invoice (Peppol) | 0.04 MB | 0.06 MB | 0.02 MB | - | - | - |
-| XMark auction | 11.85 MB | 18.22 MB | 5.30 MB | 12 % | 10 % | 1 % |
-| iTunes plist | 69.72 MB | 103.32 MB | 16.26 MB | 15 % | 9 % | 0 % |
-| Bank transactions | 27.15 MB | 48.73 MB | 15.12 MB | 7 % | 13 % | 6 % |
-| Unicode characters | 56.64 MB | 94.04 MB | 34.96 MB | 7 % | 14 % | 8 % |
-| Old Testament | 7.81 MB | 10.49 MB | 4.35 MB | 10 % | 8 % | 0 % |
-| XSLT 3.0 spec (XHTML) | 12.87 MB | 21.67 MB | 7.45 MB | 10 % | 10 % | 3 % |
-| XSLT test stylesheets | 23.04 MB | 36.78 MB | 10.05 MB | 10 % | 10 % | 4 % |
+| XMark auction | 10.69 MB | 18.22 MB | 5.30 MB | 8 % | 10 % | 1 % |
+| iTunes plist | 62.08 MB | 103.32 MB | 16.26 MB | 11 % | 9 % | 0 % |
+| Bank transactions | 24.10 MB | 48.73 MB | 15.12 MB | 5 % | 13 % | 6 % |
+| Unicode characters | 50.40 MB | 94.04 MB | 34.96 MB | 6 % | 14 % | 8 % |
+| Old Testament | 7.23 MB | 10.49 MB | 4.35 MB | 6 % | 8 % | 0 % |
+| XSLT 3.0 spec (XHTML) | 11.60 MB | 21.67 MB | 7.45 MB | 8 % | 10 % | 3 % |
+| XSLT test stylesheets | 20.78 MB | 36.78 MB | 10.05 MB | 7 % | 10 % | 4 % |
 
 Before batch 4 ph-xdm gained only 3 to 5 %: its node objects were padded to a multiple of 8 bytes, and the 4 bytes a
 header loses were taken by the padding. The layouts of batch 4 (tree stamp, rare fields in `Details`) are cut so that
 the header saving counts; ph-xdm now gains about as much as MicroDOM, which has more, smaller objects per node.
-TinyTree consists of a few large arrays and gains little.
+TinyTree consists of a few large arrays and gains little. Since batch 5 ph-xdm gains less than before (5 to 11 %
+instead of 7 to 15 %): a text node without its pending-text field is 32 bytes with and without compact headers (before,
+40 on JDK 21 and 32 with compact headers, where the field fitted into the padding), so compact headers have less left to
+save on text nodes.
 
-After batch 4 (see below) the node layouts are cut so that the header saving counts too. ph-xdm now, JDK 21 and JDK 25
-with compact headers, with and without node locations (`XdmParser.setRecordLocations (false)`):
+ph-xdm with and without node locations (`XdmParser.setRecordLocations (true)`, off by default since batch 5), JDK 21
+and JDK 25 with compact headers (measured 2026-11-09, `run.sh xdm`):
 
-| Document | JDK 21 | JDK 21, no locations | JDK 25, compact headers | JDK 25, compact headers, no locations |
+| Document | JDK 21, locations | JDK 21, no locations (default) | JDK 25, compact headers, locations | JDK 25, compact headers, no locations (default) |
 |---|--:|--:|--:|--:|
-| UBL invoice (Peppol) | 0.05 MB | 0.04 MB | 0.04 MB | 0.04 MB |
-| XMark auction | 13.44 MB | 12.28 MB | 11.85 MB | 10.69 MB |
-| iTunes plist | 81.82 MB | 74.18 MB | 69.72 MB | 62.08 MB |
-| Bank transactions | 29.27 MB | 26.21 MB | 27.15 MB | 24.10 MB |
-| Unicode characters | 60.62 MB | 54.39 MB | 56.64 MB | 50.40 MB |
-| Old Testament | 8.66 MB | 8.09 MB | 7.81 MB | 7.23 MB |
-| XSLT 3.0 spec (XHTML) | 14.34 MB | 13.07 MB | 12.87 MB | 11.60 MB |
-| XSLT test stylesheets | 25.60 MB | 23.34 MB | 23.04 MB | 20.78 MB |
+| UBL invoice (Peppol) | 0.04 MB | 0.04 MB | 0.04 MB | 0.04 MB |
+| XMark auction | 11.97 MB | 11.58 MB | 11.07 MB | 10.69 MB |
+| iTunes plist | 72.55 MB | 69.55 MB | 65.09 MB | 62.08 MB |
+| Bank transactions | 26.21 MB | 25.45 MB | 24.86 MB | 24.10 MB |
+| Unicode characters | 54.39 MB | 53.50 MB | 51.29 MB | 50.40 MB |
+| Old Testament | 7.90 MB | 7.71 MB | 7.43 MB | 7.23 MB |
+| XSLT 3.0 spec (XHTML) | 12.93 MB | 12.56 MB | 11.96 MB | 11.60 MB |
+| XSLT test stylesheets | 23.01 MB | 22.37 MB | 21.42 MB | 20.78 MB |
 
-Instance sizes in bytes (JDK 21 / compact headers): element 56 / 48 (with location 64 / 56), attribute 40 / 40
-(48 / 48), text 40 / 32 (48 / 40), document 72 / 64, `Details` 48 / 48.
+Only elements, comments and processing instructions carry a location (8 bytes), so locations now cost 1.6 to 4.1 % of a
+tree instead of 7 to 10 %. Before batch 5 the same columns were 13.44 / 12.28 / 11.85 / 10.69 MB for XMark and
+29.27 / 26.21 / 27.15 / 24.10 MB for the bank transactions.
+
+Instance sizes in bytes (JDK 21 / compact headers): element 56 / 48 (with location 64 / 56), attribute 40 / 40, text
+32 / 32, document 72 / 64, `Details` 48 / 48. Before batch 5: attribute 40 / 40 (with location 48 / 48), text 40 / 32
+(with location 48 / 40).
 
 ### Heap per byte of input
 
 | Document | ph-xdm | MicroDOM | Saxon TinyTree | ph-xdm vs. MicroDOM | ph-xdm vs. TinyTree |
 |---|--:|--:|--:|--:|--:|
-| UBL invoice (Peppol) | 4.5 | 6.8 | 1.6 | 0.66x | 2.8x |
-| XMark auction | 4.0 | 6.0 | 1.6 | 0.67x | 2.5x |
-| iTunes plist | 8.2 | 11.4 | 1.6 | 0.72x | 5.0x |
-| Bank transactions | 6.2 | 11.8 | 3.4 | 0.52x | 1.8x |
-| Unicode characters | 10.0 | 18.0 | 6.3 | 0.55x | 1.6x |
-| Old Testament | 2.6 | 3.4 | 1.3 | 0.76x | 2.0x |
-| XSLT 3.0 spec (XHTML) | 4.9 | 8.2 | 2.6 | 0.59x | 1.9x |
-| XSLT test stylesheets | 3.9 | 6.3 | 1.6 | 0.62x | 2.4x |
+| UBL invoice (Peppol) | 3.9 | 6.8 | 1.6 | 0.58x | 2.4x |
+| XMark auction | 3.5 | 6.0 | 1.6 | 0.57x | 2.2x |
+| iTunes plist | 7.0 | 11.4 | 1.6 | 0.61x | 4.3x |
+| Bank transactions | 5.4 | 11.8 | 3.4 | 0.46x | 1.6x |
+| Unicode characters | 8.8 | 18.0 | 6.3 | 0.49x | 1.4x |
+| Old Testament | 2.3 | 3.4 | 1.3 | 0.68x | 1.8x |
+| XSLT 3.0 spec (XHTML) | 4.3 | 8.2 | 2.6 | 0.52x | 1.6x |
+| XSLT test stylesheets | 3.4 | 6.3 | 1.6 | 0.55x | 2.1x |
 
 ### Summary
 
-- **Saxon TinyTree** is by far the most compact: 1.3 to 6 times the file size, and 1.6 to 5.0 times smaller than
+- **Saxon TinyTree** is by far the most compact: 1.3 to 6 times the file size, and 1.4 to 4.3 times smaller than
   ph-xdm. The gap is largest for documents made of many small nodes (iTunes plist) and smallest for prose and
   attribute-heavy documents.
-- **ph-xdm** needs between 2.6 (prose) and 10 (attribute-heavy) times the file size. It is 24 to 48 % smaller than
-  MicroDOM, and 44 to 58 % smaller than originally; without node locations and with compact object headers 53 to 65 %.
+- **ph-xdm** needs between 2.3 (prose) and 8.8 (attribute-heavy) times the file size. It is 32 to 54 % smaller than
+  MicroDOM, and 50 to 63 % smaller than originally; with compact object headers 53 to 65 %.
 - Small nodes are expensive in every object-per-node model: the cost is driven by the node count, not the byte
   count.
 
@@ -104,44 +113,50 @@ Instance sizes in bytes (JDK 21 / compact headers): element 56 / 48 (with locati
 | Tree stamp | The numbering of a tree is a shared `TreeStamp` reference instead of a `long` per node | 0 % (8 bytes per node with compact headers) |
 | Rare fields in `Details` | The ID kind and the namespace nodes of elements and attributes moved into the holder; the schema type stays a field | 2 to 7 % |
 | Shared attribute values | Attribute values of up to 32 characters are shared per document through a table of 1,024 slots (sharing text as well saved up to 17 % more, but cost about 10 % of the parse time) | 0 to 15 % |
+| Locations on elements only | Attribute and text nodes have no `Located` variant any more: with a parent they report its location (the SAX location of an attribute is the one of its start tag anyway). A located attribute is 40 bytes instead of 48, a located text node 40 instead of 48 (compact headers: 40 and 32 instead of 48 and 40) | 4 to 9 % (5 to 9 % with compact headers) |
+| No pending-text field | The text appended to a text node while a result tree is built is kept in its value field (a `StringBuilder` until it is joined) instead of a field of its own. Text node 32 bytes | 2 to 6 % (0 % with compact headers) |
+| Locations off by default | `XdmParser.setRecordLocations` is off by default; stylesheets, schemas and XSD instance validation switch it on | 2 to 4 % |
 
 The schema type is a field of element and attribute nodes, so schema-validated trees do not need a `Details` object
 per node: the type annotation of a validated node is derived from its schema type.
 
-| Document | Original | Shared names | `Details` holder | Node subtypes | End order | Child arrays | Attribute arrays | Rare fields | Shared attribute values | Total saving |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| UBL invoice (Peppol) | 0.10 MB | 0.10 MB | 0.08 MB | 0.07 MB | 0.07 MB | 0.05 MB | 0.05 MB | 0.05 MB | 0.05 MB | 50 % |
-| XMark auction | 27.63 MB | 26.22 MB | 21.56 MB | 18.92 MB | 19.30 MB | 14.48 MB | 14.22 MB | 13.75 MB | 13.44 MB | 51 % |
-| iTunes plist | 170.25 MB | 161.24 MB | 130.68 MB | 113.78 MB | 116.78 MB | 84.82 MB | 84.82 MB | 81.82 MB | 81.82 MB | 52 % |
-| Bank transactions | 69.58 MB | 62.72 MB | 50.51 MB | 44.40 MB | 45.17 MB | 37.39 MB | 35.10 MB | 32.81 MB | 29.27 MB | 58 % |
-| Unicode characters | 139.00 MB | 122.96 MB | 98.02 MB | 85.55 MB | 86.44 MB | 79.29 MB | 76.61 MB | 71.27 MB | 60.62 MB | 56 % |
-| Old Testament | 15.38 MB | 14.80 MB | 12.51 MB | 11.18 MB | 11.37 MB | 8.85 MB | 8.85 MB | 8.66 MB | 8.66 MB | 44 % |
-| XSLT 3.0 spec (XHTML) | 31.09 MB | 28.78 MB | 23.69 MB | 21.01 MB | 21.38 MB | 17.89 MB | 17.39 MB | 16.63 MB | 14.34 MB | 54 % |
-| XSLT test stylesheets | 57.34 MB | 51.60 MB | 43.19 MB | 37.96 MB | 38.51 MB | 30.19 MB | 28.99 MB | 27.94 MB | 25.60 MB | 55 % |
+| Document | Original | Shared names | `Details` holder | Node subtypes | End order | Child arrays | Attribute arrays | Rare fields | Shared attribute values | Locations on elements only | No pending-text field | Locations off by default | Total saving |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| UBL invoice (Peppol) | 0.10 MB | 0.10 MB | 0.08 MB | 0.07 MB | 0.07 MB | 0.05 MB | 0.05 MB | 0.05 MB | 0.05 MB | 0.04 MB | 0.04 MB | 0.04 MB | 56 % |
+| XMark auction | 27.63 MB | 26.22 MB | 21.56 MB | 18.92 MB | 19.30 MB | 14.48 MB | 14.22 MB | 13.75 MB | 13.44 MB | 12.66 MB | 11.97 MB | 11.58 MB | 58 % |
+| iTunes plist | 170.25 MB | 161.24 MB | 130.68 MB | 113.78 MB | 116.78 MB | 84.82 MB | 84.82 MB | 81.82 MB | 81.82 MB | 77.19 MB | 72.55 MB | 69.55 MB | 59 % |
+| Bank transactions | 69.58 MB | 62.72 MB | 50.51 MB | 44.40 MB | 45.17 MB | 37.39 MB | 35.10 MB | 32.81 MB | 29.27 MB | 26.98 MB | 26.21 MB | 25.45 MB | 63 % |
+| Unicode characters | 139.00 MB | 122.96 MB | 98.02 MB | 85.55 MB | 86.44 MB | 79.29 MB | 76.61 MB | 71.27 MB | 60.62 MB | 55.28 MB | 54.39 MB | 53.50 MB | 62 % |
+| Old Testament | 15.38 MB | 14.80 MB | 12.51 MB | 11.18 MB | 11.37 MB | 8.85 MB | 8.85 MB | 8.66 MB | 8.66 MB | 8.28 MB | 7.90 MB | 7.71 MB | 50 % |
+| XSLT 3.0 spec (XHTML) | 31.09 MB | 28.78 MB | 23.69 MB | 21.01 MB | 21.38 MB | 17.89 MB | 17.39 MB | 16.63 MB | 14.34 MB | 13.43 MB | 12.93 MB | 12.56 MB | 60 % |
+| XSLT test stylesheets | 57.34 MB | 51.60 MB | 43.19 MB | 37.96 MB | 38.51 MB | 30.19 MB | 28.99 MB | 27.94 MB | 25.60 MB | 23.98 MB | 23.01 MB | 22.37 MB | 61 % |
 
-All with locations, on JDK 21; "Optional locations" and "Tree stamp" do not change these figures (see the table of
-compact object headers above for what they save).
+All on JDK 21 and with locations, except the last step, which shows the new default (no locations); "Optional
+locations" and "Tree stamp" do not change these figures (see the table of compact object headers above for what they
+save). The total saving compares the original with the default tree.
 
 ## Where the memory goes
 
 Class footprint of the "Bank transactions" document on JDK 21 (100,002 elements, 200,001 attributes, 100,003 text
-nodes; measured 2026-11-09 with `run.sh footprint`, ph-xdm with node locations):
+nodes; measured 2026-11-09 with `run.sh footprint`, ph-xdm with the default parser settings, i.e. without node
+locations since batch 5):
 
 | ph-xdm | Count | Size | | MicroDOM | Count | Size |
 |---|--:|--:|---|---|--:|--:|
-| `XdmElementNode` (located, 64 bytes) | 100,002 | 6.10 MB | | `MicroElement` | 100,002 | 3.81 MB |
-| `XdmAttributeNode` (located, 48 bytes) | 200,001 | 9.16 MB | | `MicroAttribute` + `MicroQName` | 400,002 | 9.16 MB |
-| `XdmTextNode` (located, 48 bytes) | 100,003 | 4.58 MB | | `MicroText` + `MicroDataAware` + `StringBuilder` | 300,009 | 6.87 MB |
+| `XdmElementNode` (56 bytes) | 100,002 | 5.34 MB | | `MicroElement` | 100,002 | 3.81 MB |
+| `XdmAttributeNode` (40 bytes) | 200,001 | 7.63 MB | | `MicroAttribute` + `MicroQName` | 400,002 | 9.16 MB |
+| `XdmTextNode` (32 bytes) | 100,003 | 3.05 MB | | `MicroText` + `MicroDataAware` + `StringBuilder` | 300,009 | 6.87 MB |
 | `XdmDocumentNode`, `Details`, `TreeStamp`, shared `XdmQName` | 9 | 0.00 MB | | | | |
 | `String` + `byte[]` | 261,978 | 6.38 MB | | `String` + `byte[]` | 500,021 | 13.73 MB |
 | child and attribute arrays (`AbstractXdmNode[]`) | 100,004 | 3.05 MB | | `CommonsLinkedHashMap` + entries + tables | 400,003 | 21.36 MB |
 | | | | | child lists (`CommonsArrayList` + `Object[]`) | 6 | 0.92 MB |
-| **Total** | | **29.27 MB** | | **Total** | | **55.85 MB** |
+| **Total** | | **25.45 MB** | | **Total** | | **55.85 MB** |
 
 Observations for ph-xdm:
 
-- The node objects are now two thirds of the total (19.8 MB); without node locations each is 8 bytes smaller
-  (26.21 MB in total).
+- The node objects are about two thirds of the total (16.0 MB, 19.8 MB before batch 5 with locations). Recording
+  locations makes only the elements 8 bytes larger (26.21 MB in total); attributes and text nodes report the location
+  of their element.
 - The strings dropped from 14.5 MB (before batch 3) to 6.4 MB: indentation whitespace is one string per document and
   the attribute values (code values such as account numbers and dates repeat) are shared per document.
 - Children and attributes are exact-size arrays; there are no list objects any more (8.55 MB before batch 3).

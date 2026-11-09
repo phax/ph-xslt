@@ -386,7 +386,7 @@ public final class QT3ResourceResolver implements IResourceResolver
         return null;
       try
       {
-        final IXdmNode aDoc = new XdmParser ().parse (aPath);
+        final IXdmNode aDoc = new XdmParser ().setRecordLocations (false).parse (aPath);
         aDoc.setDocumentUri (aSource.uri ());
         m_aValidated.put (aPath, aDoc);
         return aDoc;

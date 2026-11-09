@@ -66,9 +66,10 @@ import com.helger.collection.commons.ICommonsMap;
  * <p>
  * A document that needs more than an incremental read is refused with
  * {@link XdmStreamUnsupportedException} before the first event is returned: XML 1.1, an external
- * parsed entity, and an external DTD subset when external entities are to be loaded. Not
- * reproduced: the location of a text node is where the parser reports its first chunk, and the
- * declaration order of entities is the one the parser lists.
+ * parsed entity, and an external DTD subset when external entities are to be loaded. Locations are
+ * always recorded: elements, comments and processing instructions get the one the parser reports,
+ * attributes and text nodes report the one of their parent (as in {@link XdmTreeBuilder}). Not
+ * reproduced: the declaration order of entities is the one the parser lists.
  *
  * @author Philip Helger
  */
@@ -114,8 +115,6 @@ public final class XdmStreamReader implements AutoCloseable
   // xml:space="preserve" in effect, per open element
   private final ArrayDeque <Boolean> m_aPreserve = new ArrayDeque <> ();
   private final StringBuilder m_aText = new StringBuilder ();
-  private int m_nTextLine;
-  private int m_nTextColumn;
   private final ArrayDeque <Event> m_aQueue = new ArrayDeque <> ();
   private Event m_aCurrent;
   private boolean m_bEnded;
@@ -376,7 +375,7 @@ public final class XdmStreamReader implements AutoCloseable
         _isWhitespace (sText) &&
         m_aStripWhitespace.test (aParent.getName ()))
       return;
-    final XdmTextNode aText = new XdmTextNode.Located (sText, m_nTextLine, m_nTextColumn);
+    final XdmTextNode aText = new XdmTextNode (sText);
     aParent.internalAppendNumbered (aText);
     _stamp (aText);
     m_aQueue.add (new Event (EEvent.LEAF, aText, m_aSpine.size () + 1));
@@ -385,7 +384,7 @@ public final class XdmStreamReader implements AutoCloseable
   /**
    * Handle a start tag, after flushing pending text. The element gets its name, location, namespace
    * declarations and attributes (DTD ID types and <code>xml:id</code> set the ID kind and normalise
-   * the value, as in {@link XdmTreeBuilder}; the attributes share the location of the element). It
+   * the value, as in {@link XdmTreeBuilder}; the attributes report the location of the element). It
    * is appended to the innermost open element and numbered, then its attributes; its end order
    * stays {@link Integer#MAX_VALUE} until its end tag. The <code>xml:space</code> setting in effect
    * is inherited from the parent and changed by an own <code>xml:space</code> attribute of
@@ -422,11 +421,9 @@ public final class XdmStreamReader implements AutoCloseable
       EIDKind eIDKind = _getIDKind (m_aReader.getAttributeType (i));
       if (eIDKind == EIDKind.NONE && aName.isSameName (XdmConstants.NS_XML, "id"))
         eIDKind = EIDKind.ID;
-      final XdmAttributeNode aAttr = new XdmAttributeNode.Located (aName,
-                                                                   eIDKind == EIDKind.NONE ? sValue
-                                                                                           : XdmTreeBuilder.normaliseTokenised (sValue),
-                                                                   nLine,
-                                                                   nColumn);
+      final XdmAttributeNode aAttr = new XdmAttributeNode (aName,
+                                                           eIDKind == EIDKind.NONE ? sValue
+                                                                                   : XdmTreeBuilder.normaliseTokenised (sValue));
       aAttr.setIDKind (eIDKind);
       aAttrs[i] = aAttr;
     }
@@ -532,11 +529,6 @@ public final class XdmStreamReader implements AutoCloseable
             break;
           case XMLStreamConstants.CHARACTERS:
           case XMLStreamConstants.CDATA:
-            if (m_aText.isEmpty ())
-            {
-              m_nTextLine = m_aReader.getLocation ().getLineNumber ();
-              m_nTextColumn = m_aReader.getLocation ().getColumnNumber ();
-            }
             m_aText.append (m_aReader.getTextCharacters (), m_aReader.getTextStart (), m_aReader.getTextLength ());
             break;
           case XMLStreamConstants.SPACE:

@@ -212,11 +212,10 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
         IXdmNode aOrigAttr = aOrig.getAttribute (aName.namespaceUri (), aName.localName ());
         if (aOrigAttr == null)
         {
-          // A default attribute added by the schema
+          // A default attribute added by the schema; it reports the
+          // location of its element
           if (bDocument)
-          {
-            aOrigAttr = IXdmNode.createAttribute (aName, aCopyAttr.getValue (), aOrig.getLine (), aOrig.getColumn ());
-          }
+            aOrigAttr = IXdmNode.createAttribute (aName, aCopyAttr.getValue ());
           else
             aOrigAttr = IXdmNode.createAttribute (_fixupAttributeName (aOrig, aName), aCopyAttr.getValue ());
           aOrig.addAttribute (aOrigAttr);
@@ -327,7 +326,8 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
         throw new IllegalArgumentException ("Cannot validate against an anonymous type");
       aValidator.setProperty (PROPERTY_ROOT_TYPE, new QName (aTypeName.namespaceUri (), aTypeName.localName ()));
     }
-    final XdmTreeBuilder aBuilder = new XdmTreeBuilder ();
+    // The events come from a tree, without locations; the original keeps its own
+    final XdmTreeBuilder aBuilder = new XdmTreeBuilder (false);
     aValidator.setContentHandler (new JaxpTypeAnnotator (aBuilder,
                                                          aValidator.getTypeInfoProvider (),
                                                          getDeclaredAttributeTypes (aValidator),

@@ -265,9 +265,11 @@ public class PhoxtrotTransformer extends Transformer
     ret.setGlobalContextItem (aSource);
     for (final var aEntry : m_aParams.entrySet ())
       ret.params ().put (JaxpValueConverter.parseName (aEntry.getKey ()), aEntry.getValue ().converted ());
+    // Documents read while transforming need no node locations
     ret.setResolver (new JaxpResourceResolver (m_aURIResolver,
                                                aSettings.accessExternalStylesheet (),
-                                               aSettings.loadExternalEntities ()));
+                                               aSettings.loadExternalEntities (),
+                                               false));
     ret.setMessageListener (m_aMessageListener != null ? m_aMessageListener : new ErrorListenerMessages (m_aErrorListener));
     ret.setTraceListener (m_aTraceListener);
     if (aSettings.maxSteps () != 0)
@@ -432,7 +434,7 @@ public class PhoxtrotTransformer extends Transformer
     m_aLastResult = null;
     try
     {
-      final IXdmNode aNode = JaxpSources.toXdm (aSource, m_aTemplates.getSettings ().loadExternalEntities ());
+      final IXdmNode aNode = JaxpSources.toXdm (aSource, m_aTemplates.getSettings ().loadExternalEntities (), false);
       final XsltTransformRequest aRequest = _createRequest (aNode, _getAbsoluteUri (aResult.getSystemId ()));
       if (aResult instanceof final StreamResult aStreamResult)
         m_aLastResult = _transformToStream (aRequest, aStreamResult);

@@ -34,25 +34,54 @@ public abstract sealed class AbstractXdmValueNode extends AbstractXdmNode permit
                                                                            XdmProcessingInstructionNode,
                                                                            XdmNamespaceNode
 {
-  private String m_sValue;
+  // The value: a String, except for a text node with appended text that was
+  // not joined yet, which holds a StringBuilder (see XdmTextNode). One field
+  // for both, so that a text node needs no field for its pending text
+  private Object m_aValue;
 
   AbstractXdmValueNode (@NonNull final String sValue)
   {
-    m_sValue = sValue;
+    m_aValue = sValue;
   }
 
+  /**
+   * @return The value field as it is: a {@link String}, or for a text node
+   *         with pending text a {@link StringBuilder}.
+   */
+  @NonNull
+  final Object internalGetRawValue ()
+  {
+    return m_aValue;
+  }
+
+  /**
+   * Store the value field as it is, without a check.
+   *
+   * @param aValue
+   *        A {@link String}, or for a text node with pending text a
+   *        {@link StringBuilder}.
+   */
+  final void internalSetRawValue (@NonNull final Object aValue)
+  {
+    m_aValue = aValue;
+  }
+
+  /**
+   * The value field cast to {@link String}. A text node overrides this and
+   * joins pending text first, so the cast cannot fail.
+   */
   @Override
   @NonNull
   public String getValue ()
   {
-    return m_sValue;
+    return (String) m_aValue;
   }
 
   @Override
   public void setValue (@NonNull final String sValue)
   {
     ValueEnforcer.notNull (sValue, "Value");
-    m_sValue = sValue;
+    m_aValue = sValue;
   }
 
   @NonNull

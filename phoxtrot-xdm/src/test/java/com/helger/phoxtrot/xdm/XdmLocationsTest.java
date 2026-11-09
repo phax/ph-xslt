@@ -30,9 +30,11 @@ import javax.xml.parsers.SAXParserFactory;
 import org.junit.Test;
 
 /**
- * Test class for node locations: recorded by default, left out with
- * {@link XdmParser#setRecordLocations(boolean)}, the located node variants
- * and the location of a node created without one.
+ * Test class for node locations: recorded with
+ * {@link XdmParser#setRecordLocations(boolean)}, left out by default, the
+ * located node variants,
+ * the location of a node created without one and attributes and text nodes,
+ * which report the location of their parent.
  *
  * @author Philip Helger
  */
@@ -67,11 +69,11 @@ public final class XdmLocationsTest
   }
 
   @Test
-  public void testDefaultRecordsLocations () throws XdmParseException
+  public void testRecordLocations () throws XdmParseException
   {
-    assertTrue (XdmParser.DEFAULT_RECORD_LOCATIONS);
-    assertTrue (new XdmParser ().isRecordLocations ());
-    final IXdmNode aDoc = new XdmParser ().parse (XML);
+    final XdmParser aParser = new XdmParser ().setRecordLocations (true);
+    assertTrue (aParser.isRecordLocations ());
+    final IXdmNode aDoc = aParser.parse (XML);
     final IXdmNode aR = aDoc.getChildAtIndex (0);
     assertEquals (2, aR.getLine ());
     assertTrue (aR.getColumn () > 0);
@@ -80,20 +82,28 @@ public final class XdmLocationsTest
     assertEquals (aR.getColumn (), aR.getAttributeAtIndex (0).getColumn ());
     final IXdmNode aE = aR.getChildAtIndex (1);
     assertEquals (3, aE.getLine ());
+    // A text node has the location of its parent element
     assertEquals (3, aE.getChildAtIndex (0).getLine ());
-    // Every node kind with a location is a located variant
+    assertEquals (aE.getColumn (), aE.getChildAtIndex (0).getColumn ());
+    assertEquals (aR.getColumn (), aR.getChildAtIndex (0).getColumn ());
+    // Every node has a location; only elements, comments and processing
+    // instructions are located variants
     for (final IXdmNode aNode : _allNodes (aDoc))
     {
       assertTrue (aNode.toString (), aNode.getLine () > 0);
-      assertTrue (aNode.getClass ().getName (), aNode.getClass ().getName ().endsWith ("$Located"));
+      final boolean bOwnLocation = !aNode.isAttribute () && !aNode.isText ();
+      assertEquals (aNode.getClass ().getName (), Boolean.valueOf (bOwnLocation),
+                    Boolean.valueOf (aNode.getClass ().getName ().endsWith ("$Located")));
     }
   }
 
   @Test
   public void testWithoutLocations () throws XdmParseException
   {
-    final XdmParser aParser = new XdmParser ().setRecordLocations (false);
-    assertFalse (aParser.isRecordLocations ());
+    // The default
+    assertFalse (XdmParser.DEFAULT_RECORD_LOCATIONS);
+    assertFalse (new XdmParser ().isRecordLocations ());
+    final XdmParser aParser = new XdmParser ();
     final IXdmNode aDoc = aParser.parse (XML);
     int nNodes = 0;
     for (final IXdmNode aNode : _allNodes (aDoc))
@@ -107,7 +117,7 @@ public final class XdmLocationsTest
     assertEquals (10, nNodes);
 
     // The same tree otherwise: the same values in the same order
-    final Deque <IXdmNode> aLocated = _allNodes (new XdmParser ().parse (XML));
+    final Deque <IXdmNode> aLocated = _allNodes (new XdmParser ().setRecordLocations (true).parse (XML));
     for (final IXdmNode aNode : _allNodes (aDoc))
     {
       final IXdmNode aOther = aLocated.pop ();
@@ -122,12 +132,19 @@ public final class XdmLocationsTest
   public void testTreeBuilderOption () throws Exception
   {
     final byte [] aBytes = XML.getBytes (StandardCharsets.UTF_8);
-    final XdmTreeBuilder aBuilder = new XdmTreeBuilder (false);
     final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
     aFactory.setNamespaceAware (true);
-    aFactory.newSAXParser ().parse (new ByteArrayInputStream (aBytes), aBuilder);
-    for (final IXdmNode aNode : _allNodes (aBuilder.getDocument ()))
-      assertEquals (0, aNode.getLine ());
+    // Without locations, explicitly and by default
+    for (final XdmTreeBuilder aBuilder : new XdmTreeBuilder [] { new XdmTreeBuilder (false), new XdmTreeBuilder () })
+    {
+      aFactory.newSAXParser ().parse (new ByteArrayInputStream (aBytes), aBuilder);
+      for (final IXdmNode aNode : _allNodes (aBuilder.getDocument ()))
+        assertEquals (0, aNode.getLine ());
+    }
+    final XdmTreeBuilder aLocated = new XdmTreeBuilder (true);
+    aFactory.newSAXParser ().parse (new ByteArrayInputStream (aBytes), aLocated);
+    for (final IXdmNode aNode : _allNodes (aLocated.getDocument ()))
+      assertTrue (aNode.getLine () > 0);
   }
 
   @Test
@@ -152,16 +169,33 @@ public final class XdmLocationsTest
     aLocated.setLocation (6, 8);
     assertEquals (6, aLocated.getLine ());
     assertEquals (8, aLocated.getColumn ());
+    // Location 0:0 gives the plain node
+    assertFalse (IXdmNode.createElement (new XdmQName ("e"), 0, 0).getClass ().getName ().endsWith ("$Located"));
+    assertTrue (aLocated.getClass ().getName ().endsWith ("$Located"));
+
+    // A parentless attribute or text node keeps its location ...
     final IXdmNode aAttr = IXdmNode.createAttribute (new XdmQName ("a"), "v", 2, 9);
     assertEquals (2, aAttr.getLine ());
     assertEquals (9, aAttr.getColumn ());
     assertEquals ("v", aAttr.getValue ());
     final IXdmNode aText = IXdmNode.createText ("t", 1, 1);
     assertEquals (1, aText.getLine ());
+    assertEquals (1, aText.getColumn ());
     assertEquals ("t", aText.getValue ());
-    // Location 0:0 gives the plain node
-    assertFalse (IXdmNode.createText ("t", 0, 0).getClass ().getName ().endsWith ("$Located"));
-    assertTrue (aText.getClass ().getName ().endsWith ("$Located"));
     assertTrue (aText instanceof XdmTextNode);
+    assertEquals (0, IXdmNode.createText ("t", 0, 0).getLine ());
+
+    // ... and reports the one of its parent once it has one
+    aLocated.addAttribute (aAttr);
+    aLocated.appendChild (aText);
+    assertEquals (6, aAttr.getLine ());
+    assertEquals (8, aAttr.getColumn ());
+    assertEquals (6, aText.getLine ());
+    assertEquals (8, aText.getColumn ());
+    aLocated.removeChild (aText);
+    assertEquals (1, aText.getLine ());
+    final IXdmNode aPlainText = IXdmNode.createText ("u");
+    aElement.appendChild (aPlainText);
+    assertEquals (0, aPlainText.getLine ());
   }
 }

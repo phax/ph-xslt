@@ -154,7 +154,8 @@ public final class WhitespaceStripper
 
   /**
    * Copy one node without its children and attributes, keeping what the
-   * stripped tree must still report for it: location, type annotation, schema
+   * stripped tree must still report for it: location (attributes and text
+   * nodes report the one of their copied parent), type annotation, schema
    * type, nilled property, ID kind, base URI and, for an element, its own
    * namespace declarations.
    */
@@ -162,16 +163,17 @@ public final class WhitespaceStripper
   private static IXdmNode _copyNode (@NonNull final IXdmNode aSrc)
   {
     final IXdmNode ret;
-    // The kinds a parsed tree has many of are created with their location,
-    // so that a located copy stays as small as its source
+    // An element is created with its location, so that a located copy stays
+    // as small as its source. Attribute and text copies always get a copied
+    // parent, whose location they report, so they need none of their own
     if (aSrc.isElement ())
       ret = IXdmNode.createElement (aSrc.getName (), aSrc.getLine (), aSrc.getColumn ());
     else
       if (aSrc.isText ())
-        ret = IXdmNode.createText (aSrc.getValue (), aSrc.getLine (), aSrc.getColumn ());
+        ret = IXdmNode.createText (aSrc.getValue ());
       else
         if (aSrc.isAttribute ())
-          ret = NodeCopier.createAttribute (aSrc.getName (), aSrc.getValue (), aSrc.getLine (), aSrc.getColumn ());
+          ret = NodeCopier.createAttribute (aSrc.getName (), aSrc.getValue ());
         else
         {
           ret = NodeCopier.copyShallow (aSrc);
