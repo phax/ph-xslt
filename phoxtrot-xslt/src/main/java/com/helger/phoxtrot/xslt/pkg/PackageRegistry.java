@@ -166,7 +166,7 @@ public final class PackageRegistry
                                                                          : new FileResourceResolver (m_aOptions.isLoadExternalEntities ());
     try
     {
-      final IXdmNode aDoc = aResolver.resolveDocument (aSource.baseUri ());
+      final IXdmNode aDoc = aResolver.resolveStylesheetModule (aSource.baseUri ());
       if (aDoc != null && aDoc.isDocument () && aDoc.getDocumentUri () == null)
         aDoc.setDocumentUri (aSource.baseUri ());
       return _getDocumentElement (aDoc);

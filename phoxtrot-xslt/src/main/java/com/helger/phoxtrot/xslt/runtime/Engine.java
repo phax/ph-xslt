@@ -219,6 +219,17 @@ public final class Engine
       return aDoc == null ? null : stripWhitespace (aDoc);
     }
 
+    /**
+     * A stylesheet module comes from the delegate as it is: xsl:strip-space
+     * of this stylesheet does not apply to it.
+     */
+    @Override
+    @Nullable
+    public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+    {
+      return m_aDelegate == null ? null : m_aDelegate.resolveStylesheetModule (sAbsoluteUri);
+    }
+
     @Nullable
     public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
     {

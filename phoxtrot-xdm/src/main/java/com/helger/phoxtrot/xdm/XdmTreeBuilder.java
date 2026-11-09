@@ -98,12 +98,13 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private final boolean m_bRecordLocations;
 
   /**
-   * A builder that records node locations as {@link XdmParser#DEFAULT_RECORD_LOCATIONS} says (not
-   * by default).
+   * A builder that records node locations as {@link XdmParser#isRecordLocationsByDefault()} says:
+   * not by default, only while {@link XdmParser#getWithRecordLocations(java.util.function.Supplier)}
+   * runs on the current thread.
    */
   public XdmTreeBuilder ()
   {
-    this (XdmParser.DEFAULT_RECORD_LOCATIONS);
+    this (XdmParser.isRecordLocationsByDefault ());
   }
 
   /**

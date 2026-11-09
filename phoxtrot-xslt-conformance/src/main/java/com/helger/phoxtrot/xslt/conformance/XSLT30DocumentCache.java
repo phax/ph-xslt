@@ -36,8 +36,10 @@ import com.helger.phoxtrot.xdm.XdmParser;
  * <code>fn:doc</code> on its URI are identical). Unlike the QT3 cache, external
  * DTD subsets and entities are read: the suite's sources rely on local DTDs
  * for entities and ID attributes, and the Go harness reads them too. A file
- * that cannot be parsed is remembered with its error. One instance per test
- * set; not thread-safe.
+ * that cannot be parsed is remembered with its error. Documents are parsed
+ * without node locations; the stylesheet modules the resolver serves
+ * ({@link #getStylesheetModule(Path)}) are parsed and cached separately, with
+ * them. One instance per test set; not thread-safe.
  *
  * @author Philip Helger
  */
@@ -45,19 +47,29 @@ import com.helger.phoxtrot.xdm.XdmParser;
 public final class XSLT30DocumentCache
 {
   private final ICommonsMap <Path, IXdmNode> m_aDocs = new CommonsHashMap <> ();
+  private final ICommonsMap <Path, IXdmNode> m_aModules = new CommonsHashMap <> ();
   private final ICommonsMap <Path, XdmParseException> m_aFailed = new CommonsHashMap <> ();
 
   /**
+   * Parse a file once per cache map; a file that cannot be parsed is
+   * remembered with its error for both maps.
+   *
    * @param aFile
    *        Absolute, normalised path.
+   * @param aCache
+   *        The cache to use, {@link #m_aDocs} or {@link #m_aModules}.
+   * @param bRecordLocations
+   *        Whether the nodes get locations.
    * @return The parsed document.
    * @throws XdmParseException
    *         if the file does not exist or is not well-formed
    */
   @NonNull
-  public IXdmNode getDocumentOrThrow (@NonNull final Path aFile) throws XdmParseException
+  private IXdmNode _getOrThrow (@NonNull final Path aFile,
+                                @NonNull final ICommonsMap <Path, IXdmNode> aCache,
+                                final boolean bRecordLocations) throws XdmParseException
   {
-    final IXdmNode aCached = m_aDocs.get (aFile);
+    final IXdmNode aCached = aCache.get (aFile);
     if (aCached != null)
       return aCached;
     final XdmParseException aFailed = m_aFailed.get (aFile);
@@ -71,16 +83,50 @@ public final class XSLT30DocumentCache
     }
     try
     {
-      // The cache serves stylesheet modules as well as source documents, and
-      // stylesheet modules need node locations
-      final IXdmNode aDoc = new XdmParser ().setRecordLocations (true).setLoadExternalEntities (true).parse (aFile);
-      m_aDocs.put (aFile, aDoc);
+      final IXdmNode aDoc = new XdmParser ().setRecordLocations (bRecordLocations)
+                                            .setLoadExternalEntities (true)
+                                            .parse (aFile);
+      aCache.put (aFile, aDoc);
       return aDoc;
     }
     catch (final XdmParseException ex)
     {
       m_aFailed.put (aFile, ex);
       throw ex;
+    }
+  }
+
+  /**
+   * @param aFile
+   *        Absolute, normalised path.
+   * @return The parsed document, without node locations.
+   * @throws XdmParseException
+   *         if the file does not exist or is not well-formed
+   */
+  @NonNull
+  public IXdmNode getDocumentOrThrow (@NonNull final Path aFile) throws XdmParseException
+  {
+    return _getOrThrow (aFile, m_aDocs, false);
+  }
+
+  /**
+   * @param aFile
+   *        Absolute, normalised path.
+   * @return The file parsed as a stylesheet module, with node locations; a
+   *         different node than {@link #getDocument(Path)} returns. May be
+   *         <code>null</code> if the file does not exist or is not
+   *         well-formed.
+   */
+  @Nullable
+  public IXdmNode getStylesheetModule (@NonNull final Path aFile)
+  {
+    try
+    {
+      return _getOrThrow (aFile, m_aModules, true);
+    }
+    catch (final XdmParseException ex)
+    {
+      return null;
     }
   }
 

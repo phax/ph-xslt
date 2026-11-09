@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
@@ -70,13 +71,17 @@ public class XdmParser
   public static final int DEFAULT_MAX_ELEMENT_DEPTH = 10_000;
   /**
    * Whether the nodes get the location the parser reports. Off by default: an input document of a
-   * transformation or query needs none. Every parse of a stylesheet module, a schema document or a
-   * document whose validation errors are reported with a line switches it on explicitly
-   * ({@link #setRecordLocations(boolean)}).
+   * transformation or query needs none. Every parse of a stylesheet module, a package, a schema
+   * document or a document whose validation errors are reported with a line switches it on
+   * explicitly ({@link #setRecordLocations(boolean)}), and a resolver asked for a stylesheet module
+   * gets it on as default of the current thread ({@link #getWithRecordLocations(Supplier)}).
    */
   public static final boolean DEFAULT_RECORD_LOCATIONS = false;
 
   private static final Logger LOGGER = LoggerFactory.getLogger (XdmParser.class);
+  // The location default of the parsers and tree builders created on a thread
+  // while getWithRecordLocations runs there; not set outside of it
+  private static final ThreadLocal <Boolean> RECORD_LOCATIONS_SCOPE = new ThreadLocal <> ();
   /**
    * Whether the JDK parser accepts a code point in an XML 1.0 name, per code point that XML 1.0
    * (5th edition) allows; filled on demand
@@ -179,7 +184,7 @@ public class XdmParser
 
   private boolean m_bLoadExternalEntities = DEFAULT_LOAD_EXTERNAL_ENTITIES;
   private int m_nMaxElementDepth = DEFAULT_MAX_ELEMENT_DEPTH;
-  private boolean m_bRecordLocations = DEFAULT_RECORD_LOCATIONS;
+  private boolean m_bRecordLocations = isRecordLocationsByDefault ();
   private IXdmSchemaSet m_aSchemaSet;
   private EntityResolver m_aEntityResolver;
 
@@ -256,6 +261,49 @@ public class XdmParser
     return this;
   }
 
+  /**
+   * @return The location setting a parser or an {@link XdmTreeBuilder} created now on the current
+   *         thread starts with: <code>true</code> while {@link #getWithRecordLocations(Supplier)}
+   *         runs on this thread, otherwise {@link #DEFAULT_RECORD_LOCATIONS}.
+   */
+  public static boolean isRecordLocationsByDefault ()
+  {
+    final Boolean aScoped = RECORD_LOCATIONS_SCOPE.get ();
+    return aScoped != null ? aScoped.booleanValue () : DEFAULT_RECORD_LOCATIONS;
+  }
+
+  /**
+   * Call the supplier with node locations on by default for every parser and every
+   * {@link XdmTreeBuilder} created on the current thread meanwhile. A parser whose
+   * {@link #setRecordLocations(boolean)} is called keeps that explicit value. Used to resolve a
+   * stylesheet module through a resolver that parses with the default setting
+   * (<code>IResourceResolver.resolveStylesheetModule</code>). Calls may be nested; the previous
+   * default of the thread is restored afterwards, also if the supplier throws.
+   *
+   * @param <T>
+   *        The result type.
+   * @param aSupplier
+   *        The code to call. May not be <code>null</code>.
+   * @return What the supplier returned.
+   */
+  public static <T> T getWithRecordLocations (@NonNull final Supplier <T> aSupplier)
+  {
+    ValueEnforcer.notNull (aSupplier, "Supplier");
+    final Boolean aPrevious = RECORD_LOCATIONS_SCOPE.get ();
+    RECORD_LOCATIONS_SCOPE.set (Boolean.TRUE);
+    try
+    {
+      return aSupplier.get ();
+    }
+    finally
+    {
+      if (aPrevious == null)
+        RECORD_LOCATIONS_SCOPE.remove ();
+      else
+        RECORD_LOCATIONS_SCOPE.set (aPrevious);
+    }
+  }
+
   public final boolean isRecordLocations ()
   {
     return m_bRecordLocations;
@@ -265,12 +313,14 @@ public class XdmParser
    * Decide whether the nodes get the line and column the parser reports (see
    * {@link IXdmNode#getLine()}). Only elements, comments and processing instructions have location
    * fields (attributes and text nodes report the location of their parent); without, each of them
-   * is 8 bytes smaller and all locations are 0. Off by default ({@link #DEFAULT_RECORD_LOCATIONS});
-   * switch it on for documents whose node locations are read: the error messages of stylesheets and
-   * schemas and <code>xsl:try</code> use them, and so does the line of an instance validation error
-   * of the native XSD validator (without, such an error has line 0 and only its path). The
-   * stylesheet, schema and XSD instance parses of phoxtrot and its resolvers for stylesheet modules
-   * (<code>FileResourceResolver</code>, the JAXP adapter) switch it on.
+   * is 8 bytes smaller and all locations are 0. Off by default ({@link #DEFAULT_RECORD_LOCATIONS},
+   * or on while {@link #getWithRecordLocations(Supplier)} runs on the creating thread); switch it on
+   * for documents whose node locations are read: the error messages of stylesheets and schemas and
+   * <code>xsl:try</code> use them, and so does the line of an instance validation error of the
+   * native XSD validator (without, such an error has line 0 and only its path). The one rule of
+   * phoxtrot: every reader leaves them out, only the parses of stylesheet modules, packages, schema
+   * documents and XSD instance validation switch them on (for a stylesheet module read through a
+   * resolver: <code>IResourceResolver.resolveStylesheetModule</code>).
    *
    * @param bRecordLocations
    *        <code>true</code> to record them.

@@ -268,8 +268,7 @@ public class PhoxtrotTransformer extends Transformer
     // Documents read while transforming need no node locations
     ret.setResolver (new JaxpResourceResolver (m_aURIResolver,
                                                aSettings.accessExternalStylesheet (),
-                                               aSettings.loadExternalEntities (),
-                                               false));
+                                               aSettings.loadExternalEntities ()));
     ret.setMessageListener (m_aMessageListener != null ? m_aMessageListener : new ErrorListenerMessages (m_aErrorListener));
     ret.setTraceListener (m_aTraceListener);
     if (aSettings.maxSteps () != 0)

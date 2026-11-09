@@ -29,6 +29,7 @@ import com.helger.phoxtrot.xpath.context.IResourceResolver;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Tests of xsl:include, xsl:import and import precedence.
@@ -207,5 +208,38 @@ public final class XsltModulesTest
       aModules.put ("http://example.org/m" + i + ".xsl", XsltTestHelper.SHEET + "<xsl:include href='m" + (i + 1) + ".xsl'/>" + XsltTestHelper.END);
     aModules.put ("http://example.org/m1100.xsl", XsltTestHelper.SHEET + XsltTestHelper.END);
     assertEquals ("XPDY0130", _compileError (XsltTestHelper.SHEET + "<xsl:include href='m0.xsl'/>" + XsltTestHelper.END, aModules));
+  }
+
+  @Test
+  public void testIncludedModuleLocationsWithResolveDocumentOnly ()
+  {
+    // MapResolver implements resolveDocument only and parses with the
+    // default XdmParser settings (no locations)
+    final String sIncluded = XsltTestHelper.SHEET +
+                             "\n<xsl:template name='t'>\n  <xsl:value-of select='1 +'/>\n</xsl:template>\n" +
+                             XsltTestHelper.END;
+    final Map <String, String> aModules = Map.of ("http://example.org/inc.xsl", sIncluded);
+    final MapResolver aResolver = new MapResolver (aModules);
+    // As a document: without locations; as a stylesheet module: with
+    assertEquals (0, aResolver.resolveDocument ("http://example.org/inc.xsl").getChildAtIndex (0).getLine ());
+    assertEquals (1, aResolver.resolveStylesheetModule ("http://example.org/inc.xsl").getChildAtIndex (0).getLine ());
+
+    // An error in the included module reports its line there
+    final String sMain = XsltTestHelper.SHEET +
+                         "<xsl:include href='inc.xsl'/>" +
+                         "<xsl:template name='xsl:initial-template'><xsl:call-template name='t'/></xsl:template>" +
+                         XsltTestHelper.END;
+    try
+    {
+      XsltCompiler.compile (sMain,
+                            new XsltCompileOptions ().setBaseUri ("http://example.org/main.xsl").setResolver (aResolver));
+      fail ("no error");
+    }
+    catch (final XsltException ex)
+    {
+      assertEquals ("http://example.org/inc.xsl", ex.getModuleUri ());
+      assertEquals (3, ex.getLine ());
+      assertTrue (ex.getColumn () > 0);
+    }
   }
 }

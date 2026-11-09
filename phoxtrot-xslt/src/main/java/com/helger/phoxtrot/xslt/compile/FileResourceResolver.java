@@ -39,46 +39,28 @@ import com.helger.phoxtrot.xpath.context.IResourceResolver;
 
 /**
  * A resolver that reads <code>file:</code> URIs and nothing else. Used for
- * stylesheet modules when the compile options give no resolver. The parsed
- * documents get node locations unless the resolver is created without (for
- * the documents a transformation reads, which need none).
+ * stylesheet modules when the compile options give no resolver. Stylesheet
+ * modules ({@link #resolveStylesheetModule(String)}) are parsed with node
+ * locations, documents ({@link #resolveDocument(String)},
+ * {@link #openDocumentStream(String, Predicate)}) without.
  *
  * @author Philip Helger
  */
 @Immutable
 public final class FileResourceResolver implements IResourceResolver
 {
-  /** The shared instance, without external entities, with node locations. */
+  /** The shared instance, without external entities. */
   public static final FileResourceResolver INSTANCE = new FileResourceResolver (false);
 
   private final boolean m_bLoadExternalEntities;
-  private final boolean m_bRecordLocations;
 
   /**
-   * A resolver whose documents get node locations, as stylesheet modules
-   * need them.
-   *
    * @param bLoadExternalEntities
    *        <code>true</code> to load external DTDs and entities.
    */
   public FileResourceResolver (final boolean bLoadExternalEntities)
   {
-    this (bLoadExternalEntities, true);
-  }
-
-  /**
-   * @param bLoadExternalEntities
-   *        <code>true</code> to load external DTDs and entities.
-   * @param bRecordLocations
-   *        <code>true</code> to give the parsed documents node locations
-   *        ({@link XdmParser#setRecordLocations(boolean)}), as stylesheet
-   *        modules need them; <code>false</code> for documents nobody reads
-   *        the locations of (<code>fn:doc</code>, <code>document()</code>).
-   */
-  public FileResourceResolver (final boolean bLoadExternalEntities, final boolean bRecordLocations)
-  {
     m_bLoadExternalEntities = bLoadExternalEntities;
-    m_bRecordLocations = bRecordLocations;
   }
 
   /**
@@ -115,18 +97,21 @@ public final class FileResourceResolver implements IResourceResolver
    *
    * @param sAbsoluteUri
    *        The absolute URI.
+   * @param bRecordLocations
+   *        <code>true</code> to give the nodes their locations
+   *        ({@link XdmParser#setRecordLocations(boolean)}).
    * @return The document node, or <code>null</code> if the URI names no
    *         readable local file or the file is not well-formed.
    */
   @Nullable
-  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  private IXdmNode _parse (@NonNull final String sAbsoluteUri, final boolean bRecordLocations)
   {
     final Path aPath = _getPath (sAbsoluteUri);
     if (aPath == null)
       return null;
     try
     {
-      final IXdmNode ret = new XdmParser ().setRecordLocations (m_bRecordLocations)
+      final IXdmNode ret = new XdmParser ().setRecordLocations (bRecordLocations)
                                            .setLoadExternalEntities (m_bLoadExternalEntities)
                                            .parse (aPath);
       if (ret.getDocumentUri () == null)
@@ -140,8 +125,45 @@ public final class FileResourceResolver implements IResourceResolver
   }
 
   /**
+   * Parse the local file as an XML document with the location default of
+   * {@link XdmParser} on the calling thread
+   * ({@link XdmParser#isRecordLocationsByDefault()}): without node locations,
+   * unless a resolver that delegates here is asked for a stylesheet module
+   * through the default implementation of
+   * {@link IResourceResolver#resolveStylesheetModule(String)}. The document
+   * URI is set to the requested URI unless the parser already set one.
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @return The document node, or <code>null</code> if the URI names no
+   *         readable local file or the file is not well-formed.
+   */
+  @Nullable
+  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  {
+    return _parse (sAbsoluteUri, XdmParser.isRecordLocationsByDefault ());
+  }
+
+  /**
+   * Parse the local file as a stylesheet module, with node locations. The
+   * document URI is set to the requested URI unless the parser already set
+   * one.
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @return The document node, or <code>null</code> if the URI names no
+   *         readable local file or the file is not well-formed.
+   */
+  @Override
+  @Nullable
+  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  {
+    return _parse (sAbsoluteUri, true);
+  }
+
+  /**
    * Open the local file for streamed reading with the default element depth
-   * limit. Unlike {@link #resolveDocument(String)}, errors while opening the
+   * limit and without node locations. Unlike {@link #resolveDocument(String)}, errors while opening the
    * stream are thrown, not turned into <code>null</code>.
    *
    * @param sAbsoluteUri
