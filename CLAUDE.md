@@ -118,6 +118,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   never answer a whole-document question from it. Tests tell streamed from buffered runs with
   `StreamedRun.getStreamedCount (<instruction>)`. The memory test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`,
   `-Dstreamed.memory.records=<n>`, one stylesheet per streamed construct).
+- EXSLT - Common: the core functions `exsl:node-set` and `exsl:object-type` (`com.helger.phoxtrot.xslt.fn.ExsltCommon`,
+  registered with the static XSLT functions, so `function-available` sees them); no other EXSLT module and no
+  `exsl:document`.
 - Backwards compatibility (XSLT 3.0 sections 3.9 and 27.4, the XSLT 1.0 compatibility feature): the engine switch is
   `XsltCompileOptions.setBackwardsCompatibleClaim` (default on, `DEFAULT_BACKWARDS_COMPATIBLE_CLAIM`; the XSLT30 harness sets it explicitly in both directions; JAXP attribute
   `PhoxtrotTransformerFactory.ATTR_BACKWARDS_COMPATIBLE`; a nested `fn:transform` inherits it;

@@ -374,6 +374,8 @@ public final class XsltFunctions
     aLib.register (NS, "element-available", "(xs:string) as xs:boolean", XsltFunctions::_elementAvailable);
     aLib.register (NS, "type-available", "(xs:string) as xs:boolean", XsltFunctions::_typeAvailable);
     aLib.register (NS, "available-system-properties", "() as xs:QName*", XsltFunctions::_availableSystemProperties);
+    // Extension functions of EXSLT - Common, also visible to function-available
+    ExsltCommon.register (aLib);
   }
 
   /**
