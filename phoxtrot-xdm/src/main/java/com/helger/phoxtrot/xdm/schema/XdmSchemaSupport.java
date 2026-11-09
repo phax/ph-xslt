@@ -27,18 +27,16 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 
 /**
- * Entry point to schema processing (the schema component model and validation
- * of XDM trees), which is the basis of schema-awareness. It is backed by one
- * of two optional providers, both loaded by name only if present: the native
- * validator (<code>com.helger.phoxtrot.xsd.XsdSchemaProvider</code> of the module
- * <code>phoxtrot-xsd</code>) or Apache Xerces-J. The system property
- * <code>xdm.schemaProvider</code> selects <code>native</code> or
- * <code>xerces</code>; without it the native validator is used if it is on the
- * class path, else Xerces-J. When the selected provider is not on the class
- * path, {@link #isAvailable()} is <code>false</code> and nothing of it is ever
- * loaded. Xerces-J classes are instantiated directly, never through a JAXP
- * lookup, so the JAXP defaults of the application stay untouched. The JDK's
- * own validator is available separately and with less information, as
+ * Entry point to schema processing (the schema component model and validation of XDM trees), which
+ * is the basis of schema-awareness. It is backed by one of two optional providers, both loaded by
+ * name only if present: the native validator
+ * (<code>com.helger.phoxtrot.xsd.XsdSchemaProvider</code> of the module <code>phoxtrot-xsd</code>)
+ * or Apache Xerces-J. The system property <code>xdm.schemaProvider</code> selects
+ * <code>native</code> or <code>xerces</code>; without it the native validator is used if it is on
+ * the class path, else Xerces-J. When the selected provider is not on the class path,
+ * {@link #isAvailable()} is <code>false</code> and nothing of it is ever loaded. Xerces-J classes
+ * are instantiated directly, never through a JAXP lookup, so the JAXP defaults of the application
+ * stay untouched. The JDK's own validator is available separately and with less information, as
  * {@link com.helger.phoxtrot.xdm.jaxp.JdkSchemaProvider}.
  *
  * @author Philip Helger
@@ -64,13 +62,11 @@ public final class XdmSchemaSupport
   {}
 
   /**
-   * Instantiate the native provider by name through its public no-argument
-   * constructor.
+   * Instantiate the native provider by name through its public no-argument constructor.
    *
    * @param aLoader
    *        The class loader to load it with.
-   * @return The provider, or <code>null</code> if it is not on the class path
-   *         or cannot be created.
+   * @return The provider, or <code>null</code> if it is not on the class path or cannot be created.
    */
   @Nullable
   private static IXdmSchemaProvider _loadNativeProvider (@NonNull final ClassLoader aLoader)
@@ -88,15 +84,13 @@ public final class XdmSchemaSupport
   }
 
   /**
-   * Choose the provider once, at class initialisation, from the system
-   * property {@link #SYSTEM_PROPERTY_PROVIDER}: unless it is
-   * <code>xerces</code> the native provider is tried first, and with
-   * <code>native</code> its absence is final. Otherwise the Xerces-J bridge
-   * is created, but only if the Xerces-J marker class can be found (without
-   * initialising it). Any other value of the property behaves like no value.
+   * Choose the provider once, at class initialisation, from the system property
+   * {@link #SYSTEM_PROPERTY_PROVIDER}: unless it is <code>xerces</code> the native provider is
+   * tried first, and with <code>native</code> its absence is final. Otherwise the Xerces-J bridge
+   * is created, but only if the Xerces-J marker class can be found (without initialising it). Any
+   * other value of the property behaves like no value.
    *
-   * @return The provider, or <code>null</code> if schema processing is not
-   *         available.
+   * @return The provider, or <code>null</code> if schema processing is not available.
    */
   @Nullable
   private static IXdmSchemaProvider _loadProvider ()
@@ -119,7 +113,9 @@ public final class XdmSchemaSupport
     }
     try
     {
-      return (IXdmSchemaProvider) Class.forName (PROVIDER_CLASS, true, aLoader).getDeclaredConstructor ().newInstance ();
+      return (IXdmSchemaProvider) Class.forName (PROVIDER_CLASS, true, aLoader)
+                                       .getDeclaredConstructor ()
+                                       .newInstance ();
     }
     catch (final ReflectiveOperationException | LinkageError ex)
     {
@@ -128,9 +124,8 @@ public final class XdmSchemaSupport
   }
 
   /**
-   * @return <code>true</code> if schema processing is available, i.e. the
-   *         selected provider (the native validator or Apache Xerces-J) is on
-   *         the class path.
+   * @return <code>true</code> if schema processing is available, i.e. the selected provider (the
+   *         native validator or Apache Xerces-J) is on the class path.
    */
   public static boolean isAvailable ()
   {
@@ -151,9 +146,9 @@ public final class XdmSchemaSupport
   }
 
   /**
-   * @return The simple class name of the provider in use, e.g.
-   *         <code>XsdSchemaProvider</code> or <code>XercesSchemaProvider</code>;
-   *         <code>null</code> if schema processing is not available.
+   * @return The simple class name of the provider in use, e.g. <code>XsdSchemaProvider</code> or
+   *         <code>XercesSchemaProvider</code>; <code>null</code> if schema processing is not
+   *         available.
    */
   @Nullable
   public static String getProviderName ()

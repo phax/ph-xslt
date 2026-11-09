@@ -17,8 +17,8 @@
 package com.helger.phoxtrot.xdm;
 
 /**
- * Marker for everything that can be an item of an XDM sequence: nodes, atomic
- * values, maps, arrays and function items.
+ * Marker for everything that can be an item of an XDM sequence: nodes, atomic values, maps, arrays
+ * and function items.
  *
  * @author Philip Helger
  */

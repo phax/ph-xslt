@@ -19,10 +19,9 @@ package com.helger.phoxtrot.xdm;
 import org.jspecify.annotations.NonNull;
 
 /**
- * Thrown by {@link XdmStreamReader} for a document it does not read
- * incrementally. It is no parse error: {@link XdmParser} reads such a document
- * in full. The reader raises it before it returns its first event, so a caller
- * can fall back to the full parse before it has acted on anything.
+ * Thrown by {@link XdmStreamReader} for a document it does not read incrementally. It is no parse
+ * error: {@link XdmParser} reads such a document in full. The reader raises it before it returns
+ * its first event, so a caller can fall back to the full parse before it has acted on anything.
  *
  * @author Philip Helger
  */

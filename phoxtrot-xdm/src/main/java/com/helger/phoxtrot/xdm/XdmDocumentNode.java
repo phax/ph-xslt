@@ -47,8 +47,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   {}
 
   /**
-   * The elements (or attributes) of a numbered tree by name, each list in
-   * document order.
+   * The elements (or attributes) of a numbered tree by name, each list in document order.
    */
   private static final class NameIndex
   {
@@ -84,8 +83,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   {}
 
   /**
-   * Mark this document as built by an {@link XdmStreamReader} (or not) and
-   * drop both name indexes.
+   * Mark this document as built by an {@link XdmStreamReader} (or not) and drop both name indexes.
    *
    * @param bStreamed
    *        <code>true</code> if only a part of the document is attached.
@@ -98,10 +96,9 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * @return <code>true</code> if this document is read by an
-   *         {@link XdmStreamReader}: only the part of it that the reader keeps
-   *         is attached, so a question about the whole document cannot be
-   *         answered from the tree.
+   * @return <code>true</code> if this document is read by an {@link XdmStreamReader}: only the part
+   *         of it that the reader keeps is attached, so a question about the whole document cannot
+   *         be answered from the tree.
    */
   public boolean isStreamed ()
   {
@@ -109,15 +106,14 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * Walk the element subtree of this document iteratively in document order
-   * and collect the elements, or the attributes of the elements, by name.
-   * Only elements are descended into; the other child kinds have no children.
+   * Walk the element subtree of this document iteratively in document order and collect the
+   * elements, or the attributes of the elements, by name. Only elements are descended into; the
+   * other child kinds have no children.
    *
    * @param aTree
    *        The current numbering, stored in the index.
    * @param bAttributes
-   *        <code>true</code> to index the attributes, <code>false</code> for
-   *        the elements.
+   *        <code>true</code> to index the attributes, <code>false</code> for the elements.
    * @return The new index with immutable lists in document order.
    */
   @NonNull
@@ -127,6 +123,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     final ArrayDeque <AbstractXdmNode> aStack = new ArrayDeque <> ();
     for (int i = getChildCount () - 1; i >= 0; --i)
       aStack.push (getChildAtIndex (i));
+
     while (!aStack.isEmpty ())
     {
       final AbstractXdmNode aCur = aStack.pop ();
@@ -148,6 +145,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
           aStack.push (aElement.getChildAtIndex (i));
       }
     }
+
     final Map <XdmQName, List <IXdmNode>> aNodes = new HashMap <> (aCollected.size () * 2);
     for (final Map.Entry <XdmQName, ICommonsList <IXdmNode>> aEntry : aCollected.entrySet ())
       aNodes.put (aEntry.getKey (), List.copyOf (aEntry.getValue ()));
@@ -155,9 +153,8 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * @return The element (or attribute) index of the current numbering, built
-   *         if needed; <code>null</code> if the tree is not numbered or is
-   *         streamed.
+   * @return The element (or attribute) index of the current numbering, built if needed;
+   *         <code>null</code> if the tree is not numbered or is streamed.
    */
   @Nullable
   private NameIndex _getIndex (final boolean bAttributes)
@@ -165,6 +162,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     final TreeStamp aTree = internalGetTree ();
     if (aTree == null || m_bStreamed)
       return null;
+
     NameIndex aIndex = bAttributes ? m_aAttributeIndex : m_aNameIndex;
     if (aIndex == null || aIndex.m_aTree != aTree)
     {
@@ -186,8 +184,8 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
    *        The index to start from.
    * @param nOrder
    *        The document order number to look for.
-   * @return The first index from nFrom on whose node has an order of at least
-   *         nOrder; the size of the list if there is none.
+   * @return The first index from nFrom on whose node has an order of at least nOrder; the size of
+   *         the list if there is none.
    */
   public static int getLowerBound (@NonNull final List <IXdmNode> aSorted, final int nFrom, final int nOrder)
   {
@@ -205,9 +203,8 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * The child elements of aParent with a name: the indexed elements of its
-   * subtree whose parent it is, or its children with that name, whichever
-   * list is shorter to go through.
+   * The child elements of aParent with a name: the indexed elements of its subtree whose parent it
+   * is, or its children with that name, whichever list is shorter to go through.
    */
   @NonNull
   private static List <IXdmNode> _collectChildElements (@NonNull final List <IXdmNode> aElements,
@@ -248,13 +245,13 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * Record the maximum element depth of the tree as it is numbered now. Called
-   * by {@link XdmTreeBuilder} at the end of a build that kept its numbering;
-   * the value is dropped with the numbering on the next structural change.
+   * Record the maximum element depth of the tree as it is numbered now. Called by
+   * {@link XdmTreeBuilder} at the end of a build that kept its numbering; the value is dropped with
+   * the numbering on the next structural change.
    *
    * @param nMaxElementDepth
-   *        The number of nested element levels, the document element counting
-   *        as one; 0 for a document without element.
+   *        The number of nested element levels, the document element counting as one; 0 for a
+   *        document without element.
    */
   void internalSetMaxElementDepth (@Nonnegative final int nMaxElementDepth)
   {
@@ -263,15 +260,13 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * The maximum element depth recorded while the tree was built: the number of
-   * nested element levels, the document element counting as one. It is only
-   * known for a tree built by {@link XdmParser} (or {@link XdmTreeBuilder})
-   * that has not changed structurally since; a change removes the numbering
-   * and with it the value.
+   * The maximum element depth recorded while the tree was built: the number of nested element
+   * levels, the document element counting as one. It is only known for a tree built by
+   * {@link XdmParser} (or {@link XdmTreeBuilder}) that has not changed structurally since; a change
+   * removes the numbering and with it the value.
    *
-   * @return The depth, 0 for a document without element, or -1 if it is not
-   *         known (never recorded, changed since, or {@link #isStreamed()
-   *         streamed}).
+   * @return The depth, 0 for a document without element, or -1 if it is not known (never recorded,
+   *         changed since, or {@link #isStreamed() streamed}).
    */
   public int getMaxElementDepth ()
   {
@@ -282,15 +277,14 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * The elements of this document with a name, from an index built on first
-   * use. The index belongs to the current numbering of the tree; a structural
-   * change removes the numbering and with it the index.
+   * The elements of this document with a name, from an index built on first use. The index belongs
+   * to the current numbering of the tree; a structural change removes the numbering and with it the
+   * index.
    *
    * @param aName
    *        The element name (namespace URI and local name).
-   * @return The elements in document order as a read-only list, or
-   *         <code>null</code> if the tree is not numbered or is
-   *         {@link #isStreamed() streamed}.
+   * @return The elements in document order as a read-only list, or <code>null</code> if the tree is
+   *         not numbered or is {@link #isStreamed() streamed}.
    */
   @Nullable
   public List <IXdmNode> getElementsByName (@NonNull final XdmQName aName)
@@ -299,58 +293,60 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     final NameIndex aIndex = _getIndex (false);
     if (aIndex == null)
       return null;
+
     final List <IXdmNode> ret = aIndex.m_aNodes.get (aName);
     return ret == null ? List.of () : ret;
   }
 
   /**
-   * The child elements with a name of a node of this document, kept with the
-   * element index once asked for, so that a repeated child step from a node
-   * with many children does not go through them again. Meant for such nodes:
-   * every pair of parent and name asked for stays in memory as long as the
-   * index.
+   * The child elements with a name of a node of this document, kept with the element index once
+   * asked for, so that a repeated child step from a node with many children does not go through
+   * them again. Meant for such nodes: every pair of parent and name asked for stays in memory as
+   * long as the index.
    *
    * @param aParent
    *        The parent node. Must belong to this document.
    * @param aName
    *        The element name (namespace URI and local name).
-   * @return The child elements in document order as a read-only list, or
-   *         <code>null</code> if the tree is not numbered or is
-   *         {@link #isStreamed() streamed}.
+   * @return The child elements in document order as a read-only list, or <code>null</code> if the
+   *         tree is not numbered or is {@link #isStreamed() streamed}.
    */
   @Nullable
   public List <IXdmNode> getChildElementsByName (@NonNull final IXdmNode aParent, @NonNull final XdmQName aName)
   {
     ValueEnforcer.notNull (aParent, "Parent");
     ValueEnforcer.notNull (aName, "Name");
+
     final NameIndex aIndex = _getIndex (false);
     if (aIndex == null)
       return null;
+
     final List <IXdmNode> aElements = aIndex.m_aNodes.get (aName);
     if (aElements == null)
       return List.of ();
+
     return aIndex.m_aChildren.computeIfAbsent (new ChildKey (aParent, aName),
                                                k -> _collectChildElements (aElements, aParent, aName));
   }
 
   /**
-   * The attributes of this document with a name, from an index built on first
-   * use. Like {@link #getElementsByName(XdmQName)} it belongs to the current
-   * numbering of the tree.
+   * The attributes of this document with a name, from an index built on first use. Like
+   * {@link #getElementsByName(XdmQName)} it belongs to the current numbering of the tree.
    *
    * @param aName
    *        The attribute name (namespace URI and local name).
-   * @return The attributes in document order as a read-only list, or
-   *         <code>null</code> if the tree is not numbered or is
-   *         {@link #isStreamed() streamed}.
+   * @return The attributes in document order as a read-only list, or <code>null</code> if the tree
+   *         is not numbered or is {@link #isStreamed() streamed}.
    */
   @Nullable
   public List <IXdmNode> getAttributesByName (@NonNull final XdmQName aName)
   {
     ValueEnforcer.notNull (aName, "Name");
+
     final NameIndex aIndex = _getIndex (true);
     if (aIndex == null)
       return null;
+
     final List <IXdmNode> ret = aIndex.m_aNodes.get (aName);
     return ret == null ? List.of () : ret;
   }
@@ -362,8 +358,8 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * The first declaration of an entity name is binding (XML 1.0 section
-   * 4.2); a later one with the same name is ignored.
+   * The first declaration of an entity name is binding (XML 1.0 section 4.2); a later one with the
+   * same name is ignored.
    */
   @Override
   public void addUnparsedEntity (@NonNull final String sName,
@@ -372,6 +368,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   {
     ValueEnforcer.notNull (sName, "Name");
     ValueEnforcer.notNull (sSystemId, "SystemId");
+
     if (m_aUnparsedEntities == null)
       m_aUnparsedEntities = new CommonsLinkedHashMap <> ();
     // The first declaration of an entity is binding
@@ -387,18 +384,19 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   {
     if (m_aUnparsedEntities == null)
       return null;
+
     final String [] ret = m_aUnparsedEntities.get (sName);
     return ret == null ? null : ret.clone ();
   }
 
   /**
-   * The name is appended without a duplicate check, so a name declared twice
-   * is listed twice.
+   * The name is appended without a duplicate check, so a name declared twice is listed twice.
    */
   @Override
   public void addParsedEntityName (@NonNull final String sName)
   {
     ValueEnforcer.notNull (sName, "Name");
+
     if (m_aParsedEntityNames == null)
       m_aParsedEntityNames = new CommonsArrayList <> ();
     m_aParsedEntityNames.add (sName);
@@ -417,6 +415,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   @ReturnsMutableCopy
   public ICommonsList <String> getAllUnparsedEntityNames ()
   {
-    return m_aUnparsedEntities == null ? new CommonsArrayList <> () : new CommonsArrayList <> (m_aUnparsedEntities.keySet ());
+    return m_aUnparsedEntities == null ? new CommonsArrayList <> ()
+                                       : new CommonsArrayList <> (m_aUnparsedEntities.keySet ());
   }
 }

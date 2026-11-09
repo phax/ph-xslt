@@ -55,8 +55,8 @@ public final class XdmAttributeNode extends AbstractXdmValueNode
   }
 
   /**
-   * The ID kind is kept in the details holder: only ID, IDREF and IDREFS
-   * attributes (DTD, <code>xml:id</code> or schema type) have one.
+   * The ID kind is kept in the details holder: only ID, IDREF and IDREFS attributes (DTD,
+   * <code>xml:id</code> or schema type) have one.
    */
   @Override
   @NonNull
@@ -73,10 +73,9 @@ public final class XdmAttributeNode extends AbstractXdmValueNode
   }
 
   /**
-   * An attribute has no location fields: with a parent element it reports the
-   * line of that element (the SAX location of an attribute is the one of its
-   * start tag anyway), without a parent the line kept in the details holder
-   * ({@link #setLocation(int, int)}), 0 if none was set.
+   * An attribute has no location fields: with a parent element it reports the line of that element
+   * (the SAX location of an attribute is the one of its start tag anyway), without a parent the
+   * line kept in the details holder ({@link #setLocation(int, int)}), 0 if none was set.
    */
   @Override
   @Nonnegative
@@ -87,8 +86,8 @@ public final class XdmAttributeNode extends AbstractXdmValueNode
   }
 
   /**
-   * Like {@link #getLine()}: the column of the parent element, or without a
-   * parent the column kept in the details holder.
+   * Like {@link #getLine()}: the column of the parent element, or without a parent the column kept
+   * in the details holder.
    */
   @Override
   @Nonnegative

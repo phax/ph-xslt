@@ -22,18 +22,16 @@ import org.jspecify.annotations.Nullable;
 import com.helger.base.enforce.ValueEnforcer;
 
 /**
- * An expanded QName: namespace URI, local part and the advisory prefix. The
- * prefix is kept for serialisation only and takes no part in
- * {@link #equals(Object)} or {@link #hashCode()}.
+ * An expanded QName: namespace URI, local part and the advisory prefix. The prefix is kept for
+ * serialisation only and takes no part in {@link #equals(Object)} or {@link #hashCode()}.
  *
  * @param namespaceUri
- *        The namespace URI. Never <code>null</code>; the empty string means
- *        "no namespace".
+ *        The namespace URI. Never <code>null</code>; the empty string means "no namespace".
  * @param localName
  *        The local part. Never empty.
  * @param prefix
- *        The prefix used in the source. Never <code>null</code>; the empty
- *        string means "no prefix".
+ *        The prefix used in the source. Never <code>null</code>; the empty string means "no
+ *        prefix".
  * @author Philip Helger
  */
 public record XdmQName (@NonNull String namespaceUri, @NonNull String localName, @NonNull String prefix)
@@ -60,8 +58,7 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
    * Create a name without prefix.
    *
    * @param sNamespaceUri
-   *        The namespace URI, the empty string for no namespace. May not be
-   *        <code>null</code>.
+   *        The namespace URI, the empty string for no namespace. May not be <code>null</code>.
    * @param sLocalName
    *        The local part. May neither be <code>null</code> nor empty.
    */
@@ -81,8 +78,8 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
   }
 
   /**
-   * @return The name as written in a source document: <code>prefix:local</code>
-   *         or just <code>local</code>.
+   * @return The name as written in a source document: <code>prefix:local</code> or just
+   *         <code>local</code>.
    */
   @NonNull
   public String getLexicalName ()
@@ -91,9 +88,8 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
   }
 
   /**
-   * @return The name in URIQualifiedName notation <code>Q{uri}local</code>
-   *         (XPath 3.1 section 3.1.2), without the braces part for names in no
-   *         namespace.
+   * @return The name in URIQualifiedName notation <code>Q{uri}local</code> (XPath 3.1 section
+   *         3.1.2), without the braces part for names in no namespace.
    */
   @NonNull
   public String getEQName ()
@@ -102,17 +98,15 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
   }
 
   /**
-   * Get this name with the canonical instances of its strings
-   * ({@link String#intern()}). The JDK XML parsers report element and
-   * attribute names as such instances, so that comparing an interned name
-   * with the name of a parsed node is decided by the identity checks of
-   * {@link String#equals(Object)} on a match. The JVM keeps interned strings
-   * in a thread-safe table from which unused ones are garbage collected.
-   * Meant for names that are compared often, such as the names of node tests,
-   * since every call looks up all three strings.
+   * Get this name with the canonical instances of its strings ({@link String#intern()}). The JDK
+   * XML parsers report element and attribute names as such instances, so that comparing an interned
+   * name with the name of a parsed node is decided by the identity checks of
+   * {@link String#equals(Object)} on a match. The JVM keeps interned strings in a thread-safe table
+   * from which unused ones are garbage collected. Meant for names that are compared often, such as
+   * the names of node tests, since every call looks up all three strings.
    *
-   * @return This name if its strings are canonical already, otherwise an
-   *         equal name with the same prefix and canonical strings.
+   * @return This name if its strings are canonical already, otherwise an equal name with the same
+   *         prefix and canonical strings.
    */
   @NonNull
   public XdmQName getInterned ()
@@ -129,8 +123,7 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
    * Compare the expanded name, ignoring the prefix.
    *
    * @param sNamespaceUri
-   *        The namespace URI; <code>null</code> is the same as the empty
-   *        string, no namespace.
+   *        The namespace URI; <code>null</code> is the same as the empty string, no namespace.
    * @param sLocalName
    *        The local part. <code>null</code> never matches.
    * @return <code>true</code> if namespace URI and local part are equal.

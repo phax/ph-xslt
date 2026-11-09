@@ -26,8 +26,8 @@ import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmValidationException;
 
 /**
- * A schema type definition of the schema component model, simple or complex.
- * Two instances describing the same component are equal.
+ * A schema type definition of the schema component model, simple or complex. Two instances
+ * describing the same component are equal.
  *
  * @author Philip Helger
  */
@@ -48,9 +48,8 @@ public interface IXdmTypeDefinition
   }
 
   /**
-   * @return The name a node annotated with this type reports as its type
-   *         annotation: the type name, or for an anonymous type a name whose
-   *         local part starts with <code>#</code>.
+   * @return The name a node annotated with this type reports as its type annotation: the type name,
+   *         or for an anonymous type a name whose local part starts with <code>#</code>.
    */
   @NonNull
   default XdmQName getAnnotationName ()
@@ -60,12 +59,11 @@ public interface IXdmTypeDefinition
   }
 
   /**
-   * @return <code>true</code> if the definition is part of a full schema
-   *         component model. <code>false</code> for a provider that only
-   *         knows type names and derivation (the JDK validator): then the
-   *         content type, member types and base type are not known,
-   *         {@link #validate(String, UnaryOperator)} is not supported, and the
-   *         simple content type of a complex type is the type itself.
+   * @return <code>true</code> if the definition is part of a full schema component model.
+   *         <code>false</code> for a provider that only knows type names and derivation (the JDK
+   *         validator): then the content type, member types and base type are not known,
+   *         {@link #validate(String, UnaryOperator)} is not supported, and the simple content type
+   *         of a complex type is the type itself.
    */
   default boolean hasComponentModel ()
   {
@@ -73,29 +71,26 @@ public interface IXdmTypeDefinition
   }
 
   /**
-   * @return <code>true</code> for a complex type, <code>false</code> for a
-   *         simple type.
+   * @return <code>true</code> for a complex type, <code>false</code> for a simple type.
    */
   boolean isComplex ();
 
   /**
-   * @return The content type. A simple type has {@link EXdmContentType#SIMPLE}
-   *         content.
+   * @return The content type. A simple type has {@link EXdmContentType#SIMPLE} content.
    */
   @NonNull
   EXdmContentType getContentType ();
 
   /**
-   * @return The simple type of the content: the type itself for a simple type,
-   *         the content simple type for a complex type with simple content,
-   *         otherwise <code>null</code>.
+   * @return The simple type of the content: the type itself for a simple type, the content simple
+   *         type for a complex type with simple content, otherwise <code>null</code>.
    */
   @Nullable
   IXdmTypeDefinition getSimpleContentType ();
 
   /**
-   * @return The variety of a simple type, <code>null</code> for a complex type
-   *         and for <code>xs:anySimpleType</code>.
+   * @return The variety of a simple type, <code>null</code> for a complex type and for
+   *         <code>xs:anySimpleType</code>.
    */
   @Nullable
   EXdmSimpleVariety getVariety ();
@@ -113,23 +108,21 @@ public interface IXdmTypeDefinition
   ICommonsList <IXdmTypeDefinition> getMemberTypes ();
 
   /**
-   * @return The most specific built-in atomic type an atomic type is, or is
-   *         derived from; <code>null</code> for other types.
+   * @return The most specific built-in atomic type an atomic type is, or is derived from;
+   *         <code>null</code> for other types.
    */
   @Nullable
   XdmQName getBuiltinAtomicType ();
 
   /**
-   * @return The base type definition, <code>null</code> for
-   *         <code>xs:anyType</code>.
+   * @return The base type definition, <code>null</code> for <code>xs:anyType</code>.
    */
   @Nullable
   IXdmTypeDefinition getBaseType ();
 
   /**
-   * The schema derivation check: is this type the given type, or derived from
-   * it by restriction or extension? Union membership and list item types are
-   * not derivation steps here.
+   * The schema derivation check: is this type the given type, or derived from it by restriction or
+   * extension? Union membership and list item types are not derivation steps here.
    *
    * @param aBase
    *        The candidate base type.
@@ -138,8 +131,8 @@ public interface IXdmTypeDefinition
   boolean isDerivedFrom (@NonNull IXdmTypeDefinition aBase);
 
   /**
-   * The derivation check by name: is this type the named type, or derived
-   * from it by restriction or extension?
+   * The derivation check by name: is this type the named type, or derived from it by restriction or
+   * extension?
    *
    * @param aBase
    *        The name of the candidate base type.
@@ -148,24 +141,21 @@ public interface IXdmTypeDefinition
   boolean isDerivedFrom (@NonNull XdmQName aBase);
 
   /**
-   * @return <code>true</code> if the type is <code>xs:QName</code> or
-   *         <code>xs:NOTATION</code> or derived from one of them, or a list or
-   *         union with such an item or member type.
+   * @return <code>true</code> if the type is <code>xs:QName</code> or <code>xs:NOTATION</code> or
+   *         derived from one of them, or a list or union with such an item or member type.
    */
   boolean isNamespaceSensitive ();
 
   /**
-   * Validate a lexical value against this simple type (or the simple content
-   * type of a complex type).
+   * Validate a lexical value against this simple type (or the simple content type of a complex
+   * type).
    *
    * @param sLexical
    *        The value.
    * @param aNamespaceResolver
-   *        Prefix to namespace URI (the empty prefix gives the default
-   *        namespace), for namespace-sensitive types. May be
-   *        <code>null</code>.
-   * @return The atomic values: one for an atomic type, one per item for a
-   *         list type.
+   *        Prefix to namespace URI (the empty prefix gives the default namespace), for
+   *        namespace-sensitive types. May be <code>null</code>.
+   * @return The atomic values: one for an atomic type, one per item for a list type.
    * @throws XdmValidationException
    *         if the value is not valid
    */

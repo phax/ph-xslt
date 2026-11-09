@@ -43,24 +43,20 @@ import com.helger.phoxtrot.xdm.XdmQName;
 /**
  * Writes an XDM tree into a W3C DOM. The walk is iterative.
  * <ul>
- * <li>Elements and attributes keep their prefixes. Every element gets an
- * <code>xmlns</code> attribute for each namespace it declares (or
- * undeclares) in XDM that is not bound the same way in scope already, the
- * outermost element written also for every other
- * namespace in scope that the DOM parent does not bind the same way, and any
- * element or attribute whose prefix is not bound to its namespace at that
- * point gets the missing declaration (namespace fixup), so the DOM is
- * namespace well-formed and a serialiser needs no fixup.</li>
+ * <li>Elements and attributes keep their prefixes. Every element gets an <code>xmlns</code>
+ * attribute for each namespace it declares (or undeclares) in XDM that is not bound the same way in
+ * scope already, the outermost element written also for every other namespace in scope that the DOM
+ * parent does not bind the same way, and any element or attribute whose prefix is not bound to its
+ * namespace at that point gets the missing declaration (namespace fixup), so the DOM is namespace
+ * well-formed and a serialiser needs no fixup.</li>
  * <li>Attributes of ID kind ID are marked as ID attributes
  * ({@link Element#setIdAttributeNS(String, String, boolean)}).</li>
- * <li>Text, comments and processing instructions are copied. Under a DOM
- * document, which cannot hold text, whitespace-only text between the
- * top-level nodes is dropped.</li>
- * <li>A document node writes its children. A new DOM document gets the
- * document URI of the XDM document, or its base URI if it has no document
- * URI, as <code>documentURI</code>. Other explicit base URIs, unparsed
- * entities, type annotations and disable-output-escaping have no place in
- * the DOM and are not written.</li>
+ * <li>Text, comments and processing instructions are copied. Under a DOM document, which cannot
+ * hold text, whitespace-only text between the top-level nodes is dropped.</li>
+ * <li>A document node writes its children. A new DOM document gets the document URI of the XDM
+ * document, or its base URI if it has no document URI, as <code>documentURI</code>. Other explicit
+ * base URIs, unparsed entities, type annotations and disable-output-escaping have no place in the
+ * DOM and are not written.</li>
  * </ul>
  *
  * @author Philip Helger
@@ -74,7 +70,9 @@ public final class XdmToDom
   private XdmToDom ()
   {}
 
-  /** One step of the walk: a node to write under a DOM parent, or (with close) an element to close. */
+  /**
+   * One step of the walk: a node to write under a DOM parent, or (with close) an element to close.
+   */
   private record Step (@NonNull IXdmNode node, @Nullable Node parent, boolean close)
   {}
 
@@ -86,8 +84,8 @@ public final class XdmToDom
 
   /**
    * @return The prefix bound in the DOM at the node, through
-   *         {@link Node#lookupNamespaceURI(String)}: an empty result is the
-   *         empty string for the default prefix and unbound otherwise.
+   *         {@link Node#lookupNamespaceURI(String)}: an empty result is the empty string for the
+   *         default prefix and unbound otherwise.
    */
   @Nullable
   private static String _lookupInDom (@Nullable final Node aParent, @NonNull final String sPrefix)
@@ -99,8 +97,8 @@ public final class XdmToDom
   }
 
   /**
-   * Declare a namespace on a DOM element as an <code>xmlns</code> attribute
-   * and bind it in the scope.
+   * Declare a namespace on a DOM element as an <code>xmlns</code> attribute and bind it in the
+   * scope.
    */
   private static void _declare (@NonNull final Element aElement,
                                 @NonNull final String sPrefix,
@@ -112,12 +110,12 @@ public final class XdmToDom
   }
 
   /**
-   * Create a DOM element for an XDM element with its namespace declarations
-   * and attributes, and open a scope frame for it.
+   * Create a DOM element for an XDM element with its namespace declarations and attributes, and
+   * open a scope frame for it.
    *
    * @param bOutermost
-   *        <code>true</code> for the outermost element written, which also
-   *        declares the namespaces it inherits in XDM.
+   *        <code>true</code> for the outermost element written, which also declares the namespaces
+   *        it inherits in XDM.
    */
   @NonNull
   private static Element _createElement (@NonNull final IXdmNode aNode,
@@ -187,8 +185,7 @@ public final class XdmToDom
   }
 
   /**
-   * Add a new DOM node to its parent, before the next sibling at the top
-   * level.
+   * Add a new DOM node to its parent, before the next sibling at the top level.
    */
   private static void _add (@NonNull final Node aParent, @NonNull final Node aChild, @Nullable final Node aNextSibling)
   {
@@ -206,10 +203,12 @@ public final class XdmToDom
    * @param aParent
    *        The DOM parent: a document, document fragment or element.
    * @param aNextSibling
-   *        The child of the parent to insert the top-level nodes before, or
-   *        <code>null</code> to append them.
+   *        The child of the parent to insert the top-level nodes before, or <code>null</code> to
+   *        append them.
    */
-  private static void _write (@NonNull final IXdmNode aNode, @NonNull final Node aParent, @Nullable final Node aNextSibling)
+  private static void _write (@NonNull final IXdmNode aNode,
+                              @NonNull final Node aParent,
+                              @Nullable final Node aNextSibling)
   {
     final Document aDoc = aParent instanceof final Document aDocNode ? aDocNode : aParent.getOwnerDocument ();
     final NamespaceScope aScope = new NamespaceScope (s -> _lookupInDom (aParent, s));
@@ -252,7 +251,9 @@ public final class XdmToDom
           _add (aDomParent, aDoc.createComment (aCur.getValue ()), aNextAtLevel);
           break;
         case PROCESSING_INSTRUCTION:
-          _add (aDomParent, aDoc.createProcessingInstruction (aCur.getName ().localName (), aCur.getValue ()), aNextAtLevel);
+          _add (aDomParent,
+                aDoc.createProcessingInstruction (aCur.getName ().localName (), aCur.getValue ()),
+                aNextAtLevel);
           break;
         case ATTRIBUTE:
         {
@@ -267,7 +268,9 @@ public final class XdmToDom
           if (!(aDomParent instanceof final Element aElement))
             throw new IllegalArgumentException ("A namespace node can only be written to a DOM element");
           final String sPrefix = aCur.getName ().localName ();
-          aElement.setAttributeNS (XdmConstants.NS_XMLNS, sPrefix.isEmpty () ? "xmlns" : "xmlns:" + sPrefix, aCur.getValue ());
+          aElement.setAttributeNS (XdmConstants.NS_XMLNS,
+                                   sPrefix.isEmpty () ? "xmlns" : "xmlns:" + sPrefix,
+                                   aCur.getValue ());
           break;
         }
         case DOCUMENT:
@@ -278,8 +281,8 @@ public final class XdmToDom
   }
 
   /**
-   * Create a new, empty DOM document with the JDK DOM implementation
-   * (namespace aware), never through a JAXP lookup.
+   * Create a new, empty DOM document with the JDK DOM implementation (namespace aware), never
+   * through a JAXP lookup.
    *
    * @return The new document. Never <code>null</code>.
    * @throws IllegalStateException
@@ -301,17 +304,15 @@ public final class XdmToDom
   }
 
   /**
-   * Write an XDM node into a new DOM document: a document node with its
-   * children, any other element, text, comment or processing instruction as
-   * the content of the document. The document URI of the XDM document (or
-   * its base URI if it has none) becomes the <code>documentURI</code>.
+   * Write an XDM node into a new DOM document: a document node with its children, any other
+   * element, text, comment or processing instruction as the content of the document. The document
+   * URI of the XDM document (or its base URI if it has none) becomes the <code>documentURI</code>.
    *
    * @param aNode
    *        The XDM node. May not be <code>null</code>.
    * @return The new DOM document. Never <code>null</code>.
    * @throws org.w3c.dom.DOMException
-   *         if the content is not allowed in a DOM document (several
-   *         elements, non-whitespace text)
+   *         if the content is not allowed in a DOM document (several elements, non-whitespace text)
    */
   @NonNull
   public static Document toDocument (@NonNull final IXdmNode aNode)
@@ -329,10 +330,9 @@ public final class XdmToDom
   }
 
   /**
-   * Write an XDM node into a new DOM document fragment of the given document,
-   * which may hold any content (several elements, text): a document node
-   * gives its children, any other node itself. Use it for a parentless XDM
-   * subtree or a result that is not a well-formed document.
+   * Write an XDM node into a new DOM document fragment of the given document, which may hold any
+   * content (several elements, text): a document node gives its children, any other node itself.
+   * Use it for a parentless XDM subtree or a result that is not a well-formed document.
    *
    * @param aNode
    *        The XDM node. May not be <code>null</code>.
@@ -351,27 +351,28 @@ public final class XdmToDom
   }
 
   /**
-   * Write an XDM node into an existing DOM node: a document node gives its
-   * children, an attribute or namespace node is set on the DOM element, any
-   * other node is added as a child. The outermost elements written declare
-   * the namespaces they have in scope in XDM that the DOM parent does not
+   * Write an XDM node into an existing DOM node: a document node gives its children, an attribute
+   * or namespace node is set on the DOM element, any other node is added as a child. The outermost
+   * elements written declare the namespaces they have in scope in XDM that the DOM parent does not
    * already bind the same way.
    *
    * @param aNode
    *        The XDM node. May not be <code>null</code>.
    * @param aParent
-   *        The DOM document, document fragment or element to write to. May
-   *        not be <code>null</code>.
+   *        The DOM document, document fragment or element to write to. May not be
+   *        <code>null</code>.
    * @param aNextSibling
-   *        A child of the parent to insert the new nodes before, or
-   *        <code>null</code> to append them.
+   *        A child of the parent to insert the new nodes before, or <code>null</code> to append
+   *        them.
    * @throws IllegalArgumentException
-   *         if the parent is of another kind, or an attribute or namespace
-   *         node is to be written to a non-element
+   *         if the parent is of another kind, or an attribute or namespace node is to be written to
+   *         a non-element
    * @throws org.w3c.dom.DOMException
    *         if the content is not allowed in the parent
    */
-  public static void appendTo (@NonNull final IXdmNode aNode, @NonNull final Node aParent, @Nullable final Node aNextSibling)
+  public static void appendTo (@NonNull final IXdmNode aNode,
+                               @NonNull final Node aParent,
+                               @Nullable final Node aNextSibling)
   {
     ValueEnforcer.notNull (aNode, "Node");
     ValueEnforcer.notNull (aParent, "Parent");

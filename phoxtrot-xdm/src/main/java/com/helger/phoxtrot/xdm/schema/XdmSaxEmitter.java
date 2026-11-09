@@ -33,8 +33,8 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 
 /**
- * Writes an element of an XDM tree, with its subtree, as namespace-aware SAX
- * events wrapped in a document, e.g. to validate it. The walk is iterative.
+ * Writes an element of an XDM tree, with its subtree, as namespace-aware SAX events wrapped in a
+ * document, e.g. to validate it. The walk is iterative.
  *
  * @author Philip Helger
  */
@@ -48,8 +48,8 @@ public final class XdmSaxEmitter
   {}
 
   /**
-   * @return The lexical name for SAX: <code>prefix:local</code>, or the local
-   *         name if the name has no prefix.
+   * @return The lexical name for SAX: <code>prefix:local</code>, or the local name if the name has
+   *         no prefix.
    */
   @NonNull
   private static String _qname (@NonNull final XdmQName aName)
@@ -59,9 +59,8 @@ public final class XdmSaxEmitter
   }
 
   /**
-   * Report the namespace mappings (except the <code>xml</code> prefix), then
-   * the start tag with all attributes as type <code>CDATA</code>, so that a
-   * validator sees no DTD attribute types.
+   * Report the namespace mappings (except the <code>xml</code> prefix), then the start tag with all
+   * attributes as type <code>CDATA</code>, so that a validator sees no DTD attribute types.
    *
    * @param aElement
    *        The element to start.
@@ -121,9 +120,8 @@ public final class XdmSaxEmitter
    * @param aLexicalHandler
    *        The receiver of comments, may be <code>null</code>.
    * @param bParsedEntitiesAsUnparsed
-   *        <code>true</code> to declare the parsed entities of the document as
-   *        unparsed entities too, so that an <code>xs:ENTITY</code> value may
-   *        name one (leniently, as go-xslt does).
+   *        <code>true</code> to declare the parsed entities of the document as unparsed entities
+   *        too, so that an <code>xs:ENTITY</code> value may name one (leniently, as go-xslt does).
    * @throws SAXException
    *         from the handlers
    */

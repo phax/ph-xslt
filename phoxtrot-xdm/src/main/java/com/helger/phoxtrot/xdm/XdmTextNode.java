@@ -25,11 +25,10 @@ import com.helger.base.enforce.ValueEnforcer;
 
 /**
  * A text node. While a tree is built, text can be appended in pieces with
- * {@link #appendValue(String)}; the pieces are joined once, when the value is
- * read, so building a long text from many pieces stays linear. The pieces are
- * collected in a {@link StringBuilder} that takes the place of the value in
- * the value field until they are joined, so a text node needs no field of its
- * own for them.
+ * {@link #appendValue(String)}; the pieces are joined once, when the value is read, so building a
+ * long text from many pieces stays linear. The pieces are collected in a {@link StringBuilder} that
+ * takes the place of the value in the value field until they are joined, so a text node needs no
+ * field of its own for them.
  *
  * @author Philip Helger
  */
@@ -46,12 +45,11 @@ public final class XdmTextNode extends AbstractXdmValueNode
   }
 
   /**
-   * Replace a {@link StringBuilder} in the value field by its text, under the
-   * lock shared by all text nodes. Readers of a finished tree may call this
-   * concurrently: the field is read once outside the lock, and a
-   * {@link String} seen there is safe to use without the lock (its fields are
-   * final); a builder is only read under the lock, where the first reader
-   * replaces it and every later one sees the string.
+   * Replace a {@link StringBuilder} in the value field by its text, under the lock shared by all
+   * text nodes. Readers of a finished tree may call this concurrently: the field is read once
+   * outside the lock, and a {@link String} seen there is safe to use without the lock (its fields
+   * are final); a builder is only read under the lock, where the first reader replaces it and every
+   * later one sees the string.
    *
    * @return The complete value.
    */
@@ -61,7 +59,7 @@ public final class XdmTextNode extends AbstractXdmValueNode
     final Object aValue = internalGetRawValue ();
     if (aValue instanceof final String sValue)
       return sValue;
-    return PENDING_TEXT_LOCK.writeLockedGet ( () -> {
+    return PENDING_TEXT_LOCK.writeLockedGet (() -> {
       final Object aCur = internalGetRawValue ();
       if (aCur instanceof final String sCur)
         return sCur;
@@ -72,10 +70,9 @@ public final class XdmTextNode extends AbstractXdmValueNode
   }
 
   /**
-   * Append text to the value, for building a tree only: the call must not
-   * overlap with reading the value from another thread. The first append
-   * puts a {@link StringBuilder} with the value and the text into the value
-   * field, later ones append to it.
+   * Append text to the value, for building a tree only: the call must not overlap with reading the
+   * value from another thread. The first append puts a {@link StringBuilder} with the value and the
+   * text into the value field, later ones append to it.
    *
    * @param sText
    *        The text to append. May not be <code>null</code>.
@@ -95,8 +92,7 @@ public final class XdmTextNode extends AbstractXdmValueNode
   }
 
   /**
-   * Joins pending appended text into the value first, so the result is the
-   * complete text.
+   * Joins pending appended text into the value first, so the result is the complete text.
    */
   @Override
   @NonNull
@@ -112,7 +108,7 @@ public final class XdmTextNode extends AbstractXdmValueNode
   public void setValue (@NonNull final String sValue)
   {
     ValueEnforcer.notNull (sValue, "Value");
-    PENDING_TEXT_LOCK.writeLocked ( () -> super.setValue (sValue));
+    PENDING_TEXT_LOCK.writeLocked (() -> super.setValue (sValue));
   }
 
   @NonNull
@@ -122,10 +118,9 @@ public final class XdmTextNode extends AbstractXdmValueNode
   }
 
   /**
-   * A text node has no location fields: with a parent it reports the line of
-   * the parent (the element that contains the text), without a parent the
-   * line kept in the details holder ({@link #setLocation(int, int)}), 0 if
-   * none was set.
+   * A text node has no location fields: with a parent it reports the line of the parent (the
+   * element that contains the text), without a parent the line kept in the details holder
+   * ({@link #setLocation(int, int)}), 0 if none was set.
    */
   @Override
   @Nonnegative
@@ -136,8 +131,8 @@ public final class XdmTextNode extends AbstractXdmValueNode
   }
 
   /**
-   * Like {@link #getLine()}: the column of the parent, or without a parent
-   * the column kept in the details holder.
+   * Like {@link #getLine()}: the column of the parent, or without a parent the column kept in the
+   * details holder.
    */
   @Override
   @Nonnegative

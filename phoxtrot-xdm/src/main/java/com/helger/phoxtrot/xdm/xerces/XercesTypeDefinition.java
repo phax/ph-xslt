@@ -64,8 +64,7 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   /**
    * @param aType
    *        A Xerces-J type definition. May be <code>null</code>.
-   * @return The wrapped definition, or <code>null</code> for
-   *         <code>null</code>.
+   * @return The wrapped definition, or <code>null</code> for <code>null</code>.
    */
   @Nullable
   static IXdmTypeDefinition wrap (@Nullable final XSTypeDefinition aType)
@@ -88,9 +87,8 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * Maps the content type of a complex type; Xerces-J's mixed content type
-   * and any unknown value become {@link EXdmContentType#MIXED}. A simple type
-   * has {@link EXdmContentType#SIMPLE} content.
+   * Maps the content type of a complex type; Xerces-J's mixed content type and any unknown value
+   * become {@link EXdmContentType#MIXED}. A simple type has {@link EXdmContentType#SIMPLE} content.
    */
   @NonNull
   public EXdmContentType getContentType ()
@@ -107,9 +105,8 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * @return The simple type of the content: the type itself for a simple
-   *         type, the simple type of a complex type (<code>null</code> unless
-   *         it has simple content).
+   * @return The simple type of the content: the type itself for a simple type, the simple type of a
+   *         complex type (<code>null</code> unless it has simple content).
    */
   @Nullable
   private XSSimpleTypeDefinition _getSimple ()
@@ -171,9 +168,8 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * @return The most specific built-in type of an atomic simple type: the
-   *         first type in the base type chain that is named in the XML Schema
-   *         namespace.
+   * @return The most specific built-in type of an atomic simple type: the first type in the base
+   *         type chain that is named in the XML Schema namespace.
    */
   @Nullable
   static XdmQName getBuiltinAtomicType (@Nullable final XSSimpleTypeDefinition aSimple)
@@ -200,8 +196,7 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * <code>null</code> if Xerces-J reports no base type or the type itself as
-   * its base.
+   * <code>null</code> if Xerces-J reports no base type or the type itself as its base.
    */
   @Nullable
   public IXdmTypeDefinition getBaseType ()
@@ -211,10 +206,9 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * Only definitions of this provider can be compared; any other gives
-   * <code>false</code>. The identical component is derived from itself. A
-   * named base type is checked by name, so that the types of different
-   * schema sets that describe the same component compare as derived; an
+   * Only definitions of this provider can be compared; any other gives <code>false</code>. The
+   * identical component is derived from itself. A named base type is checked by name, so that the
+   * types of different schema sets that describe the same component compare as derived; an
    * anonymous base type is checked against the component itself.
    */
   public boolean isDerivedFrom (@NonNull final IXdmTypeDefinition aBase)
@@ -228,14 +222,13 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
     if (!aOther.m_aType.getAnonymous ())
       return m_aType.derivedFrom (aOther.m_aType.getNamespace (),
                                   aOther.m_aType.getName (),
-                                  DERIVATION_RESTRICTION_EXTENSION) ||
-             _isSameNamed (m_aType, aOther.m_aType);
+                                  DERIVATION_RESTRICTION_EXTENSION) || _isSameNamed (m_aType, aOther.m_aType);
     return m_aType.derivedFromType (aOther.m_aType, DERIVATION_RESTRICTION_EXTENSION);
   }
 
   /**
-   * A named type is derived from its own name; otherwise Xerces-J checks the
-   * derivation by restriction or extension by name.
+   * A named type is derived from its own name; otherwise Xerces-J checks the derivation by
+   * restriction or extension by name.
    */
   public boolean isDerivedFrom (@NonNull final XdmQName aBase)
   {
@@ -251,9 +244,8 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * @return <code>true</code> if both types are named and have the same
-   *         namespace URI (<code>null</code> counting as empty) and local
-   *         name.
+   * @return <code>true</code> if both types are named and have the same namespace URI
+   *         (<code>null</code> counting as empty) and local name.
    */
   private static boolean _isSameNamed (@NonNull final XSTypeDefinition aLeft, @NonNull final XSTypeDefinition aRight)
   {
@@ -267,10 +259,9 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   /**
    * @param aSimple
    *        A simple type; may be <code>null</code>.
-   * @return <code>true</code> for an atomic type whose built-in kind is
-   *         <code>xs:QName</code> or <code>xs:NOTATION</code>, a list of such
-   *         an item type, or a union with at least one such member (checked
-   *         recursively). <code>false</code> for <code>null</code> and the
+   * @return <code>true</code> for an atomic type whose built-in kind is <code>xs:QName</code> or
+   *         <code>xs:NOTATION</code>, a list of such an item type, or a union with at least one
+   *         such member (checked recursively). <code>false</code> for <code>null</code> and the
    *         absent variety.
    */
   private static boolean _isNamespaceSensitive (@Nullable final XSSimpleTypeDefinition aSimple)
@@ -305,12 +296,11 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * Create the Xerces-J validation state for one value: facets checked,
-   * whitespace normalisation on, the extra checks of Xerces-J off.
-   * For a namespace-sensitive value the prefix of each whitespace-separated
-   * token (the empty prefix for a token without colon) is resolved and
-   * declared, interned because Xerces-J compares by identity; an empty URI
-   * is declared as <code>null</code>, an unresolved prefix is not declared.
+   * Create the Xerces-J validation state for one value: facets checked, whitespace normalisation
+   * on, the extra checks of Xerces-J off. For a namespace-sensitive value the prefix of each
+   * whitespace-separated token (the empty prefix for a token without colon) is resolved and
+   * declared, interned because Xerces-J compares by identity; an empty URI is declared as
+   * <code>null</code>, an unresolved prefix is not declared.
    *
    * @param aNamespaceResolver
    *        Prefix to namespace URI; <code>null</code> to declare nothing.
@@ -348,8 +338,8 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
    *        The normalised lexical form.
    * @param aAtomicType
    *        The atomic type the value was validated against.
-   * @return The token with the most specific built-in atomic type of the
-   *         type, <code>xs:string</code> if none is found.
+   * @return The token with the most specific built-in atomic type of the type,
+   *         <code>xs:string</code> if none is found.
    */
   @NonNull
   private static XdmTypedToken _token (@NonNull final String sLexical,
@@ -379,11 +369,10 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * A list value is validated as a whole (for the length facets) and then
-   * item by item against the item type; an item type that cannot be
-   * validated on its own is taken without check. A value of the absent
-   * variety (<code>xs:anySimpleType</code>) becomes one
-   * <code>xs:untypedAtomic</code> token without check.
+   * A list value is validated as a whole (for the length facets) and then item by item against the
+   * item type; an item type that cannot be validated on its own is taken without check. A value of
+   * the absent variety (<code>xs:anySimpleType</code>) becomes one <code>xs:untypedAtomic</code>
+   * token without check.
    *
    * @throws XdmValidationException
    *         also if the type has no simple content
@@ -426,7 +415,12 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
     }
     catch (final InvalidDatatypeValueException ex)
     {
-      throw new XdmValidationException ("'" + sLexical + "' is not a valid value of type " + _describe () + ": " + ex.getMessage (),
+      throw new XdmValidationException ("'" +
+                                        sLexical +
+                                        "' is not a valid value of type " +
+                                        _describe () +
+                                        ": " +
+                                        ex.getMessage (),
                                         ex);
     }
   }
@@ -442,9 +436,8 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * The name the validator reports through {@link TypeInfo}, also for
-   * anonymous types, so that it matches the annotation of validated nodes;
-   * <code>#anonymous</code> if it reports no local name.
+   * The name the validator reports through {@link TypeInfo}, also for anonymous types, so that it
+   * matches the annotation of validated nodes; <code>#anonymous</code> if it reports no local name.
    */
   @NonNull
   public XdmQName getAnnotationName ()
@@ -453,8 +446,8 @@ final class XercesTypeDefinition implements IXdmTypeDefinition
     final TypeInfo aTypeInfo = (TypeInfo) m_aType;
     final String sNamespace = aTypeInfo.getTypeNamespace ();
     final String sLocal = aTypeInfo.getTypeName ();
-    return new XdmQName (sNamespace == null ? "" : sNamespace, sLocal == null || sLocal.isEmpty () ? "#anonymous"
-                                                                                                  : sLocal);
+    return new XdmQName (sNamespace == null ? "" : sNamespace,
+                         sLocal == null || sLocal.isEmpty () ? "#anonymous" : sLocal);
   }
 
   @Override

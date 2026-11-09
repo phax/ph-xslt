@@ -34,15 +34,13 @@ import com.helger.phoxtrot.xdm.schema.IXdmTypeDefinition;
 import com.helger.phoxtrot.xdm.schema.XdmTypedToken;
 
 /**
- * {@link IXdmTypeDefinition} over a type the JDK validator reports. The JDK
- * gives no schema component model, only the type name and derivation checks
+ * {@link IXdmTypeDefinition} over a type the JDK validator reports. The JDK gives no schema
+ * component model, only the type name and derivation checks
  * ({@link TypeInfo#isDerivedFrom(String, String, int)}), so this definition
- * {@link #hasComponentModel() has no component model}: whether a type is
- * simple, a list, and its built-in atomic type are derived from those checks,
- * and the simple content type of a type is the type itself. The
- * {@link TypeInfo} objects are the validator's own type definitions; that
- * they stay usable after validation is the behaviour of the JDK
- * implementation, not an API guarantee.
+ * {@link #hasComponentModel() has no component model}: whether a type is simple, a list, and its
+ * built-in atomic type are derived from those checks, and the simple content type of a type is the
+ * type itself. The {@link TypeInfo} objects are the validator's own type definitions; that they
+ * stay usable after validation is the behaviour of the JDK implementation, not an API guarantee.
  *
  * @author Philip Helger
  */
@@ -70,14 +68,15 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
   {
     m_aTypeInfo = aTypeInfo;
     m_bListItem = bListItem;
-    m_bComplex = !bListItem && !_isDerivedFrom (aTypeInfo, XdmConstants.NS_XS, "anySimpleType", TypeInfo.DERIVATION_RESTRICTION);
+    m_bComplex = !bListItem &&
+                 !_isDerivedFrom (aTypeInfo, XdmConstants.NS_XS, "anySimpleType", TypeInfo.DERIVATION_RESTRICTION);
     m_bList = !bListItem && _isDerivedFrom (aTypeInfo, XdmConstants.NS_XS, "anySimpleType", TypeInfo.DERIVATION_LIST);
     m_aBuiltinAtomicType = _findAtomicBase (aTypeInfo, bListItem);
   }
 
   /**
-   * @return <code>true</code> if the type has the given name itself, or the
-   *         JDK reports it as derived from it by one of the methods.
+   * @return <code>true</code> if the type has the given name itself, or the JDK reports it as
+   *         derived from it by one of the methods.
    */
   private static boolean _isDerivedFrom (@NonNull final TypeInfo aTypeInfo,
                                          @NonNull final String sNamespace,
@@ -85,15 +84,15 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
                                          final int nMethods)
   {
     final String sTypeNamespace = aTypeInfo.getTypeNamespace ();
-    if (sNamespace.equals (sTypeNamespace == null ? "" : sTypeNamespace) && sLocalName.equals (aTypeInfo.getTypeName ()))
+    if (sNamespace.equals (sTypeNamespace == null ? "" : sTypeNamespace) &&
+        sLocalName.equals (aTypeInfo.getTypeName ()))
       return true;
     return aTypeInfo.isDerivedFrom (sNamespace, sLocalName, nMethods);
   }
 
   /**
-   * @return The most specific built-in atomic type the type derives from by
-   *         restriction or extension (for the item view also by list), or
-   *         <code>null</code>.
+   * @return The most specific built-in atomic type the type derives from by restriction or
+   *         extension (for the item view also by list), or <code>null</code>.
    */
   @Nullable
   private static XdmQName _findAtomicBase (@NonNull final TypeInfo aTypeInfo, final boolean bListItem)
@@ -103,15 +102,14 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
     final int nMethods = bListItem ? DERIVATION_RESTRICTION_EXTENSION | TypeInfo.DERIVATION_LIST
                                    : DERIVATION_RESTRICTION_EXTENSION;
     return XdmSchemaType.findBuiltinAtomicType (aName -> _isDerivedFrom (aTypeInfo,
-                                                                        aName.namespaceUri (),
-                                                                        aName.localName (),
-                                                                        nMethods));
+                                                                         aName.namespaceUri (),
+                                                                         aName.localName (),
+                                                                         nMethods));
   }
 
   /**
-   * <code>null</code> for the item view of a list and for a type the
-   * validator reports without local name or with one starting with
-   * <code>#</code> (anonymous).
+   * <code>null</code> for the item view of a list and for a type the validator reports without
+   * local name or with one starting with <code>#</code> (anonymous).
    */
   @Nullable
   public XdmQName getName ()
@@ -126,16 +124,16 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * The name the validator reports, also for anonymous types;
-   * <code>#anonymous</code> if it reports no local name.
+   * The name the validator reports, also for anonymous types; <code>#anonymous</code> if it reports
+   * no local name.
    */
   @NonNull
   public XdmQName getAnnotationName ()
   {
     final String sNamespace = m_aTypeInfo.getTypeNamespace ();
     final String sLocal = m_aTypeInfo.getTypeName ();
-    return new XdmQName (sNamespace == null ? "" : sNamespace, sLocal == null || sLocal.isEmpty () ? "#anonymous"
-                                                                                                  : sLocal);
+    return new XdmQName (sNamespace == null ? "" : sNamespace,
+                         sLocal == null || sLocal.isEmpty () ? "#anonymous" : sLocal);
   }
 
   public boolean hasComponentModel ()
@@ -151,8 +149,7 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
   /**
    * @return {@link EXdmContentType#SIMPLE} for a simple type.
    * @throws UnsupportedOperationException
-   *         for a complex type: the JDK does not tell element-only from mixed
-   *         content
+   *         for a complex type: the JDK does not tell element-only from mixed content
    */
   @NonNull
   public EXdmContentType getContentType ()
@@ -169,9 +166,8 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * {@link EXdmSimpleVariety#LIST} for a list,
-   * {@link EXdmSimpleVariety#ATOMIC} if a built-in atomic base type was
-   * found, otherwise <code>null</code> (complex types, unions and
+   * {@link EXdmSimpleVariety#LIST} for a list, {@link EXdmSimpleVariety#ATOMIC} if a built-in
+   * atomic base type was found, otherwise <code>null</code> (complex types, unions and
    * <code>xs:anySimpleType</code> cannot be told apart).
    */
   @Nullable
@@ -183,8 +179,8 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * For a list the item view of the same reported type (the JDK does not
-   * give the item type itself), otherwise <code>null</code>.
+   * For a list the item view of the same reported type (the JDK does not give the item type
+   * itself), otherwise <code>null</code>.
    */
   @Nullable
   public IXdmTypeDefinition getItemType ()
@@ -218,8 +214,8 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * Derived from a definition over the identical reported type, otherwise
-   * checked by the name of the base; an anonymous base never matches.
+   * Derived from a definition over the identical reported type, otherwise checked by the name of
+   * the base; an anonymous base never matches.
    */
   public boolean isDerivedFrom (@NonNull final IXdmTypeDefinition aBase)
   {
@@ -235,8 +231,8 @@ final class JdkTypeDefinition implements IXdmTypeDefinition
   }
 
   /**
-   * Only by the built-in atomic type: <code>xs:QName</code> or
-   * <code>xs:NOTATION</code>. Lists and unions of them are not recognised.
+   * Only by the built-in atomic type: <code>xs:QName</code> or <code>xs:NOTATION</code>. Lists and
+   * unions of them are not recognised.
    */
   public boolean isNamespaceSensitive ()
   {

@@ -48,29 +48,25 @@ import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmTreeBuilder;
 
 /**
- * Builds an XDM tree from a W3C DOM tree without serialising it: the DOM is
- * walked (iteratively) and fed into an {@link XdmTreeBuilder} as SAX events,
- * so that the tree is numbered in document order while it is built and
- * shares its names like a parsed document.
+ * Builds an XDM tree from a W3C DOM tree without serialising it: the DOM is walked (iteratively)
+ * and fed into an {@link XdmTreeBuilder} as SAX events, so that the tree is numbered in document
+ * order while it is built and shares its names like a parsed document.
  * <ul>
- * <li>Namespaces: the <code>xmlns</code> attributes of the DOM become the
- * namespace declarations; a binding that the names of an element or its
- * attributes need but no attribute declares (a DOM built with
- * <code>createElementNS</code>) is declared on the element, and a namespaced
- * attribute without a usable prefix gets a new one (<code>ns0</code>, ...).
- * DOM level 1 nodes (no local name) are resolved through the
- * <code>xmlns</code> attributes in scope.</li>
- * <li>Text and CDATA sections become text (adjacent ones merge); whitespace
- * that the DOM marks as element content whitespace is dropped, as the parser
- * drops ignorable whitespace.</li>
- * <li>Entity references are expanded (their children are taken); the content
- * of an external entity gets the entity's base URI.</li>
- * <li>Attributes the DOM knows as DTD ID, IDREF or IDREFS (through
- * {@link Attr#isId()} or their DTD type info) keep that ID kind.</li>
- * <li>Unparsed entities of the document type become unparsed entities of the
- * document; the names of the parsed entities are recorded.</li>
- * <li>The document URI is the system ID passed, or else the
- * <code>documentURI</code> of the DOM document.</li>
+ * <li>Namespaces: the <code>xmlns</code> attributes of the DOM become the namespace declarations; a
+ * binding that the names of an element or its attributes need but no attribute declares (a DOM
+ * built with <code>createElementNS</code>) is declared on the element, and a namespaced attribute
+ * without a usable prefix gets a new one (<code>ns0</code>, ...). DOM level 1 nodes (no local name)
+ * are resolved through the <code>xmlns</code> attributes in scope.</li>
+ * <li>Text and CDATA sections become text (adjacent ones merge); whitespace that the DOM marks as
+ * element content whitespace is dropped, as the parser drops ignorable whitespace.</li>
+ * <li>Entity references are expanded (their children are taken); the content of an external entity
+ * gets the entity's base URI.</li>
+ * <li>Attributes the DOM knows as DTD ID, IDREF or IDREFS (through {@link Attr#isId()} or their DTD
+ * type info) keep that ID kind.</li>
+ * <li>Unparsed entities of the document type become unparsed entities of the document; the names of
+ * the parsed entities are recorded.</li>
+ * <li>The document URI is the system ID passed, or else the <code>documentURI</code> of the DOM
+ * document.</li>
  * </ul>
  *
  * @author Philip Helger
@@ -115,8 +111,8 @@ public final class DomToXdm
   /**
    * @param aNode
    *        A DOM element or attribute.
-   * @return <code>true</code> if it is an <code>xmlns</code> or
-   *         <code>xmlns:*</code> declaration attribute.
+   * @return <code>true</code> if it is an <code>xmlns</code> or <code>xmlns:*</code> declaration
+   *         attribute.
    */
   private static boolean _isNamespaceDecl (@NonNull final Node aNode)
   {
@@ -125,10 +121,9 @@ public final class DomToXdm
   }
 
   /**
-   * Resolve the name of an element or attribute. A namespace-aware node
-   * (one with a local name) keeps its namespace URI and prefix. A DOM level 1
-   * node is split at the colon and its prefix resolved through the
-   * declarations of the element and the scope; an unprefixed attribute is in
+   * Resolve the name of an element or attribute. A namespace-aware node (one with a local name)
+   * keeps its namespace URI and prefix. A DOM level 1 node is split at the colon and its prefix
+   * resolved through the declarations of the element and the scope; an unprefixed attribute is in
    * no namespace.
    *
    * @throws IllegalArgumentException
@@ -162,10 +157,9 @@ public final class DomToXdm
   }
 
   /**
-   * @return The SAX attribute type for the ID kind of a DOM attribute:
-   *         <code>ID</code> if the DOM says it is an ID, <code>IDREF</code>
-   *         or <code>IDREFS</code> for these DTD types, <code>CDATA</code>
-   *         otherwise.
+   * @return The SAX attribute type for the ID kind of a DOM attribute: <code>ID</code> if the DOM
+   *         says it is an ID, <code>IDREF</code> or <code>IDREFS</code> for these DTD types,
+   *         <code>CDATA</code> otherwise.
    */
   @NonNull
   private static String _getAttrType (@NonNull final Attr aAttr)
@@ -183,8 +177,8 @@ public final class DomToXdm
   }
 
   /**
-   * Is the binding a name needs in scope? If not, declare it in the own
-   * declarations of the element, which take precedence over the scope.
+   * Is the binding a name needs in scope? If not, declare it in the own declarations of the
+   * element, which take precedence over the scope.
    */
   private static boolean _isBound (@NonNull final Name aName,
                                    @NonNull final Map <String, String> aOwnDecls,
@@ -197,11 +191,10 @@ public final class DomToXdm
   }
 
   /**
-   * Open an element: collect its namespace declarations from the
-   * <code>xmlns</code> attributes, add the bindings its names need
-   * (namespace fixup; a namespaced attribute without a usable prefix gets a
-   * new one), report the declarations and the start tag to the builder and
-   * open a scope frame with the declarations.
+   * Open an element: collect its namespace declarations from the <code>xmlns</code> attributes, add
+   * the bindings its names need (namespace fixup; a namespaced attribute without a usable prefix
+   * gets a new one), report the declarations and the start tag to the builder and open a scope
+   * frame with the declarations.
    */
   private static void _startElement (@NonNull final Element aElement,
                                      @NonNull final NamespaceScope aScope,
@@ -259,9 +252,8 @@ public final class DomToXdm
   }
 
   /**
-   * Report the entity declarations of a document type: unparsed entities
-   * with their system and public ID, the names of external and internal
-   * parsed entities.
+   * Report the entity declarations of a document type: unparsed entities with their system and
+   * public ID, the names of external and internal parsed entities.
    */
   private static void _declareEntities (@NonNull final DocumentType aDocType, @NonNull final XdmTreeBuilder aBuilder)
   {
@@ -283,8 +275,8 @@ public final class DomToXdm
   }
 
   /**
-   * @return The base URI of the content of an entity reference if it refers
-   *         to an external entity, <code>null</code> otherwise.
+   * @return The base URI of the content of an entity reference if it refers to an external entity,
+   *         <code>null</code> otherwise.
    */
   @Nullable
   private static String _getExternalEntityBase (@NonNull final Node aRef)
@@ -309,19 +301,18 @@ public final class DomToXdm
   }
 
   /**
-   * Walk the DOM nodes and feed them into the builder, inside a document
-   * that is started and ended here. The walk is iterative.
+   * Walk the DOM nodes and feed them into the builder, inside a document that is started and ended
+   * here. The walk is iterative.
    *
    * @param aTopNodes
    *        The nodes that become the children of the document node.
    * @param sSystemId
    *        The document URI, may be <code>null</code>.
    * @param aTarget
-   *        The DOM node whose XDM counterpart is wanted, may be
-   *        <code>null</code>.
+   *        The DOM node whose XDM counterpart is wanted, may be <code>null</code>.
    * @param aTargetOut
-   *        Receives the counterpart of the target, if it is an element,
-   *        attribute, comment or processing instruction.
+   *        Receives the counterpart of the target, if it is an element, attribute, comment or
+   *        processing instruction.
    * @return The document node.
    */
   @NonNull
@@ -348,7 +339,9 @@ public final class DomToXdm
       {
         if (aNode.getNodeType () == Node.ELEMENT_NODE)
         {
-          aBuilder.endElement (_nonNull (aNode.getNamespaceURI ()), _nonNull (aNode.getLocalName ()), aNode.getNodeName ());
+          aBuilder.endElement (_nonNull (aNode.getNamespaceURI ()),
+                               _nonNull (aNode.getLocalName ()),
+                               aNode.getNodeName ());
           aScope.popFrame ();
         }
         else
@@ -431,14 +424,15 @@ public final class DomToXdm
   /**
    * @param aNode
    *        Any DOM node.
-   * @return The nodes that become the children of the XDM document node: the
-   *         children of the document (or document fragment) the node belongs
-   *         to, or the outermost ancestor of a node that is in neither.
+   * @return The nodes that become the children of the XDM document node: the children of the
+   *         document (or document fragment) the node belongs to, or the outermost ancestor of a
+   *         node that is in neither.
    */
   @NonNull
   private static ICommonsList <Node> _getTopNodes (@NonNull final Node aNode)
   {
-    Node aTop = aNode instanceof final Attr aAttr && aAttr.getOwnerElement () != null ? aAttr.getOwnerElement () : aNode;
+    Node aTop = aNode instanceof final Attr aAttr && aAttr.getOwnerElement () != null ? aAttr.getOwnerElement ()
+                                                                                      : aNode;
     while (aTop.getParentNode () != null)
       aTop = aTop.getParentNode ();
     final ICommonsList <Node> ret = new CommonsArrayList <> ();
@@ -453,8 +447,7 @@ public final class DomToXdm
   }
 
   /**
-   * @return The system ID given, or else the document URI of the DOM
-   *         document the node belongs to.
+   * @return The system ID given, or else the document URI of the DOM document the node belongs to.
    */
   @Nullable
   private static String _getSystemId (@NonNull final Node aNode, @Nullable final String sSystemId)
@@ -466,11 +459,10 @@ public final class DomToXdm
   }
 
   /**
-   * Convert the DOM tree a node belongs to into an XDM document. The whole
-   * tree is converted: for a node inside a document, its document; for a
-   * document fragment, the fragment's children; for a node in a subtree
-   * without document (a parentless element), that subtree, which becomes the
-   * only child of the new document node.
+   * Convert the DOM tree a node belongs to into an XDM document. The whole tree is converted: for a
+   * node inside a document, its document; for a document fragment, the fragment's children; for a
+   * node in a subtree without document (a parentless element), that subtree, which becomes the only
+   * child of the new document node.
    *
    * @param aNode
    *        Any node of the DOM tree. May not be <code>null</code>.
@@ -489,24 +481,21 @@ public final class DomToXdm
   }
 
   /**
-   * Convert the DOM tree a node belongs to, as
-   * {@link #convertDocument(Node, String)} does, and return the XDM node
-   * that corresponds to the given one: the document node for a document or
-   * document fragment, the element, attribute, comment or processing
-   * instruction for one of these. A parentless DOM attribute becomes a
-   * parentless XDM attribute.
+   * Convert the DOM tree a node belongs to, as {@link #convertDocument(Node, String)} does, and
+   * return the XDM node that corresponds to the given one: the document node for a document or
+   * document fragment, the element, attribute, comment or processing instruction for one of these.
+   * A parentless DOM attribute becomes a parentless XDM attribute.
    *
    * @param aNode
-   *        A document, document fragment, element, attribute, comment or
-   *        processing instruction. May not be <code>null</code>.
+   *        A document, document fragment, element, attribute, comment or processing instruction.
+   *        May not be <code>null</code>.
    * @param sSystemId
    *        The document URI of the result, or <code>null</code> to take the
    *        <code>documentURI</code> of the DOM document.
    * @return The XDM counterpart. Never <code>null</code>.
    * @throws IllegalArgumentException
-   *         for a text node, an entity reference or another node kind with
-   *         no single XDM counterpart (adjacent text merges), or if a DOM
-   *         level 1 name has an unbound prefix
+   *         for a text node, an entity reference or another node kind with no single XDM
+   *         counterpart (adjacent text merges), or if a DOM level 1 name has an unbound prefix
    */
   @NonNull
   public static IXdmNode convert (@NonNull final Node aNode, @Nullable final String sSystemId)
@@ -518,9 +507,8 @@ public final class DomToXdm
       final Attr aAttr = (Attr) aNode;
       final String sLocal = aAttr.getLocalName () != null ? aAttr.getLocalName () : aAttr.getNodeName ();
       return IXdmNode.createAttribute (new XdmQName (_nonNull (aAttr.getNamespaceURI ()),
-                                                       sLocal,
-                                                       _nonNull (aAttr.getPrefix ())),
-                                       _nonNull (aAttr.getValue ()));
+                                                     sLocal,
+                                                     _nonNull (aAttr.getPrefix ())), _nonNull (aAttr.getValue ()));
     }
     if (nType != Node.DOCUMENT_NODE &&
         nType != Node.DOCUMENT_FRAGMENT_NODE &&

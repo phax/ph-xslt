@@ -19,9 +19,9 @@ package com.helger.phoxtrot.xdm;
 import org.jspecify.annotations.NonNull;
 
 /**
- * Thrown if a well-formed source document is not valid against the schema
- * set given to {@link XdmParser#setSchemaSet(com.helger.phoxtrot.xdm.schema.IXdmSchemaSet)},
- * or a node is not valid against a schema.
+ * Thrown if a well-formed source document is not valid against the schema set given to
+ * {@link XdmParser#setSchemaSet(com.helger.phoxtrot.xdm.schema.IXdmSchemaSet)}, or a node is not
+ * valid against a schema.
  *
  * @author Philip Helger
  */
@@ -30,8 +30,7 @@ public class XdmValidationException extends XdmParseException
   private final boolean m_bDocumentConstraint;
 
   /**
-   * Create an exception for a node that is not valid, i.e. not for a
-   * document-level constraint.
+   * Create an exception for a node that is not valid, i.e. not for a document-level constraint.
    *
    * @param sMessage
    *        Message.
@@ -49,8 +48,8 @@ public class XdmValidationException extends XdmParseException
    * @param aCause
    *        Cause.
    * @param bDocumentConstraint
-   *        <code>true</code> if a document-level constraint (ID uniqueness,
-   *        IDREF target) is violated.
+   *        <code>true</code> if a document-level constraint (ID uniqueness, IDREF target) is
+   *        violated.
    */
   public XdmValidationException (@NonNull final String sMessage,
                                  @NonNull final Throwable aCause,
@@ -61,8 +60,8 @@ public class XdmValidationException extends XdmParseException
   }
 
   /**
-   * @return <code>true</code> if a document-level constraint (ID uniqueness,
-   *         IDREF target) is violated, as opposed to the validity of a node.
+   * @return <code>true</code> if a document-level constraint (ID uniqueness, IDREF target) is
+   *         violated, as opposed to the validity of a node.
    */
   public boolean isDocumentConstraint ()
   {

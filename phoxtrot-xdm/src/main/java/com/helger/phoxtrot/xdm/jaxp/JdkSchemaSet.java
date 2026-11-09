@@ -29,10 +29,9 @@ import com.helger.phoxtrot.xdm.schema.IXdmElementDeclaration;
 import com.helger.phoxtrot.xdm.schema.IXdmTypeDefinition;
 
 /**
- * Schema set of the JDK validator. It validates, but has no schema component
- * model: types, element and attribute declarations cannot be looked up by
- * name, and the type definitions of validated nodes only know their name and
- * derivation (see {@link JdkTypeDefinition}).
+ * Schema set of the JDK validator. It validates, but has no schema component model: types, element
+ * and attribute declarations cannot be looked up by name, and the type definitions of validated
+ * nodes only know their name and derivation (see {@link JdkTypeDefinition}).
  *
  * @author Philip Helger
  */
@@ -45,8 +44,8 @@ final class JdkSchemaSet extends AbstractJaxpSchemaSet
   }
 
   /**
-   * Every reported type is wrapped anew; equality of the wrappers is the
-   * identity of the reported type.
+   * Every reported type is wrapped anew; equality of the wrappers is the identity of the reported
+   * type.
    */
   @NonNull
   @Override

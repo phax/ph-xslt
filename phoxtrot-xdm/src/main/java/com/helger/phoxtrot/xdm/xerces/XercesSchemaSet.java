@@ -40,9 +40,9 @@ import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 import com.helger.phoxtrot.xdm.schema.IXdmTypeDefinition;
 
 /**
- * {@link IXdmSchemaSet} over a schema compiled by Xerces-J: the JAXP schema
- * for validation and the schema component model of the same grammars, so that
- * the types a validator reports are the components of the model.
+ * {@link IXdmSchemaSet} over a schema compiled by Xerces-J: the JAXP schema for validation and the
+ * schema component model of the same grammars, so that the types a validator reports are the
+ * components of the model.
  *
  * @author Philip Helger
  */
@@ -58,9 +58,8 @@ final class XercesSchemaSet extends AbstractJaxpSchemaSet
   }
 
   /**
-   * The Xerces-J validator reports its own type definitions, which implement
-   * both {@link TypeInfo} and {@link XSTypeDefinition}, so they are wrapped
-   * directly.
+   * The Xerces-J validator reports its own type definitions, which implement both {@link TypeInfo}
+   * and {@link XSTypeDefinition}, so they are wrapped directly.
    *
    * @throws IllegalStateException
    *         if the type is not a Xerces-J type definition
@@ -75,9 +74,8 @@ final class XercesSchemaSet extends AbstractJaxpSchemaSet
   }
 
   /**
-   * The declared type comes from the attribute PSVI of the Xerces-J
-   * validator; <code>null</code> for a validator that is no
-   * {@link PSVIProvider}. The function gives <code>null</code> for an
+   * The declared type comes from the attribute PSVI of the Xerces-J validator; <code>null</code>
+   * for a validator that is no {@link PSVIProvider}. The function gives <code>null</code> for an
    * attribute without PSVI or type definition.
    */
   @Nullable
@@ -93,8 +91,8 @@ final class XercesSchemaSet extends AbstractJaxpSchemaSet
   }
 
   /**
-   * @return The namespace URI of the name as Xerces-J expects it:
-   *         <code>null</code> for no namespace.
+   * @return The namespace URI of the name as Xerces-J expects it: <code>null</code> for no
+   *         namespace.
    */
   @Nullable
   private static String _ns (@NonNull final XdmQName aName)

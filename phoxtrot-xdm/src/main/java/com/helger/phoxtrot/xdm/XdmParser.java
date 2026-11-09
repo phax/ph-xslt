@@ -49,14 +49,13 @@ import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 
 /**
- * Reads XML with the JDK parser into an {@link IXdmNode} tree, also when another
- * JAXP implementation is on the class path. The defaults are
- * safe: secure processing is on and external entities and the external DTD
- * subset are not loaded.
+ * Reads XML with the JDK parser into an {@link IXdmNode} tree, also when another JAXP
+ * implementation is on the class path. The defaults are safe: secure processing is on and external
+ * entities and the external DTD subset are not loaded.
  * <p>
- * With a {@link #setSchemaSet(IXdmSchemaSet) schema set} the document is
- * validated (strict) after the tree is built, and the nodes carry the schema
- * information (see {@link IXdmSchemaSet#validateDocument(IXdmNode)}).
+ * With a {@link #setSchemaSet(IXdmSchemaSet) schema set} the document is validated (strict) after
+ * the tree is built, and the nodes carry the schema information (see
+ * {@link IXdmSchemaSet#validateDocument(IXdmNode)}).
  *
  * @author Philip Helger
  */
@@ -65,48 +64,45 @@ public class XdmParser
 {
   public static final boolean DEFAULT_LOAD_EXTERNAL_ENTITIES = false;
   /**
-   * The maximum element nesting depth. JDK 25 enforces 100 under secure
-   * processing, JDK 21 enforces none, so the limit is always set explicitly.
+   * The maximum element nesting depth. JDK 25 enforces 100 under secure processing, JDK 21 enforces
+   * none, so the limit is always set explicitly.
    */
   public static final int DEFAULT_MAX_ELEMENT_DEPTH = 10_000;
   /**
-   * Whether the nodes get the location the parser reports. Off by default:
-   * an input document of a transformation or query needs none. Every parse
-   * of a stylesheet module, a schema document or a document whose validation
-   * errors are reported with a line switches it on explicitly
+   * Whether the nodes get the location the parser reports. Off by default: an input document of a
+   * transformation or query needs none. Every parse of a stylesheet module, a schema document or a
+   * document whose validation errors are reported with a line switches it on explicitly
    * ({@link #setRecordLocations(boolean)}).
    */
   public static final boolean DEFAULT_RECORD_LOCATIONS = false;
 
   private static final Logger LOGGER = LoggerFactory.getLogger (XdmParser.class);
   /**
-   * Whether the JDK parser accepts a code point in an XML 1.0 name, per code
-   * point that XML 1.0 (5th edition) allows; filled on demand
+   * Whether the JDK parser accepts a code point in an XML 1.0 name, per code point that XML 1.0
+   * (5th edition) allows; filled on demand
    */
   private static final Map <Integer, Boolean> JDK_NAME_CHARS = new ConcurrentHashMap <> ();
 
   /**
-   * Entity limits of the JDK parser, set explicitly because the secure
-   * processing defaults differ between JDK versions (JDK 25 allows only 2,500
-   * entity expansions, JDK 21 64,000). The values are the JDK 21 defaults.
-   * They refuse the usual expansion attacks (billion laughs, quadratic
-   * blow-up, parameter entities) on every supported JDK. The attributes per
-   * element are limited the same way (JDK 25 allows 200, JDK 21 10,000).
+   * Entity limits of the JDK parser, set explicitly because the secure processing defaults differ
+   * between JDK versions (JDK 25 allows only 2,500 entity expansions, JDK 21 64,000). The values
+   * are the JDK 21 defaults. They refuse the usual expansion attacks (billion laughs, quadratic
+   * blow-up, parameter entities) on every supported JDK. The attributes per element are limited the
+   * same way (JDK 25 allows 200, JDK 21 10,000).
    */
   static final String [] [] ENTITY_LIMITS = { { "entityExpansionLimit", "64000" },
-                                                      { "totalEntitySizeLimit", "50000000" },
-                                                      { "maxGeneralEntitySizeLimit", "0" },
-                                                      { "maxParameterEntitySizeLimit", "1000000" },
-                                                      { "entityReplacementLimit", "3000000" },
-                                                      { "elementAttributeLimit", "10000" } };
+                                              { "totalEntitySizeLimit", "50000000" },
+                                              { "maxGeneralEntitySizeLimit", "0" },
+                                              { "maxParameterEntitySizeLimit", "1000000" },
+                                              { "entityReplacementLimit", "3000000" },
+                                              { "elementAttributeLimit", "10000" } };
 
   /**
-   * The entity resolver installed on the SAX parser when external entities
-   * are read and the user set a resolver: it asks the user's resolver first
-   * and returns <code>null</code> (the parser then opens the system ID itself)
-   * when that has no answer. A source the user's resolver returns without a
-   * system ID gets the absolute system ID of the entity, so that the base URI
-   * of the nodes read from it stays the entity's URI.
+   * The entity resolver installed on the SAX parser when external entities are read and the user
+   * set a resolver: it asks the user's resolver first and returns <code>null</code> (the parser
+   * then opens the system ID itself) when that has no answer. A source the user's resolver returns
+   * without a system ID gets the absolute system ID of the entity, so that the base URI of the
+   * nodes read from it stays the entity's URI.
    */
   private static final class UserEntityResolver implements EntityResolver2
   {
@@ -118,9 +114,8 @@ public class XdmParser
     }
 
     /**
-     * @return The system ID resolved against the base URI; as written if
-     *         there is no base URI, if it is absolute already or if either is
-     *         no valid URI.
+     * @return The system ID resolved against the base URI; as written if there is no base URI, if
+     *         it is absolute already or if either is no valid URI.
      */
     @Nullable
     private static String _getAbsoluteSystemID (@Nullable final String sBaseURI, @Nullable final String sSystemID)
@@ -141,9 +136,8 @@ public class XdmParser
     }
 
     /**
-     * Never an external subset for a document that declares none: the JDK
-     * parser asks for it, but does not apply the declarations of the returned
-     * subset, so the user's resolver is not asked.
+     * Never an external subset for a document that declares none: the JDK parser asks for it, but
+     * does not apply the declarations of the returned subset, so the user's resolver is not asked.
      */
     @Nullable
     public InputSource getExternalSubset (final String sName, final String sBaseURI)
@@ -152,14 +146,12 @@ public class XdmParser
     }
 
     /**
-     * Ask the user's resolver for an external entity or the external DTD
-     * subset (name <code>[dtd]</code>): an {@link EntityResolver2} gets the SAX2
-     * call with the system ID as written, any other resolver the SAX1 call
-     * with the absolute system ID.
+     * Ask the user's resolver for an external entity or the external DTD subset (name
+     * <code>[dtd]</code>): an {@link EntityResolver2} gets the SAX2 call with the system ID as
+     * written, any other resolver the SAX1 call with the absolute system ID.
      *
-     * @return The user's source (with the absolute system ID filled in if it
-     *         has none), or <code>null</code> for the parser's default
-     *         behaviour.
+     * @return The user's source (with the absolute system ID filled in if it has none), or
+     *         <code>null</code> for the parser's default behaviour.
      */
     @Nullable
     public InputSource resolveEntity (final String sName,
@@ -197,10 +189,9 @@ public class XdmParser
   }
 
   /**
-   * Allow external entities and the external DTD subset to be read. Needed for
-   * default attributes and entities declared outside the document, but opens
-   * the document to local file and network reads, so enable it for trusted
-   * input only.
+   * Allow external entities and the external DTD subset to be read. Needed for default attributes
+   * and entities declared outside the document, but opens the document to local file and network
+   * reads, so enable it for trusted input only.
    *
    * @param bLoadExternalEntities
    *        <code>true</code> to load them.
@@ -220,23 +211,19 @@ public class XdmParser
   }
 
   /**
-   * Set a SAX entity resolver for the external DTD subset and the external
-   * entities (general and parameter). It is used only when they are read
-   * ({@link #setLoadExternalEntities(boolean)}); with the default settings
-   * nothing external is read and the resolver is never called. It is asked
-   * first for every external resource; when it returns <code>null</code> the
-   * parser opens the system ID itself, as without a resolver. A returned source
-   * without system ID gets the absolute system ID of the entity, which stays
-   * the base URI of the nodes read from it. An {@link EntityResolver2} gets the
-   * SAX2 call (the system ID as written plus the base URI; the JDK parser
-   * passes no entity name), any other resolver the SAX1 call with the
-   * absolute system ID. {@link EntityResolver2#getExternalSubset(String, String)}
-   * is never called. An exception thrown by the resolver fails the parse with
-   * an {@link XdmParseException}.
+   * Set a SAX entity resolver for the external DTD subset and the external entities (general and
+   * parameter). It is used only when they are read ({@link #setLoadExternalEntities(boolean)});
+   * with the default settings nothing external is read and the resolver is never called. It is
+   * asked first for every external resource; when it returns <code>null</code> the parser opens the
+   * system ID itself, as without a resolver. A returned source without system ID gets the absolute
+   * system ID of the entity, which stays the base URI of the nodes read from it. An
+   * {@link EntityResolver2} gets the SAX2 call (the system ID as written plus the base URI; the JDK
+   * parser passes no entity name), any other resolver the SAX1 call with the absolute system ID.
+   * {@link EntityResolver2#getExternalSubset(String, String)} is never called. An exception thrown
+   * by the resolver fails the parse with an {@link XdmParseException}.
    * <p>
-   * {@link XdmStreamReader} has no such hook: it never reads an external
-   * resource (a document that would need one is refused or read in full by
-   * this parser instead).
+   * {@link XdmStreamReader} has no such hook: it never reads an external resource (a document that
+   * would need one is refused or read in full by this parser instead).
    *
    * @param aEntityResolver
    *        The resolver; <code>null</code> (the default) for none.
@@ -257,8 +244,8 @@ public class XdmParser
 
   /**
    * @param nMaxElementDepth
-   *        The maximum element nesting depth; 0 means unlimited, which is
-   *        unsafe for untrusted input.
+   *        The maximum element nesting depth; 0 means unlimited, which is unsafe for untrusted
+   *        input.
    * @return this for chaining
    */
   @NonNull
@@ -275,17 +262,14 @@ public class XdmParser
   }
 
   /**
-   * Decide whether the nodes get the line and column the parser reports
-   * (see {@link IXdmNode#getLine()}). Only elements, comments and processing
-   * instructions have location fields (attributes and text nodes report the
-   * location of their parent); without, each of them is 8 bytes smaller and
-   * all locations are 0. Off by default
-   * ({@link #DEFAULT_RECORD_LOCATIONS}); switch it on for documents whose
-   * node locations are read: the error messages of stylesheets and schemas
-   * and <code>xsl:try</code> use them, and so does the line of an instance
-   * validation error of the native XSD validator (without, such an error has
-   * line 0 and only its path). The stylesheet, schema and XSD instance
-   * parses of phoxtrot and its resolvers for stylesheet modules
+   * Decide whether the nodes get the line and column the parser reports (see
+   * {@link IXdmNode#getLine()}). Only elements, comments and processing instructions have location
+   * fields (attributes and text nodes report the location of their parent); without, each of them
+   * is 8 bytes smaller and all locations are 0. Off by default ({@link #DEFAULT_RECORD_LOCATIONS});
+   * switch it on for documents whose node locations are read: the error messages of stylesheets and
+   * schemas and <code>xsl:try</code> use them, and so does the line of an instance validation error
+   * of the native XSD validator (without, such an error has line 0 and only its path). The
+   * stylesheet, schema and XSD instance parses of phoxtrot and its resolvers for stylesheet modules
    * (<code>FileResourceResolver</code>, the JAXP adapter) switch it on.
    *
    * @param bRecordLocations
@@ -306,17 +290,16 @@ public class XdmParser
   }
 
   /**
-   * Validate documents against a schema set after they are read. Validation
-   * is strict: the document element must be declared, and an invalid document
-   * is rejected with an {@link XdmValidationException}. Elements and
-   * attributes then carry their {@link XdmSchemaType}, <code>xsi:nil</code>
-   * sets the nilled property, schema IDs and IDREFs are recognised, and
+   * Validate documents against a schema set after they are read. Validation is strict: the document
+   * element must be declared, and an invalid document is rejected with an
+   * {@link XdmValidationException}. Elements and attributes then carry their {@link XdmSchemaType},
+   * <code>xsi:nil</code> sets the nilled property, schema IDs and IDREFs are recognised, and
    * whitespace in element-only content is dropped (see
    * {@link IXdmSchemaSet#validateDocument(IXdmNode)}).
    *
    * @param aSchemaSet
-   *        The compiled schema set (thread-safe, may be shared);
-   *        <code>null</code> to read without validation.
+   *        The compiled schema set (thread-safe, may be shared); <code>null</code> to read without
+   *        validation.
    * @return this for chaining
    */
   @NonNull
@@ -327,13 +310,12 @@ public class XdmParser
   }
 
   /**
-   * Probe the JDK parser (namespace aware, no other settings) with a small
-   * document.
+   * Probe the JDK parser (namespace aware, no other settings) with a small document.
    *
    * @param sXml
    *        The complete document to parse.
-   * @return <code>true</code> if it is read without error, <code>false</code>
-   *         on any parse or configuration error.
+   * @return <code>true</code> if it is read without error, <code>false</code> on any parse or
+   *         configuration error.
    */
   private static boolean _parsesWithJdk (@NonNull final String sXml)
   {
@@ -351,11 +333,10 @@ public class XdmParser
   }
 
   /**
-   * The JDK parser applies the name rules of XML 1.0 (4th edition) to XML 1.0
-   * documents.
+   * The JDK parser applies the name rules of XML 1.0 (4th edition) to XML 1.0 documents.
    *
-   * @return <code>true</code> if the code point is an XML 1.0 (5th edition)
-   *         name character in a position where the JDK parser rejects it.
+   * @return <code>true</code> if the code point is an XML 1.0 (5th edition) name character in a
+   *         position where the JDK parser rejects it.
    */
   private static boolean _isRejectedNameChar (final int c)
   {
@@ -372,16 +353,15 @@ public class XdmParser
   }
 
   /**
-   * Get the source text again to explain a parse error, without
-   * consuming a stream: only a <code>file:</code> system ID of a source
-   * without byte or character stream is read, as UTF-8.
+   * Get the source text again to explain a parse error, without consuming a stream: only a
+   * <code>file:</code> system ID of a source without byte or character stream is read, as UTF-8.
    *
    * @param aSource
    *        The source that failed to parse.
    * @param sText
    *        The text the source was made from, if known.
-   * @return <code>sText</code> if not <code>null</code>, otherwise the file
-   *         content, or <code>null</code> if it cannot be read.
+   * @return <code>sText</code> if not <code>null</code>, otherwise the file content, or
+   *         <code>null</code> if it cannot be read.
    */
   @Nullable
   private static String _readSourceText (@NonNull final InputSource aSource, @Nullable final String sText)
@@ -406,9 +386,9 @@ public class XdmParser
   }
 
   /**
-   * Explain a parse error that comes from a name the JDK parser does not
-   * accept although XML 1.0 (5th edition) allows it: the markup of the error
-   * line up to the tag at the reported column is searched for such characters.
+   * Explain a parse error that comes from a name the JDK parser does not accept although XML 1.0
+   * (5th edition) allows it: the markup of the error line up to the tag at the reported column is
+   * searched for such characters.
    *
    * @return The explanation, or <code>null</code> if there is none.
    */
@@ -488,23 +468,20 @@ public class XdmParser
   }
 
   /**
-   * Read a source with the JDK SAX parser into a tree built by
-   * {@link XdmTreeBuilder}: namespace aware, not DTD validating, secure
-   * processing on, external entities and the external DTD subset only with
-   * {@link #setLoadExternalEntities(boolean)} (then through the
-   * {@link #setEntityResolver(EntityResolver) entity resolver} if one is set),
-   * the {@link #ENTITY_LIMITS} and
-   * the {@link #getMaxElementDepth() maximum element depth} set explicitly.
-   * With a schema set the finished document is validated afterwards. A parse
-   * error that comes from a name the JDK parser rejects against the 5th
-   * edition rules gets an explanation appended to the message, which is also
-   * logged.
+   * Read a source with the JDK SAX parser into a tree built by {@link XdmTreeBuilder}: namespace
+   * aware, not DTD validating, secure processing on, external entities and the external DTD subset
+   * only with {@link #setLoadExternalEntities(boolean)} (then through the
+   * {@link #setEntityResolver(EntityResolver) entity resolver} if one is set), the
+   * {@link #ENTITY_LIMITS} and the {@link #getMaxElementDepth() maximum element depth} set
+   * explicitly. With a schema set the finished document is validated afterwards. A parse error that
+   * comes from a name the JDK parser rejects against the 5th edition rules gets an explanation
+   * appended to the message, which is also logged.
    *
    * @param aSource
    *        The source to read.
    * @param sText
-   *        The source text, if the source was made from a string; used only
-   *        to explain a parse error.
+   *        The source text, if the source was made from a string; used only to explain a parse
+   *        error.
    * @return The document node.
    * @throws XdmValidationException
    *         if a schema set is set and the document is not valid against it
@@ -525,8 +502,7 @@ public class XdmParser
       aFactory.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
       aFactory.setFeature ("http://xml.org/sax/features/external-general-entities", m_bLoadExternalEntities);
       aFactory.setFeature ("http://xml.org/sax/features/external-parameter-entities", m_bLoadExternalEntities);
-      aFactory.setFeature ("http://apache.org/xml/features/nonvalidating/load-external-dtd",
-                           m_bLoadExternalEntities);
+      aFactory.setFeature ("http://apache.org/xml/features/nonvalidating/load-external-dtd", m_bLoadExternalEntities);
       final XMLReader aReader = aFactory.newSAXParser ().getXMLReader ();
       // Secure processing denies every external access by default, which
       // would make the features above ineffective
@@ -586,8 +562,8 @@ public class XdmParser
 
   /**
    * @param sXml
-   *        The XML text to read. May not be <code>null</code>. The document
-   *        has no system ID, so relative references cannot be resolved.
+   *        The XML text to read. May not be <code>null</code>. The document has no system ID, so
+   *        relative references cannot be resolved.
    * @return The document node.
    * @throws XdmValidationException
    *         if a schema is set and the document is not valid against it
@@ -605,8 +581,8 @@ public class XdmParser
 
   /**
    * @param aPath
-   *        The file to read. May not be <code>null</code>. Its URI becomes
-   *        the system ID of the source.
+   *        The file to read. May not be <code>null</code>. Its URI becomes the system ID of the
+   *        source.
    * @return The document node.
    * @throws XdmValidationException
    *         if a schema is set and the document is not valid against it

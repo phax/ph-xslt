@@ -41,10 +41,10 @@ public sealed class XdmCommentNode extends AbstractXdmValueNode
   }
 
   /**
-   * A comment with the location of its source, created by the tree builders
-   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
-   * and by the factories of {@link IXdmNode} that take a location. The
-   * location is kept in two fields of its own instead of the details holder.
+   * A comment with the location of its source, created by the tree builders when they record
+   * locations ({@link XdmParser#setRecordLocations(boolean)}) and by the factories of
+   * {@link IXdmNode} that take a location. The location is kept in two fields of its own instead of
+   * the details holder.
    */
   static final class Located extends XdmCommentNode
   {

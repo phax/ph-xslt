@@ -22,10 +22,9 @@ import org.jspecify.annotations.Nullable;
  * One schema document to compile.
  *
  * @param systemId
- *        The absolute URI of the document: where it is read from if
- *        <code>text</code> is <code>null</code>, and the base URI of its
- *        <code>xs:include</code>/<code>xs:import</code> locations. May be
- *        <code>null</code> for inline text.
+ *        The absolute URI of the document: where it is read from if <code>text</code> is
+ *        <code>null</code>, and the base URI of its <code>xs:include</code>/<code>xs:import</code>
+ *        locations. May be <code>null</code> for inline text.
  * @param text
  *        The document text, or <code>null</code> to read it from the system ID.
  * @author Philip Helger

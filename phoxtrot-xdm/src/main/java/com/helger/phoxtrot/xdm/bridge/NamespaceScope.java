@@ -31,12 +31,11 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.phoxtrot.xdm.XdmConstants;
 
 /**
- * The namespace bindings in scope during a walk over a tree: one frame per
- * open element, each binding a prefix (the empty string for the default
- * namespace) to a URI (the empty string undeclares the default namespace).
- * A lookup costs the same at any depth: every prefix has its own stack of
- * URIs. Prefixes bound by no frame are looked up in an optional outer scope
- * (e.g. the DOM node a converted tree is appended to).
+ * The namespace bindings in scope during a walk over a tree: one frame per open element, each
+ * binding a prefix (the empty string for the default namespace) to a URI (the empty string
+ * undeclares the default namespace). A lookup costs the same at any depth: every prefix has its own
+ * stack of URIs. Prefixes bound by no frame are looked up in an optional outer scope (e.g. the DOM
+ * node a converted tree is appended to).
  *
  * @author Philip Helger
  */
@@ -53,8 +52,8 @@ final class NamespaceScope
 
   /**
    * @param aOuter
-   *        Gives the URI of a prefix that no frame binds (<code>null</code>
-   *        if unbound), or <code>null</code> for no outer scope.
+   *        Gives the URI of a prefix that no frame binds (<code>null</code> if unbound), or
+   *        <code>null</code> for no outer scope.
    */
   NamespaceScope (@Nullable final UnaryOperator <String> aOuter)
   {
@@ -94,10 +93,9 @@ final class NamespaceScope
   /**
    * @param sPrefix
    *        The prefix, empty for the default namespace.
-   * @return The URI the innermost binding of the prefix gives, from the outer
-   *         scope if no frame binds it; the XML namespace for
-   *         <code>xml</code>; <code>null</code> if the prefix is unbound. An
-   *         undeclared default namespace gives the empty string.
+   * @return The URI the innermost binding of the prefix gives, from the outer scope if no frame
+   *         binds it; the XML namespace for <code>xml</code>; <code>null</code> if the prefix is
+   *         unbound. An undeclared default namespace gives the empty string.
    */
   @Nullable
   String lookup (@NonNull final String sPrefix)
@@ -115,9 +113,8 @@ final class NamespaceScope
    *        The prefix, empty for the default namespace.
    * @param sUri
    *        The URI, empty for no namespace.
-   * @return <code>true</code> if the prefix is bound to exactly this URI; for
-   *         the empty prefix and the empty URI also if no default namespace
-   *         is in scope.
+   * @return <code>true</code> if the prefix is bound to exactly this URI; for the empty prefix and
+   *         the empty URI also if no default namespace is in scope.
    */
   boolean isBoundTo (@NonNull final String sPrefix, @NonNull final String sUri)
   {
@@ -128,9 +125,9 @@ final class NamespaceScope
   }
 
   /**
-   * Find a prefix for an attribute in a namespace that has none (or one
-   * that is bound to another URI): <code>ns0</code>, <code>ns1</code>, ...,
-   * the first that is neither bound in scope nor used by the element.
+   * Find a prefix for an attribute in a namespace that has none (or one that is bound to another
+   * URI): <code>ns0</code>, <code>ns1</code>, ..., the first that is neither bound in scope nor
+   * used by the element.
    *
    * @param aTaken
    *        The prefixes the element binds or uses itself.

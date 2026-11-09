@@ -17,8 +17,7 @@
 package com.helger.phoxtrot.xdm.schema;
 
 /**
- * The content type of a schema type definition. A simple type has simple
- * content.
+ * The content type of a schema type definition. A simple type has simple content.
  *
  * @author Philip Helger
  */

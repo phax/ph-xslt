@@ -21,17 +21,17 @@ import org.jspecify.annotations.NonNull;
 import com.helger.phoxtrot.xdm.XdmQName;
 
 /**
- * One atomic value of a validated simple value: a whole atomic value, one item
- * of a list value, or the value of the union member that accepted it.
+ * One atomic value of a validated simple value: a whole atomic value, one item of a list value, or
+ * the value of the union member that accepted it.
  *
  * @param lexical
  *        The schema normalised lexical form.
  * @param builtinType
- *        The most specific built-in atomic type (in the <code>xs</code>
- *        namespace) the value's type derives from.
+ *        The most specific built-in atomic type (in the <code>xs</code> namespace) the value's type
+ *        derives from.
  * @param type
- *        The atomic type definition the value was validated against (a union
- *        member, a list item type, or the type itself).
+ *        The atomic type definition the value was validated against (a union member, a list item
+ *        type, or the type itself).
  * @author Philip Helger
  */
 public record XdmTypedToken (@NonNull String lexical, @NonNull XdmQName builtinType, @NonNull IXdmTypeDefinition type)

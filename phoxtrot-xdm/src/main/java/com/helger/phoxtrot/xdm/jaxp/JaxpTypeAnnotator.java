@@ -44,12 +44,11 @@ import com.helger.phoxtrot.xdm.schema.EXdmContentType;
 import com.helger.phoxtrot.xdm.schema.IXdmTypeDefinition;
 
 /**
- * Sits between a JAXP {@link javax.xml.validation.ValidatorHandler} and an
- * {@link XdmTreeBuilder}: it passes all content events on to the builder and
- * annotates the elements and attributes the builder creates with their
- * {@link XdmSchemaType}, sets the <code>nilled</code> property and the schema
- * ID kinds, and drops whitespace in element-only content, as XDM construction
- * from a PSVI does.
+ * Sits between a JAXP {@link javax.xml.validation.ValidatorHandler} and an {@link XdmTreeBuilder}:
+ * it passes all content events on to the builder and annotates the elements and attributes the
+ * builder creates with their {@link XdmSchemaType}, sets the <code>nilled</code> property and the
+ * schema ID kinds, and drops whitespace in element-only content, as XDM construction from a PSVI
+ * does.
  *
  * @author Philip Helger
  */
@@ -88,10 +87,9 @@ final class JaxpTypeAnnotator implements ContentHandler
    * @param aTypeInfoProvider
    *        The type info provider of the validator handler.
    * @param aDeclaredAttributeTypes
-   *        From the attribute index of the current start tag to the declared
-   *        type of the attribute (for a union type the union, not the member
-   *        that matched). May be <code>null</code> if the validator does not
-   *        tell; then the member type is the annotation.
+   *        From the attribute index of the current start tag to the declared type of the attribute
+   *        (for a union type the union, not the member that matched). May be <code>null</code> if
+   *        the validator does not tell; then the member type is the annotation.
    * @param aDefinitions
    *        From a type the validator reports to its type definition.
    */
@@ -107,8 +105,8 @@ final class JaxpTypeAnnotator implements ContentHandler
   }
 
   /**
-   * @return The schema type for a pair of reported types, created once per
-   *         pair (by identity) and shared by all nodes of this run.
+   * @return The schema type for a pair of reported types, created once per pair (by identity) and
+   *         shared by all nodes of this run.
    */
   @NonNull
   private XdmSchemaType _getSchemaType (@NonNull final TypeInfo aTypeInfo, @NonNull final TypeInfo aValueTypeInfo)
@@ -119,8 +117,7 @@ final class JaxpTypeAnnotator implements ContentHandler
   }
 
   /**
-   * @return <code>true</code> if the value, trimmed, is not empty and has no
-   *         XML whitespace inside.
+   * @return <code>true</code> if the value, trimmed, is not empty and has no XML whitespace inside.
    */
   private static boolean _isSingleToken (@NonNull final String sValue)
   {
@@ -137,9 +134,9 @@ final class JaxpTypeAnnotator implements ContentHandler
   }
 
   /**
-   * XDM 3.1 sections 6.2.3 and 6.3.3: <code>is-id</code> if the typed value is
-   * a single xs:ID (also as the only item of a list),
-   * <code>is-idrefs</code> if an item of the typed value is an xs:IDREF.
+   * XDM 3.1 sections 6.2.3 and 6.3.3: <code>is-id</code> if the typed value is a single xs:ID (also
+   * as the only item of a list), <code>is-idrefs</code> if an item of the typed value is an
+   * xs:IDREF.
    */
   @NonNull
   private static EIDKind _getSchemaIDKind (@NonNull final XdmSchemaType aType, @NonNull final String sValue)
@@ -159,9 +156,8 @@ final class JaxpTypeAnnotator implements ContentHandler
   }
 
   /**
-   * @return <code>true</code> if the value, trimmed, is the
-   *         <code>xs:boolean</code> true value (<code>true</code> or
-   *         <code>1</code>).
+   * @return <code>true</code> if the value, trimmed, is the <code>xs:boolean</code> true value
+   *         (<code>true</code> or <code>1</code>).
    */
   private static boolean _isXsiNilTrue (@NonNull final String sValue)
   {
@@ -170,10 +166,9 @@ final class JaxpTypeAnnotator implements ContentHandler
   }
 
   /**
-   * The JDK validator reports whitespace in element-only content as ignorable
-   * whitespace, Apache Xerces-J does not. With Xerces-J the content type is
-   * known from the schema component model, so such whitespace text nodes are
-   * dropped here (XDM 3.1 section 6.7.3).
+   * The JDK validator reports whitespace in element-only content as ignorable whitespace, Apache
+   * Xerces-J does not. With Xerces-J the content type is known from the schema component model, so
+   * such whitespace text nodes are dropped here (XDM 3.1 section 6.7.3).
    */
   private static void _dropElementOnlyWhitespace (@NonNull final IXdmNode aElement, @NonNull final XdmSchemaType aType)
   {
@@ -219,13 +214,11 @@ final class JaxpTypeAnnotator implements ContentHandler
   }
 
   /**
-   * Remember the element type the validator reports at the start tag, let
-   * the builder create the element, then annotate each attribute the builder
-   * kept: the schema type is the declared type (if known) with the reported
-   * type as value type; an ID kind from the validator or from the typed value
-   * replaces the builder's and normalises the value. An
-   * <code>xsi:nil</code> attribute with the value true sets the element
-   * nilled.
+   * Remember the element type the validator reports at the start tag, let the builder create the
+   * element, then annotate each attribute the builder kept: the schema type is the declared type
+   * (if known) with the reported type as value type; an ID kind from the validator or from the
+   * typed value replaces the builder's and normalises the value. An <code>xsi:nil</code> attribute
+   * with the value true sets the element nilled.
    */
   public void startElement (final String sUri,
                             final String sLocalName,
@@ -265,13 +258,12 @@ final class JaxpTypeAnnotator implements ContentHandler
   }
 
   /**
-   * Let the builder close the element, then annotate it. Without a type
-   * reported at the start or at the end tag the element was not assessed and
-   * gets <code>xs:anyType</code> as type annotation. Otherwise the type
-   * reported at the start is the annotation and the one at the end the value
-   * type (each standing in for the other if missing); whitespace of
-   * element-only content is dropped, and an element with an atomic base type
-   * that is not nilled gets the ID kind of its string value.
+   * Let the builder close the element, then annotate it. Without a type reported at the start or at
+   * the end tag the element was not assessed and gets <code>xs:anyType</code> as type annotation.
+   * Otherwise the type reported at the start is the annotation and the one at the end the value
+   * type (each standing in for the other if missing); whitespace of element-only content is
+   * dropped, and an element with an atomic base type that is not nilled gets the ID kind of its
+   * string value.
    */
   public void endElement (final String sUri, final String sLocalName, final String sQName) throws SAXException
   {

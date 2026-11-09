@@ -31,22 +31,20 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 
 /**
- * SAX2 handler that builds an {@link IXdmNode} tree. Adjacent character events
- * are merged into one text node, comments inside the DTD are dropped and the
- * location of an element (if locations are recorded) is the position the
- * parser reports at the end of its start tag, which its attributes and text
- * children report as well (they have no location of their own); comments and
- * processing instructions get the position reported with their event. DTD attribute types ID, IDREF and IDREFS are recorded, and the
- * value of such an attribute as well as of <code>xml:id</code> is normalised
- * like a tokenised attribute (XDM 3.1 section 6.3.3). Schema information is
- * added afterwards, by {@link com.helger.phoxtrot.xdm.schema.IXdmSchemaSet}.
+ * SAX2 handler that builds an {@link IXdmNode} tree. Adjacent character events are merged into one
+ * text node, comments inside the DTD are dropped and the location of an element (if locations are
+ * recorded) is the position the parser reports at the end of its start tag, which its attributes
+ * and text children report as well (they have no location of their own); comments and processing
+ * instructions get the position reported with their event. DTD attribute types ID, IDREF and IDREFS
+ * are recorded, and the value of such an attribute as well as of <code>xml:id</code> is normalised
+ * like a tokenised attribute (XDM 3.1 section 6.3.3). Schema information is added afterwards, by
+ * {@link com.helger.phoxtrot.xdm.schema.IXdmSchemaSet}.
  * <p>
- * The nodes are numbered in document order as they are created, which gives
- * the same numbers as {@link IXdmNode#assignDocumentOrder()} on the finished
- * tree without a second pass. A handler that wraps the builder may change the
- * tree while it is built (e.g. drop a whitespace text node); such a change
- * removes the numbering, and the finished tree is then numbered at the end.
- * The name indexes of the document are only valid for the finished tree.
+ * The nodes are numbered in document order as they are created, which gives the same numbers as
+ * {@link IXdmNode#assignDocumentOrder()} on the finished tree without a second pass. A handler that
+ * wraps the builder may change the tree while it is built (e.g. drop a whitespace text node); such
+ * a change removes the numbering, and the finished tree is then numbered at the end. The name
+ * indexes of the document are only valid for the finished tree.
  *
  * @author Philip Helger
  */
@@ -100,8 +98,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   private final boolean m_bRecordLocations;
 
   /**
-   * A builder that records node locations as
-   * {@link XdmParser#DEFAULT_RECORD_LOCATIONS} says (not by default).
+   * A builder that records node locations as {@link XdmParser#DEFAULT_RECORD_LOCATIONS} says (not
+   * by default).
    */
   public XdmTreeBuilder ()
   {
@@ -110,12 +108,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
 
   /**
    * @param bRecordLocations
-   *        <code>true</code> to give every element, comment and processing
-   *        instruction the location the parser reports (8 bytes more per such
-   *        node; attributes and text nodes report the location of their
-   *        parent), <code>false</code> to build the
-   *        nodes without location: {@link IXdmNode#getLine()} and
-   *        {@link IXdmNode#getColumn()} are then 0.
+   *        <code>true</code> to give every element, comment and processing instruction the location
+   *        the parser reports (8 bytes more per such node; attributes and text nodes report the
+   *        location of their parent), <code>false</code> to build the nodes without location:
+   *        {@link IXdmNode#getLine()} and {@link IXdmNode#getColumn()} are then 0.
    */
   public XdmTreeBuilder (final boolean bRecordLocations)
   {
@@ -123,8 +119,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * @return <code>true</code> if the nodes created now get a location: the
-   *         builder records locations and the parser provides a locator.
+   * @return <code>true</code> if the nodes created now get a location: the builder records
+   *         locations and the parser provides a locator.
    */
   private boolean _isLocated ()
   {
@@ -132,10 +128,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Give a new node the next document order number, as long as the tree is
-   * numbered while it is built. A structural change through the public API
-   * (by a wrapping handler) removes the numbering of the whole tree, the
-   * document node included; from then on no node is numbered here, and
+   * Give a new node the next document order number, as long as the tree is numbered while it is
+   * built. A structural change through the public API (by a wrapping handler) removes the numbering
+   * of the whole tree, the document node included; from then on no node is numbered here, and
    * {@link #endDocument()} numbers the finished tree.
    */
   private void _stamp (@NonNull final AbstractXdmNode aNode)
@@ -150,8 +145,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append a new node as the last child of the current node, keeping the
-   * numbering of the tree, and number it.
+   * Append a new node as the last child of the current node, keeping the numbering of the tree, and
+   * number it.
    */
   private void _append (@NonNull final AbstractXdmNode aNode)
   {
@@ -160,9 +155,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append the character data collected since the last node as one text node
-   * to the current node and clear the buffer. Nothing happens if no character data is pending, so no
-   * empty text node is ever created.
+   * Append the character data collected since the last node as one text node to the current node
+   * and clear the buffer. Nothing happens if no character data is pending, so no empty text node is
+   * ever created.
    */
   private void _flushText ()
   {
@@ -199,19 +194,16 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Short attribute values such as codes, amounts, flags and dates
-   * (<code>EUR</code>, <code>0088</code>, <code>true</code>) repeat
-   * throughout a document. A value of at most {@link #MAX_SHARED_VALUE}
-   * characters is shared within the document: the table has one slot per
-   * hash code (its low bits), and a different value in the slot is replaced,
-   * so the table never grows and keeps the values seen recently. The table
-   * belongs to this builder and is dropped with it. Text is not shared: in
-   * the parse benchmark that cost about 10 % of the parse time, for 0.5 to
-   * 17 % less retained heap.
+   * Short attribute values such as codes, amounts, flags and dates (<code>EUR</code>,
+   * <code>0088</code>, <code>true</code>) repeat throughout a document. A value of at most
+   * {@link #MAX_SHARED_VALUE} characters is shared within the document: the table has one slot per
+   * hash code (its low bits), and a different value in the slot is replaced, so the table never
+   * grows and keeps the values seen recently. The table belongs to this builder and is dropped with
+   * it. Text is not shared: in the parse benchmark that cost about 10 % of the parse time, for 0.5
+   * to 17 % less retained heap.
    *
-   * @return The shared string equal to the value: the one in the table, or
-   *         the value itself, which takes its slot. A value longer than
-   *         {@link #MAX_SHARED_VALUE} is returned unchanged.
+   * @return The shared string equal to the value: the one in the table, or the value itself, which
+   *         takes its slot. A value longer than {@link #MAX_SHARED_VALUE} is returned unchanged.
    */
   @NonNull
   private String _getShared (@NonNull final String sValue)
@@ -229,12 +221,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * The text of one character event as a string. The usual indentation
-   * between elements - a line end followed by up to
-   * {@link #MAX_SHARED_INDENT} - 1 spaces or tabs only - is a large part of
-   * the text nodes of most documents; it is shared within the document, one
-   * string per length and indentation character, created on first use. Any
-   * other text gives a new string.
+   * The text of one character event as a string. The usual indentation between elements - a line
+   * end followed by up to {@link #MAX_SHARED_INDENT} - 1 spaces or tabs only - is a large part of
+   * the text nodes of most documents; it is shared within the document, one string per length and
+   * indentation character, created on first use. Any other text gives a new string.
    */
   @NonNull
   private String _getText (@NonNull final char [] aChars, final int nStart, final int nLength)
@@ -265,9 +255,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * A node read from an external parsed entity gets the entity's URI as base
-   * URI, but only the outermost node of the entity: its descendants inherit it
-   * (and any <code>xml:base</code> in between) through the parent chain.
+   * A node read from an external parsed entity gets the entity's URI as base URI, but only the
+   * outermost node of the entity: its descendants inherit it (and any <code>xml:base</code> in
+   * between) through the parent chain.
    *
    * @return The system ID in effect for the node.
    */
@@ -286,8 +276,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   /**
    * @param sQName
    *        A lexical QName as reported by SAX.
-   * @return The part before the first colon, or the empty string if there is
-   *         no colon.
+   * @return The part before the first colon, or the empty string if there is no colon.
    */
   @NonNull
   private static String _getPrefix (@NonNull final String sQName)
@@ -297,11 +286,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Get the shared name instance for a namespace URI and lexical name,
-   * creating it on first use with canonical strings
-   * ({@link XdmQName#getInterned()}), as the names of node tests have them.
-   * The cache key includes the prefix, so that each node keeps the prefix used
-   * in the source.
+   * Get the shared name instance for a namespace URI and lexical name, creating it on first use
+   * with canonical strings ({@link XdmQName#getInterned()}), as the names of node tests have them.
+   * The cache key includes the prefix, so that each node keeps the prefix used in the source.
    *
    * @param sUri
    *        Namespace URI, empty for none.
@@ -359,11 +346,10 @@ public final class XdmTreeBuilder extends DefaultHandler2
    * Map the DTD attribute type reported by SAX to the ID kind.
    *
    * @param sSaxType
-   *        The attribute type from {@link Attributes#getType(int)}; may be
-   *        <code>null</code>.
-   * @return {@link EIDKind#ID}, {@link EIDKind#IDREF} or
-   *         {@link EIDKind#IDREFS} for these types, {@link EIDKind#NONE} for
-   *         every other type (<code>CDATA</code> for undeclared attributes).
+   *        The attribute type from {@link Attributes#getType(int)}; may be <code>null</code>.
+   * @return {@link EIDKind#ID}, {@link EIDKind#IDREF} or {@link EIDKind#IDREFS} for these types,
+   *         {@link EIDKind#NONE} for every other type (<code>CDATA</code> for undeclared
+   *         attributes).
    */
   @NonNull
   private static EIDKind _getIDKind (@Nullable final String sSaxType)
@@ -388,8 +374,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
    *
    * @param sValue
    *        The attribute value after XML attribute value normalisation.
-   * @return The value without leading and trailing spaces and with runs of
-   *         spaces collapsed.
+   * @return The value without leading and trailing spaces and with runs of spaces collapsed.
    */
   @NonNull
   public static String normaliseTokenised (@NonNull final String sValue)
@@ -417,9 +402,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * @return The node that content is currently added to: the innermost open
-   *         element, or the document node. For handlers that wrap the
-   *         builder.
+   * @return The node that content is currently added to: the innermost open element, or the
+   *         document node. For handlers that wrap the builder.
    */
   @Nullable
   public IXdmNode getCurrentNode ()
@@ -445,9 +429,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Create the document node, which becomes the current node, with the system
-   * ID of the locator (if any) as document URI. It is the first node of a new
-   * numbering; its end order stays open until {@link #endDocument()}.
+   * Create the document node, which becomes the current node, with the system ID of the locator (if
+   * any) as document URI. It is the first node of a new numbering; its end order stays open until
+   * {@link #endDocument()}.
    */
   @Override
   public void startDocument ()
@@ -465,14 +449,12 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append pending text, trim the child array of the document and finish the
-   * numbering: the document ends with the last node numbered, and the
-   * maximum element depth is recorded with this numbering
-   * ({@link XdmDocumentNode#getMaxElementDepth()}). If a change from outside
-   * removed the numbering while building, the finished tree is numbered in a
-   * second pass ({@link IXdmNode#assignDocumentOrder()}) and the depth stays
-   * unknown. Name indexes asked for while building would miss the later nodes
-   * and are dropped.
+   * Append pending text, trim the child array of the document and finish the numbering: the
+   * document ends with the last node numbered, and the maximum element depth is recorded with this
+   * numbering ({@link XdmDocumentNode#getMaxElementDepth()}). If a change from outside removed the
+   * numbering while building, the finished tree is numbered in a second pass
+   * ({@link IXdmNode#assignDocumentOrder()}) and the depth stays unknown. Name indexes asked for
+   * while building would miss the later nodes and are dropped.
    */
   @Override
   public void endDocument ()
@@ -490,9 +472,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Remember the mapping until the next {@link #startElement}, which declares
-   * it on the new element. An empty URI (undeclaring the default namespace)
-   * is kept as it is.
+   * Remember the mapping until the next {@link #startElement}, which declares it on the new
+   * element. An empty URI (undeclaring the default namespace) is kept as it is.
    */
   @Override
   public void startPrefixMapping (final String sPrefix, final String sUri)
@@ -502,21 +483,16 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append pending text, then create the element with the location reported
-   * at the end of its start tag, the namespace declarations collected by
-   * {@link #startPrefixMapping(String, String)} and the base URI of an entity
-   * boundary. Attributes follow in the reported order, without the
-   * <code>xmlns</code> declarations: a DTD type ID, IDREF or IDREFS, and an
-   * <code>xml:id</code> attribute (always an ID), set the ID kind and
-   * normalise the value with {@link #normaliseTokenised(String)}. The element
-   * is appended to the current node, numbered followed by its attributes, and
-   * becomes the current node.
+   * Append pending text, then create the element with the location reported at the end of its start
+   * tag, the namespace declarations collected by {@link #startPrefixMapping(String, String)} and
+   * the base URI of an entity boundary. Attributes follow in the reported order, without the
+   * <code>xmlns</code> declarations: a DTD type ID, IDREF or IDREFS, and an <code>xml:id</code>
+   * attribute (always an ID), set the ID kind and normalise the value with
+   * {@link #normaliseTokenised(String)}. The element is appended to the current node, numbered
+   * followed by its attributes, and becomes the current node.
    */
   @Override
-  public void startElement (final String sUri,
-                            final String sLocalName,
-                            final String sQName,
-                            final Attributes aAttrs)
+  public void startElement (final String sUri, final String sLocalName, final String sQName, final Attributes aAttrs)
   {
     _flushText ();
     final XdmQName aName = _getName (sUri, sLocalName, sQName);
@@ -568,8 +544,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append pending text, trim the child array of the closed element, end it
-   * with the last node numbered and make its parent the current node.
+   * Append pending text, trim the child array of the closed element, end it with the last node
+   * numbered and make its parent the current node.
    */
   @Override
   public void endElement (final String sUri, final String sLocalName, final String sQName)
@@ -583,10 +559,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Collect character data for the next text node. The text of the
-   * first event is kept as a string (shared for indentation, see
-   * {@link #_getText(char[], int, int)}); only a second event merges the text
-   * in a buffer. An event without characters is ignored.
+   * Collect character data for the next text node. The text of the first event is kept as a string
+   * (shared for indentation, see {@link #_getText(char[], int, int)}); only a second event merges
+   * the text in a buffer. An event without characters is ignored.
    */
   @Override
   public void characters (final char [] aChars, final int nStart, final int nLength)
@@ -610,8 +585,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Dropped: this is whitespace in element-only content, and XDM 3.1 section
-   * 6.7.3 discards such text.
+   * Dropped: this is whitespace in element-only content, and XDM 3.1 section 6.7.3 discards such
+   * text.
    */
   @Override
   public void ignorableWhitespace (final char [] aChars, final int nStart, final int nLength)
@@ -623,20 +598,22 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Record an unparsed entity on the document; a declaration without name or
-   * system ID, or before the document node exists, is ignored. The notation
-   * name is not kept.
+   * Record an unparsed entity on the document; a declaration without name or system ID, or before
+   * the document node exists, is ignored. The notation name is not kept.
    */
   @Override
-  public void unparsedEntityDecl (final String sName, final String sPublicId, final String sSystemId, final String sNotationName)
+  public void unparsedEntityDecl (final String sName,
+                                  final String sPublicId,
+                                  final String sSystemId,
+                                  final String sNotationName)
   {
     if (m_aDocument != null && sName != null && sSystemId != null)
       m_aDocument.addUnparsedEntity (sName, sSystemId, sPublicId);
   }
 
   /**
-   * Record the name of an internal general entity on the document; parameter
-   * entities (name starting with <code>%</code>) are ignored.
+   * Record the name of an internal general entity on the document; parameter entities (name
+   * starting with <code>%</code>) are ignored.
    */
   @Override
   public void internalEntityDecl (final String sName, final String sValue)
@@ -646,8 +623,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Record the name of an external parsed general entity on the document;
-   * parameter entities (name starting with <code>%</code>) are ignored.
+   * Record the name of an external parsed general entity on the document; parameter entities (name
+   * starting with <code>%</code>) are ignored.
    */
   @Override
   public void externalEntityDecl (final String sName, final String sPublicId, final String sSystemId)
@@ -657,9 +634,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append pending text, then a processing instruction node (missing data
-   * becomes the empty string) with the current location and the base URI of
-   * an entity boundary.
+   * Append pending text, then a processing instruction node (missing data becomes the empty string)
+   * with the current location and the base URI of an entity boundary.
    */
   @Override
   public void processingInstruction (final String sTarget, final String sData)
@@ -668,9 +644,9 @@ public final class XdmTreeBuilder extends DefaultHandler2
     final XdmQName aTarget = new XdmQName (sTarget);
     final String sValue = sData == null ? "" : sData;
     final XdmProcessingInstructionNode aPI = _isLocated () ? new XdmProcessingInstructionNode.Located (aTarget,
-                                                                                                      sValue,
-                                                                                                      m_aLocator.getLineNumber (),
-                                                                                                      m_aLocator.getColumnNumber ())
+                                                                                                       sValue,
+                                                                                                       m_aLocator.getLineNumber (),
+                                                                                                       m_aLocator.getColumnNumber ())
                                                            : new XdmProcessingInstructionNode (aTarget, sValue);
     _applyEntityBase (aPI);
     _append (aPI);
@@ -689,8 +665,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
-   * Append pending text, then a comment node with the current location.
-   * Comments inside the DTD are dropped.
+   * Append pending text, then a comment node with the current location. Comments inside the DTD are
+   * dropped.
    */
   @Override
   public void comment (final char [] aChars, final int nStart, final int nLength)

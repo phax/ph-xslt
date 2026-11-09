@@ -40,23 +40,21 @@ import com.helger.phoxtrot.xdm.XdmQName;
 
 /**
  * Writes an XDM tree as namespace-aware SAX events, wrapped in
- * <code>startDocument</code>/<code>endDocument</code>: a document node with
- * all its children (comments and processing instructions outside the
- * document element included), or an element, text, comment or processing
- * instruction as the only content. The walk is iterative.
+ * <code>startDocument</code>/<code>endDocument</code>: a document node with all its children
+ * (comments and processing instructions outside the document element included), or an element,
+ * text, comment or processing instruction as the only content. The walk is iterative.
  * <ul>
- * <li>Each element reports a <code>startPrefixMapping</code> for every
- * namespace it declares that is not bound the same way in scope already (the
- * outermost elements: every namespace in scope except <code>xml</code>) and for every binding its names need that is not
- * in scope (namespace fixup, a namespaced attribute without usable prefix
- * gets a new one); <code>endPrefixMapping</code> follows its end tag. No
- * <code>xmlns</code> attributes are reported.</li>
- * <li>Attributes have the type <code>ID</code>, <code>IDREF</code> or
- * <code>IDREFS</code> according to their ID kind, <code>CDATA</code>
- * otherwise.</li>
+ * <li>Each element reports a <code>startPrefixMapping</code> for every namespace it declares that
+ * is not bound the same way in scope already (the outermost elements: every namespace in scope
+ * except <code>xml</code>) and for every binding its names need that is not in scope (namespace
+ * fixup, a namespaced attribute without usable prefix gets a new one);
+ * <code>endPrefixMapping</code> follows its end tag. No <code>xmlns</code> attributes are
+ * reported.</li>
+ * <li>Attributes have the type <code>ID</code>, <code>IDREF</code> or <code>IDREFS</code> according
+ * to their ID kind, <code>CDATA</code> otherwise.</li>
  * <li>Comments go to the lexical handler, if one is given.</li>
- * <li>A locator with the document URI (or base URI) of the tree as system ID
- * is passed to <code>setDocumentLocator</code>; it has no line numbers.</li>
+ * <li>A locator with the document URI (or base URI) of the tree as system ID is passed to
+ * <code>setDocumentLocator</code>; it has no line numbers.</li>
  * </ul>
  *
  * @author Philip Helger
@@ -87,8 +85,8 @@ public final class XdmToSax
   }
 
   /**
-   * Report the start of an element: the prefix mappings it declares and
-   * needs, then the start tag, and open a scope frame.
+   * Report the start of an element: the prefix mappings it declares and needs, then the start tag,
+   * and open a scope frame.
    *
    * @return The prefixes mapped, for the end of the element.
    */
@@ -136,7 +134,11 @@ public final class XdmToSax
         aScope.bind (sPrefix, aAttrName.namespaceUri ());
         sQName = sPrefix + ":" + aAttrName.localName ();
       }
-      aAttrs.addAttribute (aAttrName.namespaceUri (), aAttrName.localName (), sQName, _getSaxType (aAttr), aAttr.getValue ());
+      aAttrs.addAttribute (aAttrName.namespaceUri (),
+                           aAttrName.localName (),
+                           sQName,
+                           _getSaxType (aAttr),
+                           aAttr.getValue ());
     }
     for (final Map.Entry <String, String> aEntry : aDecls.entrySet ())
       aHandler.startPrefixMapping (aEntry.getKey (), aEntry.getValue ());
@@ -148,8 +150,8 @@ public final class XdmToSax
    * Write an XDM node as a SAX document.
    *
    * @param aNode
-   *        A document, element, text, comment or processing instruction
-   *        node. May not be <code>null</code>.
+   *        A document, element, text, comment or processing instruction node. May not be
+   *        <code>null</code>.
    * @param aHandler
    *        The receiver of the content events. May not be <code>null</code>.
    * @param aLexicalHandler

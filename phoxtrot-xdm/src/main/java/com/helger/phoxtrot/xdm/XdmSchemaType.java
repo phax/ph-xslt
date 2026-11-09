@@ -28,16 +28,15 @@ import com.helger.phoxtrot.xdm.schema.IXdmTypeDefinition;
 
 /**
  * The schema type of a node of a schema-validated tree (see
- * {@link com.helger.phoxtrot.xdm.schema.IXdmSchemaSet}): the type definition of
- * the node together with what XPath needs from it: the type annotation name,
- * whether the type is simple, and the built-in atomic type of the typed value.
- * Instances are usually shared by all nodes of the same type.
+ * {@link com.helger.phoxtrot.xdm.schema.IXdmSchemaSet}): the type definition of the node together
+ * with what XPath needs from it: the type annotation name, whether the type is simple, and the
+ * built-in atomic type of the typed value. Instances are usually shared by all nodes of the same
+ * type.
  * <p>
  * With a provider that has no schema component model (the JDK validator,
- * {@link IXdmTypeDefinition#hasComponentModel()}), element-only and mixed
- * content cannot be told apart, so the typed value of an element with complex
- * content is always the untyped string value, and the members of a union type
- * are not known.
+ * {@link IXdmTypeDefinition#hasComponentModel()}), element-only and mixed content cannot be told
+ * apart, so the typed value of an element with complex content is always the untyped string value,
+ * and the members of a union type are not known.
  *
  * @author Philip Helger
  */
@@ -47,8 +46,8 @@ public final class XdmSchemaType
   private static final XdmQName ANY_SIMPLE_TYPE = new XdmQName (XdmConstants.NS_XS, "anySimpleType");
 
   /**
-   * The built-in atomic types, every type before all of its base types, so the
-   * first one a type derives from is the most specific one.
+   * The built-in atomic types, every type before all of its base types, so the first one a type
+   * derives from is the most specific one.
    */
   private static final String [] BUILTIN_ATOMIC_TYPES = { "ID",
                                                           "IDREF",
@@ -103,13 +102,11 @@ public final class XdmSchemaType
   private final XdmQName m_aAtomicBase;
 
   /**
-   * Derive everything XPath asks for once. The name and the simple flag come
-   * from the node type, the rest from the value type: it is a list if its
-   * simple content type has list variety or if it is
-   * <code>xs:anySimpleType</code>. For a list the atomic base is the built-in
-   * type of the item type, and none for a complex type with list content; for
-   * anything else it is the most specific built-in atomic type the value type
-   * derives from ({@link #findBuiltinAtomicType(Predicate)}).
+   * Derive everything XPath asks for once. The name and the simple flag come from the node type,
+   * the rest from the value type: it is a list if its simple content type has list variety or if it
+   * is <code>xs:anySimpleType</code>. For a list the atomic base is the built-in type of the item
+   * type, and none for a complex type with list content; for anything else it is the most specific
+   * built-in atomic type the value type derives from ({@link #findBuiltinAtomicType(Predicate)}).
    *
    * @param aType
    *        The type definition of the node.
@@ -140,10 +137,8 @@ public final class XdmSchemaType
 
   /**
    * @param aDerivesFrom
-   *        The derivation check of a type against a built-in atomic type
-   *        name.
-   * @return The most specific built-in atomic type the check accepts, or
-   *         <code>null</code>.
+   *        The derivation check of a type against a built-in atomic type name.
+   * @return The most specific built-in atomic type the check accepts, or <code>null</code>.
    */
   @Nullable
   public static XdmQName findBuiltinAtomicType (@NonNull final Predicate <XdmQName> aDerivesFrom)
@@ -163,9 +158,8 @@ public final class XdmSchemaType
    * @param aType
    *        The type definition of the node. May not be <code>null</code>.
    * @param aValueType
-   *        The type the value was validated against: for a union type the
-   *        member type that matched, otherwise the same as aType. May not be
-   *        <code>null</code>.
+   *        The type the value was validated against: for a union type the member type that matched,
+   *        otherwise the same as aType. May not be <code>null</code>.
    * @return A new schema type.
    */
   @NonNull
@@ -177,8 +171,8 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return The type definition of the node, as the schema provider reports
-   *         it. Never <code>null</code>.
+   * @return The type definition of the node, as the schema provider reports it. Never
+   *         <code>null</code>.
    */
   @NonNull
   public IXdmTypeDefinition getTypeDefinition ()
@@ -187,8 +181,8 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return The type definition the value was validated against (for a union
-   *         the matching member type). Never <code>null</code>.
+   * @return The type definition the value was validated against (for a union the matching member
+   *         type). Never <code>null</code>.
    */
   @NonNull
   public IXdmTypeDefinition getValueTypeDefinition ()
@@ -197,9 +191,8 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return The type definition of the node if the provider has a schema
-   *         component model (Apache Xerces-J, see
-   *         {@link com.helger.phoxtrot.xdm.schema.XdmSchemaSupport}), otherwise
+   * @return The type definition of the node if the provider has a schema component model (Apache
+   *         Xerces-J, see {@link com.helger.phoxtrot.xdm.schema.XdmSchemaSupport}), otherwise
    *         <code>null</code> (the JDK validator).
    */
   @Nullable
@@ -209,9 +202,8 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return The type definition the value was validated against (for a union
-   *         the matching member type), or <code>null</code> like
-   *         {@link #getDefinition()}.
+   * @return The type definition the value was validated against (for a union the matching member
+   *         type), or <code>null</code> like {@link #getDefinition()}.
    */
   @Nullable
   public IXdmTypeDefinition getValueDefinition ()
@@ -220,8 +212,8 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return The type name. Anonymous types carry a name whose local part
-   *         starts with <code>#</code> (see {@link #isAnonymous()}).
+   * @return The type name. Anonymous types carry a name whose local part starts with <code>#</code>
+   *         (see {@link #isAnonymous()}).
    */
   @NonNull
   public XdmQName getName ()
@@ -238,8 +230,8 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return <code>true</code> for a simple type (atomic, list or union),
-   *         <code>false</code> for a complex type.
+   * @return <code>true</code> for a simple type (atomic, list or union), <code>false</code> for a
+   *         complex type.
    */
   public boolean isSimple ()
   {
@@ -247,9 +239,9 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return <code>true</code> if the typed value is a list: a list type or a
-   *         complex type whose simple content is a list type. A value type of
-   *         <code>xs:anySimpleType</code> counts as a list as well.
+   * @return <code>true</code> if the typed value is a list: a list type or a complex type whose
+   *         simple content is a list type. A value type of <code>xs:anySimpleType</code> counts as
+   *         a list as well.
    */
   public boolean isList ()
   {
@@ -257,12 +249,10 @@ public final class XdmSchemaType
   }
 
   /**
-   * @return The built-in atomic type (in the <code>xs</code> namespace) of the
-   *         typed value, for a list type the type of its items.
-   *         <code>null</code> for complex content and for types whose built-in
-   *         base cannot be determined (a union that was not resolved to a
-   *         member, a list of a union); their typed value is the untyped
-   *         string value.
+   * @return The built-in atomic type (in the <code>xs</code> namespace) of the typed value, for a
+   *         list type the type of its items. <code>null</code> for complex content and for types
+   *         whose built-in base cannot be determined (a union that was not resolved to a member, a
+   *         list of a union); their typed value is the untyped string value.
    */
   @Nullable
   public XdmQName getAtomicBase ()
@@ -273,9 +263,9 @@ public final class XdmSchemaType
   /**
    * @param sAtomicLocalName
    *        Local name of a built-in atomic type.
-   * @return <code>true</code> if the typed value is a single value and
-   *         {@link #getAtomicBase()} is exactly the given built-in atomic type
-   *         (the most specific built-in type the value type derives from).
+   * @return <code>true</code> if the typed value is a single value and {@link #getAtomicBase()} is
+   *         exactly the given built-in atomic type (the most specific built-in type the value type
+   *         derives from).
    */
   public boolean hasAtomicBase (@NonNull final String sAtomicLocalName)
   {
@@ -283,9 +273,8 @@ public final class XdmSchemaType
   }
 
   /**
-   * The schema derivation check: is this type the given type, or derived from
-   * it by restriction or extension? Union membership and list item types are
-   * not derivation steps here.
+   * The schema derivation check: is this type the given type, or derived from it by restriction or
+   * extension? Union membership and list item types are not derivation steps here.
    *
    * @param sNamespace
    *        Namespace URI of the base type. May not be <code>null</code>.

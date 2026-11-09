@@ -35,25 +35,22 @@ public interface IXdmElementDeclaration
   IXdmTypeDefinition getTypeDefinition ();
 
   /**
-   * @return <code>true</code> if the declaration has
-   *         <code>nillable="true"</code>, so that an instance may carry
-   *         <code>xsi:nil="true"</code>.
+   * @return <code>true</code> if the declaration has <code>nillable="true"</code>, so that an
+   *         instance may carry <code>xsi:nil="true"</code>.
    */
   boolean isNillable ();
 
   /**
-   * @return <code>true</code> if the declaration has
-   *         <code>abstract="true"</code>, so that only members of its
-   *         substitution group may appear in an instance.
+   * @return <code>true</code> if the declaration has <code>abstract="true"</code>, so that only
+   *         members of its substitution group may appear in an instance.
    */
   boolean isAbstract ();
 
   /**
    * @param aName
    *        An element name.
-   * @return This declaration if it has the name, else the declaration with that
-   *         name in the substitution group of this declaration (transitively),
-   *         else <code>null</code>.
+   * @return This declaration if it has the name, else the declaration with that name in the
+   *         substitution group of this declaration (transitively), else <code>null</code>.
    */
   @Nullable
   IXdmElementDeclaration getSubstitutionMember (@NonNull XdmQName aName);

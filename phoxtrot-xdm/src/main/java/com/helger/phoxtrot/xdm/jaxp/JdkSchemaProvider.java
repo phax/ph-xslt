@@ -35,15 +35,13 @@ import com.helger.phoxtrot.xdm.schema.XdmSchemaException;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSource;
 
 /**
- * Schema provider on the JDK's own validator (always the JDK's, also when
- * another JAXP implementation is on the class path). It needs no further
- * library, but it only validates: the schema sets it compiles have no schema
- * component model, so they are enough for schema-validated input documents
- * (typed values of built-in types, <code>fn:nilled</code>, schema IDs,
- * <code>element(N, T)</code> tests by type name), not for schema-awareness of
- * XSLT or for <code>schema-element()</code>. Unlike the Xerces-J provider of
- * {@link com.helger.phoxtrot.xdm.schema.XdmSchemaSupport} it is never chosen
- * automatically.
+ * Schema provider on the JDK's own validator (always the JDK's, also when another JAXP
+ * implementation is on the class path). It needs no further library, but it only validates: the
+ * schema sets it compiles have no schema component model, so they are enough for schema-validated
+ * input documents (typed values of built-in types, <code>fn:nilled</code>, schema IDs,
+ * <code>element(N, T)</code> tests by type name), not for schema-awareness of XSLT or for
+ * <code>schema-element()</code>. Unlike the Xerces-J provider of
+ * {@link com.helger.phoxtrot.xdm.schema.XdmSchemaSupport} it is never chosen automatically.
  *
  * @author Philip Helger
  */
@@ -56,8 +54,7 @@ public final class JdkSchemaProvider implements IXdmSchemaProvider
   {}
 
   /**
-   * Compile schema documents with the JDK schema factory, with its default
-   * settings.
+   * Compile schema documents with the JDK schema factory, with its default settings.
    *
    * @param aSources
    *        The schema documents. May be empty for the built-in types only.

@@ -24,10 +24,10 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.annotation.style.ReturnsMutableCopy;
 
 /**
- * The name productions of XML 1.0 (5th edition) and Namespaces in XML: the one
- * definition of NameStartChar and NameChar that the XPath lexer, the casts to
- * the name types, the XSLT name checks, the XSD lexical checks and the regular
- * expression classes <code>\i</code> and <code>\c</code> all use.
+ * The name productions of XML 1.0 (5th edition) and Namespaces in XML: the one definition of
+ * NameStartChar and NameChar that the XPath lexer, the casts to the name types, the XSLT name
+ * checks, the XSD lexical checks and the regular expression classes <code>\i</code> and
+ * <code>\c</code> all use.
  *
  * @author Philip Helger
  */
@@ -66,7 +66,18 @@ public final class XmlNames
                                                        0x10000,
                                                        0xEFFFF };
   /** The characters a NameChar may have beyond a NameStartChar */
-  private static final int [] NAME_EXTRA_RANGES = { '-', '-', '.', '.', '0', '9', 0xB7, 0xB7, 0x300, 0x36F, 0x203F, 0x2040 };
+  private static final int [] NAME_EXTRA_RANGES = { '-',
+                                                    '-',
+                                                    '.',
+                                                    '.',
+                                                    '0',
+                                                    '9',
+                                                    0xB7,
+                                                    0xB7,
+                                                    0x300,
+                                                    0x36F,
+                                                    0x203F,
+                                                    0x2040 };
 
   @PresentForCodeCoverage
   private static final XmlNames INSTANCE = new XmlNames ();
@@ -134,15 +145,15 @@ public final class XmlNames
   }
 
   /**
-   * Check a string code point by code point (surrogate pairs included): the
-   * first must be an NCName start character, the others NCName characters,
-   * and a colon is accepted anywhere, also first, only if allowed.
+   * Check a string code point by code point (surrogate pairs included): the first must be an NCName
+   * start character, the others NCName characters, and a colon is accepted anywhere, also first,
+   * only if allowed.
    *
    * @param s
    *        The string to check. May not be <code>null</code>.
    * @param bAllowColon
-   *        <code>true</code> for the XML <code>Name</code> production,
-   *        <code>false</code> for <code>NCName</code>.
+   *        <code>true</code> for the XML <code>Name</code> production, <code>false</code> for
+   *        <code>NCName</code>.
    * @return <code>false</code> for the empty string.
    */
   private static boolean _isName (@NonNull final String s, final boolean bAllowColon)
@@ -164,8 +175,7 @@ public final class XmlNames
   /**
    * @param s
    *        String to check. May be <code>null</code>.
-   * @return <code>true</code> if it matches the <code>NCName</code>
-   *         production.
+   * @return <code>true</code> if it matches the <code>NCName</code> production.
    */
   public static boolean isNCName (@Nullable final String s)
   {
@@ -175,8 +185,7 @@ public final class XmlNames
   /**
    * @param s
    *        String to check. May be <code>null</code>.
-   * @return <code>true</code> if it matches the XML <code>Name</code>
-   *         production.
+   * @return <code>true</code> if it matches the XML <code>Name</code> production.
    */
   public static boolean isName (@Nullable final String s)
   {
@@ -184,8 +193,8 @@ public final class XmlNames
   }
 
   /**
-   * @return NameStartChar without the colon as inclusive code point ranges
-   *         (start, end, start, end, ...), for building character classes.
+   * @return NameStartChar without the colon as inclusive code point ranges (start, end, start, end,
+   *         ...), for building character classes.
    */
   @NonNull
   @ReturnsMutableCopy
@@ -195,8 +204,7 @@ public final class XmlNames
   }
 
   /**
-   * @return The code points a NameChar may have beyond a NameStartChar, as
-   *         inclusive ranges.
+   * @return The code points a NameChar may have beyond a NameStartChar, as inclusive ranges.
    */
   @NonNull
   @ReturnsMutableCopy

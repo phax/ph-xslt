@@ -118,8 +118,7 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
   /**
    * @param aRoot
    *        The node to start from; included if it is an element.
-   * @return All elements of the subtree in document order, collected
-   *         iteratively.
+   * @return All elements of the subtree in document order, collected iteratively.
    */
   @NonNull
   private static ICommonsList <IXdmNode> _getElementsInOrder (@NonNull final IXdmNode aRoot)
@@ -309,9 +308,9 @@ public abstract class AbstractJaxpSchemaSet implements IXdmSchemaSet
    */
   @NonNull
   private IXdmNode _validateCopy (@NonNull final IXdmNode aElement,
-                                 @Nullable final IXdmTypeDefinition aType,
-                                 final boolean bDocumentLevel,
-                                 final boolean bParsedEntitiesAsUnparsed) throws SAXException
+                                  @Nullable final IXdmTypeDefinition aType,
+                                  final boolean bDocumentLevel,
+                                  final boolean bParsedEntitiesAsUnparsed) throws SAXException
   {
     final ValidatorHandler aValidator = m_aSchema.newValidatorHandler ();
     aValidator.setErrorHandler (THROWING_ERROR_HANDLER);

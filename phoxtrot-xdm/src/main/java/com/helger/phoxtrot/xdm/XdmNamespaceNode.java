@@ -23,8 +23,8 @@ import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 
 /**
- * A namespace node. Its name is the prefix (none for the default namespace),
- * its value the namespace URI.
+ * A namespace node. Its name is the prefix (none for the default namespace), its value the
+ * namespace URI.
  *
  * @author Philip Helger
  */
@@ -37,13 +37,12 @@ public final class XdmNamespaceNode extends AbstractXdmValueNode
 
   /**
    * @param sPrefix
-   *        The prefix; the empty string for the default namespace, which
-   *        gives a node without name.
+   *        The prefix; the empty string for the default namespace, which gives a node without name.
    * @param sNamespaceUri
    *        The namespace URI, the value of the node.
    * @param nNamespaceIndex
-   *        The position among the namespace nodes of the parent element, used
-   *        for document order; 0 for a parentless node.
+   *        The position among the namespace nodes of the parent element, used for document order; 0
+   *        for a parentless node.
    */
   XdmNamespaceNode (@NonNull final String sPrefix,
                     @NonNull final String sNamespaceUri,

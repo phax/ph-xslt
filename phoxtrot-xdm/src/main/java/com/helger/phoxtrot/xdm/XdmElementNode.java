@@ -68,8 +68,8 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   }
 
   /**
-   * The ID kind is kept in the details holder: only the elements of an ID
-   * type in a schema-validated tree have one.
+   * The ID kind is kept in the details holder: only the elements of an ID type in a
+   * schema-validated tree have one.
    */
   @Override
   @NonNull
@@ -99,11 +99,10 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   }
 
   /**
-   * Append a parentless attribute node as the last attribute of this element.
-   * There is no check for an attribute of the same name. A numbering of the
-   * attribute on its own is removed. If the tree was numbered, the numbering
-   * of the whole tree and the name indexes of its document are removed and
-   * assigned again on demand.
+   * Append a parentless attribute node as the last attribute of this element. There is no check for
+   * an attribute of the same name. A numbering of the attribute on its own is removed. If the tree
+   * was numbered, the numbering of the whole tree and the name indexes of its document are removed
+   * and assigned again on demand.
    *
    * @throws IllegalArgumentException
    *         if the node is no attribute node or already has a parent
@@ -116,6 +115,7 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
       throw new IllegalArgumentException ("Not an attribute node");
     if (aRealAttribute.getParent () != null)
       throw new IllegalArgumentException ("The attribute node already has a parent");
+
     // An attribute numbered on its own must not keep that numbering
     aRealAttribute.internalInvalidateOrder ();
     aRealAttribute.internalSetParent (this);
@@ -132,15 +132,14 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   }
 
   /**
-   * Set all attributes of an element that has none yet and is not numbered,
-   * while its tree is built ({@link XdmTreeBuilder}, {@link XdmStreamReader}):
-   * the array is taken over as it is and each attribute gets this element as
-   * parent. The attributes must be parentless attribute nodes; this is not
-   * checked.
+   * Set all attributes of an element that has none yet and is not numbered, while its tree is built
+   * ({@link XdmTreeBuilder}, {@link XdmStreamReader}): the array is taken over as it is and each
+   * attribute gets this element as parent. The attributes must be parentless attribute nodes; this
+   * is not checked.
    *
    * @param aAttributes
-   *        The attributes, at least one, in document order. The array must
-   *        not be changed afterwards.
+   *        The attributes, at least one, in document order. The array must not be changed
+   *        afterwards.
    */
   void internalSetAttributes (@NonNull final AbstractXdmNode [] aAttributes)
   {
@@ -150,9 +149,9 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   }
 
   /**
-   * Record the declaration and drop the namespace nodes built so far for this
-   * element, so that {@link #getNamespaceNodes()} builds them again. The
-   * namespace nodes of descendant elements are not dropped.
+   * Record the declaration and drop the namespace nodes built so far for this element, so that
+   * {@link #getNamespaceNodes()} builds them again. The namespace nodes of descendant elements are
+   * not dropped.
    */
   @Override
   public void declareNamespace (@NonNull final String sPrefix, @NonNull final String sNamespaceUri)
@@ -188,8 +187,7 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   }
 
   /**
-   * Linear search through the attributes in order; the first attribute with
-   * the expanded name wins.
+   * Linear search through the attributes in order; the first attribute with the expanded name wins.
    */
   @Override
   @Nullable
@@ -206,19 +204,17 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   @NonNull
   @ReturnsMutableCopy
   /**
-   * Built on the first call from {@link #getInScopeNamespaces()}, one
-   * {@link XdmNamespaceNode} per prefix with this element as parent and its
-   * position as namespace index, and then kept until the next
-   * {@link #declareNamespace(String, String)} on this element. Creation is
-   * guarded by a lock shared by all elements, so concurrent readers of a
-   * finished tree get the identical nodes.
+   * Built on the first call from {@link #getInScopeNamespaces()}, one {@link XdmNamespaceNode} per
+   * prefix with this element as parent and its position as namespace index, and then kept until the
+   * next {@link #declareNamespace(String, String)} on this element. Creation is guarded by a lock
+   * shared by all elements, so concurrent readers of a finished tree get the identical nodes.
    */
   public ICommonsList <IXdmNode> getNamespaceNodes ()
   {
     final ICommonsList <IXdmNode> aExisting = NAMESPACE_NODES_LOCK.readLockedGet (this::internalGetNamespaceNodes);
     if (aExisting != null)
       return aExisting.getClone ();
-    return NAMESPACE_NODES_LOCK.writeLockedGet ( () -> {
+    return NAMESPACE_NODES_LOCK.writeLockedGet (() -> {
       ICommonsList <IXdmNode> aNodes = internalGetNamespaceNodes ();
       if (aNodes == null)
       {
@@ -237,10 +233,10 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
   }
 
   /**
-   * An element with the location of its source, created by the tree builders
-   * when they record locations ({@link XdmParser#setRecordLocations(boolean)})
-   * and by the factories of {@link IXdmNode} that take a location. The
-   * location is kept in two fields of its own instead of the details holder.
+   * An element with the location of its source, created by the tree builders when they record
+   * locations ({@link XdmParser#setRecordLocations(boolean)}) and by the factories of
+   * {@link IXdmNode} that take a location. The location is kept in two fields of its own instead of
+   * the details holder.
    */
   static final class Located extends XdmElementNode
   {

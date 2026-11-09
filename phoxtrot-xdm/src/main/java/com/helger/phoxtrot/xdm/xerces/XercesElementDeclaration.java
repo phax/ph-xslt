@@ -47,8 +47,8 @@ final class XercesElementDeclaration implements IXdmElementDeclaration
   /**
    * @param aDecl
    *        A Xerces-J element declaration.
-   * @return Its name without prefix; the <code>null</code> namespace of
-   *         Xerces-J becomes the empty string.
+   * @return Its name without prefix; the <code>null</code> namespace of Xerces-J becomes the empty
+   *         string.
    */
   @NonNull
   static XdmQName getName (@NonNull final XSElementDeclaration aDecl)
@@ -80,9 +80,8 @@ final class XercesElementDeclaration implements IXdmElementDeclaration
   }
 
   /**
-   * Uses the substitution group the schema model computes, which already
-   * contains the indirect members; a found member is wrapped anew on each
-   * call.
+   * Uses the substitution group the schema model computes, which already contains the indirect
+   * members; a found member is wrapped anew on each call.
    */
   @Nullable
   public IXdmElementDeclaration getSubstitutionMember (@NonNull final XdmQName aName)

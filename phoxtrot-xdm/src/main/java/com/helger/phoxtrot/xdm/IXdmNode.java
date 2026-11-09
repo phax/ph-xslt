@@ -26,22 +26,19 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 
 /**
- * A node of the XPath data model. Nodes are mutable while a tree is built and
- * must be treated as read-only afterwards. Document order is only defined
- * after {@link #assignDocumentOrder()} was called on the root, or for a tree
- * that {@link XdmTreeBuilder} numbered while building it;
- * {@link #compareDocumentOrder(IXdmNode, IXdmNode)} numbers an unnumbered tree
- * on demand. Adding or removing a child or an
- * attribute in a numbered tree removes the numbering of the whole tree, which is
- * then assigned again on demand.<br>
- * Every node kind has its own implementation class that only carries the
- * fields of that kind; a property a kind does not have reads as its default
- * value. Namespace nodes are not stored: an element only keeps the namespace
- * declarations it carries itself, see {@link #getInScopeNamespaces()}. The
- * namespace axis is materialised on demand by {@link #getNamespaceNodes()}.
+ * A node of the XPath data model. Nodes are mutable while a tree is built and must be treated as
+ * read-only afterwards. Document order is only defined after {@link #assignDocumentOrder()} was
+ * called on the root, or for a tree that {@link XdmTreeBuilder} numbered while building it;
+ * {@link #compareDocumentOrder(IXdmNode, IXdmNode)} numbers an unnumbered tree on demand. Adding or
+ * removing a child or an attribute in a numbered tree removes the numbering of the whole tree,
+ * which is then assigned again on demand.<br>
+ * Every node kind has its own implementation class that only carries the fields of that kind; a
+ * property a kind does not have reads as its default value. Namespace nodes are not stored: an
+ * element only keeps the namespace declarations it carries itself, see
+ * {@link #getInScopeNamespaces()}. The namespace axis is materialised on demand by
+ * {@link #getNamespaceNodes()}.
  * <p>
- * All traversals are iterative, so the depth of a tree never threatens the
- * Java stack.
+ * All traversals are iterative, so the depth of a tree never threatens the Java stack.
  *
  * @author Philip Helger
  */
@@ -59,8 +56,7 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   /**
    * @param aName
    *        The element name. May not be <code>null</code>.
-   * @return A new parentless element node without attributes, namespace
-   *         declarations or children.
+   * @return A new parentless element node without attributes, namespace declarations or children.
    */
   @NonNull
   static IXdmNode createElement (@NonNull final XdmQName aName)
@@ -70,10 +66,10 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
-   * Like {@link #createElement(XdmQName)}, for a copy that keeps the location
-   * of its original: a node with a location other than 0:0 holds it in fields
-   * of its own, as the nodes of a parsed tree do, instead of the holder that
-   * {@link #setLocation(int, int)} creates on a node without location.
+   * Like {@link #createElement(XdmQName)}, for a copy that keeps the location of its original: a
+   * node with a location other than 0:0 holds it in fields of its own, as the nodes of a parsed
+   * tree do, instead of the holder that {@link #setLocation(int, int)} creates on a node without
+   * location.
    *
    * @param aName
    *        The element name. May not be <code>null</code>.
@@ -81,11 +77,12 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
    *        The line in the source, 0 if unknown.
    * @param nColumn
    *        The column in the source, 0 if unknown.
-   * @return A new parentless element node without attributes, namespace
-   *         declarations or children.
+   * @return A new parentless element node without attributes, namespace declarations or children.
    */
   @NonNull
-  static IXdmNode createElement (@NonNull final XdmQName aName, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+  static IXdmNode createElement (@NonNull final XdmQName aName,
+                                 @Nonnegative final int nLine,
+                                 @Nonnegative final int nColumn)
   {
     ValueEnforcer.notNull (aName, "Name");
     if (nLine == 0 && nColumn == 0)
@@ -98,8 +95,7 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
    *        The attribute name. May not be <code>null</code>.
    * @param sValue
    *        The attribute value. May not be <code>null</code>.
-   * @return A new parentless attribute node with ID kind
-   *         {@link EIDKind#NONE}.
+   * @return A new parentless attribute node with ID kind {@link EIDKind#NONE}.
    */
   @NonNull
   static IXdmNode createAttribute (@NonNull final XdmQName aName, @NonNull final String sValue)
@@ -110,13 +106,11 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
-   * Like {@link #createAttribute(XdmQName, String)}, with a location. An
-   * attribute has no location fields: a location other than 0:0 is kept in
-   * the details holder (as by {@link #setLocation(int, int)}) and is only
-   * reported while the attribute has no parent; once added to an element,
-   * the attribute reports the location of that element. A copy that is added
-   * to a copied element should therefore use
-   * {@link #createAttribute(XdmQName, String)}.
+   * Like {@link #createAttribute(XdmQName, String)}, with a location. An attribute has no location
+   * fields: a location other than 0:0 is kept in the details holder (as by
+   * {@link #setLocation(int, int)}) and is only reported while the attribute has no parent; once
+   * added to an element, the attribute reports the location of that element. A copy that is added
+   * to a copied element should therefore use {@link #createAttribute(XdmQName, String)}.
    *
    * @param aName
    *        The attribute name. May not be <code>null</code>.
@@ -126,8 +120,7 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
    *        The line in the source, 0 if unknown.
    * @param nColumn
    *        The column in the source, 0 if unknown.
-   * @return A new parentless attribute node with ID kind
-   *         {@link EIDKind#NONE}.
+   * @return A new parentless attribute node with ID kind {@link EIDKind#NONE}.
    */
   @NonNull
   static IXdmNode createAttribute (@NonNull final XdmQName aName,
@@ -144,8 +137,7 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
 
   /**
    * @param sValue
-   *        The text. May not be <code>null</code>; an empty text is not
-   *        rejected.
+   *        The text. May not be <code>null</code>; an empty text is not rejected.
    * @return A new parentless text node.
    */
   @NonNull
@@ -156,16 +148,14 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
-   * Like {@link #createText(String)}, with a location. A text node has no
-   * location fields: a location other than 0:0 is kept in the details holder
-   * (as by {@link #setLocation(int, int)}) and is only reported while the
-   * node has no parent; once appended, the text node reports the location of
-   * its parent. A copy that is appended to a copied parent should therefore
-   * use {@link #createText(String)}.
+   * Like {@link #createText(String)}, with a location. A text node has no location fields: a
+   * location other than 0:0 is kept in the details holder (as by {@link #setLocation(int, int)})
+   * and is only reported while the node has no parent; once appended, the text node reports the
+   * location of its parent. A copy that is appended to a copied parent should therefore use
+   * {@link #createText(String)}.
    *
    * @param sValue
-   *        The text. May not be <code>null</code>; an empty text is not
-   *        rejected.
+   *        The text. May not be <code>null</code>; an empty text is not rejected.
    * @param nLine
    *        The line in the source, 0 if unknown.
    * @param nColumn
@@ -173,7 +163,9 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
    * @return A new parentless text node.
    */
   @NonNull
-  static IXdmNode createText (@NonNull final String sValue, @Nonnegative final int nLine, @Nonnegative final int nColumn)
+  static IXdmNode createText (@NonNull final String sValue,
+                              @Nonnegative final int nLine,
+                              @Nonnegative final int nColumn)
   {
     ValueEnforcer.notNull (sValue, "Value");
     final XdmTextNode ret = new XdmTextNode (sValue);
@@ -208,17 +200,14 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
-   * Create a parentless namespace node. The namespace nodes of an element are
-   * obtained with {@link #getNamespaceNodes()}, which links them to the
-   * element.
+   * Create a parentless namespace node. The namespace nodes of an element are obtained with
+   * {@link #getNamespaceNodes()}, which links them to the element.
    *
    * @param sPrefix
-   *        The prefix; the empty string for the default namespace. It becomes
-   *        the local name of the node name (no namespace); the default
-   *        namespace node has no name.
+   *        The prefix; the empty string for the default namespace. It becomes the local name of the
+   *        node name (no namespace); the default namespace node has no name.
    * @param sNamespaceUri
-   *        The namespace URI, the string value of the node. Never
-   *        <code>null</code>.
+   *        The namespace URI, the string value of the node. Never <code>null</code>.
    * @return A new namespace node.
    */
   @NonNull
@@ -230,9 +219,8 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
-   * Compare two nodes in document order. Nodes of different trees are ordered
-   * by the creation order of their trees, which is stable but otherwise
-   * implementation dependent as XPath allows.
+   * Compare two nodes in document order. Nodes of different trees are ordered by the creation order
+   * of their trees, which is stable but otherwise implementation dependent as XPath allows.
    *
    * @param aLeft
    *        First node. May not be <code>null</code>.
@@ -269,17 +257,15 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   }
 
   /**
-   * @return The node name. Only elements, attributes and processing
-   *         instructions have one (for the latter the local name is the
-   *         target); <code>null</code> for all other kinds.
+   * @return The node name. Only elements, attributes and processing instructions have one (for the
+   *         latter the local name is the target); <code>null</code> for all other kinds.
    */
   @Nullable
   XdmQName getName ();
 
   /**
-   * @return The raw value: the content of attributes, text, comments and
-   *         processing instructions. <code>null</code> for documents and
-   *         elements, use {@link #getStringValue()} for those.
+   * @return The raw value: the content of attributes, text, comments and processing instructions.
+   *         <code>null</code> for documents and elements, use {@link #getStringValue()} for those.
    */
   @Nullable
   String getValue ();
@@ -298,24 +284,22 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   IXdmNode getParent ();
 
   /**
-   * @return The line of the node in its source as the parser reported it, 0
-   *         if no location was set. Attribute and text nodes with a parent
-   *         report the line of their parent.
+   * @return The line of the node in its source as the parser reported it, 0 if no location was set.
+   *         Attribute and text nodes with a parent report the line of their parent.
    */
   @Nonnegative
   int getLine ();
 
   /**
-   * @return The column of the node in its source as the parser reported it,
-   *         0 if no location was set. Attribute and text nodes with a parent
-   *         report the column of their parent.
+   * @return The column of the node in its source as the parser reported it, 0 if no location was
+   *         set. Attribute and text nodes with a parent report the column of their parent.
    */
   @Nonnegative
   int getColumn ();
 
   /**
-   * Set the location of this node. On an attribute or text node it is only
-   * reported while the node has no parent (see {@link #getLine()}).
+   * Set the location of this node. On an attribute or text node it is only reported while the node
+   * has no parent (see {@link #getLine()}).
    *
    * @param nLine
    *        The line, 0 if unknown.
@@ -325,37 +309,33 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   void setLocation (@Nonnegative int nLine, @Nonnegative int nColumn);
 
   /**
-   * @return The ID kind of an attribute (from its DTD or schema type) or of
-   *         an element of a schema-validated tree (from its schema type);
-   *         {@link EIDKind#NONE} for all other nodes.
+   * @return The ID kind of an attribute (from its DTD or schema type) or of an element of a
+   *         schema-validated tree (from its schema type); {@link EIDKind#NONE} for all other nodes.
    */
   @NonNull
   EIDKind getIDKind ();
 
   /**
    * @param eIDKind
-   *        The ID kind. Only elements and attributes accept a value other
-   *        than {@link EIDKind#NONE}.
+   *        The ID kind. Only elements and attributes accept a value other than
+   *        {@link EIDKind#NONE}.
    */
   void setIDKind (@NonNull EIDKind eIDKind);
 
   /**
-   * @return The name of the type annotation of an element or attribute node,
-   *         or <code>null</code> for the default of an unvalidated node
-   *         (<code>xs:untyped</code> for elements,
-   *         <code>xs:untypedAtomic</code> for attributes). For a node of a
-   *         schema-validated tree it is the name of its
-   *         {@link #getSchemaType() schema type} (anonymous types have a
-   *         local name starting with <code>#</code>); otherwise only built-in
-   *         schema types are used, e.g. by the result tree of
-   *         fn:analyze-string.
+   * @return The name of the type annotation of an element or attribute node, or <code>null</code>
+   *         for the default of an unvalidated node (<code>xs:untyped</code> for elements,
+   *         <code>xs:untypedAtomic</code> for attributes). For a node of a schema-validated tree it
+   *         is the name of its {@link #getSchemaType() schema type} (anonymous types have a local
+   *         name starting with <code>#</code>); otherwise only built-in schema types are used, e.g.
+   *         by the result tree of fn:analyze-string.
    */
   @Nullable
   XdmQName getTypeAnnotation ();
 
   /**
-   * Annotate the node with a built-in schema type, without schema
-   * information. Ignored while a {@link #getSchemaType() schema type} is set.
+   * Annotate the node with a built-in schema type, without schema information. Ignored while a
+   * {@link #getSchemaType() schema type} is set.
    *
    * @param aTypeAnnotation
    *        The type name, <code>null</code> for the default.
@@ -363,23 +343,22 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   void setTypeAnnotation (@Nullable XdmQName aTypeAnnotation);
 
   /**
-   * @return The schema type an element or attribute node was validated
-   *         against, or <code>null</code> if the node was not validated.
+   * @return The schema type an element or attribute node was validated against, or
+   *         <code>null</code> if the node was not validated.
    */
   @Nullable
   XdmSchemaType getSchemaType ();
 
   /**
    * @param aSchemaType
-   *        The schema type. Only elements and attributes accept a value other
-   *        than <code>null</code>.
+   *        The schema type. Only elements and attributes accept a value other than
+   *        <code>null</code>.
    */
   void setSchemaType (@Nullable XdmSchemaType aSchemaType);
 
   /**
-   * @return The XDM <code>nilled</code> property: <code>true</code> for a
-   *         validated element with <code>xsi:nil="true"</code>. Always
-   *         <code>false</code> for other nodes.
+   * @return The XDM <code>nilled</code> property: <code>true</code> for a validated element with
+   *         <code>xsi:nil="true"</code>. Always <code>false</code> for other nodes.
    */
   boolean isNilled ();
 
@@ -394,12 +373,10 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   void setDocumentUri (@Nullable String sDocumentUri);
 
   /**
-   * @return The explicit base URI of this node, or <code>null</code>. It is set
-   *         where the base URI does not follow from the parent: on nodes read
-   *         from an external entity (the entity's URI) and on document nodes
-   *         whose base URI differs from their document URI. An
-   *         <code>xml:base</code> attribute of the node itself is resolved
-   *         against it.
+   * @return The explicit base URI of this node, or <code>null</code>. It is set where the base URI
+   *         does not follow from the parent: on nodes read from an external entity (the entity's
+   *         URI) and on document nodes whose base URI differs from their document URI. An
+   *         <code>xml:base</code> attribute of the node itself is resolved against it.
    */
   @Nullable
   String getBaseUri ();
@@ -407,8 +384,8 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   void setBaseUri (@Nullable String sBaseUri);
 
   /**
-   * @return <code>true</code> if this text node is written without escaping
-   *         by the XML and HTML output methods (XSLT disable-output-escaping).
+   * @return <code>true</code> if this text node is written without escaping by the XML and HTML
+   *         output methods (XSLT disable-output-escaping).
    */
   boolean isDisableOutputEscaping ();
 
@@ -429,9 +406,9 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   /**
    * @param sName
    *        Entity name.
-   * @return The system identifier (index 0) and public identifier (index 1,
-   *         possibly <code>null</code>) of an unparsed entity of this document
-   *         node, or <code>null</code> if there is none.
+   * @return The system identifier (index 0) and public identifier (index 1, possibly
+   *         <code>null</code>) of an unparsed entity of this document node, or <code>null</code> if
+   *         there is none.
    */
   @Nullable
   String [] getUnparsedEntity (@NonNull String sName);
@@ -455,24 +432,22 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   ICommonsList <String> getAllUnparsedEntityNames ();
 
   /**
-   * Append a parentless node as the last child of this document or element.
-   * In a numbered tree this removes the numbering of the whole tree, which is
-   * then assigned again on demand.
+   * Append a parentless node as the last child of this document or element. In a numbered tree this
+   * removes the numbering of the whole tree, which is then assigned again on demand.
    *
    * @param aChild
    *        The child to append. May not be <code>null</code>.
    * @throws IllegalArgumentException
-   *         if the node already has a parent or is an attribute, namespace or
-   *         document node
+   *         if the node already has a parent or is an attribute, namespace or document node
    * @throws IllegalStateException
    *         if this node cannot have children
    */
   void appendChild (@NonNull IXdmNode aChild);
 
   /**
-   * Remove a child node, which becomes a parentless root of its own. In a
-   * numbered tree this removes the numbering of the whole tree (the removed
-   * subtree included), which is then assigned again on demand.
+   * Remove a child node, which becomes a parentless root of its own. In a numbered tree this
+   * removes the numbering of the whole tree (the removed subtree included), which is then assigned
+   * again on demand.
    *
    * @param aChild
    *        The child to remove. May not be <code>null</code>.
@@ -482,9 +457,8 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   void removeChild (@NonNull IXdmNode aChild);
 
   /**
-   * Append a parentless attribute node to this element. In a numbered tree
-   * this removes the numbering of the whole tree, which is then assigned
-   * again on demand.
+   * Append a parentless attribute node to this element. In a numbered tree this removes the
+   * numbering of the whole tree, which is then assigned again on demand.
    *
    * @param aAttribute
    *        The attribute to add. May not be <code>null</code>.
@@ -501,8 +475,7 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
    * @param sPrefix
    *        The prefix; the empty string for the default namespace.
    * @param sNamespaceUri
-   *        The namespace URI. The empty string undeclares the default
-   *        namespace.
+   *        The namespace URI. The empty string undeclares the default namespace.
    */
   void declareNamespace (@NonNull String sPrefix, @NonNull String sNamespaceUri);
 
@@ -539,29 +512,26 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   IXdmNode getAttribute (@Nullable String sNamespaceUri, @NonNull String sLocalName);
 
   /**
-   * @return The namespace declarations of this element only, prefix to URI,
-   *         in declaration order.
+   * @return The namespace declarations of this element only, prefix to URI, in declaration order.
    */
   @NonNull
   @ReturnsMutableCopy
   ICommonsOrderedMap <String, String> getDeclaredNamespaces ();
 
   /**
-   * @return <code>true</code> if this element declares (or undeclares) at
-   *         least one namespace itself. Unlike
-   *         {@link #getDeclaredNamespaces()} nothing is copied.
+   * @return <code>true</code> if this element declares (or undeclares) at least one namespace
+   *         itself. Unlike {@link #getDeclaredNamespaces()} nothing is copied.
    */
   boolean hasDeclaredNamespaces ();
 
   /**
-   * Look up a prefix in the namespace declarations of this element only,
-   * without copying them as {@link #getDeclaredNamespaces()} does.
+   * Look up a prefix in the namespace declarations of this element only, without copying them as
+   * {@link #getDeclaredNamespaces()} does.
    *
    * @param sPrefix
    *        The prefix, empty for the default namespace.
-   * @return The declared URI, the empty string if the prefix is undeclared
-   *         here, <code>null</code> if this element has no declaration of the
-   *         prefix.
+   * @return The declared URI, the empty string if the prefix is undeclared here, <code>null</code>
+   *         if this element has no declaration of the prefix.
    */
   @Nullable
   String getDeclaredNamespaceUri (@NonNull String sPrefix);
@@ -571,51 +541,47 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
    *
    * @param sPrefix
    *        The prefix, empty for the default namespace.
-   * @return The namespace URI, or <code>null</code> if the prefix is not
-   *         bound. The <code>xml</code> prefix is always bound. A default
-   *         namespace that was undeclared yields <code>null</code>.
+   * @return The namespace URI, or <code>null</code> if the prefix is not bound. The
+   *         <code>xml</code> prefix is always bound. A default namespace that was undeclared yields
+   *         <code>null</code>.
    */
   @Nullable
   String lookupNamespaceUri (@NonNull String sPrefix);
 
   /**
-   * @return All namespaces in scope for this node (the <code>xml</code> prefix
-   *         included), prefix to URI. Closer declarations win and undeclared
-   *         default namespaces are left out.
+   * @return All namespaces in scope for this node (the <code>xml</code> prefix included), prefix to
+   *         URI. Closer declarations win and undeclared default namespaces are left out.
    */
   @NonNull
   @ReturnsMutableCopy
   ICommonsOrderedMap <String, String> getInScopeNamespaces ();
 
   /**
-   * The namespace axis of an element: one namespace node per in-scope
-   * namespace (see {@link #getInScopeNamespaces()}), each with this element as
-   * parent. The nodes are created on first access and then kept, so repeated
-   * calls return identical nodes (node identity matters for <code>is</code>
-   * and duplicate elimination). In document order they come after the element
-   * and before its attributes. Call only once the tree is complete.
+   * The namespace axis of an element: one namespace node per in-scope namespace (see
+   * {@link #getInScopeNamespaces()}), each with this element as parent. The nodes are created on
+   * first access and then kept, so repeated calls return identical nodes (node identity matters for
+   * <code>is</code> and duplicate elimination). In document order they come after the element and
+   * before its attributes. Call only once the tree is complete.
    *
-   * @return The namespace nodes in a stable order; empty for nodes other than
-   *         elements.
+   * @return The namespace nodes in a stable order; empty for nodes other than elements.
    */
   @NonNull
   @ReturnsMutableCopy
   ICommonsList <IXdmNode> getNamespaceNodes ();
 
   /**
-   * @return The position of this node in document order, counted from 0 at the
-   *         root. Only meaningful while the tree is numbered (see
-   *         {@link #assignDocumentOrder()}); namespace nodes are never numbered.
+   * @return The position of this node in document order, counted from 0 at the root. Only
+   *         meaningful while the tree is numbered (see {@link #assignDocumentOrder()}); namespace
+   *         nodes are never numbered.
    */
   @Nonnegative
   int getOrder ();
 
   /**
-   * @return The {@link #getOrder() order} of the last node of the subtree of
-   *         this node: its last descendant or, if it has none, its last
-   *         attribute or itself. The descendants and attributes of a node are
-   *         exactly the nodes with an order above its own and up to this one.
-   *         Only meaningful while the tree is numbered.
+   * @return The {@link #getOrder() order} of the last node of the subtree of this node: its last
+   *         descendant or, if it has none, its last attribute or itself. The descendants and
+   *         attributes of a node are exactly the nodes with an order above its own and up to this
+   *         one. Only meaningful while the tree is numbered.
    */
   @Nonnegative
   default int getEndOrder ()
@@ -627,25 +593,23 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   IXdmNode getRoot ();
 
   /**
-   * @return The document this node belongs to, or <code>null</code> if the tree
-   *         is rooted in a parentless node of another kind.
+   * @return The document this node belongs to, or <code>null</code> if the tree is rooted in a
+   *         parentless node of another kind.
    */
   @Nullable
   IXdmNode getOwnerDocument ();
 
   /**
-   * @return The XDM string value: for documents and elements the concatenation
-   *         of all descendant text nodes in document order, otherwise the raw
-   *         value.
+   * @return The XDM string value: for documents and elements the concatenation of all descendant
+   *         text nodes in document order, otherwise the raw value.
    */
   @NonNull
   String getStringValue ();
 
   /**
-   * Number all nodes of the tree this node belongs to in document order: an
-   * element comes first, then its attributes, then its children. Numbering
-   * starts at the root, so calling this on any node is fine. It must be called
-   * again after the structure was changed.
+   * Number all nodes of the tree this node belongs to in document order: an element comes first,
+   * then its attributes, then its children. Numbering starts at the root, so calling this on any
+   * node is fine. It must be called again after the structure was changed.
    */
   void assignDocumentOrder ();
 }

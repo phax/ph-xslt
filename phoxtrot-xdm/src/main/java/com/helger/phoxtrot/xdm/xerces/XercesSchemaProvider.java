@@ -45,10 +45,9 @@ import com.helger.phoxtrot.xdm.schema.XdmSchemaSource;
 
 /**
  * The Apache Xerces-J schema processor. Only loaded by
- * {@link com.helger.phoxtrot.xdm.schema.XdmSchemaSupport} when Xerces-J is on
- * the class path. All Xerces-J classes are instantiated directly, so the JAXP
- * lookup (and with it every other user of JAXP in the application) is not
- * affected.
+ * {@link com.helger.phoxtrot.xdm.schema.XdmSchemaSupport} when Xerces-J is on the class path. All
+ * Xerces-J classes are instantiated directly, so the JAXP lookup (and with it every other user of
+ * JAXP in the application) is not affected.
  *
  * @author Philip Helger
  */
@@ -80,15 +79,14 @@ public final class XercesSchemaProvider implements IXdmSchemaProvider
   {}
 
   /**
-   * Compile the sources with a Xerces-J schema factory that fails on the
-   * first error (warnings are ignored); without sources an empty schema is
-   * compiled, which gives the built-in types. The schema component model is
-   * then built from the very grammars of the compiled schema, so that the
+   * Compile the sources with a Xerces-J schema factory that fails on the first error (warnings are
+   * ignored); without sources an empty schema is compiled, which gives the built-in types. The
+   * schema component model is then built from the very grammars of the compiled schema, so that the
    * types a validator of it reports are components of that model.
    *
    * @param aSources
-   *        The schema documents; a source with text is read from it, with the
-   *        system ID as base URI, otherwise from the system ID.
+   *        The schema documents; a source with text is read from it, with the system ID as base
+   *        URI, otherwise from the system ID.
    * @return The new schema set.
    * @throws XdmSchemaException
    *         if the documents cannot be read or are not a valid schema
@@ -126,21 +124,20 @@ public final class XercesSchemaProvider implements IXdmSchemaProvider
   }
 
   /**
-   * Every non-empty list of sources is compiled anew. The schema set of the
-   * built-in types (empty list) is compiled once per provider and then
-   * shared; threads that race may compile it twice, but all get the first
-   * stored one.
+   * Every non-empty list of sources is compiled anew. The schema set of the built-in types (empty
+   * list) is compiled once per provider and then shared; threads that race may compile it twice,
+   * but all get the first stored one.
    */
   @NonNull
   public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources) throws XdmSchemaException
   {
     if (!aSources.isEmpty ())
       return _compile (aSources);
-    IXdmSchemaSet ret = m_aRWLock.readLockedGet ( () -> m_aBuiltin);
+    IXdmSchemaSet ret = m_aRWLock.readLockedGet (() -> m_aBuiltin);
     if (ret == null)
     {
       final IXdmSchemaSet aNew = _compile (aSources);
-      ret = m_aRWLock.writeLockedGet ( () -> {
+      ret = m_aRWLock.writeLockedGet (() -> {
         if (m_aBuiltin == null)
           m_aBuiltin = aNew;
         return m_aBuiltin;
