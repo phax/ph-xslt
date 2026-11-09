@@ -1,8 +1,7 @@
-# Suggestions from ph-sch2java
+# Suggestions
 
-Suggestions for phoxtrot that came up in ph-sch2java (Schematron interpreter and Schematron → Java generator on top of
-phoxtrot), and from S9 on in the plan for a ph-schematron engine on phoxtrot. Proposals only;
-the numbering continues the earlier suggestions S1 to S6 and S8 (all done, see `PLAN.md`).
+Suggestions for phoxtrot from projects that use it, from S9 on from the plan for a ph-schematron engine on phoxtrot.
+Proposals only; the numbering continues the earlier suggestions S1 to S6 and S8 (all done, see `PLAN.md`).
 
 ## S7 - Simple xsl:function bodies as XPath conditional (key indexes and calls)
 
@@ -23,10 +22,9 @@ index build is 41 % of the validation, of which the instruction interpreter (`Se
 evaluator 9.1 %, XPath functions 6.5 %, the walk over the document and the match patterns about 8 %. Only 8.4 % of the
 validation is under a function call at all (inclusive).
 
-**Measured with ph-sch2java** (generated code, best warm run of six, three alternating rounds, load about 1): TSR with
-50,000 subtotals 2,506-2,602 ms (`main`) against 2,558-2,720 ms (`sch-s7`); TSR with 10,000 395-421 against 406-416 ms;
-end user statistics report with 10,000 subsets 403-423 against 404-413 ms. This confirms the measurement of phoxtrot: no
-gain.
+**Measured downstream** (best warm run of six, three alternating rounds, load about 1): TSR with 50,000 subtotals
+2,506-2,602 ms (`main`) against 2,558-2,720 ms (`sch-s7`); TSR with 10,000 395-421 against 406-416 ms; end user
+statistics report with 10,000 subsets 403-423 against 404-413 ms. This confirms the measurement of phoxtrot: no gain.
 
 ## Suggestions from the ph-schematron engine plan (2026-11-08)
 
@@ -163,3 +161,31 @@ the memory benchmark and the XSLT and QT3 conformance runs.
    - Proposal: move them into `Details`, or into a subclass for typed trees. The `Details` holder already does this
      for the other rare properties; the README says the schema type was kept in the node for validated trees, so the
      split should depend on whether the tree is typed.
+
+### S19 - Threading in the JAXP adapter
+
+Status: done (2026-11-09): factory attribute `PhoxtrotTransformerFactory.ATTR_THREADING` (an `EXsltThreading` or its
+name) for compilation and the transformers, `PhoxtrotTransformer.setThreading` per transformer.
+
+Source: the update of the ph-schematron plan (2026-11-09).
+
+- The ph-schematron engine runs on the JAXP adapter (`PhoxtrotTransformerFactory`), because its XSLT engines are
+  built on `Templates` and `Transformer`.
+- `EXsltThreading` can be set on `XsltCompileOptions` and `XsltTransformRequest`, but the JAXP adapter has no
+  setting for it. Every JAXP transformation therefore uses `NEW_THREAD`.
+- Proposal: a factory attribute (e.g. `ATTR_THREADING` with the enum name) that applies to compilation and
+  transformation, and the same on `PhoxtrotTransformer`.
+- Its use depends on the warm benchmarks of small documents in ph-schematron; the attribute lets them compare
+  `NEW_THREAD`, `THREAD_POOL` and `CALLING_THREAD` without leaving JAXP.
+
+### S20 - Interruption in the JAXP adapter
+
+Source: the update of the ph-schematron plan (2026-11-09).
+
+- ph-schematron stops a validation when the calling thread is interrupted (`SchematronInterruptedException`).
+- With `NEW_THREAD` an interrupted caller gets FOER0000, but the transformation goes on in the background until it
+  ends (`EXsltThreading` Javadoc). The JAXP adapter sets no interrupt hook.
+- Proposal: the JAXP adapter sets `XsltTransformRequest.setInterrupt` to the interrupted state of the calling thread
+  (captured when `transform` starts), so a cancelled validation also stops using CPU. The same applies to
+  compilation.
+

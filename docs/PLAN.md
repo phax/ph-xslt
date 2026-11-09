@@ -498,7 +498,7 @@ Open, for later:
 
 ## Function calls, conversions and key patterns
 
-Status: items 1 to 3 and sch2java S8 done (2026-11-06); the queued items below are open. Follows from sch2java S7 (see `docs/SUGGESTIONS-sch2java.md`): compiling simple
+Status: items 1 to 3 and sch2java S8 done (2026-11-06); the queued items below are open. Follows from sch2java S7 (see `docs/SUGGESTIONS.md`): compiling simple
 `xsl:function` bodies into compiled parts was implemented and measured and gave no gain (key index over 100,000 nodes
 with `use='f:schemeAndValue(id)'`: 94 ms before, 97 ms after; the same `use` inline 79 ms), so it was dropped: it
 would have put the semantics of xsl:variable, xsl:choose, xsl:if, xsl:value-of and xsl:sequence in two places. A JFR
@@ -593,7 +593,7 @@ element `exsl:document`, two cases expect NaN for `round(())` against XPath 3.1 
 
 ## Host APIs from the ph-schematron engine plan (2026-11-09)
 
-Done: suggestions S9 to S16 and S18 of `docs/SUGGESTIONS-sch2java.md` – JAXP adapter (`com.helger.phoxtrot.xslt.jaxp`),
+Done: suggestions S9 to S16 and S18 of `docs/SUGGESTIONS.md` – JAXP adapter (`com.helger.phoxtrot.xslt.jaxp`),
 W3C DOM and SAX bridge (`com.helger.phoxtrot.xdm.bridge`), live message listener with the messages attached to errors,
 threading modes, `UNLIMITED_STEPS`, `XdmParser.setEntityResolver`, the trace listener (`IXsltTraceListener`; no cost
 when not set, measured), backwards compatibility with EXSLT - Common, and the tree size work of batch 4. Open from the
