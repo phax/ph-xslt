@@ -1,8 +1,8 @@
 # XSLT 3.0 (`xslt30-test`): failing cases of the backwards compatible run
 
 Processor claiming backwards compatibility, the XSLT 1.0 compatibility feature of XSLT 3.0 section 27.4
-(`-Dxslt30.backwardsCompatible=true`; no schema-awareness or streaming claimed): 8,751 of 8,762 applicable cases pass,
-11 fail. Measured offline, on JDK 21. Stylesheets are compiled with `XsltCompileOptions.setBackwardsCompatibleClaim`, so an
+(`-Dxslt30.backwardsCompatible=true`; no schema-awareness or streaming claimed): 8,752 of 8,762 applicable cases pass,
+10 fail. Measured offline, on JDK 21. Stylesheets are compiled with `XsltCompileOptions.setBackwardsCompatibleClaim`, so an
 element whose effective version is below 2.0 is processed with XSLT 1.0 behaviour (section 3.9.1) instead of raising
 XTDE0160, and `system-property('xsl:supports-backwards-compatibility')` is "yes". The run claims the feature in both
 directions: the cases that need it run, and the cases written for a processor without it (`error-0160a`,
@@ -36,12 +36,13 @@ Needs XInclude.
 
 ## Failures of the backwards compatible run
 
-### `docbook-001`, `docbook-002`
-**Status:** Accepted (same decision as go-xslt).
-The DocBook XSL stylesheets (version 1.0) call the EXSLT extension function `exsl:node-set()` without testing that it
-is available. With XSLT 1.0 behaviour the call is bound to the fallback error function (section 3.9.1), so it raises
-XTDE1425 when it is evaluated (`docbook-001`), or the fallback branch of the stylesheet produces other output
-(`docbook-002`). EXSLT is not a W3C specification and XSLT 3.0 does not require it; it is not implemented.
+### `docbook-001`
+**Status:** Accepted (unstable EXSLT extension element not implemented).
+The DocBook XSL chunker (`xhtml/chunker.xsl`) writes each chunk with one of the extension elements `exsl:document`,
+`saxon:output` or `redirect:write`, whichever `element-available` reports, and terminates with "Can't make chunks
+with ... processor" (`xsl:message terminate="yes"`, XTMM9000) when none is available. EXSLT - Common lists
+`exsl:document` as not stable and not part of its core; phoxtrot provides only the core functions `exsl:node-set` and
+`exsl:object-type` (`ExsltCommon`), and XSLT 3.0 has `xsl:result-document` for the same purpose.
 
 ### `xpath-compat-0302`, `version-021`
 **Status:** Accepted (the W3C specification takes precedence over the expected results; go-xslt special-cases it).
