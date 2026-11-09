@@ -30,7 +30,9 @@ import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.value.XdmArray;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
+import com.helger.phoxtrot.xslt.XsltTraceInstruction;
 import com.helger.phoxtrot.xslt.runtime.BufferedOutput;
 import com.helger.phoxtrot.xslt.runtime.IXsltOutput;
 import com.helger.phoxtrot.xslt.runtime.XsltContext;
@@ -111,7 +113,10 @@ public final class ConditionalContent implements IInstruction
    * buffers are discarded and only the xsl:on-empty instructions are
    * evaluated. A conditional instruction runs with the variables in scope at
    * its position. Dynamic errors are located at the failing instruction, or
-   * at the sequence constructor if the instruction has no location.
+   * at the sequence constructor if the instruction has no location. With a
+   * trace listener for instructions, every traced instruction is enclosed in
+   * its enter and leave calls where it runs: an xsl:on-empty or
+   * xsl:on-non-empty instruction only when it is evaluated.
    */
   public void execute (@NonNull final XsltContext aCtx, @NonNull final IXsltOutput aOut)
   {
@@ -119,12 +124,18 @@ public final class ConditionalContent implements IInstruction
     final ICommonsList <XsltContext> aContexts = new CommonsArrayList <> ();
     boolean bEmpty = true;
     XsltContext aCur = aCtx;
+    final IXsltTraceListener aTrace = aCtx.getEngine ().getInstructionTraceListener ();
     for (final IInstruction aPart : m_aParts)
     {
       aCtx.getEngine ().step ();
       final BufferedOutput aBuffer = new BufferedOutput ();
       aBuffers.add (aBuffer);
       aContexts.add (aCur);
+      // xsl:on-empty and xsl:on-non-empty are traced where they run
+      final boolean bTraced = aTrace != null && !(aPart instanceof OnEmptyInstruction);
+      final XsltTraceInstruction aInfo = bTraced ? SequenceConstructor.getTraceInstruction (aPart, m_aLocation) : null;
+      if (aInfo != null)
+        aTrace.onInstructionEnter (aInfo);
       try
       {
         if (aPart instanceof final IBindingInstruction aBinding)
@@ -142,6 +153,11 @@ public final class ConditionalContent implements IInstruction
       {
         throw XsltException.locate (ex, aPart.getLocation () != null ? aPart.getLocation () : m_aLocation);
       }
+      finally
+      {
+        if (aInfo != null)
+          aTrace.onInstructionLeave (aInfo);
+      }
     }
     for (int i = 0; i < m_aParts.length; ++i)
     {
@@ -151,6 +167,11 @@ public final class ConditionalContent implements IInstruction
         // Evaluated only when its condition holds, with the variables in
         // scope at its position
         if (aMarker.isOnNonEmpty () != bEmpty)
+        {
+          final XsltTraceInstruction aInfo = aTrace != null ? SequenceConstructor.getTraceInstruction (aMarker, m_aLocation)
+                                                            : null;
+          if (aInfo != null)
+            aTrace.onInstructionEnter (aInfo);
           try
           {
             aMarker.execute (aContexts.get (i), aOut);
@@ -159,6 +180,12 @@ public final class ConditionalContent implements IInstruction
           {
             throw XsltException.locate (ex, aMarker.getLocation ());
           }
+          finally
+          {
+            if (aInfo != null)
+              aTrace.onInstructionLeave (aInfo);
+          }
+        }
       }
       else
         if (!bEmpty)

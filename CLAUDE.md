@@ -59,6 +59,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `_runTo` attach the run's messages to the thrown error (`XsltException.getCollectedMessages`, a plain
   `XPathException` is wrapped; outer run before a nested `fn:transform`, which gets the caller's listener unless
   `enable-messages` is false). The compiler produces no warnings, so `XsltCompileOptions` has no listener.
+- Tracing: `XsltTransformRequest.setTraceListener` (`IXsltTraceListener`, also JAXP `ATTR_TRACE_LISTENER`) is called
+  only from `Engine._invokeRule`/`callTemplate` (template rules, named templates), `UserFunction._invoke` (function
+  bodies), `XsltTransformer._runTraced` (start/end) and, if `isTraceInstructions ()` at engine creation, from
+  `SequenceConstructor`/`ConditionalContent` (instructions). Every leave is in a `finally`. The hot paths test one field
+  (`Engine.m_aTraceListener`, `getInstructionTraceListener ()`) that is null by default; keep it that way. Nested
+  `fn:transform` passes the listener on.
 - JAXP adapter (`phoxtrot-xslt`, package `com.helger.phoxtrot.xslt.jaxp`): `PhoxtrotTransformerFactory`,
   `PhoxtrotTemplates` (wraps an `XsltExecutable`, thread-safe), `PhoxtrotTransformer`. Never register it in
   `META-INF/services/javax.xml.transform.TransformerFactory` (it would replace the JDK transformer of every

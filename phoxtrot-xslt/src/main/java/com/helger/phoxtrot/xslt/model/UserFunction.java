@@ -36,7 +36,9 @@ import com.helger.phoxtrot.xpath.fn.IXPathFunction;
 import com.helger.phoxtrot.xpath.ops.AtomicComparator;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
+import com.helger.phoxtrot.xslt.XsltTraceFunction;
 import com.helger.phoxtrot.xslt.instr.SequenceConstructor;
 import com.helger.phoxtrot.xslt.runtime.SequenceOutput;
 import com.helger.phoxtrot.xslt.runtime.XsltContext;
@@ -177,12 +179,45 @@ public final class UserFunction implements IXPathFunction
   }
 
   /**
+   * Run the body enclosed in the function enter and leave calls of the trace
+   * listener; the leave call also happens when the body raises an error.
+   *
+   * @param aCtx
+   *        The context of the body.
+   * @param aOut
+   *        Where the result of the body goes.
+   * @param aTrace
+   *        The trace listener.
+   */
+  private void _executeTraced (@NonNull final XsltContext aCtx,
+                               @NonNull final SequenceOutput aOut,
+                               @NonNull final IXsltTraceListener aTrace)
+  {
+    final XsltTraceFunction aInfo = new XsltTraceFunction (m_aName,
+                                                           m_aParams.size (),
+                                                           m_aElement.getModule ().getUri (),
+                                                           m_aElement.getLine (),
+                                                           m_aElement.getColumn ());
+    aTrace.onFunctionEnter (aInfo);
+    try
+    {
+      m_aBody.execute (aCtx, aOut);
+    }
+    finally
+    {
+      aTrace.onFunctionLeave (aInfo);
+    }
+  }
+
+  /**
    * Run the body: in a context without focus and without local variables
    * (global variables stay visible), with the state reduced for a function
    * body (no current template rule or mode, no tunnel parameters, no regex
    * groups), each parameter bound to its argument by position. The call
-   * counts towards the nesting depth limit. The result is converted to the
-   * declared type, if any.
+   * counts towards the nesting depth limit. With a trace listener the body is
+   * enclosed in its function enter and leave calls (the leave call also on an
+   * error of the body). The result is converted to the declared type, if
+   * any.
    *
    * @param aCaller
    *        The context of the caller.
@@ -201,10 +236,14 @@ public final class UserFunction implements IXPathFunction
     for (int i = 0; i < m_aParams.size (); ++i)
       aCtx = aCtx.withVariable (m_aParams.get (i).getName (), aArgs.get (i));
     final SequenceOutput aOut = new SequenceOutput ();
+    final IXsltTraceListener aTrace = aCtx.getEngine ().getTraceListener ();
     aCtx.getEngine ().enterDepth ();
     try
     {
-      m_aBody.execute (aCtx, aOut);
+      if (aTrace == null)
+        m_aBody.execute (aCtx, aOut);
+      else
+        _executeTraced (aCtx, aOut, aTrace);
     }
     finally
     {

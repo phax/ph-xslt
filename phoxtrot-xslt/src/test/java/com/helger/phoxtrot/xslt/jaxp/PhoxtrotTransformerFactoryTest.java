@@ -72,9 +72,12 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
+import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.XsltMessage;
+import com.helger.phoxtrot.xslt.XsltTraceTemplate;
 import com.helger.phoxtrot.xslt.XsltTransformResult;
 
 /**
@@ -687,6 +690,49 @@ public final class PhoxtrotTransformerFactoryTest
     assertEquals ("[m1]", aTexts.toString ());
     assertTrue (aEL.m_aWarnings.isEmpty ());
     assertEquals ("[m1]", aT.getLastResult ().messages ().toString ());
+  }
+
+  @Test
+  public void testTraceListener () throws Exception
+  {
+    final ICommonsList <String> aEvents = new CommonsArrayList <> ();
+    final IXsltTraceListener aListener = new IXsltTraceListener ()
+    {
+      public void onTemplateRuleEnter (@NonNull final XsltTraceTemplate aTemplate, @NonNull final IXdmItem aContextItem)
+      {
+        aEvents.add ("+" + aTemplate.matchPattern ());
+      }
+
+      public void onTemplateRuleLeave (@NonNull final XsltTraceTemplate aTemplate, @NonNull final IXdmItem aContextItem)
+      {
+        aEvents.add ("-" + aTemplate.matchPattern ());
+      }
+    };
+    final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
+    assertNull (aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_TRACE_LISTENER));
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_TRACE_LISTENER, aListener);
+    assertSame (aListener, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_TRACE_LISTENER));
+    final PhoxtrotTransformer aT = aTF.newTemplates (_source (COUNT_SHEET)).newTransformer ();
+    assertSame (aListener, aT.getTraceListener ());
+    assertEquals ("<out name=\"root\" n=\"3\"/>", _transform (aT, _source (SOURCE)));
+    assertEquals ("[+/*, -/*]", aEvents.toString ());
+
+    // Switched off on the transformer, back after reset
+    aT.setTraceListener (null);
+    _transform (aT, _source (SOURCE));
+    assertEquals (2, aEvents.size ());
+    aT.reset ();
+    assertSame (aListener, aT.getTraceListener ());
+
+    try
+    {
+      aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_TRACE_LISTENER, "no listener");
+      fail ();
+    }
+    catch (final IllegalArgumentException ex)
+    {
+      // expected
+    }
   }
 
   @Test

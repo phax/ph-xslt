@@ -27,18 +27,24 @@ import org.junit.Test;
 import org.xml.sax.InputSource;
 
 import com.helger.base.io.nonblocking.NonBlockingStringReader;
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xdm.XdmDocumentNode;
 import com.helger.phoxtrot.xdm.XdmParseException;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltCompiler;
 import com.helger.phoxtrot.xslt.XsltTestHelper;
+import com.helger.phoxtrot.xslt.XsltTraceTemplate;
 import com.helger.phoxtrot.xslt.XsltTransformRequest;
 
 /**
@@ -600,6 +606,43 @@ public final class StreamedExecutionTest
       assertEquals (aCase[0], sBuffered, _runInitialMode (sSheet, aResolver, true));
       assertEquals (aCase[0], Long.parseLong (aCase[1]), StreamedRun.getStreamedRunCount () - nBefore);
     }
+  }
+
+  @Test
+  public void testTraceListener ()
+  {
+    final MemoryResolver aResolver = new MemoryResolver ().add (BASE + "d.xml", _data (3));
+    final String sSheet = XsltTestHelper.SHEET.replace ("<xsl:stylesheet ", "<xsl:stylesheet exclude-result-prefixes='xs' ") +
+                          "<xsl:output method='text'/><xsl:mode streamable='yes'/>" +
+                          "<xsl:template match='/'><xsl:apply-templates select='data/rec'/></xsl:template>" +
+                          "<xsl:template match='rec'>[<xsl:value-of select='@id'/>]</xsl:template>" +
+                          XsltTestHelper.END;
+    final ICommonsList <String> aEvents = new CommonsArrayList <> ();
+    final IXsltTraceListener aTrace = new IXsltTraceListener ()
+    {
+      public void onTemplateRuleEnter (@NonNull final XsltTraceTemplate aTemplate, @NonNull final IXdmItem aContextItem)
+      {
+        final boolean bStreamed = aContextItem instanceof final IXdmNode aNode &&
+                                  aNode.getRoot () instanceof final XdmDocumentNode aDoc &&
+                                  aDoc.isStreamed ();
+        aEvents.add ("+" + aTemplate.matchPattern () + (bStreamed ? " streamed" : ""));
+      }
+
+      public void onTemplateRuleLeave (@NonNull final XsltTraceTemplate aTemplate, @NonNull final IXdmItem aContextItem)
+      {
+        aEvents.add ("-" + aTemplate.matchPattern ());
+      }
+    };
+    final long nBefore = StreamedRun.getStreamedRunCount ();
+    final String sResult = XsltCompiler.compile (sSheet, new XsltCompileOptions ().setStreamingClaim (true))
+                                       .transform (new XsltTransformRequest ().setResolver (aResolver)
+                                                                              .setStreamedSourceUri (BASE + "d.xml")
+                                                                              .setTraceListener (aTrace))
+                                       .principalSerialized ();
+    assertEquals ("[r1][r2][r3]", sResult);
+    assertEquals (1, StreamedRun.getStreamedRunCount () - nBefore);
+    // The templates applied to the streamed records are reported like others
+    assertEquals ("[+/ streamed, +rec streamed, -rec, +rec streamed, -rec, +rec streamed, -rec, -/]", aEvents.toString ());
   }
 
   @Test
