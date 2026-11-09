@@ -319,9 +319,10 @@ public final class MainMemoryBenchmark
         final Class <?> aClass = Class.forName ("com.helger.phoxtrot.xdm." + sClass);
         aClasses.append ('\t').append (sClass).append ('=').append (ClassLayout.parseClass (aClass).instanceSize ());
       }
-      catch (final ClassNotFoundException ex)
+      catch (final ClassNotFoundException | LinkageError ex)
       {
-        // Not in this version of the engine
+        // Not in this version of the engine (a class of the engine jar in
+        // the local repository behind the measured jar does not link)
       }
     System.out.println (aClasses);
     _parseXdm (new File (DOCUMENTS[0][1]));
