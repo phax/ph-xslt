@@ -263,6 +263,12 @@ public final class XsdSchema
    * {@link UnsupportedOperationException} that escapes the implementation - a
    * phase stub or an explicit {@link XsdUnsupportedException} - leaves the
    * public API as {@link XsdUnsupportedException}. Nothing else catches it.
+   * <p>
+   * A {@link StackOverflowError} becomes "no verdict" as well: the nesting
+   * limits of the compiler ({@link XsdCompiler#MAX_NESTING}) and the
+   * validator keep a crafted schema or instance from going deeper, but how
+   * much stack a nesting level takes depends on the JVM and the platform, so
+   * on a thread with a small stack the limit may not be reachable.
    */
   private static <T> T _noVerdictOnMissingFunctionality (@NonNull final Supplier <T> aAction)
   {
@@ -277,6 +283,11 @@ public final class XsdSchema
     catch (final UnsupportedOperationException ex)
     {
       throw new XsdUnsupportedException (_describeUnsupported (ex), ex);
+    }
+    catch (final StackOverflowError ex)
+    {
+      throw new XsdUnsupportedException ("Not supported: the input is nested deeper than the stack of the calling thread allows",
+                                         ex);
     }
   }
 

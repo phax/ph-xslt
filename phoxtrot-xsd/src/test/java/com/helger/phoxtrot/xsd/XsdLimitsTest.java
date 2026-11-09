@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xsd;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -25,10 +26,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.jspecify.annotations.NonNull;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.IXdmNode;
@@ -51,33 +54,102 @@ public final class XsdLimitsTest
   @Rule
   public final TemporaryFolder m_aTempFolder = new TemporaryFolder ();
 
-  @Test
-  public void testDeeplyNestedParticles ()
+  /**
+   * Run a check on a new thread with the given stack size and rethrow what it
+   * failed with: how deep the compiler gets before the stack overflows
+   * depends on the JVM and the platform, so the stack of the test thread
+   * cannot decide which limit is hit.
+   */
+  private static void _runWithStack (@NonNull final Runnable aCheck, final long nStackSize) throws InterruptedException
   {
-    final int nDepth = 3000;
+    final Wrapper <Throwable> aError = new Wrapper <> ();
+    final Thread aThread = new Thread (null, () -> {
+      try
+      {
+        aCheck.run ();
+      }
+      catch (final Throwable t)
+      {
+        aError.set (t);
+      }
+    }, "xsd-limits-stack", nStackSize);
+    aThread.start ();
+    aThread.join ();
+    if (aError.get () instanceof final Error aErr)
+      throw aErr;
+    if (aError.get () instanceof final RuntimeException aRtEx)
+      throw aRtEx;
+    assertNull (aError.get ());
+  }
+
+  @NonNull
+  private static String _nestedParticles (final int nDepth)
+  {
     final StringBuilder aSB = new StringBuilder (XS + "<xs:element name=\"e\"><xs:complexType>");
     for (int i = 0; i < nDepth; i++)
       aSB.append ("<xs:sequence>");
     for (int i = 0; i < nDepth; i++)
       aSB.append ("</xs:sequence>");
     aSB.append ("</xs:complexType></xs:element></xs:schema>");
-    final Compiled aCompiled = XsdTestSupport.compile (aSB.toString (), null, EXsdVersion.V10);
-    assertSame (aCompiled.message (), EVerdict.UNSUPPORTED, aCompiled.verdict ());
-    assertTrue (aCompiled.message (), aCompiled.message ().contains ("nested deeper"));
+    return aSB.toString ();
   }
 
-  @Test
-  public void testDeeplyNestedLocalElements ()
+  @NonNull
+  private static String _nestedLocalElements (final int nDepth)
   {
-    final int nDepth = 2000;
     final StringBuilder aSB = new StringBuilder (XS);
     for (int i = 0; i < nDepth; i++)
       aSB.append ("<xs:element name=\"e").append (i).append ("\"><xs:complexType><xs:sequence>");
     for (int i = 0; i < nDepth; i++)
       aSB.append ("</xs:sequence></xs:complexType></xs:element>");
     aSB.append ("</xs:schema>");
-    final Compiled aCompiled = XsdTestSupport.compile (aSB.toString (), null, EXsdVersion.V10);
-    assertSame (aCompiled.message (), EVerdict.UNSUPPORTED, aCompiled.verdict ());
+    return aSB.toString ();
+  }
+
+  /** On a stack large enough for it, the nesting limit of the compiler is hit. */
+  @Test
+  public void testDeeplyNestedParticles () throws InterruptedException
+  {
+    final String sSchema = _nestedParticles (3000);
+    _runWithStack ( () -> {
+      final Compiled aCompiled = XsdTestSupport.compile (sSchema, null, EXsdVersion.V10);
+      assertSame (aCompiled.message (), EVerdict.UNSUPPORTED, aCompiled.verdict ());
+      assertTrue (aCompiled.message (), aCompiled.message ().contains ("nested deeper than " + XsdCompiler.MAX_NESTING));
+    }, 64L * 1024 * 1024);
+  }
+
+  /** On a stack large enough for it, the nesting limit of the compiler is hit. */
+  @Test
+  public void testDeeplyNestedLocalElements () throws InterruptedException
+  {
+    final String sSchema = _nestedLocalElements (2000);
+    _runWithStack ( () -> {
+      final Compiled aCompiled = XsdTestSupport.compile (sSchema, null, EXsdVersion.V10);
+      assertSame (aCompiled.message (), EVerdict.UNSUPPORTED, aCompiled.verdict ());
+      assertTrue (aCompiled.message (), aCompiled.message ().contains ("nested deeper than " + XsdCompiler.MAX_NESTING));
+    }, 64L * 1024 * 1024);
+  }
+
+  /**
+   * On a small stack the compiler overflows before its nesting limit; that is
+   * "unsupported" as well, never a {@link StackOverflowError}.
+   */
+  @Test
+  public void testDeepNestingOnSmallStack () throws InterruptedException
+  {
+    // Classes initialised on this thread, only the deep compilations run on
+    // the small stack
+    assertSame (EVerdict.VALID, XsdTestSupport.compile (_nestedLocalElements (2), null, EXsdVersion.V10).verdict ());
+    final String sParticles = _nestedParticles (3000);
+    final String sElements = _nestedLocalElements (2000);
+    _runWithStack ( () -> {
+      for (final String sSchema : new String [] { sParticles, sElements })
+      {
+        final Compiled aCompiled = XsdTestSupport.compile (sSchema, null, EXsdVersion.V10);
+        assertSame (aCompiled.message (), EVerdict.UNSUPPORTED, aCompiled.verdict ());
+        assertTrue (aCompiled.message (), aCompiled.message ().contains ("stack of the calling thread"));
+      }
+    }, 128L * 1024);
   }
 
   @Test
