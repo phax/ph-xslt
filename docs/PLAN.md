@@ -571,3 +571,13 @@ namespaces without a copy. Against batch 2: XPath strings 0.57, child 0.64, rule
 0.73, serialisation 0.74 to 0.81, XSD 1.1 0.87, parse 0.92 with 20 % less allocation, retained heap of the tree 10 to
 27 % smaller. Gate unchanged.
 
+Batch 4 (2026-11-09, suggestions S18 and S12; figures in `phoxtrot-xdm-memory-benchmark/README.md`): attributes as an
+exact-size array, source locations in located node subclasses (`XdmParser.setRecordLocations`, default on; every
+stylesheet, schema and XSD instance parse sets it explicitly, `fn:parse-xml` parses without), the tree number as a
+shared `TreeStamp`, `m_eIDKind` and the namespace nodes in `Details`, short attribute values shared per document
+(sharing short text values cost 10 to 14 % parse time and was dropped). Retained heap against batch 3: XMark 14.5 to
+13.4 MB, Bank 37.4 to 29.3 MB, Unicode 79.3 to 60.6 MB; without locations and with compact object headers (JDK 25)
+another 15 to 25 %; the gap to Saxon's TinyTree 1.6 to 5.0 times. `EXsltThreading` (`NEW_THREAD` default,
+`THREAD_POOL`, `CALLING_THREAD`) on `XsltCompileOptions` and `XsltTransformRequest`: a 1 KB transform 48.7 µs on a new
+thread, 15.3 µs on the pool, 11.8 µs on the calling thread (8 threads: 237, 42, 22 µs). Gate unchanged.
+

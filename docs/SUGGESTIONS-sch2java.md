@@ -69,6 +69,8 @@ Status: done (2026-11-09): `IXsltMessageListener` on `XsltTransformRequest`, `Xs
 
 ### S12 - Transform on the calling thread
 
+Status: done (2026-11-09): `EXsltThreading` (`THREAD_POOL`, `CALLING_THREAD`) on `XsltCompileOptions` and `XsltTransformRequest`; see `PLAN.md` batch 4.
+
 - Every `compile` and `transform` call runs on a new worker thread with a 2 GB stack reservation.
 - A Schematron validation is one `transform` per document, often of small documents, many of them in parallel in a
   server.
@@ -110,6 +112,8 @@ Decided (2026-11-08): phoxtrot keeps Java 21 as baseline. ph-schematron stays on
 module in a Maven profile that is active from JDK 21, so its CI matrix stays 17, 21 and 25. No change in phoxtrot.
 
 ### S18 - Size of the XDM tree
+
+Status: done (2026-11-09) except item 5 for text values (too slow); input documents can be parsed with `XdmParser.setRecordLocations (false)`; see `PLAN.md` batch 4.
 
 Decided (2026-11-08): to be tackled.
 
