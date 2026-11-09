@@ -95,6 +95,10 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
 * Tracing: an `IXsltTraceListener` (`PhoxtrotTransformer.setTraceListener`, factory attribute
   `PhoxtrotTransformerFactory.ATTR_TRACE_LISTENER`) follows the template rules, named templates, stylesheet functions
   and optionally instructions of each transformation; the same listener as `XsltTransformRequest.setTraceListener`.
+* Threads: compilations and transformations run on the thread the factory attribute
+  `PhoxtrotTransformerFactory.ATTR_THREADING` chooses (an `EXsltThreading` or its name; default `NEW_THREAD`, a new
+  thread with a large stack per call; also `THREAD_POOL` and `CALLING_THREAD`), a transformer can override it with
+  `PhoxtrotTransformer.setThreading`.
 * What the `URIResolver` does not resolve is read directly if `XMLConstants.ACCESS_EXTERNAL_STYLESHEET` allows the
   scheme (default `all`; `FEATURE_SECURE_PROCESSING` set to `true` allows nothing). External DTDs and entities are
   only read with the attribute `ATTR_LOAD_EXTERNAL_ENTITIES`. Further attributes: `ATTR_SCHEMA_AWARE`, `ATTR_MAX_STEPS`.

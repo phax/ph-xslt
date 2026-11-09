@@ -74,6 +74,7 @@ import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
+import com.helger.phoxtrot.xslt.EXsltThreading;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
@@ -965,6 +966,67 @@ public final class PhoxtrotTransformerFactoryTest
     {
       // expected
     }
+  }
+
+  /** A stylesheet that includes "inc.xsl", with a base URI to resolve it against. */
+  @NonNull
+  private static StreamSource _mainWithInclude ()
+  {
+    final StreamSource ret = _source (XSL_START + "<xsl:include href='inc.xsl'/>" + XSL_END);
+    ret.setSystemId ("http://example.org/xsl/main.xsl");
+    return ret;
+  }
+
+  @Test
+  public void testThreading () throws Exception
+  {
+    final Thread aCaller = Thread.currentThread ();
+    final ICommonsList <Thread> aCompileThreads = new CommonsArrayList <> ();
+    final ICommonsList <Thread> aRunThreads = new CommonsArrayList <> ();
+    final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
+    assertSame (EXsltThreading.DEFAULT, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
+    // The include is resolved on the compiling thread
+    aTF.setURIResolver ( (sHref, sBase) -> {
+      aCompileThreads.add (Thread.currentThread ());
+      return _source (XSL_START + "<xsl:template match='/'><xsl:message>m</xsl:message><r/></xsl:template>" + XSL_END);
+    });
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MESSAGE_LISTENER,
+                      (IXsltMessageListener) aMsg -> aRunThreads.add (Thread.currentThread ()));
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, "CALLING_THREAD");
+    assertSame (EXsltThreading.CALLING_THREAD, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
+    final PhoxtrotTransformer aT = aTF.newTemplates (_mainWithInclude ()).newTransformer ();
+    assertSame (EXsltThreading.CALLING_THREAD, aT.getThreading ());
+    _transform (aT, _source (SOURCE));
+    assertEquals (1, aCompileThreads.size ());
+    assertSame (aCaller, aCompileThreads.get (0));
+    assertEquals (1, aRunThreads.size ());
+    assertSame (aCaller, aRunThreads.get (0));
+
+    // The transformer's own choice, back to the factory's after reset
+    aT.setThreading (EXsltThreading.NEW_THREAD);
+    _transform (aT, _source (SOURCE));
+    assertEquals (2, aRunThreads.size ());
+    assertTrue (aRunThreads.get (1) != aCaller);
+    aT.reset ();
+    assertSame (EXsltThreading.CALLING_THREAD, aT.getThreading ());
+
+    // Compilation on another thread
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, EXsltThreading.THREAD_POOL);
+    aTF.newTemplates (_mainWithInclude ());
+    assertEquals (2, aCompileThreads.size ());
+    assertTrue (aCompileThreads.get (1) != aCaller);
+
+    for (final Object aValue : new Object [] { "calling_thread", null, Boolean.TRUE })
+      try
+      {
+        aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, aValue);
+        fail ();
+      }
+      catch (final IllegalArgumentException ex)
+      {
+        // expected
+      }
+    assertSame (EXsltThreading.THREAD_POOL, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
   }
 
   @Test

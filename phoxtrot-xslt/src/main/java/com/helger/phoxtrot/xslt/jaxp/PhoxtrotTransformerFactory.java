@@ -47,6 +47,7 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.fn.FnUri;
+import com.helger.phoxtrot.xslt.EXsltThreading;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
@@ -96,8 +97,9 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * no external DTD unless {@link #ATTR_LOAD_EXTERNAL_ENTITIES} is set), and
  * the phoxtrot attributes {@link #ATTR_LOAD_EXTERNAL_ENTITIES},
  * {@link #ATTR_SCHEMA_AWARE}, {@link #ATTR_BACKWARDS_COMPATIBLE},
- * {@link #ATTR_MESSAGE_LISTENER}, {@link #ATTR_TRACE_LISTENER} and
- * {@link #ATTR_MAX_STEPS}. Other names are rejected.</li>
+ * {@link #ATTR_MESSAGE_LISTENER}, {@link #ATTR_TRACE_LISTENER},
+ * {@link #ATTR_MAX_STEPS} and {@link #ATTR_THREADING}. Other names are
+ * rejected.</li>
  * </ul>
  *
  * @author Philip Helger
@@ -123,7 +125,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
    * Attribute ({@link Boolean} or "true"/"false"): compile stylesheets with
    * the XSLT 1.0 compatibility feature, so that elements with an effective
    * version below 2.0 are processed with XSLT 1.0 behaviour instead of raising
-   * XTDE0160 (default <code>false</code>, see
+   * XTDE0160 (default <code>true</code>, see
    * {@link XsltCompileOptions#setBackwardsCompatibleClaim(boolean)}).
    */
   public static final String ATTR_BACKWARDS_COMPATIBLE = ATTR_PREFIX + "backwards-compatible";
@@ -150,6 +152,17 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
    * for no limit).
    */
   public static final String ATTR_MAX_STEPS = ATTR_PREFIX + "max-steps";
+  /**
+   * Attribute ({@link EXsltThreading} or the name of one of its constants):
+   * the thread that compilations ({@link #newTemplates(Source)}) and the
+   * transformations of the transformers run on (default
+   * {@link EXsltThreading#DEFAULT}, see
+   * {@link XsltCompileOptions#setThreading(EXsltThreading)} and
+   * {@link com.helger.phoxtrot.xslt.XsltTransformRequest#setThreading(EXsltThreading)}).
+   * A transformer can choose its own with
+   * {@link PhoxtrotTransformer#setThreading(EXsltThreading)}.
+   */
+  public static final String ATTR_THREADING = ATTR_PREFIX + "threading";
   /** The default of the external access attributes: all schemes. */
   public static final String DEFAULT_ACCESS_EXTERNAL = "all";
 
@@ -176,6 +189,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   private IXsltMessageListener m_aMessageListener;
   private IXsltTraceListener m_aTraceListener;
   private long m_nMaxSteps = 0;
+  private EXsltThreading m_eThreading = EXsltThreading.DEFAULT;
 
   /** Create a factory with the default settings. */
   public PhoxtrotTransformerFactory ()
@@ -189,7 +203,8 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
                              m_bLoadExternalEntities,
                              m_aMessageListener,
                              m_aTraceListener,
-                             m_nMaxSteps);
+                             m_nMaxSteps,
+                             m_eThreading);
   }
 
   /**
@@ -235,7 +250,8 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
                                                                                                          m_bLoadExternalEntities))
                                                                  .setLoadExternalEntities (m_bLoadExternalEntities)
                                                                  .setSchemaAware (m_bSchemaAware)
-                                                                 .setBackwardsCompatibleClaim (m_bBackwardsCompatible);
+                                                                 .setBackwardsCompatibleClaim (m_bBackwardsCompatible)
+                                                                 .setThreading (m_eThreading);
     final XsltExecutable aExecutable;
     try
     {
@@ -469,6 +485,24 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   }
 
   /**
+   * @return The value as a threading mode: an {@link EXsltThreading}, or the
+   *         exact name of one of its constants (e.g. "CALLING_THREAD").
+   * @throws IllegalArgumentException
+   *         for anything else, <code>null</code> included
+   */
+  @NonNull
+  private static EXsltThreading _toThreading (@NonNull final String sName, @Nullable final Object aValue)
+  {
+    if (aValue instanceof final EXsltThreading eThreading)
+      return eThreading;
+    if (aValue instanceof final String sValue)
+      for (final EXsltThreading eThreading : EXsltThreading.values ())
+        if (eThreading.name ().equals (sValue))
+          return eThreading;
+    throw new IllegalArgumentException ("The attribute '" + sName + "' needs an EXsltThreading value, not " + aValue);
+  }
+
+  /**
    * Set an attribute (see the class description for the names).
    *
    * @throws IllegalArgumentException
@@ -535,6 +569,9 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
           throw new IllegalArgumentException ("The attribute '" + sName + "' may not be negative");
         break;
       }
+      case ATTR_THREADING:
+        m_eThreading = _toThreading (sName, aValue);
+        break;
       default:
         throw new IllegalArgumentException ("The attribute '" + sName + "' is not supported");
     }
@@ -560,6 +597,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
       case ATTR_MESSAGE_LISTENER -> m_aMessageListener;
       case ATTR_TRACE_LISTENER -> m_aTraceListener;
       case ATTR_MAX_STEPS -> Long.valueOf (m_nMaxSteps);
+      case ATTR_THREADING -> m_eThreading;
       default -> throw new IllegalArgumentException ("The attribute '" + sName + "' is not supported");
     };
   }

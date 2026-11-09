@@ -54,6 +54,7 @@ import com.helger.phoxtrot.xdm.bridge.XdmToSax;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
+import com.helger.phoxtrot.xslt.EXsltThreading;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltMessage;
 import com.helger.phoxtrot.xslt.XsltTransformRequest;
@@ -92,6 +93,10 @@ import com.helger.phoxtrot.xslt.XsltTransformResult;
  * {@link PhoxtrotTransformerFactory#ATTR_TRACE_LISTENER}) follows the
  * templates, functions and optionally instructions of each transformation,
  * on the thread that runs it.</li>
+ * <li>Threads: a transformation runs on the thread that
+ * {@link #setThreading(EXsltThreading)} or the factory attribute
+ * {@link PhoxtrotTransformerFactory#ATTR_THREADING} chooses (by default a new
+ * thread with a large stack per call).</li>
  * <li>Errors: a dynamic error is reported to
  * {@link ErrorListener#fatalError(TransformerException)} and thrown as a
  * {@link TransformerException} whose message starts with the error code, with
@@ -172,6 +177,7 @@ public class PhoxtrotTransformer extends Transformer
   private ErrorListener m_aErrorListener;
   private IXsltMessageListener m_aMessageListener;
   private IXsltTraceListener m_aTraceListener;
+  private EXsltThreading m_eThreading;
   private XsltTransformResult m_aLastResult;
 
   /**
@@ -253,9 +259,32 @@ public class PhoxtrotTransformer extends Transformer
   }
 
   /**
+   * @return The thread the transformations run on. Never <code>null</code>.
+   */
+  @NonNull
+  public final EXsltThreading getThreading ()
+  {
+    return m_eThreading;
+  }
+
+  /**
+   * Choose the thread the transformations of this transformer run on (see
+   * {@link EXsltThreading} and
+   * {@link XsltTransformRequest#setThreading(EXsltThreading)}).
+   *
+   * @param eThreading
+   *        The threading mode. May not be <code>null</code>.
+   */
+  public final void setThreading (@NonNull final EXsltThreading eThreading)
+  {
+    ValueEnforcer.notNull (eThreading, "Threading");
+    m_eThreading = eThreading;
+  }
+
+  /**
    * Build the request for one transformation: the source as global context
    * item, the parameters, the resolver, the message and trace listeners, the
-   * step limit and the base output URI.
+   * step limit, the threading mode and the base output URI.
    */
   @NonNull
   private XsltTransformRequest _createRequest (@NonNull final IXdmNode aSource, @Nullable final String sBaseOutputUri)
@@ -271,6 +300,7 @@ public class PhoxtrotTransformer extends Transformer
                                                aSettings.loadExternalEntities ()));
     ret.setMessageListener (m_aMessageListener != null ? m_aMessageListener : new ErrorListenerMessages (m_aErrorListener));
     ret.setTraceListener (m_aTraceListener);
+    ret.setThreading (m_eThreading);
     if (aSettings.maxSteps () != 0)
       ret.setMaxSteps (aSettings.maxSteps ());
     if (sBaseOutputUri != null)
@@ -639,8 +669,8 @@ public class PhoxtrotTransformer extends Transformer
 
   /**
    * Return to the state after {@link PhoxtrotTemplates#newTransformer()}: no
-   * parameters and output properties, the URI resolver, message listener and
-   * trace listener of the factory, the default error listener (which logs warnings and
+   * parameters and output properties, the URI resolver, message listener,
+   * trace listener and threading mode of the factory, the default error listener (which logs warnings and
    * throws fatal errors), no last result.
    */
   @Override
@@ -652,6 +682,7 @@ public class PhoxtrotTransformer extends Transformer
     m_aErrorListener = new JaxpErrors.LoggingErrorListener ();
     m_aMessageListener = m_aTemplates.getSettings ().messageListener ();
     m_aTraceListener = m_aTemplates.getSettings ().traceListener ();
+    m_eThreading = m_aTemplates.getSettings ().threading ();
     m_aLastResult = null;
   }
 }

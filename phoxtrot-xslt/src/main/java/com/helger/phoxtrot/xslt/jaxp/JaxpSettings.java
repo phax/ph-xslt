@@ -21,6 +21,7 @@ import javax.xml.transform.URIResolver;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.phoxtrot.xslt.EXsltThreading;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 
@@ -43,6 +44,9 @@ import com.helger.phoxtrot.xslt.IXsltTraceListener;
  *        The trace listener, <code>null</code> for none.
  * @param maxSteps
  *        The step limit of a transformation, 0 for the engine default.
+ * @param threading
+ *        The thread the transformations run on, the initial choice of each
+ *        transformer.
  * @author Philip Helger
  */
 record JaxpSettings (@Nullable URIResolver uriResolver,
@@ -50,5 +54,6 @@ record JaxpSettings (@Nullable URIResolver uriResolver,
                      boolean loadExternalEntities,
                      @Nullable IXsltMessageListener messageListener,
                      @Nullable IXsltTraceListener traceListener,
-                     long maxSteps)
+                     long maxSteps,
+                     @NonNull EXsltThreading threading)
 {}

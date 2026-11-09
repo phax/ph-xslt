@@ -60,7 +60,7 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Use `hasDeclaredNamespaces ()`/`getDeclaredNamespaceUri (prefix)` where only a check or a lookup is needed:
   `getDeclaredNamespaces ()` returns a copy, also for an element without declarations.
 - Threads: `compile` and `transform` run on the thread `EXsltThreading` selects (`XsltCompileOptions.setThreading`,
-  `XsltTransformRequest.setThreading`), through `LargeStackRunner`: by default a new thread with a 2 GB stack per call,
+  `XsltTransformRequest.setThreading`; JAXP: factory attribute `ATTR_THREADING`, `PhoxtrotTransformer.setThreading`), through `LargeStackRunner`: by default a new thread with a 2 GB stack per call,
   or a shared pool of such threads, or the calling thread (its stack then limits the nesting). A call on one of the
   worker threads (nested `fn:transform`) runs in place; a stack overflow is XPDY0130 in every mode.
 - Hosts that evaluate their own XPath against a stylesheet's declarations (Schematron) use
