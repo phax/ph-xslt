@@ -67,9 +67,12 @@ import com.helger.collection.commons.ICommonsMap;
  * A document that needs more than an incremental read is refused with
  * {@link XdmStreamUnsupportedException} before the first event is returned: XML 1.1, an external
  * parsed entity, and an external DTD subset when external entities are to be loaded. Locations are
- * always recorded: elements, comments and processing instructions get the one the parser reports,
- * attributes and text nodes report the one of their parent (as in {@link XdmTreeBuilder}). Not
- * reproduced: the declaration order of entities is the one the parser lists.
+ * recorded only on request, like {@link XdmParser#setRecordLocations(boolean)} does (off by
+ * default, {@link XdmParser#DEFAULT_RECORD_LOCATIONS}; no streamed path reads the location of a
+ * source node): elements, comments and processing instructions then get the one the parser
+ * reports, attributes and text nodes report the one of their parent (as in
+ * {@link XdmTreeBuilder}). Not reproduced: the declaration order of entities is the one the parser
+ * lists.
  *
  * @author Philip Helger
  */
@@ -107,6 +110,7 @@ public final class XdmStreamReader implements AutoCloseable
   private final boolean m_bLoadExternalEntities;
   private final int m_nMaxElementDepth;
   private final Predicate <XdmQName> m_aStripWhitespace;
+  private final boolean m_bRecordLocations;
   private final XdmDocumentNode m_aDocument;
   private final AbstractXdmNode.TreeStamp m_aTree;
   private int m_nOrder;
@@ -140,19 +144,24 @@ public final class XdmStreamReader implements AutoCloseable
    *        The maximum element nesting depth, 0 for unlimited.
    * @param aStripWhitespace
    *        The element names whose whitespace-only text is stripped; may be <code>null</code>.
+   * @param bRecordLocations
+   *        <code>true</code> to give elements, comments and processing instructions their line and
+   *        column.
    */
   private XdmStreamReader (@NonNull final XMLStreamReader aReader,
                            @Nullable final InputStream aOwnedStream,
                            @Nullable final String sSystemId,
                            final boolean bLoadExternalEntities,
                            final int nMaxElementDepth,
-                           @Nullable final Predicate <XdmQName> aStripWhitespace)
+                           @Nullable final Predicate <XdmQName> aStripWhitespace,
+                           final boolean bRecordLocations)
   {
     m_aReader = aReader;
     m_aOwnedStream = aOwnedStream;
     m_bLoadExternalEntities = bLoadExternalEntities;
     m_nMaxElementDepth = nMaxElementDepth;
     m_aStripWhitespace = aStripWhitespace;
+    m_bRecordLocations = bRecordLocations;
     m_aDocument = new XdmDocumentNode ();
     m_aDocument.internalSetStreamed (true);
     if (sSystemId != null)
@@ -399,11 +408,13 @@ public final class XdmStreamReader implements AutoCloseable
     _flushText ();
     if (m_nMaxElementDepth > 0 && m_aSpine.size () >= m_nMaxElementDepth)
       throw new XdmParseException ("Failed to parse XML: the element nesting is deeper than " + m_nMaxElementDepth);
-    final int nLine = m_aReader.getLocation ().getLineNumber ();
-    final int nColumn = m_aReader.getLocation ().getColumnNumber ();
-    final XdmElementNode aElement = new XdmElementNode.Located (_getName (m_aReader.getNamespaceURI (),
-                                                                          m_aReader.getLocalName (),
-                                                                          m_aReader.getPrefix ()), nLine, nColumn);
+    final XdmQName aElementName = _getName (m_aReader.getNamespaceURI (), m_aReader.getLocalName (), m_aReader.getPrefix ());
+    final XdmElementNode aElement = m_bRecordLocations ? new XdmElementNode.Located (aElementName,
+                                                                                     m_aReader.getLocation ()
+                                                                                              .getLineNumber (),
+                                                                                     m_aReader.getLocation ()
+                                                                                              .getColumnNumber ())
+                                                       : new XdmElementNode (aElementName);
     for (int i = 0; i < m_aReader.getNamespaceCount (); ++i)
     {
       final String sPrefix = m_aReader.getNamespacePrefix (i);
@@ -536,17 +547,22 @@ public final class XdmStreamReader implements AutoCloseable
             // outside the document element
             break;
           case XMLStreamConstants.COMMENT:
-            _leaf (new XdmCommentNode.Located (m_aReader.getText (),
-                                               m_aReader.getLocation ().getLineNumber (),
-                                               m_aReader.getLocation ().getColumnNumber ()));
+            _leaf (m_bRecordLocations ? new XdmCommentNode.Located (m_aReader.getText (),
+                                                                    m_aReader.getLocation ().getLineNumber (),
+                                                                    m_aReader.getLocation ().getColumnNumber ())
+                                      : new XdmCommentNode (m_aReader.getText ()));
             break;
           case XMLStreamConstants.PROCESSING_INSTRUCTION:
           {
-            final String sData = m_aReader.getPIData ();
-            _leaf (new XdmProcessingInstructionNode.Located (new XdmQName (m_aReader.getPITarget ()),
-                                                             sData == null ? "" : sData,
-                                                             m_aReader.getLocation ().getLineNumber (),
-                                                             m_aReader.getLocation ().getColumnNumber ()));
+            final XdmQName aTarget = new XdmQName (m_aReader.getPITarget ());
+            final String sData = m_aReader.getPIData () == null ? "" : m_aReader.getPIData ();
+            _leaf (m_bRecordLocations ? new XdmProcessingInstructionNode.Located (aTarget,
+                                                                                  sData,
+                                                                                  m_aReader.getLocation ()
+                                                                                           .getLineNumber (),
+                                                                                  m_aReader.getLocation ()
+                                                                                           .getColumnNumber ())
+                                      : new XdmProcessingInstructionNode (aTarget, sData));
             break;
           }
           case XMLStreamConstants.ENTITY_REFERENCE:
@@ -575,6 +591,15 @@ public final class XdmStreamReader implements AutoCloseable
   public IXdmNode getDocument ()
   {
     return m_aDocument;
+  }
+
+  /**
+   * @return <code>true</code> if the nodes this reader creates carry their line and column (see
+   *         {@link #open(InputSource, boolean, int, Predicate, boolean)}).
+   */
+  public boolean isRecordLocations ()
+  {
+    return m_bRecordLocations;
   }
 
   /**
@@ -834,6 +859,11 @@ public final class XdmStreamReader implements AutoCloseable
    *        The names of the elements whose whitespace-only text children are removed while reading,
    *        unless <code>xml:space="preserve"</code> is in effect. May be <code>null</code> to strip
    *        nothing.
+   * @param bRecordLocations
+   *        <code>true</code> to give elements, comments and processing instructions the line and
+   *        column the parser reports, as {@link XdmParser#setRecordLocations(boolean)} does;
+   *        <code>false</code> to leave them out (all locations are then 0), which saves memory per
+   *        retained element.
    * @return The reader. Close it after use.
    * @throws XdmStreamUnsupportedException
    *         if the document must be read in full by {@link XdmParser}
@@ -844,7 +874,8 @@ public final class XdmStreamReader implements AutoCloseable
   public static XdmStreamReader open (@NonNull final InputSource aSource,
                                       final boolean bLoadExternalEntities,
                                       @Nonnegative final int nMaxElementDepth,
-                                      @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
+                                      @Nullable final Predicate <XdmQName> aStripWhitespace,
+                                      final boolean bRecordLocations) throws XdmParseException
   {
     ValueEnforcer.notNull (aSource, "Source");
     ValueEnforcer.isGE0 (nMaxElementDepth, "MaxElementDepth");
@@ -886,7 +917,8 @@ public final class XdmStreamReader implements AutoCloseable
                                                      sSystemId,
                                                      bLoadExternalEntities,
                                                      nMaxElementDepth,
-                                                     aStripWhitespace);
+                                                     aStripWhitespace,
+                                                     bRecordLocations);
     try
     {
       final String sVersion = aReader.getVersion ();
@@ -909,6 +941,37 @@ public final class XdmStreamReader implements AutoCloseable
       throw ex;
     }
     return ret;
+  }
+
+  /**
+   * Start reading a document without node locations ({@link XdmParser#DEFAULT_RECORD_LOCATIONS}).
+   *
+   * @param aSource
+   *        The source. May not be <code>null</code>.
+   * @param bLoadExternalEntities
+   *        See {@link #open(InputSource, boolean, int, Predicate, boolean)}.
+   * @param nMaxElementDepth
+   *        The maximum element nesting depth, 0 for unlimited.
+   * @param aStripWhitespace
+   *        The names of the elements whose whitespace-only text children are removed while
+   *        reading. May be <code>null</code> to strip nothing.
+   * @return The reader. Close it after use.
+   * @throws XdmStreamUnsupportedException
+   *         if the document must be read in full by {@link XdmParser}
+   * @throws XdmParseException
+   *         if the document cannot be read
+   */
+  @NonNull
+  public static XdmStreamReader open (@NonNull final InputSource aSource,
+                                      final boolean bLoadExternalEntities,
+                                      @Nonnegative final int nMaxElementDepth,
+                                      @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
+  {
+    return open (aSource,
+                 bLoadExternalEntities,
+                 nMaxElementDepth,
+                 aStripWhitespace,
+                 XdmParser.DEFAULT_RECORD_LOCATIONS);
   }
 
   /**

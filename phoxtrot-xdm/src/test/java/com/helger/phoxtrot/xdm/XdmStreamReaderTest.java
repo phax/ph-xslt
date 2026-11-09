@@ -365,4 +365,69 @@ public final class XdmStreamReaderTest
       assertEquals ("ä", aReader.getDocument ().getStringValue ());
     }
   }
+
+  @NonNull
+  private static IXdmNode _streamWithLocations (@NonNull final String sXml, final boolean bRecordLocations) throws XdmParseException
+  {
+    try (final XdmStreamReader aReader = XdmStreamReader.open (_source (sXml),
+                                                               false,
+                                                               XdmParser.DEFAULT_MAX_ELEMENT_DEPTH,
+                                                               null,
+                                                               bRecordLocations))
+    {
+      assertEquals (Boolean.valueOf (bRecordLocations), Boolean.valueOf (aReader.isRecordLocations ()));
+      while (aReader.next () != XdmStreamReader.EEvent.END)
+      {
+        // Keep everything
+      }
+      return aReader.getDocument ();
+    }
+  }
+
+  @Test
+  public void testLocations () throws XdmParseException
+  {
+    final String sXml = "<a>\n  <b x='1'>t</b>\n  <!--c-->\n  <?p d?>\n</a>";
+    // Default: no locations, as XdmParser
+    try (final XdmStreamReader aReader = XdmStreamReader.open (_source (sXml)))
+    {
+      assertFalse (aReader.isRecordLocations ());
+    }
+    for (final IXdmNode aDoc : new IXdmNode [] { _streamAll (sXml, false), _streamWithLocations (sXml, false) })
+    {
+      final IXdmNode aA = aDoc.getChildAtIndex (0);
+      for (int i = 0; i < aA.getChildCount (); ++i)
+        assertEquals (0, aA.getChildAtIndex (i).getLine ());
+      assertEquals (0, aA.getLine ());
+      assertEquals (0, aA.getColumn ());
+    }
+    // On request: elements, comments and PIs with the parser's location,
+    // attributes and text with the one of their parent
+    final IXdmNode aA = _streamWithLocations (sXml, true).getChildAtIndex (0);
+    assertEquals (1, aA.getLine ());
+    IXdmNode aB = null;
+    IXdmNode aComment = null;
+    IXdmNode aPI = null;
+    for (int i = 0; i < aA.getChildCount (); ++i)
+    {
+      final IXdmNode aChild = aA.getChildAtIndex (i);
+      if (aChild.isElement ())
+        aB = aChild;
+      else
+        if (aChild.getKind () == ENodeKind.COMMENT)
+          aComment = aChild;
+        else
+          if (aChild.getKind () == ENodeKind.PROCESSING_INSTRUCTION)
+            aPI = aChild;
+    }
+    assertNotNull (aB);
+    assertEquals (2, aB.getLine ());
+    assertTrue (aB.getColumn () > 0);
+    assertEquals (2, aB.getAttributeAtIndex (0).getLine ());
+    assertEquals (2, aB.getChildAtIndex (0).getLine ());
+    assertNotNull (aComment);
+    assertEquals (3, aComment.getLine ());
+    assertNotNull (aPI);
+    assertEquals (4, aPI.getLine ());
+  }
 }

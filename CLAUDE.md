@@ -39,7 +39,7 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   so do the resolvers of stylesheet modules (`FileResourceResolver` by default, the compile-time
   `JaxpResourceResolver`, the XSLT30 harness document cache); source documents, `fn:doc`/`document()` through the
   runtime JAXP resolver, `fn:parse-xml` and JAXP sources are parsed without. A new parse site states it explicitly.
-  `XdmStreamReader` always records them.
+  `XdmStreamReader` records them only when opened with `bRecordLocations` (default off; no streamed path reads them).
 - Document order: `getOrder ()`/`getEndOrder ()` (end = last node of the subtree, attributes included); a document node
   has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children)
   used by `AxisNavigator.collectNamedDescendants`/`collectNamedSubtreeAttributes`/`collectNamedChildren`. Every

@@ -52,8 +52,9 @@ public interface IResourceResolver
 
   /**
    * Open a document for streamed processing (XSLT 3.0 section 19), with the
-   * parser settings {@link #resolveDocument(String)} would use. The default
-   * implementation streams nothing, and the document is then read in full by
+   * parser settings {@link #resolveDocument(String)} would use, and without
+   * node locations (no streamed path reads them). The default implementation
+   * streams nothing, and the document is then read in full by
    * {@link #resolveDocument(String)}.
    *
    * @param sAbsoluteUri
