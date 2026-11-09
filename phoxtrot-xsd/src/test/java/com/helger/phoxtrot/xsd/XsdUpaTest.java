@@ -28,9 +28,9 @@ import com.helger.phoxtrot.xsd.XsdTestSupport.EVerdict;
 
 /**
  * Unique Particle Attribution ({@link XsdUpa}): schema verdicts of the loader's
- * <code>checkAllUPA</code> step on content models whose determinism is known
- * from XSD Structures section 3.8.6 (Schema Component Constraint: Unique Particle
- * Attribution), plus the helper predicates.
+ * <code>checkAllUPA</code> step on content models whose determinism is known from XSD Structures
+ * section 3.8.6 (Schema Component Constraint: Unique Particle Attribution), plus the helper
+ * predicates.
  *
  * @author Philip Helger
  */
@@ -56,9 +56,8 @@ public final class XsdUpaTest
     final Compiled aCompiled = XsdTestSupport.compile (sSchema, null, eVersion);
     assertFalse (sName + "/" + eVersion + " unsupported: " + aCompiled.message (),
                  aCompiled.verdict () == EVerdict.UNSUPPORTED);
-    assertEquals (sName + "/" + eVersion + " " + aCompiled.message (),
-                  bValid,
-                  aCompiled.verdict () == EVerdict.VALID);
+    assertTrue (sName + "/" + eVersion + " " + aCompiled.message (),
+                bValid == (aCompiled.verdict () == EVerdict.VALID));
   }
 
   private static void _both (final String sName, final String sModel, final String sExtra, final boolean bValid)
@@ -71,14 +70,23 @@ public final class XsdUpaTest
   public void testDeterministicModels ()
   {
     _both ("sequence", "<xs:sequence>" + A + B + "</xs:sequence>", "", true);
-    _both ("star-then-other", "<xs:sequence><xs:element name=\"a\" minOccurs=\"0\" maxOccurs=\"unbounded\"/>" + B + "</xs:sequence>", "", true);
+    _both ("star-then-other",
+           "<xs:sequence><xs:element name=\"a\" minOccurs=\"0\" maxOccurs=\"unbounded\"/>" + B + "</xs:sequence>",
+           "",
+           true);
     _both ("choice-star", "<xs:choice minOccurs=\"0\" maxOccurs=\"unbounded\">" + A + B + "</xs:choice>", "", true);
-    _both ("counted-then-same", "<xs:sequence><xs:element name=\"a\" minOccurs=\"2\" maxOccurs=\"2\"/>" + A + "</xs:sequence>", "", true);
+    _both ("counted-then-same",
+           "<xs:sequence><xs:element name=\"a\" minOccurs=\"2\" maxOccurs=\"2\"/>" + A + "</xs:sequence>",
+           "",
+           true);
     _both ("different-namespaces",
            "<xs:sequence><xs:element name=\"a\"/><xs:element name=\"a\" form=\"qualified\"/></xs:sequence>",
            "",
            true);
-    _both ("optional-then-other", "<xs:sequence><xs:element name=\"a\" minOccurs=\"0\"/>" + B + C + "</xs:sequence>", "", true);
+    _both ("optional-then-other",
+           "<xs:sequence><xs:element name=\"a\" minOccurs=\"0\"/>" + B + C + "</xs:sequence>",
+           "",
+           true);
     _both ("all-distinct", "<xs:all>" + A + B + "</xs:all>", "", true);
     _both ("substitution-sequence",
            "<xs:sequence><xs:element ref=\"h\"/><xs:element ref=\"m\"/></xs:sequence>",
@@ -87,7 +95,9 @@ public final class XsdUpaTest
     // One named group reached twice contributes two distinct sets of positions
     _both ("shared-group-twice",
            "<xs:sequence><xs:group ref=\"g\"/>" + C + "<xs:group ref=\"g\"/></xs:sequence>",
-           "<xs:group name=\"g\"><xs:sequence>" + A + "<xs:element name=\"b\" minOccurs=\"0\"/></xs:sequence></xs:group>",
+           "<xs:group name=\"g\"><xs:sequence>" +
+                                                                                             A +
+                                                                                             "<xs:element name=\"b\" minOccurs=\"0\"/></xs:sequence></xs:group>",
            true);
     _both ("empty", "", "", true);
     _both ("removed-particle-does-not-count",
@@ -100,12 +110,18 @@ public final class XsdUpaTest
   public void testNondeterministicModels ()
   {
     _both ("choice-same-name", "<xs:choice>" + A + A + "</xs:choice>", "", false);
-    _both ("optional-then-same", "<xs:sequence><xs:element name=\"a\" minOccurs=\"0\"/>" + A + "</xs:sequence>", "", false);
+    _both ("optional-then-same",
+           "<xs:sequence><xs:element name=\"a\" minOccurs=\"0\"/>" + A + "</xs:sequence>",
+           "",
+           false);
     _both ("star-then-same",
            "<xs:sequence><xs:element name=\"a\" minOccurs=\"0\" maxOccurs=\"unbounded\"/>" + A + "</xs:sequence>",
            "",
            false);
-    _both ("counter-ambiguity", "<xs:sequence><xs:element name=\"a\" maxOccurs=\"2\"/>" + A + "</xs:sequence>", "", false);
+    _both ("counter-ambiguity",
+           "<xs:sequence><xs:element name=\"a\" maxOccurs=\"2\"/>" + A + "</xs:sequence>",
+           "",
+           false);
     _both ("sequences-with-common-start",
            "<xs:choice><xs:sequence>" + A + B + "</xs:sequence><xs:sequence>" + A + C + "</xs:sequence></xs:choice>",
            "",

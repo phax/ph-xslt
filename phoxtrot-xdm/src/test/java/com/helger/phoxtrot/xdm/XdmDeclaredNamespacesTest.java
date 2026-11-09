@@ -34,7 +34,7 @@ public final class XdmDeclaredNamespacesTest
 {
   private static void _assertConsistent (final IXdmNode aNode, final String... aPrefixes)
   {
-    assertEquals (!aNode.getDeclaredNamespaces ().isEmpty (), aNode.hasDeclaredNamespaces ());
+    assertTrue (aNode.getDeclaredNamespaces ().isEmpty () != aNode.hasDeclaredNamespaces ());
     for (final String sPrefix : aPrefixes)
       assertEquals (aNode.getDeclaredNamespaces ().get (sPrefix), aNode.getDeclaredNamespaceUri (sPrefix));
   }

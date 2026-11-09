@@ -86,8 +86,8 @@ public final class UnicodeCategoriesTest
         final boolean bExpected = sName.length () == 1 ? sCategory.charAt (0) == sName.charAt (0)
                                                        : sCategory.equals (sName);
         final String sChar = new String (Character.toChars (c));
-        assertEquals (sName + " " + Integer.toHexString (c), bExpected, aPos.matcher (sChar).matches ());
-        assertEquals (sName + " " + Integer.toHexString (c), !bExpected, aNeg.matcher (sChar).matches ());
+        assertTrue (sName + " " + Integer.toHexString (c), bExpected == aPos.matcher (sChar).matches ());
+        assertFalse (sName + " " + Integer.toHexString (c), bExpected == aNeg.matcher (sChar).matches ());
       }
     }
   }

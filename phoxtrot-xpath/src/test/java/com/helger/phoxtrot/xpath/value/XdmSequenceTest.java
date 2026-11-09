@@ -36,8 +36,7 @@ import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xpath.ast.IExpr;
 
 /**
- * Test class for class {@link XdmSequence}, its single-item form and its
- * builders.
+ * Test class for class {@link XdmSequence}, its single-item form and its builders.
  *
  * @author Philip Helger
  */
@@ -53,8 +52,8 @@ public final class XdmSequenceTest
   private static void _assertItems (@NonNull final XdmSequence aSeq, @NonNull final IXdmItem... aExpected)
   {
     assertEquals (aExpected.length, aSeq.size ());
-    assertEquals (aExpected.length == 0, aSeq.isEmpty ());
-    assertEquals (aExpected.length == 1, aSeq.isSingleton ());
+    assertTrue ((aExpected.length == 0) == aSeq.isEmpty ());
+    assertTrue ((aExpected.length == 1) == aSeq.isSingleton ());
     for (int i = 0; i < aExpected.length; ++i)
       assertSame (aExpected[i], aSeq.get (i));
     try

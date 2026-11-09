@@ -54,8 +54,8 @@ import com.helger.phoxtrot.xpath.value.XdmSequence;
 
 /**
  * Test class for {@link XPathStreamability}: a port of go-xslt's
- * <code>internal/xpath/streamability_test.go</code> and
- * <code>streamability_rules_test.go</code>, same cases and expectations.
+ * <code>internal/xpath/streamability_test.go</code> and <code>streamability_rules_test.go</code>,
+ * same cases and expectations.
  *
  * @author Philip Helger
  */
@@ -179,8 +179,8 @@ public final class XPathStreamabilityTest
   }
 
   /**
-   * The worked examples of sections 19.7, 19.8.8.7 and 19.8.8.8, evaluated with
-   * the striding context posture of a streamable template rule.
+   * The worked examples of sections 19.7, 19.8.8.7 and 19.8.8.8, evaluated with the striding
+   * context posture of a streamable template rule.
    */
   @Test
   public void testPostureSweepTable ()
@@ -383,12 +383,14 @@ public final class XPathStreamabilityTest
     aExpected.put ("transmission keeps posture", CC);
     aCases.put ("transmission motionless", new CommonsArrayList <> (new StreamOperand (eL, eM, eT)));
     aExpected.put ("transmission motionless", LM);
-    aCases.put ("higher-order consuming", new CommonsArrayList <> (new StreamOperand (eS, eK, eT).withHigherOrder (true)));
+    aCases.put ("higher-order consuming",
+                new CommonsArrayList <> (new StreamOperand (eS, eK, eT).withHigherOrder (true)));
     aExpected.put ("higher-order consuming", RF);
     aCases.put ("higher-order motionless",
                 new CommonsArrayList <> (new StreamOperand (eS, eM, eI).withHigherOrder (true)));
     aExpected.put ("higher-order motionless", GM);
-    aCases.put ("two consuming", new CommonsArrayList <> (new StreamOperand (eS, eK, eA), new StreamOperand (eS, eK, eA)));
+    aCases.put ("two consuming",
+                new CommonsArrayList <> (new StreamOperand (eS, eK, eA), new StreamOperand (eS, eK, eA)));
     aExpected.put ("two consuming", RF);
     aCases.put ("two motionless transmissions, one posture",
                 new CommonsArrayList <> (new StreamOperand (eS, eM, eT), new StreamOperand (eS, eM, eT)));
@@ -458,9 +460,8 @@ public final class XPathStreamabilityTest
   }
 
   /**
-   * The worked examples of section 19.8.2 and the proforma table of section
-   * 19.8.8 (A = absorption, I = inspection, T = transmission, N = navigation),
-   * striding element context.
+   * The worked examples of section 19.8.2 and the proforma table of section 19.8.8 (A = absorption,
+   * I = inspection, T = transmission, N = navigation), striding element context.
    */
   @Test
   public void testOperatorProformas ()
@@ -653,7 +654,9 @@ public final class XPathStreamabilityTest
           GM);
   }
 
-  /** The table of section 19.8.8.9 with its special clauses, and the path rules of section 19.8.8.8. */
+  /**
+   * The table of section 19.8.8.9 with its special clauses, and the path rules of section 19.8.8.8.
+   */
   @Test
   public void testAxisSteps ()
   {
@@ -817,19 +820,7 @@ public final class XPathStreamabilityTest
           "name#0",
           GM);
     _run (new StreamContext (EPosture.ROAMING), "a", RF, "last()", RF);
-    _run (new StreamContext (EPosture.CLIMBING),
-          "*",
-          RF,
-          "self::x",
-          LM,
-          "@a",
-          SM,
-          "..",
-          LM,
-          "last()",
-          GM,
-          "/a",
-          RF);
+    _run (new StreamContext (EPosture.CLIMBING), "*", RF, "self::x", LM, "@a", SM, "..", LM, "last()", GM, "/a", RF);
     _run (new StreamContext (EPosture.CRAWLING),
           "*",
           RF,
@@ -1035,7 +1026,8 @@ public final class XPathStreamabilityTest
   {
     final ICommonsMap <String, StreamFunctionSignature> aMap = new CommonsHashMap <> ();
     aMap.put ("zero", _sig (EStreamFunctionCategory.UNCLASSIFIED, false));
-    aMap.put ("min", _sig (EStreamFunctionCategory.UNCLASSIFIED, false, EStreamUsage.ABSORPTION, EStreamUsage.ABSORPTION));
+    aMap.put ("min",
+              _sig (EStreamFunctionCategory.UNCLASSIFIED, false, EStreamUsage.ABSORPTION, EStreamUsage.ABSORPTION));
     aMap.put ("nodes", _sig (EStreamFunctionCategory.UNCLASSIFIED, true, EStreamUsage.NAVIGATION));
     aMap.put ("absorb",
               _sig (EStreamFunctionCategory.ABSORBING, true, EStreamUsage.NAVIGATION, EStreamUsage.NAVIGATION));
@@ -1181,8 +1173,8 @@ public final class XPathStreamabilityTest
   }
 
   /**
-   * References to a streaming parameter (sections 19.8.8.12 and 19.8.5) and
-   * inline functions closing over one (section 19.8.8.16).
+   * References to a streaming parameter (sections 19.8.8.12 and 19.8.5) and inline functions
+   * closing over one (section 19.8.8.16).
    */
   @Test
   public void testStreamingParameter ()
@@ -1221,7 +1213,8 @@ public final class XPathStreamabilityTest
     // A parameter registered without a posture fails closed
     assertEquals (RF, _classify ("$n", _striding ().addStreamingParam (VAR_N)));
     assertEquals (RF,
-                  _classify ("$n", _striding ().addStreamingParam (VAR_N).setStreamingParamPosture (EPosture.GROUNDED)));
+                  _classify ("$n",
+                             _striding ().addStreamingParam (VAR_N).setStreamingParamPosture (EPosture.GROUNDED)));
     // A variable known to hold a map: the absorption note of section 19.8.8.11
     _run (_striding ().addMapArrayVariable (VAR_M), "$m(@type)", GM, "$m(a)", GC, "$f(@type)", RF);
     // getAsInHigherOrder marks the context as inside a repeated operand
@@ -1232,8 +1225,8 @@ public final class XPathStreamabilityTest
   }
 
   /**
-   * The definite flag is raised by rules the Recommendation states
-   * unconditionally and left alone where the analysis merely declines.
+   * The definite flag is raised by rules the Recommendation states unconditionally and left alone
+   * where the analysis merely declines.
    */
   @Test
   public void testDefinite ()
@@ -1286,7 +1279,7 @@ public final class XPathStreamabilityTest
       final String sExpr = (String) aCases[i];
       final MutableBoolean aDefinite = new MutableBoolean (false);
       XPathStreamability.getStreamability (_parse (sExpr), _striding ().setDefiniteFlag (aDefinite));
-      assertEquals (sExpr, ((Boolean) aCases[i + 1]).booleanValue (), aDefinite.booleanValue ());
+      assertEquals (sExpr, aCases[i + 1], aDefinite.getAsBoolean ());
     }
 
     // A RootedPath start reports its non-scanning verdict when roaming
@@ -1387,9 +1380,9 @@ public final class XPathStreamabilityTest
     for (int i = 0; i < aPatterns.length; i += 2)
     {
       final String sPattern = (String) aPatterns[i];
-      assertEquals (sPattern,
-                    ((Boolean) aPatterns[i + 1]).booleanValue (),
-                    XPathStreamability.isPatternChildless (_patternExpr (sPattern)));
+      assertTrue (sPattern,
+                  ((Boolean) aPatterns[i + 1]).booleanValue () == XPathStreamability.isPatternChildless (_patternExpr (
+                                                                                                                       sPattern)));
     }
     assertFalse (XPathStreamability.isPatternChildless (null));
 
@@ -1466,10 +1459,11 @@ public final class XPathStreamabilityTest
     for (int i = 0; i < aExprs.length; i += 2)
     {
       final String sExpr = (String) aExprs[i];
-      assertEquals (sExpr, ((Boolean) aExprs[i + 1]).booleanValue (), XPathStreamability.isChildless (_parse (sExpr)));
+      assertTrue (sExpr, ((Boolean) aExprs[i + 1]).booleanValue () == XPathStreamability.isChildless (_parse (sExpr)));
     }
     final IExpr aDot = _parse (".");
-    assertTrue (XPathStreamability.isChildless (aDot, new StreamContext (EPosture.GROUNDED).setContextChildless (true)));
+    assertTrue (XPathStreamability.isChildless (aDot,
+                                                new StreamContext (EPosture.GROUNDED).setContextChildless (true)));
     assertFalse (XPathStreamability.isChildless (aDot, new StreamContext (EPosture.GROUNDED)));
     assertTrue (XPathStreamability.isChildless (_parse ("current()"),
                                                 new StreamContext (EPosture.GROUNDED).setCurrentChildless (true)));
@@ -1536,15 +1530,15 @@ public final class XPathStreamabilityTest
   {
     final String sShallow = XPathStreamability.getStreamability (_parseNestedNegations (1), _striding ()).toString ();
     assertEquals (sShallow,
-                  XPathStreamability.getStreamability (_parseNestedNegations (XPathStreamability.MAX_DEPTH - 10), _striding ())
-                                    .toString ());
+                  XPathStreamability.getStreamability (_parseNestedNegations (XPathStreamability.MAX_DEPTH - 10),
+                                                       _striding ()).toString ());
     // 4,000 nested negations stay below the parser limit, but not below the
     // depth limit of the walk: roaming and free-ranging, never a definite
     // verdict
     final MutableBoolean aDefinite = new MutableBoolean (false);
     assertEquals (RF,
-                  XPathStreamability.getStreamability (_parseNestedNegations (4000), _striding ().setDefiniteFlag (aDefinite))
-                                    .toString ());
+                  XPathStreamability.getStreamability (_parseNestedNegations (4000),
+                                                       _striding ().setDefiniteFlag (aDefinite)).toString ());
     assertFalse (aDefinite.booleanValue ());
     // The depth count was reset
     assertEquals (sShallow, XPathStreamability.getStreamability (_parseNestedNegations (1), _striding ()).toString ());

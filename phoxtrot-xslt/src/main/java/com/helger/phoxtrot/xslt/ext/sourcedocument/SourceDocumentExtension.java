@@ -70,11 +70,15 @@ public final class SourceDocumentExtension implements IXsltExtension
                                        @NonNull final ICommonsList <XdmQName> aAccumulators)
   {
     final Engine aEngine = aCtx.getEngine ();
+
+    @SuppressWarnings ("resource")
     final XdmStreamReader aReader = aEngine.openStreamedDocument (sUri);
     if (aReader == null)
       return false;
+
     final IXdmNode aRoot = aReader.getDocument ();
     final StreamedRun aRun = new StreamedRun (aReader, aConsumer);
+
     // Without use-accumulators no accumulator applies to the document
     final Object aPrevious = AccumulatorExtension.restrictTree (aEngine, aRoot, aAccumulators, true);
     aRun.push (aEngine);

@@ -36,15 +36,13 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
 
 /**
- * The Unicode general categories of the <code>\p{..}</code> regular expression
- * escapes, pinned to Unicode 15.0 (the version of the block table in
- * {@link UnicodeBlocks} and of the JDK 21 character tables), so that a regular
- * expression matches the same characters on every JDK. The category of every
- * code point comes from <code>unicode-15-categories.txt</code> (generated from
- * UnicodeData.txt 15.0). The translation still uses the fast built-in
- * <code>\p{..}</code> classes of {@link java.util.regex.Pattern}, corrected by
- * the code points whose category in the running JDK differs from Unicode 15.0
- * (none on JDK 21).
+ * The Unicode general categories of the <code>\p{..}</code> regular expression escapes, pinned to
+ * Unicode 15.0 (the version of the block table in {@link UnicodeBlocks} and of the JDK 21 character
+ * tables), so that a regular expression matches the same characters on every JDK. The category of
+ * every code point comes from <code>unicode-15-categories.txt</code> (generated from
+ * UnicodeData.txt 15.0). The translation still uses the fast built-in <code>\p{..}</code> classes
+ * of {@link java.util.regex.Pattern}, corrected by the code points whose category in the running
+ * JDK differs from Unicode 15.0 (none on JDK 21).
  *
  * @author Philip Helger
  */
@@ -92,41 +90,41 @@ final class UnicodeCategories
 
   /** The general category names of XSD regular expressions */
   private static final ICommonsSet <String> NAMES = new CommonsHashSet <> ("L",
-                                                                          "Lu",
-                                                                          "Ll",
-                                                                          "Lt",
-                                                                          "Lm",
-                                                                          "Lo",
-                                                                          "M",
-                                                                          "Mn",
-                                                                          "Mc",
-                                                                          "Me",
-                                                                          "N",
-                                                                          "Nd",
-                                                                          "Nl",
-                                                                          "No",
-                                                                          "P",
-                                                                          "Pc",
-                                                                          "Pd",
-                                                                          "Ps",
-                                                                          "Pe",
-                                                                          "Pi",
-                                                                          "Pf",
-                                                                          "Po",
-                                                                          "Z",
-                                                                          "Zs",
-                                                                          "Zl",
-                                                                          "Zp",
-                                                                          "S",
-                                                                          "Sm",
-                                                                          "Sc",
-                                                                          "Sk",
-                                                                          "So",
-                                                                          "C",
-                                                                          "Cc",
-                                                                          "Cf",
-                                                                          "Co",
-                                                                          "Cn");
+                                                                           "Lu",
+                                                                           "Ll",
+                                                                           "Lt",
+                                                                           "Lm",
+                                                                           "Lo",
+                                                                           "M",
+                                                                           "Mn",
+                                                                           "Mc",
+                                                                           "Me",
+                                                                           "N",
+                                                                           "Nd",
+                                                                           "Nl",
+                                                                           "No",
+                                                                           "P",
+                                                                           "Pc",
+                                                                           "Pd",
+                                                                           "Ps",
+                                                                           "Pe",
+                                                                           "Pi",
+                                                                           "Pf",
+                                                                           "Po",
+                                                                           "Z",
+                                                                           "Zs",
+                                                                           "Zl",
+                                                                           "Zp",
+                                                                           "S",
+                                                                           "Sm",
+                                                                           "Sc",
+                                                                           "Sk",
+                                                                           "So",
+                                                                           "C",
+                                                                           "Cc",
+                                                                           "Cf",
+                                                                           "Co",
+                                                                           "Cn");
 
   @PresentForCodeCoverage
   private static final UnicodeCategories INSTANCE = new UnicodeCategories ();
@@ -152,9 +150,8 @@ final class UnicodeCategories
    *        A two letter category of a code point.
    * @param sName
    *        A category name of a regular expression, one or two letters.
-   * @return <code>true</code> if the category belongs to the named one: a one
-   *         letter name matches the first letter, a two letter name the whole
-   *         category.
+   * @return <code>true</code> if the category belongs to the named one: a one letter name matches
+   *         the first letter, a two letter name the whole category.
    */
   private static boolean _isIn (@NonNull final String sCategory, @NonNull final String sName)
   {
@@ -162,8 +159,8 @@ final class UnicodeCategories
   }
 
   /**
-   * Append ascending code points as Java class ranges, merging consecutive
-   * code points into one range.
+   * Append ascending code points as Java class ranges, merging consecutive code points into one
+   * range.
    */
   private static void _appendRuns (@NonNull final StringBuilder aSB, @NonNull final ICommonsList <Integer> aCPs)
   {
@@ -183,19 +180,16 @@ final class UnicodeCategories
   }
 
   /**
-   * Build the Java class syntax of a category: the built-in
-   * <code>\p{name}</code> class of the running JDK, extended by the code
-   * points that belong to the category in Unicode 15.0 but not in the JDK, and
-   * reduced by an intersection with the complement of those that belong to it
-   * only in the JDK. Without differences it is just the built-in class.
+   * Build the Java class syntax of a category: the built-in <code>\p{name}</code> class of the
+   * running JDK, extended by the code points that belong to the category in Unicode 15.0 but not in
+   * the JDK, and reduced by an intersection with the complement of those that belong to it only in
+   * the JDK. Without differences it is just the built-in class.
    *
    * @param sName
    *        The category name.
    * @param aDifferences
-   *        All code points whose category differs between Unicode 15.0 and
-   *        the running JDK.
-   * @return The class expression, bracketed unless it is the plain built-in
-   *         class.
+   *        All code points whose category differs between Unicode 15.0 and the running JDK.
+   * @return The class expression, bracketed unless it is the plain built-in class.
    */
   @NonNull
   private static String _buildExpression (@NonNull final String sName,
@@ -230,11 +224,10 @@ final class UnicodeCategories
   }
 
   /**
-   * Lazily initialised tables: on first use the Unicode 15.0 category runs are
-   * read from the resource, every code point is compared with the category
-   * the running JDK reports, and the class expression of every category name
-   * is built from the differences. The initialisation fails with an
-   * {@link IllegalStateException} if the resource is missing.
+   * Lazily initialised tables: on first use the Unicode 15.0 category runs are read from the
+   * resource, every code point is compared with the category the running JDK reports, and the class
+   * expression of every category name is built from the differences. The initialisation fails with
+   * an {@link IllegalStateException} if the resource is missing.
    */
   private static final class Holder
   {
@@ -253,17 +246,21 @@ final class UnicodeCategories
       {
         if (aIS == null)
           throw new IllegalStateException ("Resource '" + RESOURCE + "' is missing");
-        final NonBlockingBufferedReader aReader = new NonBlockingBufferedReader (new InputStreamReader (aIS, StandardCharsets.US_ASCII));
-        String sLine;
-        while ((sLine = aReader.readLine ()) != null)
+
+        try (final NonBlockingBufferedReader aReader = new NonBlockingBufferedReader (new InputStreamReader (aIS,
+                                                                                                             StandardCharsets.US_ASCII)))
         {
-          if (sLine.isEmpty () || sLine.charAt (0) == '#')
-            continue;
-          final int nSpace = sLine.indexOf (' ');
-          if (aCategories.size () == aStarts.length)
-            aStarts = Arrays.copyOf (aStarts, aStarts.length * 2);
-          aStarts[aCategories.size ()] = Integer.parseInt (sLine.substring (0, nSpace), 16);
-          aCategories.add (sLine.substring (nSpace + 1));
+          String sLine;
+          while ((sLine = aReader.readLine ()) != null)
+          {
+            if (sLine.isEmpty () || sLine.charAt (0) == '#')
+              continue;
+            final int nSpace = sLine.indexOf (' ');
+            if (aCategories.size () == aStarts.length)
+              aStarts = Arrays.copyOf (aStarts, aStarts.length * 2);
+            aStarts[aCategories.size ()] = Integer.parseInt (sLine.substring (0, nSpace), 16);
+            aCategories.add (sLine.substring (nSpace + 1));
+          }
         }
       }
       catch (final IOException ex)
@@ -291,13 +288,12 @@ final class UnicodeCategories
 
   /**
    * @param sName
-   *        A general category name valid in XSD regular expressions (one
-   *        letter group like <code>L</code> or two letters like
-   *        <code>Lu</code>).
+   *        A general category name valid in XSD regular expressions (one letter group like
+   *        <code>L</code> or two letters like <code>Lu</code>).
    * @param bNegated
    *        <code>true</code> for the complement (<code>\P{..}</code>).
-   * @return The Java class syntax for the Unicode 15.0 characters of the
-   *         category, usable inside and outside a bracketed class.
+   * @return The Java class syntax for the Unicode 15.0 characters of the category, usable inside
+   *         and outside a bracketed class.
    */
   @NonNull
   static String getClassExpression (@NonNull final String sName, final boolean bNegated)
@@ -315,8 +311,7 @@ final class UnicodeCategories
   /**
    * @param sName
    *        A name.
-   * @return <code>true</code> if it is a general category name valid in XSD
-   *         regular expressions.
+   * @return <code>true</code> if it is a general category name valid in XSD regular expressions.
    */
   static boolean isCategory (@NonNull final String sName)
   {
