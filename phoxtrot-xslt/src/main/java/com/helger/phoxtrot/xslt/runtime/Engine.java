@@ -59,8 +59,10 @@ import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 import com.helger.phoxtrot.xslt.EXsltMessageKind;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.XsltMessage;
+import com.helger.phoxtrot.xslt.XsltTraceTemplate;
 import com.helger.phoxtrot.xslt.XsltTransformRequest;
 import com.helger.phoxtrot.xslt.XsltTransformResult;
 import com.helger.phoxtrot.xslt.compile.StylesheetCompiler;
@@ -137,6 +139,10 @@ public final class Engine
   private int m_nPrincipalSealedSize = -1;
   private final ICommonsMap <Object, Object> m_aRunData = new CommonsHashMap <> ();
   private final ExecutionBudget m_aBudget;
+  // The trace listener of the request, null for none
+  private final IXsltTraceListener m_aTraceListener;
+  // The trace listener if it wants instructions, null otherwise
+  private final IXsltTraceListener m_aInstructionTraceListener;
 
   /**
    * Set up the run-wide state of one transformation. The execution budget is
@@ -152,7 +158,8 @@ public final class Engine
    * derived from it: the root context, whose state always holds
    * {@link #CURRENT_OUTPUT_URI} (the base output URI of the request, or the
    * empty string) so that its absence marks temporary output state, and the
-   * pattern context with an empty state.
+   * pattern context with an empty state. The trace listener of the request is
+   * asked once whether it traces instructions.
    *
    * @param aSheet
    *        The compiled stylesheet.
@@ -169,6 +176,9 @@ public final class Engine
       m_aBudget = new ExecutionBudget (aRequest.getMaxSteps () > 0 ? aRequest.getMaxSteps () : DEFAULT_MAX_STEPS,
                                        aRequest.getMaxDepth () > 0 ? Math.min (aRequest.getMaxDepth (), DEFAULT_MAX_DEPTH)
                                                                    : DEFAULT_MAX_DEPTH);
+    m_aTraceListener = aRequest.getTraceListener ();
+    m_aInstructionTraceListener = m_aTraceListener != null && m_aTraceListener.isTraceInstructions () ? m_aTraceListener
+                                                                                                       : null;
     final StaticContext aSC = new StaticContext ();
     aSC.setFunctionLibrary (aSheet.getFunctionLibrary ());
     final XslModule aPrincipal = aSheet.getPrincipalModule ();
@@ -240,6 +250,27 @@ public final class Engine
   public XsltTransformRequest getRequest ()
   {
     return m_aRequest;
+  }
+
+  /**
+   * @return The trace listener of the request, <code>null</code> for none.
+   */
+  @Nullable
+  public IXsltTraceListener getTraceListener ()
+  {
+    return m_aTraceListener;
+  }
+
+  /**
+   * @return The trace listener of the request if it traces instructions
+   *         ({@link IXsltTraceListener#isTraceInstructions()} was
+   *         <code>true</code> when this engine was created),
+   *         <code>null</code> otherwise.
+   */
+  @Nullable
+  public IXsltTraceListener getInstructionTraceListener ()
+  {
+    return m_aInstructionTraceListener;
   }
 
   /**
@@ -763,8 +794,38 @@ public final class Engine
   }
 
   /**
+   * Describe a template for the trace listener.
+   *
+   * @param aTemplate
+   *        The template.
+   * @param aRule
+   *        The rule it was invoked as, <code>null</code> for a named template.
+   * @param aMode
+   *        The mode of the rule, <code>null</code> for a named template.
+   * @return The description: match pattern alternative, mode and priority of
+   *         the rule (<code>null</code>, <code>null</code> and NaN for a named
+   *         template), the template name and the location of its element.
+   */
+  @NonNull
+  private static XsltTraceTemplate _createTraceTemplate (@NonNull final Template aTemplate,
+                                                         @Nullable final TemplateRule aRule,
+                                                         @Nullable final Mode aMode)
+  {
+    final XslElement aEl = aTemplate.getElement ();
+    return new XsltTraceTemplate (aRule != null ? aRule.getPattern ().pattern ().getSource () : null,
+                                  aMode != null ? aMode.getName () : null,
+                                  aTemplate.getName (),
+                                  aRule != null ? aRule.getPriority () : Double.NaN,
+                                  aEl.getModule ().getUri (),
+                                  aEl.getLine (),
+                                  aEl.getColumn ());
+  }
+
+  /**
    * Invoke a template rule for an item (apply-templates, next-match,
-   * apply-imports).
+   * apply-imports). With a trace listener the run of the template is
+   * enclosed in its template rule enter and leave calls; the leave call also
+   * happens when the template ends with an error.
    */
   private void _invokeRule (@NonNull final TemplateRule aRule,
                             @NonNull final Mode aMode,
@@ -778,7 +839,22 @@ public final class Engine
     final XsltContext aBase = aCaller.withoutFocusAndVariables ()
                                      .withFocus (aItem, nPosition, nSize)
                                      .withState (aCaller.getState ().forTemplateCall ().withCurrentRule (aRule, aMode));
-    _runTemplate (aRule.getTemplate (), aBase, aParams, aOut);
+    final IXsltTraceListener aTrace = m_aTraceListener;
+    if (aTrace == null)
+      _runTemplate (aRule.getTemplate (), aBase, aParams, aOut);
+    else
+    {
+      final XsltTraceTemplate aInfo = _createTraceTemplate (aRule.getTemplate (), aRule, aMode);
+      aTrace.onTemplateRuleEnter (aInfo, aItem);
+      try
+      {
+        _runTemplate (aRule.getTemplate (), aBase, aParams, aOut);
+      }
+      finally
+      {
+        aTrace.onTemplateRuleLeave (aInfo, aItem);
+      }
+    }
   }
 
   /**
@@ -1134,7 +1210,9 @@ public final class Engine
   /**
    * xsl:call-template (also the initial template). The template runs with the
    * focus of the caller, no local variables, and the caller's state as
-   * prepared by {@link XsltState#forTemplateCall()}.
+   * prepared by {@link XsltState#forTemplateCall()}. With a trace listener the
+   * run is enclosed in its named template enter and leave calls; the leave
+   * call also happens when the template ends with an error.
    *
    * @param aCaller
    *        Context of the caller: its focus stays.
@@ -1158,7 +1236,23 @@ public final class Engine
     final XsltContext aBase = aCaller.withoutFocusAndVariables ()
                                      .withFocus (aCaller.getContextItem (), aCaller.getPosition (), aCaller.getSize ())
                                      .withState (aCaller.getState ().forTemplateCall ());
-    _runTemplate (aTemplate, aBase, aParams, aOut);
+    final IXsltTraceListener aTrace = m_aTraceListener;
+    if (aTrace == null)
+      _runTemplate (aTemplate, aBase, aParams, aOut);
+    else
+    {
+      final XsltTraceTemplate aInfo = _createTraceTemplate (aTemplate, null, null);
+      final IXdmItem aItem = aCaller.getContextItem ();
+      aTrace.onNamedTemplateEnter (aInfo, aItem);
+      try
+      {
+        _runTemplate (aTemplate, aBase, aParams, aOut);
+      }
+      finally
+      {
+        aTrace.onNamedTemplateLeave (aInfo, aItem);
+      }
+    }
   }
 
   /**

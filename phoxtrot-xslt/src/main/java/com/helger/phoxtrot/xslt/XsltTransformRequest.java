@@ -71,6 +71,7 @@ public final class XsltTransformRequest
   private OffsetDateTime m_aCurrentDateTime;
   private BooleanSupplier m_aInterrupt;
   private IXsltMessageListener m_aMessageListener;
+  private IXsltTraceListener m_aTraceListener;
   private long m_nMaxSteps;
   private int m_nMaxDepth;
   private ExecutionBudget m_aSharedBudget;
@@ -312,6 +313,38 @@ public final class XsltTransformRequest
   public XsltTransformRequest setMessageListener (@Nullable final IXsltMessageListener aMessageListener)
   {
     m_aMessageListener = aMessageListener;
+    return this;
+  }
+
+  /**
+   * @return The listener that follows the execution of templates, functions
+   *         and optionally instructions, <code>null</code> for none.
+   */
+  @Nullable
+  public IXsltTraceListener getTraceListener ()
+  {
+    return m_aTraceListener;
+  }
+
+  /**
+   * Set a listener that follows the execution of the transformation: its
+   * start and end, every template rule, named template and stylesheet
+   * function, and every instruction if the listener asks for it (see
+   * {@link IXsltTraceListener} for what is reported). It is called
+   * synchronously on the thread that runs the transformation, and every enter
+   * call is followed by its leave call, also when the body ends with an error.
+   * A transformation started by <code>fn:transform</code> reports to the
+   * listener of its caller. Without a listener (the default) the
+   * transformation does nothing extra.
+   *
+   * @param aTraceListener
+   *        The listener; <code>null</code> (the default) for none.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setTraceListener (@Nullable final IXsltTraceListener aTraceListener)
+  {
+    m_aTraceListener = aTraceListener;
     return this;
   }
 

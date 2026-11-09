@@ -41,6 +41,7 @@ import com.helger.phoxtrot.xpath.serialize.SerializationParams;
 import com.helger.phoxtrot.xpath.serialize.XdmIncrementalSerializer;
 import com.helger.phoxtrot.xpath.serialize.XdmSerializer;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.XsltTransformRequest;
 import com.helger.phoxtrot.xslt.XsltTransformResult;
@@ -956,6 +957,33 @@ public final class XsltTransformer
   }
 
   /**
+   * {@link #_run(ResultTarget)} enclosed in the start and end calls of the
+   * trace listener of the request, if there is one; the end call also happens
+   * when the run ends with an error.
+   *
+   * @param aTarget
+   *        Where the serialised principal result goes, or <code>null</code>
+   *        to return it in the result.
+   * @return The result of the run.
+   */
+  @NonNull
+  private XsltTransformResult _runTraced (@Nullable final ResultTarget aTarget)
+  {
+    final IXsltTraceListener aTrace = m_aRequest.getTraceListener ();
+    if (aTrace == null)
+      return _run (aTarget);
+    aTrace.onTransformStart ();
+    try
+    {
+      return _run (aTarget);
+    }
+    finally
+    {
+      aTrace.onTransformEnd ();
+    }
+  }
+
+  /**
    * Attach the messages of the failed run to its error: an
    * {@link XsltException} gets them in front of the messages it may carry
    * from a nested run already, any other XPath error is wrapped in an
@@ -991,7 +1019,7 @@ public final class XsltTransformer
   {
     try
     {
-      return LargeStackRunner.run ( () -> _run (null), "phoxtrot-transform", m_aRequest.getThreading ());
+      return LargeStackRunner.run ( () -> _runTraced (null), "phoxtrot-transform", m_aRequest.getThreading ());
     }
     catch (final XPathException ex)
     {
@@ -1000,10 +1028,9 @@ public final class XsltTransformer
   }
 
   /**
-   * {@link #_run(ResultTarget)} on the thread the request selects, by default
-   * a large-stack worker thread; on an error
-   * what was written so far is flushed to the target before the error is
-   * rethrown with the messages of the run (see
+   * {@link #_runTraced(ResultTarget)} on the thread the request selects, by
+   * default a large-stack worker thread; on an error what was written so far
+   * is flushed to the target before the error is rethrown with the messages of the run (see
    * {@link #_withMessages(XPathException)}).
    *
    * @param aTarget
@@ -1018,7 +1045,7 @@ public final class XsltTransformer
       return LargeStackRunner.run ( () -> {
         try
         {
-          return _run (aTarget);
+          return _runTraced (aTarget);
         }
         catch (final RuntimeException ex)
         {

@@ -609,10 +609,10 @@ public final class XsltTransformHandler implements ITransformHandler
   /**
    * Build the request of the nested run from the options. It uses the run
    * resolver and the current date and time of the caller, and inside a
-   * transformation
-   * shares the caller's execution budget and interrupt, and its message
-   * listener unless enable-messages is false. It sets the initial
-   * template, mode and function (with function-params as arguments),
+   * transformation shares the caller's execution budget, interrupt and trace
+   * listener, and its message listener unless enable-messages is false. It
+   * sets the initial template, mode and function (with function-params as
+   * arguments),
    * stylesheet-params, template-params and tunnel-params. source-node becomes
    * the initial match selection and the root of its tree the global context
    * item (F&amp;O 3.1 section 16.3.2); otherwise initial-match-selection is
@@ -644,6 +644,7 @@ public final class XsltTransformHandler implements ITransformHandler
                                       aEnable.getBoolean ();
       if (bEnableMessages)
         ret.setMessageListener (aHost.engine ().getRequest ().getMessageListener ());
+      ret.setTraceListener (aHost.engine ().getTraceListener ());
     }
     if (aOpts.has ("initial-template"))
       ret.setInitialTemplate (aOpts.getQName ("initial-template"));

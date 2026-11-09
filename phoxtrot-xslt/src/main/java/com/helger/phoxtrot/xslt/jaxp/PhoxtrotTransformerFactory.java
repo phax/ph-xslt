@@ -48,6 +48,7 @@ import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.fn.FnUri;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltCompiler;
 import com.helger.phoxtrot.xslt.XsltExecutable;
@@ -95,7 +96,7 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * no external DTD unless {@link #ATTR_LOAD_EXTERNAL_ENTITIES} is set), and
  * the phoxtrot attributes {@link #ATTR_LOAD_EXTERNAL_ENTITIES},
  * {@link #ATTR_SCHEMA_AWARE}, {@link #ATTR_BACKWARDS_COMPATIBLE},
- * {@link #ATTR_MESSAGE_LISTENER} and
+ * {@link #ATTR_MESSAGE_LISTENER}, {@link #ATTR_TRACE_LISTENER} and
  * {@link #ATTR_MAX_STEPS}. Other names are rejected.</li>
  * </ul>
  *
@@ -134,6 +135,14 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
    */
   public static final String ATTR_MESSAGE_LISTENER = ATTR_PREFIX + "message-listener";
   /**
+   * Attribute ({@link IXsltTraceListener} or <code>null</code>): the initial
+   * trace listener of the transformers, which follows the templates,
+   * functions and optionally instructions of each transformation (default
+   * <code>null</code>, see
+   * {@link com.helger.phoxtrot.xslt.XsltTransformRequest#setTraceListener(IXsltTraceListener)}).
+   */
+  public static final String ATTR_TRACE_LISTENER = ATTR_PREFIX + "trace-listener";
+  /**
    * Attribute ({@link Number} or a decimal string): the step limit of a
    * transformation, see {@link com.helger.phoxtrot.xslt.XsltTransformRequest#setMaxSteps(long)}
    * (0, the default, for the engine default;
@@ -165,6 +174,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   private boolean m_bSchemaAware = XsltCompileOptions.DEFAULT_SCHEMA_AWARE;
   private boolean m_bBackwardsCompatible = XsltCompileOptions.DEFAULT_BACKWARDS_COMPATIBLE_CLAIM;
   private IXsltMessageListener m_aMessageListener;
+  private IXsltTraceListener m_aTraceListener;
   private long m_nMaxSteps = 0;
 
   /** Create a factory with the default settings. */
@@ -174,7 +184,12 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   @NonNull
   private JaxpSettings _createSettings ()
   {
-    return new JaxpSettings (m_aURIResolver, m_sAccessExternalStylesheet, m_bLoadExternalEntities, m_aMessageListener, m_nMaxSteps);
+    return new JaxpSettings (m_aURIResolver,
+                             m_sAccessExternalStylesheet,
+                             m_bLoadExternalEntities,
+                             m_aMessageListener,
+                             m_aTraceListener,
+                             m_nMaxSteps);
   }
 
   /**
@@ -490,6 +505,13 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
         m_aMessageListener = (IXsltMessageListener) aValue;
         break;
       }
+      case ATTR_TRACE_LISTENER:
+      {
+        if (aValue != null && !(aValue instanceof IXsltTraceListener))
+          throw new IllegalArgumentException ("The attribute '" + sName + "' needs an IXsltTraceListener");
+        m_aTraceListener = (IXsltTraceListener) aValue;
+        break;
+      }
       case ATTR_MAX_STEPS:
       {
         if (aValue instanceof final Number aNumber)
@@ -535,6 +557,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
       case ATTR_SCHEMA_AWARE -> Boolean.valueOf (m_bSchemaAware);
       case ATTR_BACKWARDS_COMPATIBLE -> Boolean.valueOf (m_bBackwardsCompatible);
       case ATTR_MESSAGE_LISTENER -> m_aMessageListener;
+      case ATTR_TRACE_LISTENER -> m_aTraceListener;
       case ATTR_MAX_STEPS -> Long.valueOf (m_nMaxSteps);
       default -> throw new IllegalArgumentException ("The attribute '" + sName + "' is not supported");
     };

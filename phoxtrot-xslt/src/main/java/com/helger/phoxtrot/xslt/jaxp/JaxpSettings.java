@@ -22,6 +22,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
+import com.helger.phoxtrot.xslt.IXsltTraceListener;
 
 /**
  * The settings of a {@link PhoxtrotTransformerFactory} at the time a
@@ -38,6 +39,8 @@ import com.helger.phoxtrot.xslt.IXsltMessageListener;
  * @param messageListener
  *        The message listener, <code>null</code> to report messages to the
  *        error listener.
+ * @param traceListener
+ *        The trace listener, <code>null</code> for none.
  * @param maxSteps
  *        The step limit of a transformation, 0 for the engine default.
  * @author Philip Helger
@@ -46,5 +49,6 @@ record JaxpSettings (@Nullable URIResolver uriResolver,
                      @NonNull String accessExternalStylesheet,
                      boolean loadExternalEntities,
                      @Nullable IXsltMessageListener messageListener,
+                     @Nullable IXsltTraceListener traceListener,
                      long maxSteps)
 {}
