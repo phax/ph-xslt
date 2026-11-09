@@ -232,8 +232,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
     final XsltCompileOptions aOptions = new XsltCompileOptions ().setBaseUri (sBaseUri)
                                                                  .setResolver (new JaxpResourceResolver (m_aURIResolver,
                                                                                                          m_sAccessExternalStylesheet,
-                                                                                                         m_bLoadExternalEntities,
-                                                                                                         true))
+                                                                                                         m_bLoadExternalEntities))
                                                                  .setLoadExternalEntities (m_bLoadExternalEntities)
                                                                  .setSchemaAware (m_bSchemaAware)
                                                                  .setBackwardsCompatibleClaim (m_bBackwardsCompatible);

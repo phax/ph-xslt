@@ -198,4 +198,43 @@ public final class XdmLocationsTest
     aElement.appendChild (aPlainText);
     assertEquals (0, aPlainText.getLine ());
   }
+
+  @Test
+  public void testRecordLocationsScope () throws XdmParseException
+  {
+    assertFalse (XdmParser.isRecordLocationsByDefault ());
+    final IXdmNode aDoc = XdmParser.getWithRecordLocations ( () -> {
+      assertTrue (XdmParser.isRecordLocationsByDefault ());
+      assertTrue (new XdmParser ().isRecordLocations ());
+      // An explicit setting wins
+      assertFalse (new XdmParser ().setRecordLocations (false).isRecordLocations ());
+      // Nested scopes restore the outer one
+      XdmParser.getWithRecordLocations ( () -> Boolean.TRUE);
+      assertTrue (XdmParser.isRecordLocationsByDefault ());
+      try
+      {
+        return new XdmParser ().parse (XML);
+      }
+      catch (final XdmParseException ex)
+      {
+        throw new IllegalStateException (ex);
+      }
+    });
+    assertEquals (2, aDoc.getChildAtIndex (0).getLine ());
+    // Restored afterwards, also after an exception
+    assertFalse (XdmParser.isRecordLocationsByDefault ());
+    assertFalse (new XdmParser ().isRecordLocations ());
+    try
+    {
+      XdmParser.getWithRecordLocations ( () -> {
+        throw new IllegalStateException ("expected");
+      });
+    }
+    catch (final IllegalStateException ex)
+    {
+      assertEquals ("expected", ex.getMessage ());
+    }
+    assertFalse (XdmParser.isRecordLocationsByDefault ());
+    assertEquals (0, new XdmParser ().parse (XML).getChildAtIndex (0).getLine ());
+  }
 }

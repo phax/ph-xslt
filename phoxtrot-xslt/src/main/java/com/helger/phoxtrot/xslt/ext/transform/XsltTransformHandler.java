@@ -489,7 +489,7 @@ public final class XsltTransformHandler implements ITransformHandler
     final String sUri = _resolve (sLocation, aHost.staticBaseUri ());
     if (sUri == null)
       throw _invalid ("the location '" + sLocation + "' cannot be resolved");
-    IXdmNode aDoc = aHost.compileResolver ().resolveDocument (sUri);
+    IXdmNode aDoc = aHost.compileResolver ().resolveStylesheetModule (sUri);
     if (aDoc == null)
     {
       final String sText = aHost.compileResolver ().resolveText (sUri, null);

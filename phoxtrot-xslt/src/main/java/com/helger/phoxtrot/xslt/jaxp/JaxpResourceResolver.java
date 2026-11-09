@@ -56,7 +56,9 @@ import com.helger.phoxtrot.xslt.compile.FileResourceResolver;
  * {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} (<code>all</code>, or a
  * comma-separated list of schemes such as <code>file,jar</code>; the empty
  * string allows nothing): <code>file:</code> URIs as files, any other URI
- * through the JDK URL handlers. Collections are not supported.
+ * through the JDK URL handlers. Collections are not supported. Stylesheet
+ * modules ({@link #resolveStylesheetModule(String)}) are parsed with node
+ * locations, documents without.
  *
  * @author Philip Helger
  */
@@ -68,7 +70,6 @@ final class JaxpResourceResolver implements IResourceResolver
   private final URIResolver m_aURIResolver;
   private final String m_sAllowedSchemes;
   private final boolean m_bLoadExternalEntities;
-  private final boolean m_bRecordLocations;
 
   /**
    * @param aURIResolver
@@ -78,21 +79,14 @@ final class JaxpResourceResolver implements IResourceResolver
    *        the direct access.
    * @param bLoadExternalEntities
    *        Whether documents read here load external DTDs and entities.
-   * @param bRecordLocations
-   *        Whether documents parsed here get node locations
-   *        ({@link XdmParser#setRecordLocations(boolean)}): <code>true</code>
-   *        for the resolver of stylesheet modules, <code>false</code> for
-   *        the one of the documents a transformation reads.
    */
   JaxpResourceResolver (@Nullable final URIResolver aURIResolver,
                         @NonNull final String sAllowedSchemes,
-                        final boolean bLoadExternalEntities,
-                        final boolean bRecordLocations)
+                        final boolean bLoadExternalEntities)
   {
     m_aURIResolver = aURIResolver;
     m_sAllowedSchemes = sAllowedSchemes;
     m_bLoadExternalEntities = bLoadExternalEntities;
-    m_bRecordLocations = bRecordLocations;
   }
 
   /**
@@ -156,14 +150,18 @@ final class JaxpResourceResolver implements IResourceResolver
   /**
    * Resolve a document: the source of the URI resolver turned into XDM (with
    * the URI as document URI if it has none), or else the URI read directly
-   * if access is allowed.
+   * if access is allowed. A source that is parsed here gets node locations
+   * as requested; a DOM source or an {@link XdmSource} keeps what it has.
    *
+   * @param bRecordLocations
+   *        Whether a parsed document gets node locations
+   *        ({@link XdmParser#setRecordLocations(boolean)}).
    * @return The document, or <code>null</code> if it is unavailable.
    * @throws XPathException
    *         FODC0002 if the URI resolver fails or its source cannot be read
    */
   @Nullable
-  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  private IXdmNode _resolve (@NonNull final String sAbsoluteUri, final boolean bRecordLocations)
   {
     final Source aSource = _resolveWithURIResolver (sAbsoluteUri);
     if (aSource != null)
@@ -171,7 +169,7 @@ final class JaxpResourceResolver implements IResourceResolver
       final IXdmNode ret;
       try
       {
-        ret = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, m_bRecordLocations);
+        ret = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, bRecordLocations);
       }
       catch (final TransformerException ex)
       {
@@ -185,11 +183,15 @@ final class JaxpResourceResolver implements IResourceResolver
     if (!_checkAccess (sAbsoluteUri))
       return null;
     if (sAbsoluteUri.startsWith ("file:"))
-      return new FileResourceResolver (m_bLoadExternalEntities, m_bRecordLocations).resolveDocument (sAbsoluteUri);
+    {
+      final FileResourceResolver aFileResolver = new FileResourceResolver (m_bLoadExternalEntities);
+      return bRecordLocations ? aFileResolver.resolveStylesheetModule (sAbsoluteUri)
+                              : aFileResolver.resolveDocument (sAbsoluteUri);
+    }
     try
     {
       final IXdmNode ret = new XdmParser ().setLoadExternalEntities (m_bLoadExternalEntities)
-                                           .setRecordLocations (m_bRecordLocations)
+                                           .setRecordLocations (bRecordLocations)
                                            .parse (new InputSource (sAbsoluteUri));
       if (ret.getDocumentUri () == null)
         ret.setDocumentUri (sAbsoluteUri);
@@ -199,6 +201,38 @@ final class JaxpResourceResolver implements IResourceResolver
     {
       return null;
     }
+  }
+
+  /**
+   * Resolve a document (see {@link #_resolve(String, boolean)}) with the
+   * location default of {@link XdmParser} on the calling thread
+   * ({@link XdmParser#isRecordLocationsByDefault()}, without locations
+   * unless a stylesheet module is resolved through a delegating resolver).
+   *
+   * @return The document, or <code>null</code> if it is unavailable.
+   * @throws XPathException
+   *         FODC0002 if the URI resolver fails or its source cannot be read
+   */
+  @Nullable
+  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  {
+    return _resolve (sAbsoluteUri, XdmParser.isRecordLocationsByDefault ());
+  }
+
+  /**
+   * Resolve a stylesheet module (see {@link #_resolve(String, boolean)}),
+   * parsed with node locations. A DOM source or an {@link XdmSource} from the
+   * URI resolver is used as it is, with the locations it has (none for DOM).
+   *
+   * @return The document, or <code>null</code> if it is unavailable.
+   * @throws XPathException
+   *         FODC0002 if the URI resolver fails or its source cannot be read
+   */
+  @Override
+  @Nullable
+  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  {
+    return _resolve (sAbsoluteUri, true);
   }
 
   /**

@@ -264,6 +264,25 @@ public final class XSLT30ResourceResolver implements IResourceResolver
   }
 
   /**
+   * The stylesheet module for <code>xsl:include</code>,
+   * <code>xsl:import</code>, a package or <code>fn:transform</code>: the file
+   * the URI maps to, parsed with node locations by the test set's cache (a
+   * different node than {@link #resolveDocument(String)} returns for the same
+   * file). Prepared (validated) documents are source documents and not used
+   * here.
+   *
+   * @return <code>null</code> if the URI maps to no file, or the file is not
+   *         well-formed.
+   */
+  @Override
+  @Nullable
+  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  {
+    final Path aPath = _getPath (sAbsoluteUri);
+    return aPath == null ? null : m_aDocs.getStylesheetModule (aPath);
+  }
+
+  /**
    * Open the file the URI maps to as a stream for streamed processing, with
    * external entities read like the document cache does. A file with a
    * prepared (validated) document is not streamed, so its type annotations

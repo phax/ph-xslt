@@ -424,6 +424,38 @@ public final class QT3ResourceResolver implements IResourceResolver
   }
 
   /**
+   * Resolve a stylesheet module for <code>fn:transform</code>
+   * (<code>stylesheet-location</code>, <code>package-location</code>, and the
+   * modules it includes or imports): the file of a declared URI, else of any
+   * <code>file:</code> URI, parsed with node locations each time (no cache:
+   * a module need not be the same node per call).
+   *
+   * @param sAbsoluteUri
+   *        The absolute URI.
+   * @return The document node, or <code>null</code> if the URI is not
+   *         declared and not a <code>file:</code> URI, or the file does not
+   *         exist or is not well-formed.
+   */
+  @Override
+  @Nullable
+  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  {
+    Path aFile = m_aByUri.get (sAbsoluteUri);
+    if (aFile == null)
+      aFile = _fileUriToPath (sAbsoluteUri);
+    if (aFile == null || !Files.isRegularFile (aFile))
+      return null;
+    try
+    {
+      return new XdmParser ().setRecordLocations (true).parse (aFile);
+    }
+    catch (final XdmParseException ex)
+    {
+      return null;
+    }
+  }
+
+  /**
    * Resolve unparsed text (see <code>_getTextPath</code>) and decode it with
    * {@link #decodeText}, using the encoding declared for exactly this URI.
    *
