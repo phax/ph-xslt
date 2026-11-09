@@ -35,11 +35,17 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `getColumn`), only a parentless one reports what `setLocation` or the `createAttribute`/`createText` factories with
   a location put in its holder. An element copy that must keep its original's location uses `createElement` with the
   location, not `setLocation` (one holder per node); attribute and text copies added to a copy take no location.
-  Stylesheet, schema and XSD instance parses (error locations, `xsl:try`, XSD error lines) set it on explicitly, and
-  so do the resolvers of stylesheet modules (`FileResourceResolver` by default, the compile-time
-  `JaxpResourceResolver`, the XSLT30 harness document cache); source documents, `fn:doc`/`document()` through the
-  runtime JAXP resolver, `fn:parse-xml` and JAXP sources are parsed without. A new parse site states it explicitly.
-  `XdmStreamReader` records them only when opened with `bRecordLocations` (default off; no streamed path reads them).
+  One rule: every reader defaults to no locations (`XdmParser`, `XdmTreeBuilder`, `XdmStreamReader.open` without
+  `bRecordLocations`, every `IResourceResolver.resolveDocument`/`openDocumentStream`, `fn:parse-xml`, JAXP sources);
+  only stylesheet modules, packages, schema documents and XSD instance validation are parsed with them (error
+  locations, `xsl:try`, XSD error lines), and those parse sites set it on explicitly. Stylesheet modules read
+  through a resolver (include/import, packages by location, `fn:transform` locations) go through
+  `IResourceResolver.resolveStylesheetModule`, never `resolveDocument`: `FileResourceResolver`, `JaxpResourceResolver`
+  and the XSLT30/QT3 harness resolvers override it, and its default calls `resolveDocument` inside
+  `XdmParser.getWithRecordLocations`, which makes locations the default of every `XdmParser`/`XdmTreeBuilder`
+  created on the thread meanwhile (`isRecordLocationsByDefault`; an explicit `setRecordLocations` wins), so a user
+  resolver that implements only `resolveDocument` still yields located modules unless it caches or switches them
+  off. A wrapping resolver forwards `resolveStylesheetModule`. A new parse site states its setting explicitly.
 - Document order: `getOrder ()`/`getEndOrder ()` (end = last node of the subtree, attributes included); a document node
   has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children)
   used by `AxisNavigator.collectNamedDescendants`/`collectNamedSubtreeAttributes`/`collectNamedChildren`. Every
