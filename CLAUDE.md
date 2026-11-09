@@ -119,7 +119,7 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `StreamedRun.getStreamedCount (<instruction>)`. The memory test is `StreamedMemoryTest` (forked JVM, `-Xmx32m`,
   `-Dstreamed.memory.records=<n>`, one stylesheet per streamed construct).
 - Backwards compatibility (XSLT 3.0 sections 3.9 and 27.4, the XSLT 1.0 compatibility feature): the engine switch is
-  `XsltCompileOptions.setBackwardsCompatibleClaim` (default off; JAXP attribute
+  `XsltCompileOptions.setBackwardsCompatibleClaim` (default on, `DEFAULT_BACKWARDS_COMPATIBLE_CLAIM`; the XSLT30 harness sets it explicitly in both directions; JAXP attribute
   `PhoxtrotTransformerFactory.ATTR_BACKWARDS_COMPATIBLE`; a nested `fn:transform` inherits it;
   `system-property('xsl:supports-backwards-compatibility')` follows it via `XsltFunctions.registerClaims`). An element
   whose effective version (`XslElement.getEffectiveVersion`, the version of xsl:output itself does not count) is below

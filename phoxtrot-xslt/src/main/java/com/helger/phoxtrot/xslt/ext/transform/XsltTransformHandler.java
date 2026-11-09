@@ -359,6 +359,52 @@ public final class XsltTransformHandler implements ITransformHandler
   }
 
   /**
+   * The value of a requested property given as boolean: an <code>xs:boolean</code>
+   * or one of the strings "yes", "true", "1", "no", "false", "0" (XSLT 3.0
+   * section 3.4 notation, F&amp;O 3.1 section 17.2.4 for fn:transform).
+   *
+   * @param aValue
+   *        The value of the map entry.
+   * @return <code>null</code> if it is empty or not a boolean value.
+   */
+  @Nullable
+  private static Boolean _getRequestedBoolean (@NonNull final XdmSequence aValue)
+  {
+    final IXdmItem aItem = aValue.isEmpty () ? null : aValue.getFirst ();
+    if (!(aItem instanceof final XdmAtomic aAtomic))
+      return null;
+    if (aAtomic.getType () == EAtomicType.BOOLEAN)
+      return Boolean.valueOf (aAtomic.getBoolean ());
+    final String s = aAtomic.getString ().trim ();
+    if (!XsltNames.isXsltTrue (s) && !"no".equals (s) && !"false".equals (s) && !"0".equals (s))
+      return null;
+    return Boolean.valueOf (XsltNames.isXsltTrue (s));
+  }
+
+  /**
+   * The requested value of the property xsl:supports-backwards-compatibility,
+   * which this processor can configure either way: the nested stylesheet is
+   * compiled with or without the XSLT 1.0 compatibility feature as requested.
+   *
+   * @param aOpts
+   *        The options of the call.
+   * @return <code>null</code> if it is not requested.
+   */
+  @Nullable
+  private static Boolean _getRequestedBackwardsCompatibility (@NonNull final Options aOpts)
+  {
+    final XdmMap aMap = aOpts.getMap ("requested-properties");
+    if (aMap == null)
+      return null;
+    for (final XdmMap.Entry aEntry : aMap.entries ())
+      if (aEntry.key ().getValue () instanceof final XdmQName aName &&
+          XsltNames.NS_XSL.equals (aName.namespaceUri ()) &&
+          "supports-backwards-compatibility".equals (aName.localName ()))
+        return _getRequestedBoolean (aEntry.value ());
+    return null;
+  }
+
+  /**
    * Check the requested properties this processor has a fixed answer for.
    * Every other property is left alone (the specification allows ignoring a
    * request).
@@ -386,19 +432,10 @@ public final class XsltTransformHandler implements ITransformHandler
         default:
           continue;
       }
-      final IXdmItem aValue = aEntry.value ().isEmpty () ? null : aEntry.value ().getFirst ();
-      if (!(aValue instanceof final XdmAtomic aAtomic))
+      final Boolean aRequested = _getRequestedBoolean (aEntry.value ());
+      if (aRequested == null)
         continue;
-      final boolean bRequested;
-      if (aAtomic.getType () == EAtomicType.BOOLEAN)
-        bRequested = aAtomic.getBoolean ();
-      else
-      {
-        final String s = aAtomic.getString ().trim ();
-        if (!XsltNames.isXsltTrue (s) && !"no".equals (s) && !"false".equals (s) && !"0".equals (s))
-          continue;
-        bRequested = XsltNames.isXsltTrue (s);
-      }
+      final boolean bRequested = aRequested.booleanValue ();
       if (bRequested != bHave)
         throw new XPathException ("FOXT0001",
                                   "fn:transform: the requested property xsl:" +
@@ -510,6 +547,10 @@ public final class XsltTransformHandler implements ITransformHandler
       ret.setBackwardsCompatibleClaim (aHost.callerOptions ().isBackwardsCompatibleClaim ());
       ret.packages ().addAll (aHost.callerOptions ().packages ());
     }
+    // A requested xsl:supports-backwards-compatibility configures the claim
+    final Boolean aBackwards = _getRequestedBackwardsCompatibility (aOpts);
+    if (aBackwards != null)
+      ret.setBackwardsCompatibleClaim (aBackwards.booleanValue ());
     final XdmMap aStatics = aOpts.getMap ("static-params");
     if (aStatics != null)
       for (final XdmMap.Entry aEntry : aStatics.entries ())

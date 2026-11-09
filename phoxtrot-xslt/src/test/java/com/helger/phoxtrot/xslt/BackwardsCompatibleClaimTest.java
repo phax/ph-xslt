@@ -111,9 +111,9 @@ public final class BackwardsCompatibleClaimTest
   @Test
   public void testDefaults ()
   {
-    assertFalse (XsltCompileOptions.DEFAULT_BACKWARDS_COMPATIBLE_CLAIM);
-    assertFalse (new XsltCompileOptions ().isBackwardsCompatibleClaim ());
-    assertTrue (new XsltCompileOptions ().setBackwardsCompatibleClaim (true).isBackwardsCompatibleClaim ());
+    assertTrue (XsltCompileOptions.DEFAULT_BACKWARDS_COMPATIBLE_CLAIM);
+    assertTrue (new XsltCompileOptions ().isBackwardsCompatibleClaim ());
+    assertFalse (new XsltCompileOptions ().setBackwardsCompatibleClaim (false).isBackwardsCompatibleClaim ());
   }
 
   @Test
@@ -322,5 +322,28 @@ public final class BackwardsCompatibleClaimTest
                           "</xsl:stylesheet>";
     assertFalse (_run (sSheet.replace ("VERSION", "1.0"), true).contains ("<meta"));
     assertTrue (_run (sSheet.replace ("VERSION", "3.0"), true).contains ("<meta"));
+  }
+
+  @Test
+  public void testTransformRequestedProperty ()
+  {
+    // fn:transform configures the claim from the requested property
+    // xsl:supports-backwards-compatibility; without a request the caller's
+    // claim is passed on (F&O 3.1 section 17.2.4)
+    final String sInner = "<xsl:stylesheet xmlns:xsl='http://www.w3.org/1999/XSL/Transform' version='2.0'>" +
+                          "<xsl:template name='main'><out><xsl:value-of select='(1, 2)' version='1.0'/></out></xsl:template>" +
+                          "</xsl:stylesheet>";
+    final String sCall = "transform(map{'stylesheet-text': string($t), 'initial-template': QName('', 'main')," +
+                         " 'delivery-format': 'serialized'%REQ%})?output";
+    final String sVar = "<xsl:variable name='t'><![CDATA[" + sInner + "]]></xsl:variable>";
+    final String sDefault = _sheet ("3.0", sVar + "<xsl:value-of select=\"" + sCall.replace ("%REQ%", "") + "\"/>");
+    assertTrue (_run (sDefault, true), _run (sDefault, true).endsWith ("<out>1</out>"));
+    final String sOff = _sheet ("3.0",
+                                sVar +
+                                           "<xsl:value-of select=\"" +
+                                           sCall.replace ("%REQ%",
+                                                          ", 'requested-properties': map{QName('http://www.w3.org/1999/XSL/Transform', 'supports-backwards-compatibility'): false()}") +
+                                           "\"/>");
+    assertEquals ("XTDE0160", _code (sOff, true));
   }
 }

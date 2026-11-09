@@ -347,7 +347,8 @@ public final class ValidateStaticErrorsSpecTest
 
   /**
    * [ERR XTDE0160]: an element with an effective version below 2.0, evaluated
-   * by a processor not configured for backwards-compatible behaviour. (The
+   * by a processor not configured for backwards-compatible behaviour (the
+   * engine claims it by default, so the claim is switched off here). (The
    * backwards compatible half of go-xslt's test is not ported.)
    */
   @Test
@@ -355,7 +356,8 @@ public final class ValidateStaticErrorsSpecTest
   {
     try
     {
-      _compile (_tmpl ("<out xsl:version=\"1.0\"/>")).transform (new XsltTransformRequest ().setGlobalContextItem (XsltTestHelper.parse ("<a/>")));
+      XsltCompiler.compile (_tmpl ("<out xsl:version=\"1.0\"/>"), new XsltCompileOptions ().setBackwardsCompatibleClaim (false))
+                  .transform (new XsltTransformRequest ().setGlobalContextItem (XsltTestHelper.parse ("<a/>")));
       fail ("want XTDE0160");
     }
     catch (final XPathException ex)

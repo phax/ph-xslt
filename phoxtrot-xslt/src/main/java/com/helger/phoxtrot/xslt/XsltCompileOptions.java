@@ -115,11 +115,12 @@ public final class XsltCompileOptions
   public static final boolean DEFAULT_STREAMING_CLAIM = false;
 
   /**
-   * The XSLT 1.0 compatibility feature (XSLT 3.0 section 27.4) is not claimed
-   * by default: an instruction with an effective version below 2.0 raises
-   * XTDE0160 when it is evaluated.
+   * The XSLT 1.0 compatibility feature (XSLT 3.0 section 27.4) is claimed by
+   * default: an element with an effective version below 2.0 is processed with
+   * XSLT 1.0 behaviour (section 3.9). Without the claim such an instruction
+   * raises XTDE0160 when it is evaluated.
    */
-  public static final boolean DEFAULT_BACKWARDS_COMPATIBLE_CLAIM = false;
+  public static final boolean DEFAULT_BACKWARDS_COMPATIBLE_CLAIM = true;
 
   private String m_sBaseUri;
   private IResourceResolver m_aResolver;

@@ -736,8 +736,8 @@ public final class XSLT30CaseRunner
       }
       if (m_bStreaming)
         aOptions.setStreamingClaim (true).setEnforceStreamability (true);
-      if (m_bBackwardsCompatible)
-        aOptions.setBackwardsCompatibleClaim (true);
+      // Explicit in both directions: the engine claims it by default
+      aOptions.setBackwardsCompatibleClaim (m_bBackwardsCompatible);
       for (final XSLT30Param aParam : aStaticParams.values ())
         aOptions.setStaticParam (aParam.name (), _evaluateParam (aParam, null, aResolver, sBaseUri));
       if (bEmbedded)
