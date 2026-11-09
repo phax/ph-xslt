@@ -43,13 +43,13 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   // Order of the last node of the subtree, see getEndOrder
   private int m_nEndOrder;
 
-  AbstractXdmParentNode ()
+  protected AbstractXdmParentNode ()
   {}
 
   /**
-   * Store a child in the next slot, growing the array if it is full: the first
-   * child gets an array of one (the common leaf element with one text node),
-   * the second one of four, and from then on the array grows by half.
+   * Store a child in the next slot, growing the array if it is full: the first child gets an array
+   * of one (the common leaf element with one text node), the second one of four, and from then on
+   * the array grows by half.
    */
   private void _addChild (@NonNull final AbstractXdmNode aChild)
   {
@@ -62,8 +62,7 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   }
 
   /**
-   * Remove the child in a slot, moving the later children one slot to the
-   * front.
+   * Remove the child in a slot, moving the later children one slot to the front.
    */
   private void _removeChildAt (@Nonnegative final int nIndex)
   {
@@ -85,15 +84,13 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   }
 
   /**
-   * Append a parentless node as the last child and make this node its parent.
-   * A numbering the appended subtree had as a tree of its own is removed. If
-   * this tree was numbered, the numbering of the whole tree and the name
-   * indexes of its document are removed too; both are assigned again on
-   * demand.
+   * Append a parentless node as the last child and make this node its parent. A numbering the
+   * appended subtree had as a tree of its own is removed. If this tree was numbered, the numbering
+   * of the whole tree and the name indexes of its document are removed too; both are assigned again
+   * on demand.
    *
    * @throws IllegalArgumentException
-   *         if the node already has a parent, or is an attribute, namespace or
-   *         document node
+   *         if the node already has a parent, or is an attribute, namespace or document node
    */
   @Override
   public final void appendChild (@NonNull final IXdmNode aChild)
@@ -119,9 +116,9 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   }
 
   /**
-   * Detach a child, which becomes a parentless root of its own. The numbering
-   * of the whole tree, the removed subtree included, and the name indexes of
-   * its document are removed first, so both are assigned again on demand.
+   * Detach a child, which becomes a parentless root of its own. The numbering of the whole tree,
+   * the removed subtree included, and the name indexes of its document are removed first, so both
+   * are assigned again on demand.
    *
    * @throws IllegalArgumentException
    *         if the node is not a child of this node
@@ -143,8 +140,8 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   }
 
   /**
-   * Append a child to a tree that is numbered while it is built
-   * ({@link XdmStreamReader}): the numbering stays.
+   * Append a child to a tree that is numbered while it is built ({@link XdmStreamReader}): the
+   * numbering stays.
    */
   final void internalAppendNumbered (@NonNull final AbstractXdmNode aChild)
   {
@@ -153,9 +150,9 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   }
 
   /**
-   * Detach a child from a tree that is numbered while it is built
-   * ({@link XdmStreamReader}): the numbering of the remaining nodes stays. The
-   * child is searched from the end, where a streamed child normally is.
+   * Detach a child from a tree that is numbered while it is built ({@link XdmStreamReader}): the
+   * numbering of the remaining nodes stays. The child is searched from the end, where a streamed
+   * child normally is.
    *
    * @return <code>true</code> if it was a child.
    */
@@ -172,10 +169,9 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   }
 
   /**
-   * Shrink the child array to the number of children if at least four slots
-   * are unused, for a parent that gets no more children while its tree is
-   * built ({@link XdmTreeBuilder}). Smaller gaps are kept, as copying the
-   * array would cost more than it saves.
+   * Shrink the child array to the number of children if at least four slots are unused, for a
+   * parent that gets no more children while its tree is built ({@link XdmTreeBuilder}). Smaller
+   * gaps are kept, as copying the array would cost more than it saves.
    */
   final void internalTrimChildren ()
   {
@@ -222,10 +218,9 @@ public abstract sealed class AbstractXdmParentNode extends AbstractXdmNode permi
   }
 
   /**
-   * The concatenation of the descendant text nodes in document order, built
-   * iteratively; a node with exactly one text child returns that value
-   * without copying, a node without children the empty string. Comments,
-   * processing instructions and attributes do not contribute.
+   * The concatenation of the descendant text nodes in document order, built iteratively; a node
+   * with exactly one text child returns that value without copying, a node without children the
+   * empty string. Comments, processing instructions and attributes do not contribute.
    */
   @NonNull
   public final String getStringValue ()

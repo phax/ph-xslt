@@ -22,31 +22,32 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
 
 /**
- * Base class of the node kinds that have a raw value: attributes, text,
- * comments, processing instructions and namespace nodes.
+ * Base class of the node kinds that have a raw value: attributes, text, comments, processing
+ * instructions and namespace nodes.
  *
  * @author Philip Helger
  */
 @NotThreadSafe
-public abstract sealed class AbstractXdmValueNode extends AbstractXdmNode permits XdmAttributeNode,
-                                                                           XdmTextNode,
-                                                                           XdmCommentNode,
-                                                                           XdmProcessingInstructionNode,
-                                                                           XdmNamespaceNode
+public abstract sealed class AbstractXdmValueNode extends AbstractXdmNode permits
+                                                  XdmAttributeNode,
+                                                  XdmTextNode,
+                                                  XdmCommentNode,
+                                                  XdmProcessingInstructionNode,
+                                                  XdmNamespaceNode
 {
   // The value: a String, except for a text node with appended text that was
   // not joined yet, which holds a StringBuilder (see XdmTextNode). One field
   // for both, so that a text node needs no field for its pending text
   private Object m_aValue;
 
-  AbstractXdmValueNode (@NonNull final String sValue)
+  protected AbstractXdmValueNode (@NonNull final String sValue)
   {
     m_aValue = sValue;
   }
 
   /**
-   * @return The value field as it is: a {@link String}, or for a text node
-   *         with pending text a {@link StringBuilder}.
+   * @return The value field as it is: a {@link String}, or for a text node with pending text a
+   *         {@link StringBuilder}.
    */
   @NonNull
   final Object internalGetRawValue ()
@@ -58,8 +59,7 @@ public abstract sealed class AbstractXdmValueNode extends AbstractXdmNode permit
    * Store the value field as it is, without a check.
    *
    * @param aValue
-   *        A {@link String}, or for a text node with pending text a
-   *        {@link StringBuilder}.
+   *        A {@link String}, or for a text node with pending text a {@link StringBuilder}.
    */
   final void internalSetRawValue (@NonNull final Object aValue)
   {
@@ -67,8 +67,8 @@ public abstract sealed class AbstractXdmValueNode extends AbstractXdmNode permit
   }
 
   /**
-   * The value field cast to {@link String}. A text node overrides this and
-   * joins pending text first, so the cast cannot fail.
+   * The value field cast to {@link String}. A text node overrides this and joins pending text
+   * first, so the cast cannot fail.
    */
   @Override
   @NonNull

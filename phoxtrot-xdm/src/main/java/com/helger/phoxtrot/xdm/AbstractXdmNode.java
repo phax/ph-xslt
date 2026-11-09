@@ -32,9 +32,9 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 
 /**
- * Base class of all node kinds. It holds what every node has (parent,
- * location, document order) and the default for every property a kind does
- * not have. The subclasses only add the fields of their kind.
+ * Base class of all node kinds. It holds what every node has (parent, location, document order) and
+ * the default for every property a kind does not have. The subclasses only add the fields of their
+ * kind.
  *
  * @author Philip Helger
  */
@@ -44,14 +44,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   private static final AtomicLong TREE_COUNTER = new AtomicLong (0);
 
   /**
-   * One numbering of a tree. All nodes numbered together reference the same
-   * instance, so "the same tree" is an identity check, and a node costs one
-   * reference instead of a <code>long</code> number. A plain
-   * <code>int</code> counter would wrap after 2^32 numberings, which a
-   * long-running process reaches, and could then give a live tree's number to
-   * a new tree; an identity cannot be reused while a node still references it.
-   * The sequence number orders different trees by the moment they were
-   * numbered and never wraps in practice (2^63).
+   * One numbering of a tree. All nodes numbered together reference the same instance, so "the same
+   * tree" is an identity check, and a node costs one reference instead of a <code>long</code>
+   * number. A plain <code>int</code> counter would wrap after 2^32 numberings, which a long-running
+   * process reaches, and could then give a live tree's number to a new tree; an identity cannot be
+   * reused while a node still references it. The sequence number orders different trees by the
+   * moment they were numbered and never wraps in practice (2^63).
    */
   static final class TreeStamp
   {
@@ -64,13 +62,11 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * The properties only few nodes have. They live in a separate object that is
-   * created on the first non-default value, which keeps every node small. All
-   * of them but the namespace nodes of an element are set while a tree is
-   * built. The namespace nodes are built on demand under the lock of
-   * {@link XdmElementNode}; a reader without the lock that sees a holder
-   * created for them sees default values in all other fields, which is what
-   * a node without holder has.
+   * The properties only few nodes have. They live in a separate object that is created on the first
+   * non-default value, which keeps every node small. All of them but the namespace nodes of an
+   * element are set while a tree is built. The namespace nodes are built on demand under the lock
+   * of {@link XdmElementNode}; a reader without the lock that sees a holder created for them sees
+   * default values in all other fields, which is what a node without holder has.
    */
   private static final class Details
   {
@@ -99,14 +95,13 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   // Created on demand
   private Details m_aDetails;
 
-  AbstractXdmNode ()
+  protected AbstractXdmNode ()
   {}
 
   /**
-   * @return The {@link Details} of this node, created on the first call. Only
-   *         called to store a value; reading goes through the field directly,
-   *         so that a node that only ever has default values stays without
-   *         details.
+   * @return The {@link Details} of this node, created on the first call. Only called to store a
+   *         value; reading goes through the field directly, so that a node that only ever has
+   *         default values stays without details.
    */
   @NonNull
   private Details _details ()
@@ -117,9 +112,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * @return The namespace declarations of this node itself (prefix to URI, in
-   *         declaration order), or <code>null</code> if it has none. The
-   *         internal map, not a copy.
+   * @return The namespace declarations of this node itself (prefix to URI, in declaration order),
+   *         or <code>null</code> if it has none. The internal map, not a copy.
    */
   @Nullable
   private ICommonsOrderedMap <String, String> _getNamespaces ()
@@ -128,8 +122,7 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * @return The numbering this node was numbered in, <code>null</code> if it
-   *         is not numbered.
+   * @return The numbering this node was numbered in, <code>null</code> if it is not numbered.
    */
   @Nullable
   final TreeStamp internalGetTree ()
@@ -145,8 +138,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Number a node as it is created, in the order {@link #assignDocumentOrder()}
-   * would give it in the finished tree (used by {@link XdmStreamReader}).
+   * Number a node as it is created, in the order {@link #assignDocumentOrder()} would give it in
+   * the finished tree (used by {@link XdmStreamReader}).
    */
   final void internalStamp (@NonNull final TreeStamp aTree, @Nonnegative final int nOrder)
   {
@@ -155,9 +148,9 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Remove the numbering of the whole tree after a structural change, so that
-   * it is assigned again on demand. A no-op for an unnumbered tree, so the
-   * cost of a series of changes is one pass over the tree.
+   * Remove the numbering of the whole tree after a structural change, so that it is assigned again
+   * on demand. A no-op for an unnumbered tree, so the cost of a series of changes is one pass over
+   * the tree.
    */
   final void internalInvalidateOrder ()
   {
@@ -180,8 +173,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * @return The ID kind stored for this node (elements and attributes),
-   *         {@link EIDKind#NONE} if none was stored.
+   * @return The ID kind stored for this node (elements and attributes), {@link EIDKind#NONE} if
+   *         none was stored.
    */
   @NonNull
   final EIDKind internalGetIDKind ()
@@ -191,8 +184,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Store the ID kind of an element or attribute. {@link EIDKind#NONE}, the
-   * value of almost every node, creates no details holder.
+   * Store the ID kind of an element or attribute. {@link EIDKind#NONE}, the value of almost every
+   * node, creates no details holder.
    */
   final void internalSetIDKind (@NonNull final EIDKind eIDKind)
   {
@@ -201,8 +194,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * @return The namespace nodes built for this element, <code>null</code> if
-   *         there are none (yet). The caller guards the access.
+   * @return The namespace nodes built for this element, <code>null</code> if there are none (yet).
+   *         The caller guards the access.
    */
   @Nullable
   final ICommonsList <IXdmNode> internalGetNamespaceNodes ()
@@ -211,9 +204,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Keep the namespace nodes built for this element, or drop them with
-   * <code>null</code> (which creates no details holder). The caller guards the
-   * access.
+   * Keep the namespace nodes built for this element, or drop them with <code>null</code> (which
+   * creates no details holder). The caller guards the access.
    */
   final void internalSetNamespaceNodes (@Nullable final ICommonsList <IXdmNode> aNamespaceNodes)
   {
@@ -227,10 +219,10 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Record a namespace declaration on this node, without any check. A second
-   * declaration of the same prefix replaces the URI but keeps the position of
-   * the first one. Cached namespace nodes are not dropped; that is up to the
-   * caller ({@link XdmElementNode#declareNamespace(String, String)}).
+   * Record a namespace declaration on this node, without any check. A second declaration of the
+   * same prefix replaces the URI but keeps the position of the first one. Cached namespace nodes
+   * are not dropped; that is up to the caller
+   * ({@link XdmElementNode#declareNamespace(String, String)}).
    *
    * @param sPrefix
    *        The prefix, the empty string for the default namespace.
@@ -258,8 +250,7 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Default for the kinds without a raw value (documents and elements): always
-   * fails.
+   * Default for the kinds without a raw value (documents and elements): always fails.
    *
    * @throws IllegalStateException
    *         always, after the <code>null</code> check
@@ -277,8 +268,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * The location of a node without location fields of its own is kept in the
-   * details holder: 0 if none was set.
+   * The location of a node without location fields of its own is kept in the details holder: 0 if
+   * none was set.
    */
   @Nonnegative
   public int getLine ()
@@ -287,8 +278,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * The location of a node without location fields of its own is kept in the
-   * details holder: 0 if none was set.
+   * The location of a node without location fields of its own is kept in the details holder: 0 if
+   * none was set.
    */
   @Nonnegative
   public int getColumn ()
@@ -297,11 +288,10 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * A node created without a location (all nodes of a tree parsed without
-   * recording locations, and nodes of the factories without location) keeps a
-   * location set later in its details holder, which is only created for a
-   * location other than 0:0. The located nodes of the tree builders override
-   * this with fields of their own.
+   * A node created without a location (all nodes of a tree parsed without recording locations, and
+   * nodes of the factories without location) keeps a location set later in its details holder,
+   * which is only created for a location other than 0:0. The located nodes of the tree builders
+   * override this with fields of their own.
    */
   public void setLocation (@Nonnegative final int nLine, @Nonnegative final int nColumn)
   {
@@ -320,8 +310,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Default for the kinds without an ID kind: {@link EIDKind#NONE} is accepted
-   * and ignored, any other value fails.
+   * Default for the kinds without an ID kind: {@link EIDKind#NONE} is accepted and ignored, any
+   * other value fails.
    *
    * @throws IllegalStateException
    *         for a value other than {@link EIDKind#NONE}
@@ -334,10 +324,9 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * @return The name of the {@link #getSchemaType() schema type} if there is
-   *         one, otherwise the built-in annotation stored with
-   *         {@link #setTypeAnnotation(XdmQName)}, <code>null</code> if none
-   *         was stored.
+   * @return The name of the {@link #getSchemaType() schema type} if there is one, otherwise the
+   *         built-in annotation stored with {@link #setTypeAnnotation(XdmQName)}, <code>null</code>
+   *         if none was stored.
    */
   @Nullable
   public final XdmQName getTypeAnnotation ()
@@ -361,8 +350,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Default for the kinds without a schema type: <code>null</code> is
-   * accepted and ignored, any other value fails.
+   * Default for the kinds without a schema type: <code>null</code> is accepted and ignored, any
+   * other value fails.
    *
    * @throws IllegalStateException
    *         for a value other than <code>null</code>
@@ -479,8 +468,7 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Default for the kinds without children: nothing can be a child, so this
-   * always fails.
+   * Default for the kinds without children: nothing can be a child, so this always fails.
    *
    * @throws IllegalArgumentException
    *         always, after the <code>null</code> check
@@ -583,10 +571,9 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * The <code>xml</code> prefix resolves to {@link XdmConstants#NS_XML}
-   * without looking at the tree. Otherwise the declarations of this node and
-   * then of each ancestor are searched; the closest declaration of the prefix
-   * decides, and an empty URI there (an undeclaration) yields
+   * The <code>xml</code> prefix resolves to {@link XdmConstants#NS_XML} without looking at the
+   * tree. Otherwise the declarations of this node and then of each ancestor are searched; the
+   * closest declaration of the prefix decides, and an empty URI there (an undeclaration) yields
    * <code>null</code> without searching further up.
    */
   @Nullable
@@ -609,10 +596,9 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Starts with the <code>xml</code> prefix and applies the declarations of
-   * the root first and of this node last, so that a closer declaration
-   * overwrites a farther one and an empty URI removes the prefix again. The
-   * result keeps the order in which the prefixes were first added.
+   * Starts with the <code>xml</code> prefix and applies the declarations of the root first and of
+   * this node last, so that a closer declaration overwrites a farther one and an empty URI removes
+   * the prefix again. The result keeps the order in which the prefixes were first added.
    */
   @NonNull
   @ReturnsMutableCopy
@@ -622,6 +608,7 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     final ArrayDeque <AbstractXdmNode> aPath = new ArrayDeque <> ();
     for (AbstractXdmNode aCur = this; aCur != null; aCur = aCur.m_aParent)
       aPath.push (aCur);
+
     final ICommonsOrderedMap <String, String> ret = new CommonsLinkedHashMap <> ();
     ret.put ("xml", XdmConstants.NS_XML);
     for (final AbstractXdmNode aNode : aPath)
@@ -667,13 +654,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Numbers the whole tree under a new tree number, iteratively in pre-order
-   * from the root: each node gets the next number, then its attributes, then
-   * its children in order. When a node is reached, every open parent node
-   * that is not its parent is finished and receives the last number given so
-   * far as its {@link #getEndOrder() end order}. Namespace nodes are not
-   * numbered. The name indexes of a {@link XdmDocumentNode} belong to the
-   * previous numbering and are rebuilt on their next use.
+   * Numbers the whole tree under a new tree number, iteratively in pre-order from the root: each
+   * node gets the next number, then its attributes, then its children in order. When a node is
+   * reached, every open parent node that is not its parent is finished and receives the last number
+   * given so far as its {@link #getEndOrder() end order}. Namespace nodes are not numbered. The
+   * name indexes of a {@link XdmDocumentNode} belong to the previous numbering and are rebuilt on
+   * their next use.
    */
   public final void assignDocumentOrder ()
   {
@@ -710,13 +696,12 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   }
 
   /**
-   * Implementation of {@link IXdmNode#compareDocumentOrder(IXdmNode, IXdmNode)}.
-   * A namespace node with a parent is compared through its parent element and
-   * sorts directly after it, before the attributes, in the order of its
-   * {@link XdmNamespaceNode#getNamespaceIndex() namespace index}. A tree that
-   * is not numbered is numbered first ({@link #assignDocumentOrder()}), so the
-   * call may number either tree. Nodes of different trees compare by tree
-   * number, i.e. by the order in which the trees were numbered.
+   * Implementation of {@link IXdmNode#compareDocumentOrder(IXdmNode, IXdmNode)}. A namespace node
+   * with a parent is compared through its parent element and sorts directly after it, before the
+   * attributes, in the order of its {@link XdmNamespaceNode#getNamespaceIndex() namespace index}. A
+   * tree that is not numbered is numbered first ({@link #assignDocumentOrder()}), so the call may
+   * number either tree. Nodes of different trees compare by tree number, i.e. by the order in which
+   * the trees were numbered.
    *
    * @param aLeft
    *        First node. May not be <code>null</code>.
@@ -731,8 +716,9 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     // A namespace node with a parent is not numbered itself: it sorts directly
     // after its parent element, before the attributes of that element
     final AbstractXdmNode aLeftAnchor = aLeft instanceof XdmNamespaceNode && aLeft.m_aParent != null ? aLeft.m_aParent
-                                                                                                      : aLeft;
-    final AbstractXdmNode aRightAnchor = aRight instanceof XdmNamespaceNode && aRight.m_aParent != null ? aRight.m_aParent
+                                                                                                     : aLeft;
+    final AbstractXdmNode aRightAnchor = aRight instanceof XdmNamespaceNode && aRight.m_aParent != null
+                                                                                                        ? aRight.m_aParent
                                                                                                         : aRight;
     if (aLeftAnchor.m_aTree == null)
       aLeftAnchor.assignDocumentOrder ();
@@ -743,8 +729,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     if (aLeftAnchor.m_nOrder != aRightAnchor.m_nOrder)
       return Integer.compare (aLeftAnchor.m_nOrder, aRightAnchor.m_nOrder);
     final int nLeftSub = aLeftAnchor != aLeft && aLeft instanceof final XdmNamespaceNode aLeftNS ? 1 +
-                                                                                                    aLeftNS.getNamespaceIndex ()
-                                                                                                  : 0;
+                                                                                                   aLeftNS.getNamespaceIndex ()
+                                                                                                 : 0;
     final int nRightSub = aRightAnchor != aRight && aRight instanceof final XdmNamespaceNode aRightNS ? 1 +
                                                                                                         aRightNS.getNamespaceIndex ()
                                                                                                       : 0;
