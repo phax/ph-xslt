@@ -96,6 +96,8 @@ to its own SAX parser into `XdmTreeBuilder` when one is configured. Proposal: `X
 
 ### S15 - Trace hook for template and rule execution
 
+Status: done (2026-11-09): `IXsltTraceListener` on `XsltTransformRequest` (template rules, named templates, functions, optionally instructions; balanced enter/leave), JAXP `PhoxtrotTransformerFactory.ATTR_TRACE_LISTENER`.
+
 ph-schematron offers per-rule execution telemetry on Saxon through a `TraceListener` (template enter and leave). phoxtrot
 has only the global `fn:trace` listener. Proposal: a per-run listener for template and instruction enter and leave,
 with the instruction's module URI, line and match pattern, and no cost when not set.

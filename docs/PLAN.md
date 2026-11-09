@@ -591,3 +591,11 @@ honours the requested property `xsl:supports-backwards-compatibility`. Harness: 
 element `exsl:document`, two cases expect NaN for `round(())` against XPath 3.1 section 3.1.5.2). EXSLT - Common:
 `exsl:node-set` and `exsl:object-type` (`ExsltCommon`); no other EXSLT module.
 
+## Host APIs from the ph-schematron engine plan (2026-11-09)
+
+Done: suggestions S9 to S16 and S18 of `docs/SUGGESTIONS-sch2java.md` – JAXP adapter (`com.helger.phoxtrot.xslt.jaxp`),
+W3C DOM and SAX bridge (`com.helger.phoxtrot.xdm.bridge`), live message listener with the messages attached to errors,
+threading modes, `UNLIMITED_STEPS`, `XdmParser.setEntityResolver`, the trace listener (`IXsltTraceListener`; no cost
+when not set, measured), backwards compatibility with EXSLT - Common, and the tree size work of batch 4. Open from the
+suggestions: only text-value sharing of S18 (too slow).
+
