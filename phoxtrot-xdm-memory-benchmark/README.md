@@ -187,6 +187,8 @@ cd phoxtrot-xdm-memory-benchmark
 sh run.sh xdm ../phoxtrot-xdm/target/phoxtrot-xdm-0.1.0-SNAPSHOT.jar
 # The complete comparison of the three models, once per JVM
 sh run.sh full
+# The class footprint of the "Bank transactions" document, ph-xdm and MicroDOM (JDK 21)
+sh run.sh footprint
 ```
 
 Without a jar argument the phoxtrot-xdm jar of the local Maven repository is used.
