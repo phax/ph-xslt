@@ -104,6 +104,7 @@ public final class CompiledStylesheet implements XsltExecutable
   private final ICommonsMap <PackageUnit, ICommonsMap <XdmQName, VariableDef>> m_aPackageGlobals = new CommonsHashMap <> ();
   private HostScope m_aHostScope;
   private StreamVerdicts m_aStreamVerdicts;
+  private boolean m_bHasResultDocument;
 
   public CompiledStylesheet (@NonNull final FunctionLibrary aFunctions, @NonNull final XslModule aPrincipalModule)
   {
@@ -163,6 +164,21 @@ public final class CompiledStylesheet implements XsltExecutable
   public void setStreamVerdicts (@Nullable final StreamVerdicts aStreamVerdicts)
   {
     m_aStreamVerdicts = aStreamVerdicts;
+  }
+
+  /**
+   * @return <code>true</code> if any module has an xsl:result-document, which
+   *         may write the principal result with another output definition.
+   *         Determined once at the end of the compilation.
+   */
+  public boolean hasResultDocument ()
+  {
+    return m_bHasResultDocument;
+  }
+
+  public void setHasResultDocument (final boolean bHasResultDocument)
+  {
+    m_bHasResultDocument = bHasResultDocument;
   }
 
   /**

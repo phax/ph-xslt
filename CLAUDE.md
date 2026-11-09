@@ -87,7 +87,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `XsltTransformRequest.outputOverrides ()`, applied by `XsltTransformer._withOverrides` through
   `OutputDefinition.getWithOverrides` to the definition the principal result is serialized with (also for the
   drain decision). `-Dxslt30.jaxp=true` reruns every XSLT30 case of a shape JAXP can express through the adapter
-  and fails it with "harness" on any difference.
+  and fails it with "harness" on any difference. `PhoxtrotTransformer.transform` sets the request's interrupt hook to
+  the calling thread's interrupted state (sticky once the call ends interrupted), so a cancelled JAXP run on a worker
+  thread stops too; compilation has no interrupt hook.
 - W3C DOM bridge (`phoxtrot-xdm`, package `com.helger.phoxtrot.xdm.bridge`): `DomToXdm` feeds the DOM into
   `XdmTreeBuilder` as SAX events (numbered while built, shared names), `XdmToDom` and `XdmToSax` write trees with
   namespace fixup (`NamespaceScope`). All three walk iteratively. The JDK DOM leaves entity reference nodes empty

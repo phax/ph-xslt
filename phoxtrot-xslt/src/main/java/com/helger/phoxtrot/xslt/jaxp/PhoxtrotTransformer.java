@@ -24,6 +24,8 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.Result;
@@ -96,7 +98,10 @@ import com.helger.phoxtrot.xslt.XsltTransformResult;
  * <li>Threads: a transformation runs on the thread that
  * {@link #setThreading(EXsltThreading)} or the factory attribute
  * {@link PhoxtrotTransformerFactory#ATTR_THREADING} chooses (by default a new
- * thread with a large stack per call).</li>
+ * thread with a large stack per call). An interrupt of the calling thread
+ * ends the transformation with FOER0000 in every mode, and a transformation
+ * on another thread stops at its next check instead of going on in the
+ * background.</li>
  * <li>Errors: a dynamic error is reported to
  * {@link ErrorListener#fatalError(TransformerException)} and thrown as a
  * {@link TransformerException} whose message starts with the error code, with
@@ -284,10 +289,13 @@ public class PhoxtrotTransformer extends Transformer
   /**
    * Build the request for one transformation: the source as global context
    * item, the parameters, the resolver, the message and trace listeners, the
-   * step limit, the threading mode and the base output URI.
+   * interrupt hook, the step limit, the threading mode and the base output
+   * URI.
    */
   @NonNull
-  private XsltTransformRequest _createRequest (@NonNull final IXdmNode aSource, @Nullable final String sBaseOutputUri)
+  private XsltTransformRequest _createRequest (@NonNull final IXdmNode aSource,
+                                               @Nullable final String sBaseOutputUri,
+                                               @NonNull final BooleanSupplier aInterrupt)
   {
     final JaxpSettings aSettings = m_aTemplates.getSettings ();
     final XsltTransformRequest ret = new XsltTransformRequest ();
@@ -300,6 +308,7 @@ public class PhoxtrotTransformer extends Transformer
                                                aSettings.loadExternalEntities ()));
     ret.setMessageListener (m_aMessageListener != null ? m_aMessageListener : new ErrorListenerMessages (m_aErrorListener));
     ret.setTraceListener (m_aTraceListener);
+    ret.setInterrupt (aInterrupt);
     ret.setThreading (m_eThreading);
     if (aSettings.maxSteps () != 0)
       ret.setMaxSteps (aSettings.maxSteps ());
@@ -448,7 +457,11 @@ public class PhoxtrotTransformer extends Transformer
 
   /**
    * Transform the source into the result. See the class description for the
-   * kinds of source and result.
+   * kinds of source and result. The transformation polls the interrupted
+   * state of the calling thread; once the call ends with that thread
+   * interrupted (for example with FOER0000 while it waited for a worker
+   * thread), the hook stays <code>true</code>, so that a run left on a worker
+   * thread stops even if the caller clears the flag afterwards.
    *
    * @throws TransformerException
    *         if the source cannot be read, the result is of an unsupported
@@ -461,10 +474,14 @@ public class PhoxtrotTransformer extends Transformer
     ValueEnforcer.notNull (aSource, "Source");
     ValueEnforcer.notNull (aResult, "Result");
     m_aLastResult = null;
+    final Thread aCaller = Thread.currentThread ();
+    final AtomicBoolean aStopped = new AtomicBoolean (false);
     try
     {
       final IXdmNode aNode = JaxpSources.toXdm (aSource, m_aTemplates.getSettings ().loadExternalEntities (), false);
-      final XsltTransformRequest aRequest = _createRequest (aNode, _getAbsoluteUri (aResult.getSystemId ()));
+      final XsltTransformRequest aRequest = _createRequest (aNode,
+                                                            _getAbsoluteUri (aResult.getSystemId ()),
+                                                            () -> aStopped.get () || aCaller.isInterrupted ());
       if (aResult instanceof final StreamResult aStreamResult)
         m_aLastResult = _transformToStream (aRequest, aStreamResult);
       else
@@ -487,6 +504,12 @@ public class PhoxtrotTransformer extends Transformer
     catch (final TransformerException ex)
     {
       throw JaxpErrors.reportFatal (m_aErrorListener, ex);
+    }
+    finally
+    {
+      // A run left behind on a worker thread stops at its next check
+      if (aCaller.isInterrupted ())
+        aStopped.set (true);
     }
   }
 

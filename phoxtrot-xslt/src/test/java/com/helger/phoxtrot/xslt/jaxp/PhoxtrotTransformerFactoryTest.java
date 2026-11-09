@@ -36,6 +36,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -1046,6 +1047,52 @@ public final class PhoxtrotTransformerFactoryTest
     catch (final TransformerException ex)
     {
       assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XPDY0130"));
+    }
+  }
+
+  @Test
+  public void testInterruptedCaller () throws Exception
+  {
+    final int nIterations = 10_000_000;
+    final Templates aTemplates = _compile (XSL_START +
+                                           "<xsl:template match='/'><xsl:iterate select='1 to " +
+                                           nIterations +
+                                           "'><xsl:message>m</xsl:message></xsl:iterate><r/></xsl:template>" +
+                                           XSL_END);
+    for (final EXsltThreading eMode : EXsltThreading.values ())
+    {
+      final Thread aCaller = Thread.currentThread ();
+      final AtomicInteger aCount = new AtomicInteger ();
+      final PhoxtrotTransformer aT = (PhoxtrotTransformer) aTemplates.newTransformer ();
+      aT.setThreading (eMode);
+      aT.setErrorListener (new RecordingErrorListener ());
+      // The first message interrupts the caller, as a cancelling application would
+      aT.setMessageListener (aMsg -> {
+        if (aCount.incrementAndGet () == 1)
+          aCaller.interrupt ();
+      });
+      try
+      {
+        _transform (aT, _source (SOURCE));
+        fail (eMode.name ());
+      }
+      catch (final TransformerException ex)
+      {
+        assertTrue (eMode + ": " + ex.getMessage (), ex.getMessage ().startsWith ("FOER0000"));
+      }
+      // The flag stays set; the caller clears it and goes on
+      assertTrue (eMode.name (), Thread.interrupted ());
+
+      // A run on a worker thread stops soon after, instead of running to its end
+      int nLast = -1;
+      final long nEnd = System.currentTimeMillis () + 5_000;
+      while (aCount.get () != nLast && System.currentTimeMillis () < nEnd)
+      {
+        nLast = aCount.get ();
+        Thread.sleep (100);
+      }
+      assertEquals (eMode.name (), nLast, aCount.get ());
+      assertTrue (eMode + ": " + nLast, nLast < nIterations);
     }
   }
 

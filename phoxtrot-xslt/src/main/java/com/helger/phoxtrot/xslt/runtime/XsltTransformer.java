@@ -18,7 +18,6 @@ package com.helger.phoxtrot.xslt.runtime;
 
 import java.io.OutputStream;
 import java.io.Writer;
-import java.util.ArrayDeque;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -59,7 +58,6 @@ import com.helger.phoxtrot.xslt.stream.StreamConsumer;
 import com.helger.phoxtrot.xslt.stream.StreamPlanner;
 import com.helger.phoxtrot.xslt.stream.StreamedRun;
 import com.helger.phoxtrot.xslt.tree.XslElement;
-import com.helger.phoxtrot.xslt.tree.XslModule;
 import com.helger.phoxtrot.xslt.tree.XsltNames;
 
 /**
@@ -616,31 +614,6 @@ public final class XsltTransformer
   }
 
   /**
-   * @return <code>true</code> if any module has an xsl:result-document, which
-   *         may write the principal result with another output definition.
-   */
-  private boolean _hasResultDocument ()
-  {
-    for (final XslModule aModule : m_aSheet.modules ())
-    {
-      final XslElement aRoot = aModule.getRoot ();
-      if (aRoot == null)
-        continue;
-      final ArrayDeque <XslElement> aStack = new ArrayDeque <> ();
-      aStack.push (aRoot);
-      while (!aStack.isEmpty ())
-      {
-        final XslElement aEl = aStack.pop ();
-        if (aEl.isXsl ("result-document"))
-          return true;
-        for (final XslElement aChild : aEl.getElementChildren ())
-          aStack.push (aChild);
-      }
-    }
-    return false;
-  }
-
-  /**
    * Create the drain for a target when the principal result can be written
    * while it is built: not schema-aware, a method stated by the unnamed
    * output definition that builds a tree, no item-separator, no
@@ -663,7 +636,7 @@ public final class XsltTransformer
     final OutputDefinition aOutputDef = _withOverrides (m_aSheet.getOutput ());
     final String sMethod = aOutputDef.getMethod ();
     // The method must be known before the first character is written
-    if (sMethod == null || !aOutputDef.isBuildTree (sMethod) || _hasItemSeparator (aOutputDef) || _hasResultDocument ())
+    if (sMethod == null || !aOutputDef.isBuildTree (sMethod) || _hasItemSeparator (aOutputDef) || m_aSheet.hasResultDocument ())
       return null;
     final SerializationParams aParams = _createSerializationParams (aOutputDef, sMethod);
     if (!XdmIncrementalSerializer.isSupported (aParams))

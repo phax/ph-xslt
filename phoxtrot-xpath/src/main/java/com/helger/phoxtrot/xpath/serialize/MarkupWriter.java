@@ -32,6 +32,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.base.string.StringHex;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsLinkedHashMap;
@@ -44,9 +45,9 @@ import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.XPathException;
 
 /**
- * Writes a normalised sequence (nodes and strings) with the xml, xhtml or
- * html output method (Serialization 3.1 sections 5 to 7). The tree is walked
- * iteratively, so deep trees cannot overflow the stack.
+ * Writes a normalised sequence (nodes and strings) with the xml, xhtml or html output method
+ * (Serialization 3.1 sections 5 to 7). The tree is walked iteratively, so deep trees cannot
+ * overflow the stack.
  *
  * @author Philip Helger
  */
@@ -186,10 +187,9 @@ final class MarkupWriter
   }
 
   /**
-   * An element whose start tag is written and whose children are being
-   * written: the index of the next child, the qualified name for the end tag,
-   * the size of the namespace undo log before the start tag, and the
-   * indentation decisions taken when it was opened.
+   * An element whose start tag is written and whose children are being written: the index of the
+   * next child, the qualified name for the end tag, the size of the namespace undo log before the
+   * start tag, and the indentation decisions taken when it was opened.
    */
   private static final class Frame
   {
@@ -258,8 +258,8 @@ final class MarkupWriter
    * @param sMethod
    *        xml, xhtml or html.
    * @param aTarget
-   *        If not <code>null</code>, the buffer is written to it whenever it
-   *        has grown beyond {@link #FLUSH_SIZE} characters.
+   *        If not <code>null</code>, the buffer is written to it whenever it has grown beyond
+   *        {@link #FLUSH_SIZE} characters.
    */
   MarkupWriter (@NonNull final SerializationParams aParams,
                 @NonNull final OutputCharset aCharset,
@@ -280,10 +280,9 @@ final class MarkupWriter
   }
 
   /**
-   * The HTML version that decides between the HTML5 and the older rules: the
-   * html-version parameter if set, else for the html method the version
-   * parameter if it is a decimal number, else 4. For the xhtml method the
-   * version parameter is the XML version and is not consulted.
+   * The HTML version that decides between the HTML5 and the older rules: the html-version parameter
+   * if set, else for the html method the version parameter if it is a decimal number, else 4. For
+   * the xhtml method the version parameter is the XML version and is not consulted.
    *
    * @param aParams
    *        The serialization parameters.
@@ -317,17 +316,21 @@ final class MarkupWriter
   }
 
   /**
-   * The common per-character tail of text and attribute escaping: characters
-   * outside the encoding, XML 1.1 control characters and (html/xhtml) C1
-   * controls become character references.
+   * The common per-character tail of text and attribute escaping: characters outside the encoding,
+   * XML 1.1 control characters and (html/xhtml) C1 controls become character references.
    */
   private void _appendChar (@NonNull final StringBuilder aSB, final int cp)
   {
     // The C0 controls (bar tab, LF and CR) cannot be written in XML 1.0 in any
     // form (Serialization 3.1 section 4)
     if (!m_bXml11 && !m_bHtml && cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD)
-      throw XPathException.of ("SERE0006", "The character #x" + Integer.toHexString (cp).toUpperCase (Locale.ROOT) + " cannot be serialized as XML 1.0");
-    if ((m_bXml11 && ((cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD) || (cp >= 0x7F && cp <= 0x9F))) ||
+      throw XPathException.of ("SERE0006",
+                               "The character #x" +
+                                           Integer.toHexString (cp).toUpperCase (Locale.ROOT) +
+                                           " cannot be serialized as XML 1.0");
+
+    if ((m_bXml11 &&
+         ((cp >= 0x1 && cp <= 0x1F && cp != 0x9 && cp != 0xA && cp != 0xD) || (cp >= 0x7F && cp <= 0x9F))) ||
         ((m_bHtml || m_bXhtml) && cp >= 0x80 && cp <= 0x9F) ||
         !m_aCharset.canEncode (cp))
       _charRef (aSB, cp);
@@ -339,10 +342,9 @@ final class MarkupWriter
   }
 
   /**
-   * Escape text content: <code>&amp;</code>, <code>&lt;</code> and
-   * <code>&gt;</code> become entity references, CR becomes
-   * <code>&amp;#13;</code> (written as it is with the html method), and every
-   * other character goes through {@link #_appendChar(StringBuilder, int)}.
+   * Escape text content: <code>&amp;</code>, <code>&lt;</code> and <code>&gt;</code> become entity
+   * references, CR becomes <code>&amp;#13;</code> (written as it is with the html method), and
+   * every other character goes through {@link #_appendChar(StringBuilder, int)}.
    *
    * @throws XPathException
    *         SERE0006 for a C0 control character with XML 1.0
@@ -377,9 +379,9 @@ final class MarkupWriter
   }
 
   /**
-   * Write the content of an HTML <code>script</code> or <code>style</code>
-   * element with the html method, where character references are not
-   * recognised: nothing is escaped (Serialization 3.1 section 7.1).
+   * Write the content of an HTML <code>script</code> or <code>style</code> element with the html
+   * method, where character references are not recognised: nothing is escaped (Serialization 3.1
+   * section 7.1).
    *
    * @throws XPathException
    *         SERE0008 for a character the encoding cannot represent
@@ -400,10 +402,9 @@ final class MarkupWriter
   }
 
   /**
-   * Write text with disable-output-escaping: written as it is, except that a
-   * character the encoding cannot represent is written as a character
-   * reference, since the request to disable output escaping is ignored for it
-   * (XSLT 3.0 section 26.2).
+   * Write text with disable-output-escaping: written as it is, except that a character the encoding
+   * cannot represent is written as a character reference, since the request to disable output
+   * escaping is ignored for it (XSLT 3.0 section 26.2).
    */
   private void _writeUnescaped (@NonNull final StringBuilder aSB, @NonNull final String s)
   {
@@ -419,12 +420,11 @@ final class MarkupWriter
   }
 
   /**
-   * Escape an attribute value (also used for namespace declarations):
-   * <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>,
-   * tab, LF and CR are escaped, every other character goes through
-   * {@link #_appendChar(StringBuilder, int)}. With the html method an
-   * ampersand directly followed by <code>{</code>, and <code>&lt;</code>, tab
-   * and LF are written as they are.
+   * Escape an attribute value (also used for namespace declarations): <code>&amp;</code>,
+   * <code>&lt;</code>, <code>&gt;</code>, <code>"</code>, tab, LF and CR are escaped, every other
+   * character goes through {@link #_appendChar(StringBuilder, int)}. With the html method an
+   * ampersand directly followed by <code>{</code>, and <code>&lt;</code>, tab and LF are written as
+   * they are.
    *
    * @throws XPathException
    *         SERE0006 for a C0 control character with XML 1.0
@@ -478,10 +478,9 @@ final class MarkupWriter
   }
 
   /**
-   * Escape a URI attribute value for escape-uri-attributes (Serialization 3.1
-   * sections 6 and 7): the value is normalised to NFC, encoded as UTF-8, and
-   * every byte outside the printable ASCII range 32 to 126 is written as
-   * <code>%HH</code> with upper-case hex digits. Spaces are kept.
+   * Escape a URI attribute value for escape-uri-attributes (Serialization 3.1 sections 6 and 7):
+   * the value is normalised to NFC, encoded as UTF-8, and every byte outside the printable ASCII
+   * range 32 to 126 is written as <code>%HH</code> with upper-case hex digits. Spaces are kept.
    */
   @NonNull
   private static String _escapeUri (@NonNull final String sValue)
@@ -494,15 +493,15 @@ final class MarkupWriter
       if (n >= 32 && n <= 126)
         aSB.append ((char) n);
       else
-        aSB.append ('%').append (String.format (Locale.ROOT, "%02X", Integer.valueOf (n)));
+        aSB.append ('%').append (StringHex.getHexCharUpperCase (n >> 4)).append (StringHex.getHexCharUpperCase (n & 0xf));
     }
     return aSB.toString ();
   }
 
   /**
-   * Whether the HTML rules apply to a node: with the html method an element
-   * in no namespace, or (HTML5) in the XHTML namespace; with the xhtml method
-   * an element in the XHTML namespace; never with the xml method.
+   * Whether the HTML rules apply to a node: with the html method an element in no namespace, or
+   * (HTML5) in the XHTML namespace; with the xhtml method an element in the XHTML namespace; never
+   * with the xml method.
    *
    * @param aNode
    *        The node, may be <code>null</code>.
@@ -512,6 +511,7 @@ final class MarkupWriter
   {
     if (aNode == null || aNode.getKind () != ENodeKind.ELEMENT)
       return false;
+
     final String sNS = aNode.getName ().namespaceUri ();
     if (m_bHtml)
       return sNS.isEmpty () || (m_bHtml5 && NS_XHTML.equals (sNS));
@@ -523,11 +523,10 @@ final class MarkupWriter
   /**
    * @param aNode
    *        The node, may be <code>null</code>.
-   * @return <code>true</code> for an HTML element (see
-   *         {@link #_isHtmlElement(IXdmNode)}) whose local name, in lower
-   *         case, is one of the phrasing elements in
-   *         <code>INLINE_ELEMENTS</code>; no line break is added for
-   *         indentation before or after such an element.
+   * @return <code>true</code> for an HTML element (see {@link #_isHtmlElement(IXdmNode)}) whose
+   *         local name, in lower case, is one of the phrasing elements in
+   *         <code>INLINE_ELEMENTS</code>; no line break is added for indentation before or after
+   *         such an element.
    */
   private boolean _isInline (@Nullable final IXdmNode aNode)
   {
@@ -535,8 +534,8 @@ final class MarkupWriter
   }
 
   /**
-   * @return <code>true</code> if the string consists of XML whitespace (space,
-   *         tab, line feed, carriage return) only, also for the empty string.
+   * @return <code>true</code> if the string consists of XML whitespace (space, tab, line feed,
+   *         carriage return) only, also for the empty string.
    */
   private static boolean _isWhitespace (@NonNull final String s)
   {
@@ -550,9 +549,8 @@ final class MarkupWriter
   }
 
   /**
-   * Whether indentation may add whitespace between the children of an
-   * element: not inside the HTML elements pre, script, style, title and
-   * textarea, and not if the element has a text child with
+   * Whether indentation may add whitespace between the children of an element: not inside the HTML
+   * elements pre, script, style, title and textarea, and not if the element has a text child with
    * non-whitespace content (mixed content).
    */
   private boolean _mayIndentIn (@NonNull final IXdmNode aElement)
@@ -560,6 +558,7 @@ final class MarkupWriter
     if (_isHtmlElement (aElement) &&
         FORMATTED_ELEMENTS.contains (aElement.getName ().localName ().toLowerCase (Locale.ROOT)))
       return false;
+
     for (int i = 0; i < aElement.getChildCount (); ++i)
     {
       final IXdmNode aChild = aElement.getChildAtIndex (i);
@@ -607,8 +606,8 @@ final class MarkupWriter
   }
 
   /**
-   * Write the buffer to the target writer once it holds at least
-   * {@link #FLUSH_SIZE} characters; without a target writer nothing happens.
+   * Write the buffer to the target writer once it holds at least {@link #FLUSH_SIZE} characters;
+   * without a target writer nothing happens.
    *
    * @throws UncheckedIOException
    *         on a write error
@@ -630,10 +629,9 @@ final class MarkupWriter
   }
 
   /**
-   * Bind a prefix in the output namespace scope, recording the previous
-   * binding in the undo log, and append the declaration
-   * (<code>xmlns="uri"</code> for the empty prefix) to <code>aDecls</code>.
-   * An empty URI declares an undeclaration.
+   * Bind a prefix in the output namespace scope, recording the previous binding in the undo log,
+   * and append the declaration (<code>xmlns="uri"</code> for the empty prefix) to
+   * <code>aDecls</code>. An empty URI declares an undeclaration.
    */
   private void _bind (@NonNull final String sPrefix, @NonNull final String sUri, @NonNull final StringBuilder aDecls)
   {
@@ -645,9 +643,8 @@ final class MarkupWriter
   }
 
   /**
-   * Undo the bindings recorded since the undo log had the size
-   * <code>nMark</code>, newest first, restoring the previous binding or
-   * removing a prefix that was not bound before.
+   * Undo the bindings recorded since the undo log had the size <code>nMark</code>, newest first,
+   * restoring the previous binding or removing a prefix that was not bound before.
    */
   private void _unwind (final int nMark)
   {
@@ -662,8 +659,8 @@ final class MarkupWriter
   }
 
   /**
-   * @return <code>true</code> if the prefix is bound to the URI in the output
-   *         scope; an unbound prefix counts as bound to the empty URI.
+   * @return <code>true</code> if the prefix is bound to the URI in the output scope; an unbound
+   *         prefix counts as bound to the empty URI.
    */
   private boolean _isBound (@NonNull final String sPrefix, @NonNull final String sUri)
   {
@@ -673,7 +670,9 @@ final class MarkupWriter
 
   /** @return A prefix for a namespaced name, declaring it when needed. */
   @NonNull
-  private String _getPrefix (@NonNull final XdmQName aName, final boolean bAttribute, @NonNull final StringBuilder aDecls)
+  private String _getPrefix (@NonNull final XdmQName aName,
+                             final boolean bAttribute,
+                             @NonNull final StringBuilder aDecls)
   {
     final String sUri = aName.namespaceUri ();
     String sPrefix = aName.prefix ();
@@ -685,10 +684,13 @@ final class MarkupWriter
           return aEntry.getKey ();
       sPrefix = "ns0";
     }
+
     if (_isBound (sPrefix, sUri))
       return sPrefix;
+
     // Avoid redefining a prefix already declared on this element
-    if (m_aScope.containsKey (sPrefix) && aDecls.indexOf (sPrefix.isEmpty () ? " xmlns=" : " xmlns:" + sPrefix + "=") >= 0)
+    if (m_aScope.containsKey (sPrefix) &&
+        aDecls.indexOf (sPrefix.isEmpty () ? " xmlns=" : " xmlns:" + sPrefix + "=") >= 0)
     {
       final String sBase = sPrefix.isEmpty () ? "ns" : sPrefix;
       int n = 0;
@@ -704,15 +706,15 @@ final class MarkupWriter
   }
 
   /**
-   * @return <code>true</code> for a <code>meta</code> element (local name
-   *         compared case-insensitively, any namespace) with an
-   *         <code>http-equiv</code> attribute whose trimmed value is
-   *         <code>Content-Type</code> in any case.
+   * @return <code>true</code> for a <code>meta</code> element (local name compared
+   *         case-insensitively, any namespace) with an <code>http-equiv</code> attribute whose
+   *         trimmed value is <code>Content-Type</code> in any case.
    */
   private static boolean _isContentTypeMeta (@NonNull final IXdmNode aNode)
   {
     if (aNode.getKind () != ENodeKind.ELEMENT || !"meta".equalsIgnoreCase (aNode.getName ().localName ()))
       return false;
+
     for (final IXdmNode aAttr : aNode.getAllAttributes ())
       if (!aAttr.getName ().hasNamespace () &&
           "http-equiv".equalsIgnoreCase (aAttr.getName ().localName ()) &&
@@ -722,9 +724,9 @@ final class MarkupWriter
   }
 
   /**
-   * @return The content of the Content-Type <code>meta</code> element: the
-   *         media-type parameter (default <code>text/html</code>) followed by
-   *         <code>; charset=</code> and the encoding parameter as given.
+   * @return The content of the Content-Type <code>meta</code> element: the media-type parameter
+   *         (default <code>text/html</code>) followed by <code>; charset=</code> and the encoding
+   *         parameter as given.
    */
   @NonNull
   private String _getContentTypeValue ()
@@ -734,9 +736,9 @@ final class MarkupWriter
   }
 
   /**
-   * @return <code>true</code> for a <code>head</code> element (local name
-   *         compared case-insensitively) in the XHTML namespace, or with the
-   *         html method also in no namespace.
+   * @return <code>true</code> for a <code>head</code> element (local name compared
+   *         case-insensitively) in the XHTML namespace, or with the html method also in no
+   *         namespace.
    */
   private boolean _isHead (@Nullable final IXdmNode aNode)
   {
@@ -863,10 +865,9 @@ final class MarkupWriter
   }
 
   /**
-   * @return The complete Content-Type <code>meta</code> element the html and
-   *         xhtml methods add as first child of <code>head</code>
-   *         (include-content-type, Serialization 3.1 sections 6 and 7), as an
-   *         empty-element tag for xhtml.
+   * @return The complete Content-Type <code>meta</code> element the html and xhtml methods add as
+   *         first child of <code>head</code> (include-content-type, Serialization 3.1 sections 6
+   *         and 7), as an empty-element tag for xhtml.
    */
   @NonNull
   private String _getContentTypeMeta ()
@@ -878,11 +879,10 @@ final class MarkupWriter
   }
 
   /**
-   * @return <code>true</code> if the element is a <code>head</code> element
-   *         that gets a generated Content-Type <code>meta</code> element: html
-   *         or xhtml method, include-content-type set, and no such
-   *         <code>meta</code> child present (an existing one is rewritten in
-   *         place instead by {@link #_writeStartTag(IXdmNode, boolean)}).
+   * @return <code>true</code> if the element is a <code>head</code> element that gets a generated
+   *         Content-Type <code>meta</code> element: html or xhtml method, include-content-type set,
+   *         and no such <code>meta</code> child present (an existing one is rewritten in place
+   *         instead by {@link #_writeStartTag(IXdmNode, boolean)}).
    */
   private boolean _headNeedsMeta (@NonNull final IXdmNode aElement)
   {
@@ -897,9 +897,8 @@ final class MarkupWriter
   }
 
   /**
-   * @return The name without its prefix, for the look-up in the
-   *         cdata-section-elements and suppress-indentation sets, which hold
-   *         expanded names.
+   * @return The name without its prefix, for the look-up in the cdata-section-elements and
+   *         suppress-indentation sets, which hold expanded names.
    */
   @NonNull
   private static XdmQName _plainName (@NonNull final XdmQName aName)
@@ -908,11 +907,10 @@ final class MarkupWriter
   }
 
   /**
-   * Write text as CDATA sections (cdata-section-elements). The text is
-   * normalised; a <code>]]&gt;</code> inside is split over two sections, and a
-   * character the encoding cannot represent ends the current section and is
-   * written as a character reference between sections. The character map is
-   * not applied.
+   * Write text as CDATA sections (cdata-section-elements). The text is normalised; a
+   * <code>]]&gt;</code> inside is split over two sections, and a character the encoding cannot
+   * represent ends the current section and is written as a character reference between sections.
+   * The character map is not applied.
    */
   private void _writeCData (@NonNull final String sText)
   {
@@ -939,12 +937,11 @@ final class MarkupWriter
   }
 
   /**
-   * Write text content: nothing for the empty string; as CDATA if the parent
-   * is in cdata-section-elements (not with the html method); unescaped for
-   * the content of an HTML <code>script</code> or <code>style</code> element
-   * with the html method (SERE0008 for a character the encoding cannot
-   * represent); escaped otherwise. Character map and normalisation are
-   * applied in the last two cases.
+   * Write text content: nothing for the empty string; as CDATA if the parent is in
+   * cdata-section-elements (not with the html method); unescaped for the content of an HTML
+   * <code>script</code> or <code>style</code> element with the html method (SERE0008 for a
+   * character the encoding cannot represent); escaped otherwise. Character map and normalisation
+   * are applied in the last two cases.
    *
    * @param sText
    *        The text.
@@ -973,15 +970,13 @@ final class MarkupWriter
   }
 
   /**
-   * Write a text, comment or processing instruction node; other node kinds
-   * are ignored. Text with disable-output-escaping is written as it is, bar
-   * the characters the encoding cannot represent (see
-   * {@link #_writeUnescaped(StringBuilder, String)}). Comments and processing
-   * instructions are written without any escaping or encoding check (the
-   * adaptive method delegates to this writer, and the W3C XSLT test
-   * output-0707 expects no error for a character outside the encoding in a
-   * comment there); a processing instruction ends with <code>&gt;</code>
-   * instead of <code>?&gt;</code> with the html method.
+   * Write a text, comment or processing instruction node; other node kinds are ignored. Text with
+   * disable-output-escaping is written as it is, bar the characters the encoding cannot represent
+   * (see {@link #_writeUnescaped(StringBuilder, String)}). Comments and processing instructions are
+   * written without any escaping or encoding check (the adaptive method delegates to this writer,
+   * and the W3C XSLT test output-0707 expects no error for a character outside the encoding in a
+   * comment there); a processing instruction ends with <code>&gt;</code> instead of
+   * <code>?&gt;</code> with the html method.
    *
    * @param aNode
    *        The node.
@@ -1018,10 +1013,9 @@ final class MarkupWriter
   }
 
   /**
-   * Open an element: write its start tag and either finish it (no children)
-   * or return a frame for its children. With <code>bForceOpen</code> the
-   * element is treated as having children although it has none yet (its
-   * content is written incrementally).
+   * Open an element: write its start tag and either finish it (no children) or return a frame for
+   * its children. With <code>bForceOpen</code> the element is treated as having children although
+   * it has none yet (its content is written incrementally).
    */
   @Nullable
   private Frame _openElement (@NonNull final IXdmNode aElement,
@@ -1085,10 +1079,9 @@ final class MarkupWriter
 
   /**
    * Write the end tag of an element opened by
-   * {@link #_openElement(IXdmNode, int, IXdmNode, boolean, boolean, boolean)},
-   * preceded by a line break if indentation decided so, drop the namespace
-   * bindings of its start tag and end the suppress-indentation region the
-   * element started.
+   * {@link #_openElement(IXdmNode, int, IXdmNode, boolean, boolean, boolean)}, preceded by a line
+   * break if indentation decided so, drop the namespace bindings of its start tag and end the
+   * suppress-indentation region the element started.
    */
   private void _closeElement (@NonNull final Frame aFrame)
   {
@@ -1101,22 +1094,22 @@ final class MarkupWriter
   }
 
   /**
-   * Write an element with its subtree, iteratively with an explicit stack of
-   * frames, so that the depth of the tree is not limited by the Java stack.
-   * The buffer is moved to the target writer when it is full.
+   * Write an element with its subtree, iteratively with an explicit stack of frames, so that the
+   * depth of the tree is not limited by the Java stack. The buffer is moved to the target writer
+   * when it is full.
    *
    * @param aRoot
    *        The element.
    * @param aPrev
-   *        The preceding sibling (or preceding top-level item), for the
-   *        inline check of indentation; may be <code>null</code>.
+   *        The preceding sibling (or preceding top-level item), for the inline check of
+   *        indentation; may be <code>null</code>.
    * @param nDepth
    *        The indentation depth of the element.
    * @param bParentMayIndent
    *        <code>false</code> if the parent forbids added whitespace.
    * @param bTop
-   *        <code>true</code> if the element has no output parent, so that all
-   *        its in-scope namespaces are declared.
+   *        <code>true</code> if the element has no output parent, so that all its in-scope
+   *        namespaces are declared.
    */
   private void _writeElement (@NonNull final IXdmNode aRoot,
                               @Nullable final IXdmNode aPrev,
@@ -1166,12 +1159,10 @@ final class MarkupWriter
   }
 
   /**
-   * @return The string in double quotes, or in single quotes if it contains a
-   *         double quote.
+   * @return The string in double quotes, or in single quotes if it contains a double quote.
    * @throws XPathException
-   *         SEPM0016 if it contains both quote characters: no literal can hold
-   *         it, and Serialization 3.1 section 3 excludes such a doctype-system
-   *         value
+   *         SEPM0016 if it contains both quote characters: no literal can hold it, and
+   *         Serialization 3.1 section 3 excludes such a doctype-system value
    */
   @NonNull
   private static String _quote (@NonNull final String s)
@@ -1184,15 +1175,13 @@ final class MarkupWriter
   }
 
   /**
-   * Write the document type declaration before the first top-level element.
-   * With the html method: if doctype-public or doctype-system is set,
-   * <code>&lt;!DOCTYPE html</code> (HTML5: the element's local name) with
-   * PUBLIC and optional system literal or SYSTEM; otherwise, for HTML5 and a
-   * first element <code>html</code> in no namespace, <code>&lt;!DOCTYPE
-   * html&gt;</code>. With xml and xhtml: if doctype-system is set, the
-   * element's lexical name with PUBLIC (if doctype-public is set too) or
-   * SYSTEM; otherwise, for xhtml with HTML5 and a first element
-   * <code>html</code> in the XHTML namespace, <code>&lt;!DOCTYPE
+   * Write the document type declaration before the first top-level element. With the html method:
+   * if doctype-public or doctype-system is set, <code>&lt;!DOCTYPE html</code> (HTML5: the
+   * element's local name) with PUBLIC and optional system literal or SYSTEM; otherwise, for HTML5
+   * and a first element <code>html</code> in no namespace, <code>&lt;!DOCTYPE
+   * html&gt;</code>. With xml and xhtml: if doctype-system is set, the element's lexical name with
+   * PUBLIC (if doctype-public is set too) or SYSTEM; otherwise, for xhtml with HTML5 and a first
+   * element <code>html</code> in the XHTML namespace, <code>&lt;!DOCTYPE
    * html&gt;</code>. doctype-public alone is ignored with xml and xhtml.
    *
    * @param aFirstElement
@@ -1234,13 +1223,16 @@ final class MarkupWriter
       m_aSB.append ('>');
     }
     else
-      if (m_bXhtml && m_bHtml5 && "html".equalsIgnoreCase (sLocal) && NS_XHTML.equals (aFirstElement.getName ().namespaceUri ()))
+      if (m_bXhtml &&
+          m_bHtml5 &&
+          "html".equalsIgnoreCase (sLocal) &&
+          NS_XHTML.equals (aFirstElement.getName ().namespaceUri ()))
         m_aSB.append ("<!DOCTYPE ").append (sLocal).append ('>');
   }
 
   /**
-   * Write the document type declaration before the first top-level element;
-   * later top-level elements get none.
+   * Write the document type declaration before the first top-level element; later top-level
+   * elements get none.
    */
   private void _beforeTopLevelElement (@NonNull final IXdmNode aElement)
   {
@@ -1268,8 +1260,7 @@ final class MarkupWriter
    * Write the normalised sequence.
    *
    * @param aItems
-   *        Nodes (element, text, comment, processing instruction) and
-   *        strings (text).
+   *        Nodes (element, text, comment, processing instruction) and strings (text).
    */
   void write (@NonNull final List <Object> aItems)
   {
@@ -1296,12 +1287,11 @@ final class MarkupWriter
   }
 
   /**
-   * Incremental writing: write the start tag of an element whose content
-   * follows through {@link #writeNode(IXdmNode)} and
-   * {@link #openElement(IXdmNode)}, and which is closed by
-   * {@link #closeElement()}. The element is a child of the innermost open
-   * element, or a top-level node if none is open. Its name, attributes and
-   * namespaces must be final. Indentation is not supported.
+   * Incremental writing: write the start tag of an element whose content follows through
+   * {@link #writeNode(IXdmNode)} and {@link #openElement(IXdmNode)}, and which is closed by
+   * {@link #closeElement()}. The element is a child of the innermost open element, or a top-level
+   * node if none is open. Its name, attributes and namespaces must be final. Indentation is not
+   * supported.
    *
    * @param aElement
    *        The element.
@@ -1329,8 +1319,8 @@ final class MarkupWriter
   }
 
   /**
-   * Incremental writing: write a complete node as the next child of the
-   * innermost open element, or as a top-level node if none is open.
+   * Incremental writing: write a complete node as the next child of the innermost open element, or
+   * as a top-level node if none is open.
    *
    * @param aNode
    *        An element, text, comment or processing instruction node.

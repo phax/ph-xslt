@@ -16,6 +16,7 @@
  */
 package com.helger.phoxtrot.xslt.compile;
 
+import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -2101,6 +2102,33 @@ public final class StylesheetCompiler
   }
 
   /**
+   * @param aModules
+   *        All modules of the stylesheet.
+   * @return <code>true</code> if any module has an xsl:result-document, which
+   *         may write the principal result with another output definition.
+   */
+  private static boolean _hasResultDocument (@NonNull final ICommonsList <XslModule> aModules)
+  {
+    for (final XslModule aModule : aModules)
+    {
+      final XslElement aRoot = aModule.getRoot ();
+      if (aRoot == null)
+        continue;
+      final ArrayDeque <XslElement> aStack = new ArrayDeque <> ();
+      aStack.push (aRoot);
+      while (!aStack.isEmpty ())
+      {
+        final XslElement aEl = aStack.pop ();
+        if (aEl.isXsl ("result-document"))
+          return true;
+        for (final XslElement aChild : aEl.getElementChildren ())
+          aStack.push (aChild);
+      }
+    }
+    return false;
+  }
+
+  /**
    * The whole compilation. In order:
    * <ol>
    * <li>Load the principal module and all included, imported and used
@@ -2123,7 +2151,8 @@ public final class StylesheetCompiler
    * <li>The checks across declarations, the registered
    * {@link ICompileFinisher}s, and the streamability analysis if enabled (its
    * verdicts are kept only with the streaming claim).</li>
-   * <li>Record the host scope of the principal stylesheet element for
+   * <li>Record whether any module has an xsl:result-document, and the host
+   * scope of the principal stylesheet element for
    * {@link com.helger.phoxtrot.xslt.XsltExecutable#createStaticContext}.</li>
    * </ol>
    *
@@ -2287,6 +2316,8 @@ public final class StylesheetCompiler
       if (m_aOptions.isStreamingClaim ())
         m_aStylesheet.setStreamVerdicts (aVerdicts);
     }
+    // Decides per run whether the principal result can be drained
+    m_aStylesheet.setHasResultDocument (_hasResultDocument (m_aStylesheet.modules ()));
     // For host expressions (XsltExecutable.createStaticContext): the scope of
     // the principal stylesheet element
     final XslElement aRoot = aPrincipal.getRoot ();

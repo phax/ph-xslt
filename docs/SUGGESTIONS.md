@@ -180,6 +180,10 @@ Source: the update of the ph-schematron plan (2026-11-09).
 
 ### S20 - Interruption in the JAXP adapter
 
+Status: done for transformations (2026-11-09): `PhoxtrotTransformer.transform` sets the interrupt hook to the
+interrupted state of the calling thread, and keeps it set once the call ends interrupted, so a run left on a worker
+thread stops at its next check. Compilation has no interrupt hook yet (`XsltCompileOptions`), so it is not covered.
+
 Source: the update of the ph-schematron plan (2026-11-09).
 
 - ph-schematron stops a validation when the calling thread is interrupted (`SchematronInterruptedException`).
@@ -189,3 +193,54 @@ Source: the update of the ph-schematron plan (2026-11-09).
   (captured when `transform` starts), so a cancelled validation also stops using CPU. The same applies to
   compilation.
 
+
+## Suggestions from the Schematron validation profile (2026-11-09)
+
+Measured: the ISO Schematron pipeline (`iso_dsdl_include`, `iso_abstract_expand`, `iso_svrl_for_xslt2`, then the
+generated XSLT on the instance document) through the JAXP adapter against Saxon-HE 12.10, Peppol rules 2025.11
+(`PEPPOL-EN16931-UBL.sch`: 13 patterns, 38 rules; `CEN-EN16931-UBL.sch`: 3 patterns, 105 rules), invoice
+`base-example.xml` with its first line copied N times. JDK 21, minimum of 10 to 15 warm runs, load average about 2;
+JFR profiles on the calling thread (444 to 588 samples). Both engines report the same failed asserts and fired rules.
+
+| Rules | Size | Saxon | phoxtrot |
+|---|--:|--:|--:|
+| `PEPPOL-EN16931-UBL` | 1 line | 0.50 ms | 0.89 to 0.95 ms |
+| `PEPPOL-EN16931-UBL` | 1,000 lines | 80 ms | 131 ms |
+| `PEPPOL-EN16931-UBL` | 10,000 lines | 758 ms | 1,339 ms |
+| `CEN-EN16931-UBL` | 1 line | 0.60 ms | 0.82 to 0.85 ms |
+| `CEN-EN16931-UBL` | 1,000 lines | 81 ms | 91 ms |
+| `CEN-EN16931-UBL` | 10,000 lines | 758 ms | 928 ms |
+
+Compiling the generated XSLT is faster on phoxtrot (5 to 14 ms against 16 to 42 ms); the three ISO steps take the
+same time on both. `THREAD_POOL` and `CALLING_THREAD` save only about 5 % on 1-line documents.
+
+### S21 - Template rules indexed by name per mode
+
+- `Engine._findRule` tests the rules of a mode one by one against every item (`Mode.rules ()`). With
+  `CompiledXsltPattern.canMatch` before each full match, this is still 41 % (`PEPPOL-EN16931-UBL`, 1 line), 57 %
+  (`PEPPOL-EN16931-UBL`, 10,000 lines) and 38 % (`CEN-EN16931-UBL`, 10,000 lines) of the validation; the self time is
+  in `PatternMatcher._canAxisSelect`, `CompiledXsltPattern._canLastStepSelect` and `PatternMatcher$LastStep.canSelect`.
+- The ISO skeleton applies templates to the whole document once per pattern, each in its own mode, so every node
+  is tested against every rule of every pattern.
+- Proposal: an index per mode, built after `Mode.sortRules`, from the node kind and the names of the last step of
+  each pattern (`XsltPattern.getFinalNames`, already used for keys in S8) to the rules in sorted order. Rules
+  without a final name (wildcards, `node()`, `text()`, union branches without a name) go into a list per node kind
+  and are merged in rule order with the named candidates. `xsl:next-match`, `xsl:apply-imports` and the
+  multiple-match checks then scan the merged candidates instead of all rules.
+- Expected: phoxtrot about at Saxon's level on these workloads.
+
+### S22 - `xsl:result-document` check once per stylesheet
+
+Status: done (2026-11-09): computed at the end of the compilation (`CompiledStylesheet.hasResultDocument`).
+
+- `XsltTransformer._hasResultDocument` walks the element trees of all modules on every run to decide whether the
+  principal result can be drained while it is built (`_createDrain`). For the 220 KB XSLT generated from
+  `PEPPOL-EN16931-UBL.sch` this is 7.7 % of a 1-line validation, plus `XslElement.getElementChildren` below it.
+- Proposal: compute it once per compiled stylesheet (it does not depend on the run).
+
+### S23 - No new SAX parser per parse
+
+- `XdmParser` creates a `SAXParserFactory` and a `SAXParser` on every parse (`SAXParserFactory.newDefaultInstance`,
+  `newSAXParser`): about 3 % of a 1-line validation (`SAXParserFactoryImpl.setFeature`, `SAXParserImpl.<init>`).
+- Proposal: a configured factory shared per `XdmParser` configuration, and the `XMLReader` reused per thread (with
+  `reset` semantics of the JDK parser), or at least the factory created once.
