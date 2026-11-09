@@ -370,8 +370,38 @@ public final class MainMemoryBenchmark
    * @throws Exception
    *         if a document is missing or cannot be parsed
    */
+  /**
+   * The JOL class footprint (count and size per class) of one document, as
+   * ph-xdm tree and as MicroDOM tree: where the memory goes. The document is
+   * the first of {@link #DOCUMENTS} whose name contains the given text.
+   *
+   * @param sName
+   *        Part of the document name, e.g. "Bank".
+   * @throws Exception
+   *         if the document is missing or cannot be parsed
+   */
+  private static void _runFootprint (@NonNull final String sName) throws Exception
+  {
+    for (final String [] aDoc : DOCUMENTS)
+      if (aDoc[0].contains (sName))
+      {
+        final File aFile = new File (aDoc[1]);
+        System.out.println ("=== ph-xdm: " + aDoc[0]);
+        System.out.println (GraphLayout.parseInstance (_parseXdm (aFile)).toFootprint ());
+        System.out.println ("=== MicroDOM: " + aDoc[0]);
+        System.out.println (GraphLayout.parseInstance (_parseMicro (aFile)).toFootprint ());
+        return;
+      }
+    throw new IllegalArgumentException ("No document named like '" + sName + "'");
+  }
+
   public static void main (final String [] args) throws Exception
   {
+    if (args.length > 1 && "footprint".equals (args[0]))
+    {
+      _runFootprint (args[1]);
+      return;
+    }
     if (args.length > 0 && "xdm".equals (args[0]))
     {
       _runXdmOnly ();

@@ -18,12 +18,14 @@
 
 # Runs the memory benchmark on JDK 21, on JDK 25 and on JDK 25 with compact object headers.
 #
-# Usage: run.sh [xdm|full] [phoxtrot-xdm jar]
+# Usage: run.sh [xdm|full|footprint] [phoxtrot-xdm jar]
 #
 #   xdm   (default) measures only the phoxtrot tree and prints one table with a column per JVM
 #         (and one for the tree without node locations, if the engine has the parser option)
 #         and the instance sizes of the node classes
 #   full  runs the complete comparison (phoxtrot, MicroDOM, Saxon) once per JVM
+#   footprint  prints the JOL class footprint of the "Bank transactions" document as ph-xdm and
+#         MicroDOM tree on JDK 21 (where the memory goes)
 #
 # The second argument is a phoxtrot-xdm jar (e.g. target/phoxtrot-xdm-0.1.0-SNAPSHOT.jar of a
 # checkout that was only packaged, not installed). It is put first on the class path, before the
@@ -44,6 +46,11 @@ fi
 JDK21=$(/usr/libexec/java_home -v 21)
 JDK25=$(/usr/libexec/java_home -v 25)
 JVM_ARGS="-Xmx4g -Djdk.attach.allowAttachSelf=true -XX:+EnableDynamicAgentLoading -Djol.magicFieldOffset=true"
+
+if [ "$MODE" = "footprint" ]; then
+  "$JDK21/bin/java" $JVM_ARGS -cp "$CP" com.helger.phoxtrot.xpath.membench.MainMemoryBenchmark footprint Bank
+  exit 0
+fi
 
 if [ "$MODE" = "full" ]; then
   "$JDK21/bin/java" $JVM_ARGS -cp "$CP" com.helger.phoxtrot.xpath.membench.MainMemoryBenchmark

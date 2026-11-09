@@ -31,22 +31,24 @@ Node counts are taken from the ph-xdm tree. All three models keep whitespace-onl
 ### Compact object headers
 
 The same documents on Temurin 25.0.5 with `-XX:+UseCompactObjectHeaders` (JEP 519), which shrinks every object header
-from 12 to 8 bytes (16 to 12 for arrays). Measured before batch 4, for all three models:
+from 12 to 8 bytes (16 to 12 for arrays), for all three models (measured 2026-11-09, `run.sh full`; Temurin 25.0.5
+without the option gives the same figures as JDK 21):
 
 | Document | ph-xdm | MicroDOM | Saxon TinyTree | ph-xdm saving | MicroDOM saving | TinyTree saving |
 |---|--:|--:|--:|--:|--:|--:|
-| UBL invoice (Peppol) | 0.05 MB | 0.06 MB | 0.02 MB | - | - | - |
-| XMark auction | 13.93 MB | 18.22 MB | 5.30 MB | 4 % | 10 % | 1 % |
-| iTunes plist | 80.36 MB | 103.32 MB | 16.26 MB | 5 % | 9 % | 0 % |
-| Bank transactions | 36.37 MB | 48.73 MB | 15.12 MB | 3 % | 13 % | 6 % |
-| Unicode characters | 75.31 MB | 94.04 MB | 34.96 MB | 5 % | 14 % | 8 % |
-| Old Testament | 8.57 MB | 10.49 MB | 4.35 MB | 3 % | 8 % | 0 % |
-| XSLT 3.0 spec (XHTML) | 17.06 MB | 21.67 MB | 7.45 MB | 5 % | 10 % | 3 % |
-| XSLT test stylesheets | 28.85 MB | 36.78 MB | 10.05 MB | 4 % | 10 % | 4 % |
+| UBL invoice (Peppol) | 0.04 MB | 0.06 MB | 0.02 MB | - | - | - |
+| XMark auction | 11.85 MB | 18.22 MB | 5.30 MB | 12 % | 10 % | 1 % |
+| iTunes plist | 69.72 MB | 103.32 MB | 16.26 MB | 15 % | 9 % | 0 % |
+| Bank transactions | 27.15 MB | 48.73 MB | 15.12 MB | 7 % | 13 % | 6 % |
+| Unicode characters | 56.64 MB | 94.04 MB | 34.96 MB | 7 % | 14 % | 8 % |
+| Old Testament | 7.81 MB | 10.49 MB | 4.35 MB | 10 % | 8 % | 0 % |
+| XSLT 3.0 spec (XHTML) | 12.87 MB | 21.67 MB | 7.45 MB | 10 % | 10 % | 3 % |
+| XSLT test stylesheets | 23.04 MB | 36.78 MB | 10.05 MB | 10 % | 10 % | 4 % |
 
-At that point ph-xdm gained least: its node objects were padded to a multiple of 8 bytes, and the 4 bytes a header
-loses were taken by the padding (element 72 bytes, attribute 56, text 48 in both modes). MicroDOM has more, smaller
-objects per node and gains about twice as much; TinyTree consists of a few large arrays.
+Before batch 4 ph-xdm gained only 3 to 5 %: its node objects were padded to a multiple of 8 bytes, and the 4 bytes a
+header loses were taken by the padding. The layouts of batch 4 (tree stamp, rare fields in `Details`) are cut so that
+the header saving counts; ph-xdm now gains about as much as MicroDOM, which has more, smaller objects per node.
+TinyTree consists of a few large arrays and gains little.
 
 After batch 4 (see below) the node layouts are cut so that the header saving counts too. ph-xdm now, JDK 21 and JDK 25
 with compact headers, with and without node locations (`XdmParser.setRecordLocations (false)`):
@@ -69,7 +71,7 @@ Instance sizes in bytes (JDK 21 / compact headers): element 56 / 48 (with locati
 
 | Document | ph-xdm | MicroDOM | Saxon TinyTree | ph-xdm vs. MicroDOM | ph-xdm vs. TinyTree |
 |---|--:|--:|--:|--:|--:|
-| UBL invoice (Peppol) | 5.0 | 6.8 | 1.6 | 0.74x | 3.1x |
+| UBL invoice (Peppol) | 4.5 | 6.8 | 1.6 | 0.66x | 2.8x |
 | XMark auction | 4.0 | 6.0 | 1.6 | 0.67x | 2.5x |
 | iTunes plist | 8.2 | 11.4 | 1.6 | 0.72x | 5.0x |
 | Bank transactions | 6.2 | 11.8 | 3.4 | 0.52x | 1.8x |
@@ -122,27 +124,29 @@ compact object headers above for what they save).
 
 ## Where the memory goes
 
-Class footprint of the "Bank transactions" document before batch 3 (100,002 elements, 200,001 attributes, 100,003 text nodes):
+Class footprint of the "Bank transactions" document on JDK 21 (100,002 elements, 200,001 attributes, 100,003 text
+nodes; measured 2026-11-09 with `run.sh footprint`, ph-xdm with node locations):
 
 | ph-xdm | Count | Size | | MicroDOM | Count | Size |
 |---|--:|--:|---|---|--:|--:|
-| `XdmElementNode` | 100,002 | 6.87 MB | | `MicroElement` | 100,002 | 3.81 MB |
-| `XdmAttributeNode` | 200,001 | 10.68 MB | | `MicroAttribute` + `MicroQName` | 400,002 | 9.16 MB |
-| `XdmTextNode` | 100,003 | 4.58 MB | | `MicroText` + `MicroDataAware` + `StringBuilder` | 300,009 | 6.87 MB |
-| `XdmDocumentNode`, `Details`, shared `XdmQName` | 8 | 0.00 MB | | | | |
-| `String` + `byte[]` | 600,026 | 14.50 MB | | `String` + `byte[]` | 500,021 | 13.73 MB |
-| `CommonsArrayList` + `Object[]` | 200,008 | 8.55 MB | | `CommonsLinkedHashMap` + entries + tables | 400,003 | 21.36 MB |
+| `XdmElementNode` (located, 64 bytes) | 100,002 | 6.10 MB | | `MicroElement` | 100,002 | 3.81 MB |
+| `XdmAttributeNode` (located, 48 bytes) | 200,001 | 9.16 MB | | `MicroAttribute` + `MicroQName` | 400,002 | 9.16 MB |
+| `XdmTextNode` (located, 48 bytes) | 100,003 | 4.58 MB | | `MicroText` + `MicroDataAware` + `StringBuilder` | 300,009 | 6.87 MB |
+| `XdmDocumentNode`, `Details`, `TreeStamp`, shared `XdmQName` | 9 | 0.00 MB | | | | |
+| `String` + `byte[]` | 261,978 | 6.38 MB | | `String` + `byte[]` | 500,021 | 13.73 MB |
+| child and attribute arrays (`AbstractXdmNode[]`) | 100,004 | 3.05 MB | | `CommonsLinkedHashMap` + entries + tables | 400,003 | 21.36 MB |
 | | | | | child lists (`CommonsArrayList` + `Object[]`) | 6 | 0.92 MB |
-| **Total** | | **45.17 MB** | | **Total** | | **55.85 MB** |
+| **Total** | | **29.27 MB** | | **Total** | | **55.85 MB** |
 
 Observations for ph-xdm:
 
-- The node objects are still almost half of the total (22.1 MB); the strings (attribute values and text) follow
-  with 14.5 MB.
-- The child and attribute lists start with room for 10 entries. Here they average 90 bytes for 1 to 2 entries;
-  trimming them to size would save about 3 MB.
-- MicroDOM pays for a `LinkedHashMap` per element with attributes, which costs more than ph-xdm's attribute list,
-  but its element objects are smaller.
+- The node objects are now two thirds of the total (19.8 MB); without node locations each is 8 bytes smaller
+  (26.21 MB in total).
+- The strings dropped from 14.5 MB (before batch 3) to 6.4 MB: indentation whitespace is one string per document and
+  the attribute values (code values such as account numbers and dates repeat) are shared per document.
+- Children and attributes are exact-size arrays; there are no list objects any more (8.55 MB before batch 3).
+- MicroDOM pays for a `LinkedHashMap` per element with attributes and a `StringBuilder` per text node; its element
+  objects are smaller, but it has about twice as many objects.
 
 Saxon avoids the per-node objects altogether, which is why its figures scale with the file size rather than the
 node count. In addition, an element whose only child is a text node is stored as a single "textual element" entry
