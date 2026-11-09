@@ -19,6 +19,7 @@ package com.helger.phoxtrot.xpath.stream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -31,6 +32,7 @@ import org.jspecify.annotations.NonNull;
 import org.junit.Test;
 
 import com.helger.base.numeric.mutable.MutableBoolean;
+import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
@@ -1524,9 +1526,66 @@ public final class XPathStreamabilityTest
     return _parse (aSB.toString ());
   }
 
+  /**
+   * Run a check on a new thread with the given stack size and rethrow what it
+   * failed with: the results of the deep walks depend on the stack of the
+   * thread, which for the test thread differs between JVMs and machines.
+   */
+  private static void _runWithStack (@NonNull final Runnable aCheck, final long nStackSize) throws InterruptedException
+  {
+    final Wrapper <Throwable> aError = new Wrapper <> ();
+    final Thread aThread = new Thread (null, () -> {
+      try
+      {
+        aCheck.run ();
+      }
+      catch (final Throwable t)
+      {
+        aError.set (t);
+      }
+    }, "streamability-stack", nStackSize);
+    aThread.start ();
+    aThread.join ();
+    if (aError.get () instanceof final Error aErr)
+      throw aErr;
+    if (aError.get () instanceof final RuntimeException aRtEx)
+      throw aRtEx;
+    assertNull (aError.get ());
+  }
+
   /** Expressions nested deeper than {@link XPathStreamability#MAX_DEPTH} fail closed. */
   @Test
-  public void testDeepNestingFailsClosed ()
+  public void testDeepNestingFailsClosed () throws InterruptedException
+  {
+    // Up to the depth limit the walk needs about as much stack as a default
+    // thread has (1 MB), so on the test thread the result depends on the
+    // machine; XSLT compilations run it on a thread with a large stack
+    _runWithStack (XPathStreamabilityTest::_checkDeepNesting, 64L * 1024 * 1024);
+  }
+
+  /**
+   * On a small stack the walk overflows before the depth limit and fails
+   * closed as well, without a definite verdict.
+   */
+  @Test
+  public void testDeepNestingOnSmallStack () throws InterruptedException
+  {
+    // Parsed and the classes initialised on this thread, only the walk runs
+    // on the small stack
+    final IExpr aShallow = _parseNestedNegations (1);
+    final IExpr aDeep = _parseNestedNegations (XPathStreamability.MAX_DEPTH - 10);
+    final String sShallow = XPathStreamability.getStreamability (aShallow, _striding ()).toString ();
+    assertNotEquals (RF, sShallow);
+    _runWithStack ( () -> {
+      final MutableBoolean aDefinite = new MutableBoolean (false);
+      assertEquals (RF, XPathStreamability.getStreamability (aDeep, _striding ().setDefiniteFlag (aDefinite)).toString ());
+      assertFalse (aDefinite.booleanValue ());
+      // The depth count was reset
+      assertEquals (sShallow, XPathStreamability.getStreamability (aShallow, _striding ()).toString ());
+    }, 128L * 1024);
+  }
+
+  private static void _checkDeepNesting ()
   {
     final String sShallow = XPathStreamability.getStreamability (_parseNestedNegations (1), _striding ()).toString ();
     assertEquals (sShallow,
