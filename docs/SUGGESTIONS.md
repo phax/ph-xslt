@@ -216,6 +216,12 @@ same time on both. `THREAD_POOL` and `CALLING_THREAD` save only about 5 % on 1-l
 
 ### S21 - Template rules indexed by name per mode
 
+Status: done (2026-11-09): `Mode.sortRules` builds the index (from 2 rules on), `Engine._findRule` merges the named
+candidates with the other rules in rule order; the multiple-match check still scans the following rules of the full
+list. Synthetic workload (10 modes, 20,000 elements of 40 names, rules with a predicate, best of 15): 16 rules per mode
+39.5 → 20.0 ms, 41 rules per mode 81.9 → 30.1 ms; a mode with 2 or 3 rules is not slower. The Peppol figures above are
+still to be measured again in ph-schematron.
+
 - `Engine._findRule` tests the rules of a mode one by one against every item (`Mode.rules ()`). With
   `CompiledXsltPattern.canMatch` before each full match, this is still 41 % (`PEPPOL-EN16931-UBL`, 1 line), 57 %
   (`PEPPOL-EN16931-UBL`, 10,000 lines) and 38 % (`CEN-EN16931-UBL`, 10,000 lines) of the validation; the self time is
@@ -239,6 +245,10 @@ Status: done (2026-11-09): computed at the end of the compilation (`CompiledStyl
 - Proposal: compute it once per compiled stylesheet (it does not depend on the run).
 
 ### S23 - No new SAX parser per parse
+
+Status: done (2026-11-09): `XdmParser` keeps one JDK SAX parser per thread and per setting of external entities,
+reset after each parse; a parse started during another on the same thread creates its own. A small document parses in
+2.7 µs instead of 19.7 µs (best of 10 rounds of 20,000 parses, JDK 21).
 
 - `XdmParser` creates a `SAXParserFactory` and a `SAXParser` on every parse (`SAXParserFactory.newDefaultInstance`,
   `newSAXParser`): about 3 % of a 1-line validation (`SAXParserFactoryImpl.setFeature`, `SAXParserImpl.<init>`).

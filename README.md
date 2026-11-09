@@ -185,3 +185,8 @@ v0.1.0 - work in progress
 # Contributing
 
 Copyright (C) 2026 Philip Helger. Licensed under the Apache License, Version 2.0.
+
+---
+
+My personal [Coding Styleguide](https://github.com/phax/meta/blob/master/CodingStyleguide.md) |
+It is appreciated if you star the GitHub project if you like it.

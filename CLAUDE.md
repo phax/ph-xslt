@@ -205,6 +205,16 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   pre-test of what the path search rejects first); `getFinalNames` gives the exact element/attribute names when every
   alternative ends in one, and `Engine._buildKeyIndex` then tests only those nodes from the document's name index
   instead of walking the tree (`Engine.getKeyIndexFromNamesCount ()` tells tests which path ran).
+- Template rules: `Mode.sortRules` also builds a rule index (modes with at least `Mode.MIN_INDEXED_RULES` rules, 2
+  by measurement): the rule positions by the final element/attribute names of their patterns (`getFinalNames`) and
+  the positions of all other rules. `Engine._findRule` merges the named candidates of the item with the other rules
+  in rule order, so precedence, priority, xsl:next-match, xsl:apply-imports and the multiple-match check (which still
+  scans the following rules of the full list) are unchanged. A rule added to a mode after `sortRules` would not be in
+  the index; rules are only added at compile time.
+- `XdmParser` keeps one JDK SAX parser per thread and per setting of external entities, taken out of the cache while
+  in use (a nested parse on the same thread creates its own) and reset with its handlers cleared afterwards, so the
+  cache holds no tree. Every per-parse setting must stay in `_parse` (set on each parse), the factory settings in
+  `_createSAXParser`.
 - Streamability (XSLT 3.0 section 19): `com.helger.phoxtrot.xpath.stream.XPathStreamability` classifies expressions and
   patterns; the XSLT layer supplies its knowledge through `StreamContext`. It fails closed: an unknown construct is
   roaming/free-ranging, never "streamable".

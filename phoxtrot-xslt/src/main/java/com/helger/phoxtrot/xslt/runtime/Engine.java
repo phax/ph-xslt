@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xslt.runtime;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -579,6 +580,74 @@ public final class Engine
   }
 
   /**
+   * @param aIndexes
+   *        Rule positions in ascending order.
+   * @param nStart
+   *        The first position of interest.
+   * @return The index in the array of the first position that is at least
+   *         <code>nStart</code>, the array length if there is none.
+   */
+  private static int _getFirstIndexFrom (@NonNull final int [] aIndexes, final int nStart)
+  {
+    if (nStart == 0)
+      return 0;
+    final int nPos = Arrays.binarySearch (aIndexes, nStart);
+    return nPos >= 0 ? nPos : -nPos - 1;
+  }
+
+  /**
+   * Test one rule of a mode for {@link #_findRule}: its import precedence
+   * must lie in the range and its pattern must match the item. With
+   * <code>bCheckMultiple</code> the following rules of the same precedence
+   * and priority are tested as well (on-multiple-match="fail" or
+   * warning-on-multiple-match="yes").
+   *
+   * @return <code>true</code> if the rule at the position is the one to use.
+   * @throws XPathException
+   *         XTDE0540 if another template of the same precedence and priority
+   *         matches and the mode has on-multiple-match="fail"
+   */
+  private boolean _isRuleMatch (@NonNull final Mode aMode,
+                                final int nIndex,
+                                @NonNull final IXdmItem aItem,
+                                @NonNull final XsltContext aCtx,
+                                final int nMinPrecedence,
+                                final int nMaxPrecedence,
+                                final boolean bCheckMultiple)
+  {
+    final ICommonsList <TemplateRule> aRules = aMode.rules ();
+    final TemplateRule aRule = aRules.get (nIndex);
+    final int nPrec = aRule.getPrecedence ();
+    if (nPrec < nMinPrecedence || nPrec > nMaxPrecedence)
+      return false;
+    if (!aRule.getPattern ().matches (aItem, aCtx))
+      return false;
+    if (bCheckMultiple)
+    {
+      final int nSize = aRules.size ();
+      for (int j = nIndex + 1; j < nSize; ++j)
+      {
+        final TemplateRule aOther = aRules.get (j);
+        if (aOther.getPrecedence () != nPrec || aOther.getPriority () != aRule.getPriority ())
+          break;
+        if (aOther.getTemplate () != aRule.getTemplate () && aOther.getPattern ().matches (aItem, aCtx))
+        {
+          if (aMode.isFailOnMultipleMatch ())
+            throw XsltException.at (aRule.getTemplate ().getElement (),
+                                    "XTDE0540",
+                                    "Several template rules match the item and the mode specifies on-multiple-match='fail'");
+          addWarning (aRule.getTemplate ().getElement (),
+                      "Several template rules of the same import precedence and priority match the item in mode " +
+                                                          aMode.getName ().getEQName () +
+                                                          "; the one declared last is used");
+          break;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
    * Find the first rule of a mode that matches an item, scanning the rules in
    * their sorted order (import precedence, then priority, then declaration
    * order, best first; XSLT 3.0 section 6.4). Only rules whose import
@@ -623,36 +692,35 @@ public final class Engine
       if (nStart == 0)
         return null;
     }
-    final int nSize = aRules.size ();
-    for (int i = nStart; i < nSize; ++i)
+    final boolean bCheckMultiple = aAfter == null &&
+                                   (aMode.isFailOnMultipleMatch () ||
+                                    (aMode.isWarningOnMultipleMatch () && hasMessageListener ()));
+    final int [] aNamed = aMode.getNamedRuleIndexes (aItem);
+    if (aNamed == null)
     {
-      final TemplateRule aRule = aRules.get (i);
-      final int nPrec = aRule.getPrecedence ();
-      if (nPrec < nMinPrecedence || nPrec > nMaxPrecedence)
-        continue;
-      if (!aRule.getPattern ().matches (aItem, aCtx))
-        continue;
-      if (aAfter == null &&
-          (aMode.isFailOnMultipleMatch () || (aMode.isWarningOnMultipleMatch () && hasMessageListener ())))
-        for (int j = i + 1; j < nSize; ++j)
-        {
-          final TemplateRule aOther = aRules.get (j);
-          if (aOther.getPrecedence () != nPrec || aOther.getPriority () != aRule.getPriority ())
-            break;
-          if (aOther.getTemplate () != aRule.getTemplate () && aOther.getPattern ().matches (aItem, aCtx))
-          {
-            if (aMode.isFailOnMultipleMatch ())
-              throw XsltException.at (aRule.getTemplate ().getElement (),
-                                      "XTDE0540",
-                                      "Several template rules match the item and the mode specifies on-multiple-match='fail'");
-            addWarning (aRule.getTemplate ().getElement (),
-                        "Several template rules of the same import precedence and priority match the item in mode " +
-                                                            aMode.getName ().getEQName () +
-                                                            "; the one declared last is used");
-            break;
-          }
-        }
-      return aRule;
+      // No rule index: every rule in order
+      final int nSize = aRules.size ();
+      for (int i = nStart; i < nSize; ++i)
+        if (_isRuleMatch (aMode, i, aItem, aCtx, nMinPrecedence, nMaxPrecedence, bCheckMultiple))
+          return aRules.get (i);
+      return null;
+    }
+    // The candidates of the index merged in rule order; the rules left out
+    // cannot match the item. One cancellation check stands for those of the
+    // matches skipped
+    aCtx.getEngine ().getPatternContext ().checkInterrupt ();
+    final int [] aUnnamed = aMode.getUnnamedRuleIndexes ();
+    int nNamed = _getFirstIndexFrom (aNamed, nStart);
+    int nUnnamed = _getFirstIndexFrom (aUnnamed, nStart);
+    while (nNamed < aNamed.length || nUnnamed < aUnnamed.length)
+    {
+      final int i;
+      if (nUnnamed >= aUnnamed.length || (nNamed < aNamed.length && aNamed[nNamed] < aUnnamed[nUnnamed]))
+        i = aNamed[nNamed++];
+      else
+        i = aUnnamed[nUnnamed++];
+      if (_isRuleMatch (aMode, i, aItem, aCtx, nMinPrecedence, nMaxPrecedence, bCheckMultiple))
+        return aRules.get (i);
     }
     return null;
   }

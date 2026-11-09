@@ -16,14 +16,20 @@
  */
 package com.helger.phoxtrot.xslt.model;
 
+import java.util.Arrays;
 import java.util.Comparator;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsMap;
+import com.helger.phoxtrot.xdm.IXdmItem;
+import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xpath.pattern.PatternFinalNames;
 import com.helger.phoxtrot.xslt.tree.XslElement;
 import com.helger.phoxtrot.xslt.tree.XsltNames;
 
@@ -38,6 +44,9 @@ public final class Mode
 {
   /** The name used for the unnamed mode. */
   public static final XdmQName UNNAMED = new XdmQName (XsltNames.NS_XSL, "unnamed");
+  /** The minimum number of rules for which a mode gets a rule index. */
+  public static final int MIN_INDEXED_RULES = 2;
+  private static final int [] NO_RULES = new int [0];
 
   private final XdmQName m_aName;
   private EOnNoMatch m_eOnNoMatch = EOnNoMatch.TEXT_ONLY_COPY;
@@ -49,6 +58,10 @@ public final class Mode
   private boolean m_bStreamable;
   private XslElement m_aDeclaration;
   private final ICommonsList <TemplateRule> m_aRules = new CommonsArrayList <> ();
+  // The rule index (see getNamedRuleIndexes), null if the mode has none
+  private ICommonsMap <XdmQName, int []> m_aElementRules;
+  private ICommonsMap <XdmQName, int []> m_aAttributeRules;
+  private int [] m_aUnnamedRules;
 
   public Mode (@NonNull final XdmQName aName)
   {
@@ -181,6 +194,56 @@ public final class Mode
   }
 
   /**
+   * @return The array with the value appended (a new array).
+   */
+  @NonNull
+  private static int [] _append (@Nullable final int [] aArray, final int nValue)
+  {
+    if (aArray == null)
+      return new int [] { nValue };
+    final int [] ret = Arrays.copyOf (aArray, aArray.length + 1);
+    ret[aArray.length] = nValue;
+    return ret;
+  }
+
+  /**
+   * Build the rule index from the sorted rules: the positions of the rules
+   * whose pattern names the elements or attributes it can match
+   * ({@link com.helger.phoxtrot.xpath.pattern.XsltPattern#getFinalNames()}),
+   * by these names, and the positions of all other rules. Every array is in
+   * ascending order. A mode with fewer than {@link #MIN_INDEXED_RULES} rules
+   * gets no index.
+   */
+  private void _buildRuleIndex ()
+  {
+    m_aElementRules = null;
+    m_aAttributeRules = null;
+    m_aUnnamedRules = null;
+    if (m_aRules.size () < MIN_INDEXED_RULES)
+      return;
+    final ICommonsMap <XdmQName, int []> aElementRules = new CommonsHashMap <> ();
+    final ICommonsMap <XdmQName, int []> aAttributeRules = new CommonsHashMap <> ();
+    int [] aUnnamedRules = NO_RULES;
+    for (int i = 0; i < m_aRules.size (); ++i)
+    {
+      final PatternFinalNames aNames = m_aRules.get (i).getPattern ().pattern ().getFinalNames ();
+      if (aNames == null)
+        aUnnamedRules = _append (aUnnamedRules, i);
+      else
+      {
+        // The name lists are distinct, so a rule is added once per name
+        for (final XdmQName aName : aNames.elementNames ())
+          aElementRules.put (aName, _append (aElementRules.get (aName), i));
+        for (final XdmQName aName : aNames.attributeNames ())
+          aAttributeRules.put (aName, _append (aAttributeRules.get (aName), i));
+      }
+    }
+    m_aElementRules = aElementRules;
+    m_aAttributeRules = aAttributeRules;
+    m_aUnnamedRules = aUnnamedRules;
+  }
+
+  /**
    * Append a template rule. The order is irrelevant until
    * {@link #sortRules()} runs.
    *
@@ -206,6 +269,7 @@ public final class Mode
                              .thenComparingDouble (TemplateRule::getPriority)
                              .thenComparingInt (TemplateRule::getOrder)
                              .reversed ());
+    _buildRuleIndex ();
   }
 
   /** @return The rules, best first (do not modify). */
@@ -213,6 +277,51 @@ public final class Mode
   public ICommonsList <TemplateRule> rules ()
   {
     return m_aRules;
+  }
+
+  /**
+   * The rules of the index whose pattern names the item: for an element or
+   * attribute the positions (in {@link #rules()}) of the rules whose pattern
+   * can match only elements or attributes of the given names and names that
+   * of the item; empty for any other item. Together with
+   * {@link #getUnnamedRuleIndexes()} they are all rules that can match the
+   * item.
+   *
+   * @param aItem
+   *        The item to find rules for.
+   * @return The positions in ascending order (do not modify), or
+   *         <code>null</code> if the mode has no rule index: then every rule
+   *         must be tested.
+   */
+  @Nullable
+  public int [] getNamedRuleIndexes (@NonNull final IXdmItem aItem)
+  {
+    if (m_aUnnamedRules == null)
+      return null;
+    if (aItem instanceof final IXdmNode aNode)
+    {
+      final ICommonsMap <XdmQName, int []> aMap = aNode.isElement () ? m_aElementRules
+                                                                    : aNode.isAttribute () ? m_aAttributeRules : null;
+      if (aMap != null)
+      {
+        final int [] ret = aMap.get (aNode.getName ());
+        if (ret != null)
+          return ret;
+      }
+    }
+    return NO_RULES;
+  }
+
+  /**
+   * @return The positions (in {@link #rules()}) of the rules whose pattern
+   *         names no elements or attributes, in ascending order (do not
+   *         modify); <code>null</code> if the mode has no rule index (see
+   *         {@link #getNamedRuleIndexes(IXdmItem)}).
+   */
+  @Nullable
+  public int [] getUnnamedRuleIndexes ()
+  {
+    return m_aUnnamedRules;
   }
 
   @Override

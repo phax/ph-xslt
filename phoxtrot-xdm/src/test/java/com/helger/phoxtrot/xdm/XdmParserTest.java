@@ -266,6 +266,54 @@ public final class XdmParserTest
     }
   }
 
+  /**
+   * The SAX parser of the thread is reused: the settings of one parse and a failed parse do not
+   * affect the next, and a parse started from the entity resolver of another uses its own parser.
+   */
+  @Test
+  public void testParserReuse () throws XdmParseException
+  {
+    for (int i = 0; i < 2; ++i)
+    {
+      try
+      {
+        new XdmParser ().setMaxElementDepth (3).parse ("<a><b><c><d/></c></b></a>");
+        fail ();
+      }
+      catch (final XdmParseException ex)
+      {
+        // expected
+      }
+      assertEquals ("x", _parse ("<a><b><c><d>x</d></c></b></a>").getStringValue ());
+      try
+      {
+        _parse ("<a><b></a>");
+        fail ();
+      }
+      catch (final XdmParseException ex)
+      {
+        // expected
+      }
+      assertEquals ("y", _parse ("<a>y</a>").getStringValue ());
+
+      // A parse with external entities, one started from its resolver, then one without
+      final IXdmNode aDoc = new XdmParser ().setLoadExternalEntities (true).setEntityResolver ( (sPublicID, sSystemID) -> {
+        final IXdmNode aNested;
+        try
+        {
+          aNested = new XdmParser ().setLoadExternalEntities (true).parse ("<n>ext</n>");
+        }
+        catch (final XdmParseException ex)
+        {
+          throw new IllegalStateException (ex);
+        }
+        return new InputSource (new NonBlockingStringReader (aNested.getStringValue ()));
+      }).parse ("<!DOCTYPE a [<!ENTITY e SYSTEM 'urn:test:e'>]><a>&e;</a>");
+      assertEquals ("ext", aDoc.getStringValue ());
+      assertEquals ("", _parse ("<!DOCTYPE a [<!ENTITY e SYSTEM 'file:///etc/hostname'>]><a>&e;</a>").getStringValue ());
+    }
+  }
+
   @NonNull
   private static String _parseError (@NonNull final String sXml)
   {

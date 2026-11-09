@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 import org.jspecify.annotations.NonNull;
@@ -82,6 +83,9 @@ public class XdmParser
   // The location default of the parsers and tree builders created on a thread
   // while getWithRecordLocations runs there; not set outside of it
   private static final ThreadLocal <Boolean> RECORD_LOCATIONS_SCOPE = new ThreadLocal <> ();
+  // The reusable SAX parser of each thread, without (index 0) and with
+  // (index 1) external entities; a slot is empty while its parser is in use
+  private static final ThreadLocal <SAXParser []> PARSERS = ThreadLocal.withInitial ( () -> new SAXParser [2]);
   /**
    * Whether the JDK parser accepts a code point in an XML 1.0 name, per code point that XML 1.0
    * (5th edition) allows; filled on demand
@@ -518,6 +522,70 @@ public class XdmParser
   }
 
   /**
+   * Create a JDK SAX parser with the factory settings of a parse: namespace aware, not validating,
+   * secure processing on, and external entities and the external DTD subset as given.
+   *
+   * @param bLoadExternalEntities
+   *        Whether external entities and the external DTD subset are loaded.
+   * @return The new parser.
+   * @throws ParserConfigurationException
+   *         if the JDK parser does not support a setting
+   * @throws SAXException
+   *         if the JDK parser does not support a feature
+   */
+  @NonNull
+  private static SAXParser _createSAXParser (final boolean bLoadExternalEntities) throws ParserConfigurationException,
+                                                                                         SAXException
+  {
+    // Always the JDK parser: the JAXP lookup would pick up another
+    // implementation on the class path (e.g. Apache Xerces), which rejects
+    // the JDK properties set in _parse
+    final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
+    aFactory.setNamespaceAware (true);
+    aFactory.setValidating (false);
+    aFactory.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    aFactory.setFeature ("http://xml.org/sax/features/external-general-entities", bLoadExternalEntities);
+    aFactory.setFeature ("http://xml.org/sax/features/external-parameter-entities", bLoadExternalEntities);
+    aFactory.setFeature ("http://apache.org/xml/features/nonvalidating/load-external-dtd", bLoadExternalEntities);
+    return aFactory.newSAXParser ();
+  }
+
+  /**
+   * Put a parser back into the cache of the current thread after a parse, reset to its factory
+   * settings and without the handlers and resolver of the parse, so that the cache keeps no
+   * reference to the tree or to user objects. A parser that cannot be reset is dropped.
+   *
+   * @param aParsers
+   *        The parser cache of the current thread.
+   * @param nSlot
+   *        The slot of the parser.
+   * @param aParser
+   *        The parser used for the parse.
+   */
+  private static void _releaseSAXParser (@NonNull final SAXParser [] aParsers,
+                                         final int nSlot,
+                                         @NonNull final SAXParser aParser)
+  {
+    try
+    {
+      aParser.reset ();
+      final XMLReader aReader = aParser.getXMLReader ();
+      aReader.setContentHandler (null);
+      aReader.setErrorHandler (null);
+      aReader.setDTDHandler (null);
+      aReader.setEntityResolver (null);
+      aReader.setProperty ("http://xml.org/sax/properties/lexical-handler", null);
+      aReader.setProperty ("http://xml.org/sax/properties/declaration-handler", null);
+      aParsers[nSlot] = aParser;
+    }
+    catch (final SAXException | RuntimeException ex)
+    {
+      // Not reused
+      LOGGER.warn ("Failed to reset the SAX parser for reuse: " + ex.getMessage ());
+    }
+  }
+
+  /**
    * Read a source with the JDK SAX parser into a tree built by {@link XdmTreeBuilder}: namespace
    * aware, not DTD validating, secure processing on, external entities and the external DTD subset
    * only with {@link #setLoadExternalEntities(boolean)} (then through the
@@ -526,6 +594,10 @@ public class XdmParser
    * explicitly. With a schema set the finished document is validated afterwards. A parse error that
    * comes from a name the JDK parser rejects against the 5th edition rules gets an explanation
    * appended to the message, which is also logged.
+   * <p>
+   * The SAX parser is reused: each thread keeps one per setting of external entities. It is taken
+   * out of the cache for the parse, so that a parse started during it on the same thread (e.g. from
+   * an entity resolver) creates its own.
    *
    * @param aSource
    *        The source to read.
@@ -541,19 +613,15 @@ public class XdmParser
   @NonNull
   private IXdmNode _parse (@NonNull final InputSource aSource, @Nullable final String sText) throws XdmParseException
   {
+    final SAXParser [] aParsers = PARSERS.get ();
+    final int nSlot = m_bLoadExternalEntities ? 1 : 0;
+    SAXParser aParser = aParsers[nSlot];
+    aParsers[nSlot] = null;
     try
     {
-      // Always the JDK parser: the JAXP lookup would pick up another
-      // implementation on the class path (e.g. Apache Xerces), which rejects
-      // the JDK properties set below
-      final SAXParserFactory aFactory = SAXParserFactory.newDefaultInstance ();
-      aFactory.setNamespaceAware (true);
-      aFactory.setValidating (false);
-      aFactory.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
-      aFactory.setFeature ("http://xml.org/sax/features/external-general-entities", m_bLoadExternalEntities);
-      aFactory.setFeature ("http://xml.org/sax/features/external-parameter-entities", m_bLoadExternalEntities);
-      aFactory.setFeature ("http://apache.org/xml/features/nonvalidating/load-external-dtd", m_bLoadExternalEntities);
-      final XMLReader aReader = aFactory.newSAXParser ().getXMLReader ();
+      if (aParser == null)
+        aParser = _createSAXParser (m_bLoadExternalEntities);
+      final XMLReader aReader = aParser.getXMLReader ();
       // Secure processing denies every external access by default, which
       // would make the features above ineffective
       if (m_bLoadExternalEntities)
@@ -591,6 +659,11 @@ public class XdmParser
     catch (final ParserConfigurationException | SAXException | IOException ex)
     {
       throw new XdmParseException ("Failed to parse XML: " + ex.getMessage (), ex);
+    }
+    finally
+    {
+      if (aParser != null)
+        _releaseSAXParser (aParsers, nSlot, aParser);
     }
   }
 
