@@ -1,7 +1,7 @@
 # phoxtrot
 
 > **Experimental.** This project is at an early stage. APIs, module layout and behaviour may change without notice,
-> and no release has been published yet. Do not use it in production.
+> also between releases. Do not use it in production yet.
 
 A pure Java implementation of XPath 3.1 and XSLT 3.0, intended as an Apache 2.0 licensed alternative to Saxon.
 XML parsing is left to the JDK; everything on top of it, including an XML Schema 1.0 validator, is implemented here.
@@ -23,7 +23,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `phoxtrot-xdm` | XPath data model: node tree built from SAX, incremental StAX reader for streamed documents, names, document order, W3C DOM and SAX bridge | usable |
 | `phoxtrot-xpath` | XPath 3.1: values, parser, evaluator, F&O 3.1 function library, regex, collations, serialisation | usable |
 | `phoxtrot-xpath-conformance` | W3C QT3 test harness (not deployed) | usable |
-| `phoxtrot-xslt` | XSLT 3.0: stylesheet compiler, modules, templates and modes, all instruction families, XSLT functions, packages, schema-awareness, streaming (analysis, streamed execution, output written while it is built), JAXP `TransformerFactory` | in progress |
+| `phoxtrot-xslt` | XSLT 3.0: stylesheet compiler, modules, templates and modes, all instruction families, XSLT functions, packages, schema-awareness, streaming (analysis, streamed execution, output written while it is built), JAXP `TransformerFactory` | usable |
 | `phoxtrot-xslt-conformance` | W3C xslt30-test harness (not deployed) | usable |
 | `phoxtrot-xsd` | Native XML Schema 1.0 and 1.1 validator (port of go-xslt's `internal/xsd`): loader, include/import/redefine/override, schema-for-schemas checks, simple types and facets, content models with open content, instance validation with identity constraints, assertions and conditional type assignment, read-only component view, validation API that reports all errors; the default schema provider for XPath and XSLT (schemas compiled as XSD 1.1) | usable |
 | `phoxtrot-xsd-conformance` | W3C xsdtests (XML Schema) harness with a pluggable validator (not deployed) | usable |
@@ -31,6 +31,21 @@ See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 | `phoxtrot-xdm-memory-benchmark` | Retained heap of the node tree compared with ph-xml MicroDOM and Saxon TinyTree (standalone, not deployed) | usable |
 
 Requires Java 21. CI runs on Java 21 and 25.
+
+## Maven usage
+
+The deployed modules are `phoxtrot-xdm`, `phoxtrot-xpath`, `phoxtrot-xslt` and `phoxtrot-xsd`. For XSLT 3.0 add
+`phoxtrot-xslt` (it brings `phoxtrot-xpath` and `phoxtrot-xdm`); for XPath 3.1 alone `phoxtrot-xpath`:
+
+```xml
+<dependency>
+  <groupId>com.helger.phoxtrot</groupId>
+  <artifactId>phoxtrot-xslt</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+Add `phoxtrot-xsd` as well for schema-awareness (see below).
 
 ## Schema-awareness (optional dependency)
 
@@ -54,7 +69,7 @@ In both cases XML parsing stays on the JDK parser. `phoxtrot-xsd` can also be us
 <dependency>
   <groupId>com.helger.phoxtrot</groupId>
   <artifactId>phoxtrot-xsd</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0</version>
 </dependency>
 ```
 
