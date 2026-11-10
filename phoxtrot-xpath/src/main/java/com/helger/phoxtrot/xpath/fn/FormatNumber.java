@@ -584,12 +584,12 @@ public final class FormatNumber
       ret.m_nMinInt = 1;
     if (ret.m_nMinInt == 0 && ret.m_nMinFrac == 0)
       ret.m_nMinFrac = 1;
-    if (!aSepLeftDigits.isEmpty ())
+    if (aSepLeftDigits.isNotEmpty ())
     {
       final IntArrayList aPosFromRight = new IntArrayList ();
-      for (final int nLeft : aSepLeftDigits.toArray ())
+      for (int i = 0; i < aSepLeftDigits.size (); ++i)
       {
-        final int p = nIntDigits - nLeft;
+        final int p = nIntDigits - aSepLeftDigits.get (i);
         if (p > 0)
           aPosFromRight.add (p);
       }
@@ -597,7 +597,7 @@ public final class FormatNumber
       if (g > 0)
         ret.m_nGroupInt = g;
       else
-        aPosFromRight.forEach (ret.m_aGroupSeps::add);
+        ret.m_aGroupSeps.addAll (aPosFromRight);
     }
     return ret;
   }

@@ -949,7 +949,7 @@ final class RegexTranslator
           break;
       }
     }
-    if (!aOpen.isEmpty ())
+    if (aOpen.isNotEmpty ())
       throw _error ("unterminated group");
     return new Result (m_aSB.toString (), m_nGroups, m_aParents.toArray (), m_aJavaGroups.toArray ());
   }

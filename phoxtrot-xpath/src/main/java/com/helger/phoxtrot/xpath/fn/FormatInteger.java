@@ -233,7 +233,7 @@ public final class FormatInteger
     }
     ret.m_nZero = nFamZero < 0 ? '0' : nFamZero;
     ret.m_aSeps = aSepAt;
-    if (!aSepIntervals.isEmpty ())
+    if (aSepIntervals.isNotEmpty ())
     {
       final int [] aIntervals = aSepIntervals.toArray ();
       int g = Integer.MAX_VALUE;

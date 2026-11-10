@@ -24,7 +24,6 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
-import com.helger.collection.helper.CollectionSort;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.collation.CollationRegistry;
 import com.helger.phoxtrot.xpath.collation.ICollation;
@@ -547,8 +546,15 @@ public final class SortKeyDef
       for (int k = 0; k < nKeys; ++k)
         aValues[i][k] = aKeys.get (k)._computeKey (aItemCtx, aSettings[k]);
     }
-    // Stable sort of the positions without boxing
-    final int [] aOrder = CollectionSort.getSortedIndices (nItems, (nX, nY) -> {
+    // The JDK sort (stable TimSort) on boxed positions: it detects runs in the input and needs far
+    // fewer calls of the expensive key comparison than CollectionSort.getSortedIndices on sorted,
+    // reversed or nearly sorted input
+    final ICommonsList <Integer> aOrder = new CommonsArrayList <> (nItems);
+    for (int i = 0; i < nItems; ++i)
+      aOrder.add (Integer.valueOf (i));
+    aOrder.sort ( (x, y) -> {
+      final int nX = x.intValue ();
+      final int nY = y.intValue ();
       for (int k = 0; k < nKeys; ++k)
       {
         int c = _compare (aValues[nX][k], aValues[nY][k], aSettings[k], aCtx);
@@ -560,8 +566,8 @@ public final class SortKeyDef
       return 0;
     });
     final XdmSequence.Builder ret = new XdmSequence.Builder ();
-    for (final int nIdx : aOrder)
-      ret.add (aSeq.get (nIdx));
+    for (final Integer aIdx : aOrder)
+      ret.add (aSeq.get (aIdx.intValue ()));
     return ret.build ();
   }
 }

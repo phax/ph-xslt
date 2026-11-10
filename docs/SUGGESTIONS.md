@@ -390,7 +390,7 @@ not listed here.
 
 ### S26 - Use the existing ph-commons helpers
 
-Status: done (2026-11-10), built against ph-commons 12.5.4-SNAPSHOT (the API of the coming 12.6.0). Item 1 was
+Status: done (2026-11-10), with ph-commons 12.6.0. Item 1 was
 replaced by `ConcurrentBoundedCache` (see S28); items 2 and 3 use `StringHelper.iterateCodePoints`/`getCodePoints`
 (33 sites) and `StringHex.appendHexStringLeadingZero`.
 
@@ -410,7 +410,7 @@ replaced by `ConcurrentBoundedCache` (see S28); items 2 and 3 use `StringHelper.
 
 ### S28 - Use the new ph-commons 12.6.0 helpers
 
-Status: done (2026-11-10) for the targeted sites below; built against 12.5.4-SNAPSHOT.
+Status: done (2026-11-10) for the targeted sites below, with ph-commons 12.6.0.
 
 - Code point collation: `CollationRegistry.CODEPOINT.compare` is `CompareHelper.compareByCodePoint` (callers use only
   the sign).
@@ -426,8 +426,10 @@ Status: done (2026-11-10) for the targeted sites below; built against 12.5.4-SNA
 - Caches: the regex cache (`XPathRegex`, was LRU with a write lock per lookup) and the UCA collation cache
   (`CollationRegistry`, was a read lock and a complete clear at 256 entries) are `ConcurrentBoundedCache`: lock-free
   reads, approximate eviction.
-- `xsl:sort` (`SortKeyDef`) and the sorted groups of `xsl:for-each-group` sort their positions with
-  `CollectionSort.getSortedIndices` (stable, no boxing) instead of a list of `Integer`.
+- `xsl:sort` (`SortKeyDef`) and the sorted groups of `xsl:for-each-group` keep the JDK sort of a list of boxed
+  positions. `CollectionSort.getSortedIndices` (no boxing) was tried and reverted: the key comparison is the cost,
+  and its insertion and merge sort needs more comparisons than the JDK's TimSort (comparator calls at 10,000 items:
+  random 172,316 against 120,434, reversed 194,800 against 9,999, nearly sorted 78,038 against 13,932).
 - Primitive int collections instead of `Integer` lists, sets and maps: `RegexTranslator` (group bookkeeping,
   `IntArrayList`), `FormatNumber`/`FormatInteger`/`FormatDateTime` (separator positions, `IntArrayList`, `IntHashSet`,
   `IntIntMap`), `CaseVariants.VARIANTS` and `NumberFormatter` (`FAMILY_INDEX`, `ALPHABET_INDEX`, `IntObjectMap`).
