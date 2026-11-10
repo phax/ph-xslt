@@ -1,5 +1,12 @@
 # phoxtrot
 
+<!-- ph-badge-start -->
+[![Sonatype Central](https://maven-badges.sml.io/sonatype-central/com.helger.phoxtrot/phoxtrot-parent-pom/badge.svg)](https://maven-badges.sml.io/sonatype-central/com.helger.phoxtrot/phoxtrot-parent-pom/)
+[![javadoc](https://javadoc.io/badge2/com.helger.phoxtrot/phoxtrot-xdm/javadoc.svg)](https://javadoc.io/doc/com.helger.phoxtrot/phoxtrot-xdm)
+
+> If this project saved you some time or made your day a little easier, a star would mean a lot — it helps others find it too.
+<!-- ph-badge-end -->
+
 > **Experimental.** This project is at an early stage. APIs, module layout and behaviour may change without notice,
 > also between releases. Do not use it in production yet.
 
