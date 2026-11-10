@@ -20,6 +20,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   generated (`BenchData`, fixed seed) and every workload checks its result once against a value computed in Java; a new
   workload needs such a check, and its case ID in both `EWorkloadGroup.getAllCaseIDs` and the `@Param` list of its JMH
   class. Reports: `docs/benchmarks/` (dated reports before the rename use the old module and package names).
+- Version and build time: `PhoxtrotVersion.BUILD_VERSION`/`BUILD_TIMESTAMP` (`phoxtrot-xdm`), read from
+  `phoxtrot-version.properties`, which Maven filters (`phoxtrot-xdm/pom.xml` filters only `*.properties` resources).
 - W3C suites live outside the repo in `../../git-thirdparty/{qt3tests,xslt30-test,xsdtests}`; never copy them in.
 - Copyright header is "Philip Helger" only. Tim Riep appears in `NOTICE` and `README.md` only.
 - Never read Saxon sources (MPL); work from the W3C specs and the Go code.
