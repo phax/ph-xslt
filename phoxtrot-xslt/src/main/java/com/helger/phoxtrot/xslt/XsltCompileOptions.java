@@ -127,6 +127,7 @@ public final class XsltCompileOptions
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticParams = new CommonsLinkedHashMap <> ();
   private final ICommonsList <PackageSource> m_aPackages = new CommonsArrayList <> ();
   private boolean m_bLoadExternalEntities = false;
+  private boolean m_bReadLocalSchemaFiles = true;
   private boolean m_bSchemaAware = DEFAULT_SCHEMA_AWARE;
   private boolean m_bEnforceStreamability = DEFAULT_ENFORCE_STREAMABILITY;
   private boolean m_bStreamingClaim = DEFAULT_STREAMING_CLAIM;
@@ -216,6 +217,39 @@ public final class XsltCompileOptions
   public XsltCompileOptions setLoadExternalEntities (final boolean bLoadExternalEntities)
   {
     m_bLoadExternalEntities = bLoadExternalEntities;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if the schema documents of
+   *         <code>xsl:import-schema</code> may be read from local files
+   *         directly. Default <code>true</code>.
+   */
+  public boolean isReadLocalSchemaFiles ()
+  {
+    return m_bReadLocalSchemaFiles;
+  }
+
+  /**
+   * Control the local file reads of <code>xsl:import-schema</code>. A
+   * <code>schema-location</code> is read through the
+   * {@link #setResolver(IResourceResolver) resolver} if one is set; without
+   * one it is read as a local file only if this is <code>true</code>. The
+   * documents a schema document references (<code>xs:include</code>,
+   * <code>xs:import</code>, <code>xs:redefine</code>,
+   * <code>xs:override</code>) are read by the schema processor itself, from
+   * local files only if this is <code>true</code> and never from the network.
+   * Host schemas ({@link #hostSchemas()}) are read regardless.
+   *
+   * @param bReadLocalSchemaFiles
+   *        <code>false</code> to read no schema document from a local file
+   *        directly.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions setReadLocalSchemaFiles (final boolean bReadLocalSchemaFiles)
+  {
+    m_bReadLocalSchemaFiles = bReadLocalSchemaFiles;
     return this;
   }
 

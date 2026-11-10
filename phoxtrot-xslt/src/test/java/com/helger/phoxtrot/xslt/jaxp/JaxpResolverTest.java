@@ -58,9 +58,8 @@ import com.helger.phoxtrot.xslt.XsltException;
 /**
  * Test class for the resolvers of the JAXP adapter: the entity resolver and
  * {@link XMLConstants#ACCESS_EXTERNAL_DTD} for the documents and modules of
- * {@link JaxpResourceResolver}, the scheme check of
- * {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} (nested <code>jar:</code>
- * URIs included) and a {@link URIResolver} that refuses.
+ * {@link JaxpResourceResolver}, the scheme check of {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET}
+ * (nested <code>jar:</code> URIs included) and a {@link URIResolver} that refuses.
  *
  * @author Philip Helger
  */
@@ -75,8 +74,8 @@ public final class JaxpResolverTest
   public final TemporaryFolder m_aTempDir = new TemporaryFolder ();
 
   /**
-   * Answers from a map of file names to texts, returns <code>null</code> for
-   * any other system ID and records the file name of every call.
+   * Answers from a map of file names to texts, returns <code>null</code> for any other system ID
+   * and records the file name of every call.
    */
   private static final class RecordingEntityResolver implements EntityResolver
   {
@@ -125,9 +124,8 @@ public final class JaxpResolverTest
   }
 
   /**
-   * @return The file URI of a document with an external DTD (default
-   *         attribute <code>x</code>) and an external entity
-   *         (<code>&amp;e;</code>), both files next to it.
+   * @return The file URI of a document with an external DTD (default attribute <code>x</code>) and
+   *         an external entity (<code>&amp;e;</code>), both files next to it.
    */
   @NonNull
   private String _writeDocumentWithDtd () throws Exception
@@ -151,7 +149,9 @@ public final class JaxpResolverTest
   public void testEntityResolverForDocument () throws Exception
   {
     final String sDataUri = _writeDocumentWithDtd ();
-    final String sSheet = _textSheet ("let $d := document('" + sDataUri + "')/data return string-join(($d/@x, '|', string($d)), ' ')");
+    final String sSheet = _textSheet ("let $d := document('" +
+                                      sDataUri +
+                                      "')/data return string-join(($d/@x, '|', string($d)), ' ')");
     final RecordingEntityResolver aResolver = new RecordingEntityResolver (Map.of ("data.dtd",
                                                                                    "<!ATTLIST data x CDATA 'from-resolver'><!ENTITY e 'entity-from-resolver'>"));
 
@@ -247,7 +247,7 @@ public final class JaxpResolverTest
     }
 
     // The entity resolver still gives access
-    final PhoxtrotTransformer aT = (PhoxtrotTransformer) aTF.newTemplates (_source (sSheet)).newTransformer ();
+    final PhoxtrotTransformer aT = aTF.newTemplates (_source (sSheet)).newTransformer ();
     aT.setEntityResolver (new RecordingEntityResolver (Map.of ("data.dtd",
                                                                "<!ATTLIST data x CDATA 'from-resolver'><!ENTITY e ''>")));
     assertEquals ("from-resolver", _transform (aT, _source (SOURCE)));
@@ -255,6 +255,85 @@ public final class JaxpResolverTest
     // And so does allowing the file scheme
     aTF.setAttribute (XMLConstants.ACCESS_EXTERNAL_DTD, "file");
     assertEquals ("from-file", _transform (aTF.newTemplates (_source (sSheet)).newTransformer (), _source (SOURCE)));
+  }
+
+  /**
+   * @return A schema-aware stylesheet that imports namespace urn:t from the location and tests a
+   *         value against its type t:code.
+   */
+  @NonNull
+  private static String _schemaSheet (@NonNull final String sLocation)
+  {
+    return "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform' xmlns:t='urn:t'>" +
+           "<xsl:import-schema namespace='urn:t' schema-location='" +
+           sLocation +
+           "'/>" +
+           "<xsl:output method='text'/><xsl:template match='/'><xsl:value-of select=\"'123' castable as t:code\"/></xsl:template>" +
+           XSL_END;
+  }
+
+  @Test
+  public void testImportSchemaAccess () throws Exception
+  {
+    final Path aDir = m_aTempDir.getRoot ().toPath ();
+    final String sXsdStart = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' targetNamespace='urn:t'>";
+    final String sType = "<xs:simpleType name='code'><xs:restriction base='xs:string'><xs:pattern value='[0-9]+'/></xs:restriction></xs:simpleType>";
+    Files.writeString (aDir.resolve ("inc.xsd"), sXsdStart + sType + "</xs:schema>");
+    Files.writeString (aDir.resolve ("main.xsd"), sXsdStart + "<xs:include schemaLocation='inc.xsd'/></xs:schema>");
+    final String sMainUri = aDir.resolve ("main.xsd").toUri ().toString ();
+    final String sMainXsd = Files.readString (aDir.resolve ("main.xsd"));
+    final String sSheet = _schemaSheet (sMainUri);
+
+    // Default: the schema and its include are read from the files
+    PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_SCHEMA_AWARE, Boolean.TRUE);
+    assertEquals ("true", _transform (aTF.newTemplates (_source (sSheet)).newTransformer (), _source (SOURCE)));
+
+    // Secure processing: neither is read, so the type is unknown
+    aTF.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    try
+    {
+      aTF.newTemplates (_source (sSheet));
+      fail ();
+    }
+    catch (final TransformerConfigurationException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XQST0052"));
+    }
+
+    // The URI resolver gives the schema document, but its include is still
+    // not read from the file
+    final ICommonsList <String> aCalls = new CommonsArrayList <> ();
+    aTF.setURIResolver ((sHref, sBase) -> {
+      aCalls.add (sHref);
+      final StreamSource ret = new StreamSource (new StringReader (sMainXsd));
+      ret.setSystemId (sHref);
+      return ret;
+    });
+    try
+    {
+      aTF.newTemplates (_source (sSheet));
+      fail ();
+    }
+    catch (final TransformerConfigurationException ex)
+    {
+      // The include is unavailable like a missing file, so the type is unknown
+      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XQST0052"));
+    }
+    assertEquals ("[" + sMainUri + "]", aCalls.toString ());
+
+    // Allowing local files reads the include as well
+    aTF.setAttribute (XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "file");
+    assertEquals ("true", _transform (aTF.newTemplates (_source (sSheet)).newTransformer (), _source (SOURCE)));
+
+    // A schema document without references only needs the URI resolver
+    aTF = new PhoxtrotTransformerFactory ();
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_SCHEMA_AWARE, Boolean.TRUE);
+    aTF.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    aTF.setURIResolver ((sHref, sBase) -> _source (sXsdStart + sType + "</xs:schema>"));
+    assertEquals ("true",
+                  _transform (aTF.newTemplates (_source (_schemaSheet ("http://example.org/t.xsd"))).newTransformer (),
+                              _source (SOURCE)));
   }
 
   @Test
@@ -302,7 +381,7 @@ public final class JaxpResolverTest
   private static PhoxtrotTransformerFactory _createRefusingFactory (@NonNull final ICommonsList <String> aCalls)
   {
     final PhoxtrotTransformerFactory ret = new PhoxtrotTransformerFactory ();
-    ret.setURIResolver ( (sHref, sBase) -> {
+    ret.setURIResolver ((sHref, sBase) -> {
       aCalls.add (sHref);
       throw new TransformerException (REFUSAL);
     });
@@ -420,7 +499,9 @@ public final class JaxpResolverTest
                                                     { "json-doc('" + sUri + "')", "FOUT1170" } })
     {
       final ICommonsList <String> aCalls = new CommonsArrayList <> ();
-      final Transformer aT = _createRefusingFactory (aCalls).newTemplates (_source (_textSheet ("string(" + aCase[0] + ")")))
+      final Transformer aT = _createRefusingFactory (aCalls).newTemplates (_source (_textSheet ("string(" +
+                                                                                                aCase[0] +
+                                                                                                ")")))
                                                             .newTransformer ();
       try
       {
@@ -436,10 +517,12 @@ public final class JaxpResolverTest
     }
 
     // The functions that only ask
-    for (final String sExpr : new String [] { "doc-available('" + sUri + "')", "unparsed-text-available('" + sUri + "')" })
+    for (final String sExpr : new String [] { "doc-available('" + sUri + "')",
+                                              "unparsed-text-available('" + sUri + "')" })
     {
       final ICommonsList <String> aCalls = new CommonsArrayList <> ();
-      final Transformer aT = _createRefusingFactory (aCalls).newTemplates (_source (_textSheet (sExpr))).newTransformer ();
+      final Transformer aT = _createRefusingFactory (aCalls).newTemplates (_source (_textSheet (sExpr)))
+                                                            .newTransformer ();
       assertEquals (sExpr, "false", _transform (aT, _source (SOURCE)));
       assertEquals (sExpr, "[" + sUri + "]", aCalls.toString ());
     }
@@ -457,7 +540,7 @@ public final class JaxpResolverTest
     assertEquals ("from-factory", _transform (aT, _source (SOURCE)));
 
     // The transformer's resolver replaces the factory's at run time
-    aT.setURIResolver ( (sHref, sBase) -> _source ("<from-transformer/>"));
+    aT.setURIResolver ((sHref, sBase) -> _source ("<from-transformer/>"));
     assertEquals ("from-transformer", _transform (aT, _source (SOURCE)));
 
     // Without any resolver the URI is read directly, which secure processing
@@ -465,7 +548,8 @@ public final class JaxpResolverTest
     aT.setURIResolver (null);
     assertNull (aT.getURIResolver ());
     aTF.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
-    final Transformer aSecure = aTF.newTemplates (_source (_textSheet ("doc-available('" + sUri + "')"))).newTransformer ();
+    final Transformer aSecure = aTF.newTemplates (_source (_textSheet ("doc-available('" + sUri + "')")))
+                                   .newTransformer ();
     aSecure.setURIResolver (null);
     assertEquals ("false", _transform (aSecure, _source (SOURCE)));
 

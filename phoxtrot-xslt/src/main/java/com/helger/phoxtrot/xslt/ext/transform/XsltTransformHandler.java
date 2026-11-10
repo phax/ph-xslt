@@ -555,6 +555,7 @@ public final class XsltTransformHandler implements ITransformHandler
     if (aHost.callerOptions () != null)
     {
       ret.setLoadExternalEntities (aHost.callerOptions ().isLoadExternalEntities ());
+      ret.setReadLocalSchemaFiles (aHost.callerOptions ().isReadLocalSchemaFiles ());
       ret.setBackwardsCompatibleClaim (aHost.callerOptions ().isBackwardsCompatibleClaim ());
       ret.packages ().addAll (aHost.callerOptions ().packages ());
     }

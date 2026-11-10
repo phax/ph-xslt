@@ -437,8 +437,9 @@ public final class XsdBridgeTest
                                                  EXsdVersion.V10,
                                                  null);
     final String sInstance = "<hinted xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"hint.xsd\">x</hinted>";
-    // The string entry point does pick the hint up
-    assertTrue (aSchema.validateText (sInstance).valid ());
+    // The string entry point picks the hint up only if asked to
+    assertFalse (aSchema.validateText (sInstance).valid ());
+    assertTrue (aSchema.validateText (sInstance, new XsdValidationOptions ().setFollowSchemaLocationHints (true)).valid ());
     try
     {
       XsdSchemaProvider.createSchemaSet (aSchema).validateElement (_parseElement (sInstance), null, false);
@@ -655,5 +656,26 @@ public final class XsdBridgeTest
     // The new text nodes are in document order
     assertTrue (aKids.get (0).getChildAtIndex (0).getOrder () > aKids.get (0).getOrder ());
     assertTrue (aKids.get (1).getOrder () > aKids.get (0).getChildAtIndex (0).getOrder ());
+  }
+
+  @Test
+  public void testReadReferencedFiles () throws Exception
+  {
+    final Path aDir = m_aTempDir.getRoot ().toPath ();
+    final String sXsdStart = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' targetNamespace='urn:t'>";
+    Files.writeString (aDir.resolve ("inc.xsd"),
+                       sXsdStart + "<xs:simpleType name='code'><xs:restriction base='xs:string'/></xs:simpleType></xs:schema>");
+    final ICommonsList <XdmSchemaSource> aSources = new CommonsArrayList <> (new XdmSchemaSource (aDir.resolve ("main.xsd")
+                                                                                                      .toUri ()
+                                                                                                      .toString (),
+                                                                                                  sXsdStart +
+                                                                                                                    "<xs:include schemaLocation='inc.xsd'/></xs:schema>"));
+    final XdmQName aCode = new XdmQName ("urn:t", "code", "");
+    final XsdSchemaProvider aProvider = new XsdSchemaProvider ();
+    // Referenced documents are read from local files by default
+    assertNotNull (aProvider.compile (aSources).getTypeDefinition (aCode));
+    assertNotNull (aProvider.compile (aSources, true).getTypeDefinition (aCode));
+    // Without local file access the include contributes nothing
+    assertNull (aProvider.compile (aSources, false).getTypeDefinition (aCode));
   }
 }

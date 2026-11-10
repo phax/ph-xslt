@@ -1961,8 +1961,12 @@ final class XsdInstanceValidator
       return XsdValidationResult.createInvalid (XsdError.of ("", "no document element"));
     // xsi:schemaLocation hints on the document element may supply schema
     // documents beyond the compiled set; they can only add components, and a
-    // broken hint never invalidates the instance
-    final ICommonsList <XsdSchemaSource> aHinted = _hintDocs (aSchema, aRoot, aInstanceDir);
+    // broken hint never invalidates the instance. Only if asked for: the
+    // instance decides which files they read
+    final boolean bFollowHints = aOptions != null ? aOptions.isFollowSchemaLocationHints ()
+                                                  : XsdValidationOptions.DEFAULT_FOLLOW_SCHEMA_LOCATION_HINTS;
+    final ICommonsList <XsdSchemaSource> aHinted = bFollowHints ? _hintDocs (aSchema, aRoot, aInstanceDir)
+                                                                : new CommonsArrayList <> ();
     if (aHinted.isNotEmpty ())
     {
       final ICommonsList <XsdSchemaSource> aMerged = new CommonsArrayList <> (aSchema.m_aSourceDocs);

@@ -82,7 +82,10 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * the factory's), with the absolute URI as href and base. What it does not
  * resolve is read directly if the scheme is allowed by
  * {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} (default
- * <code>all</code>).</li>
+ * <code>all</code>). The same applies to the <code>schema-location</code> of
+ * <code>xsl:import-schema</code>; the documents a schema document references
+ * are read from local files only if the scheme <code>file</code> is allowed,
+ * and never from the network.</li>
  * <li>Compile errors are reported to
  * {@link ErrorListener#fatalError(TransformerException)} and thrown as
  * {@link TransformerConfigurationException} with the error code at the start
@@ -276,6 +279,10 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
                                                                                                          m_sAccessExternalStylesheet,
                                                                                                          aParserSettings))
                                                                  .setLoadExternalEntities (m_bLoadExternalEntities)
+                                                                 // Schema documents of xsl:import-schema (and the
+                                                                 // ones they reference) only as file access allows
+                                                                 .setReadLocalSchemaFiles (JaxpResourceResolver.isAccessAllowed ("file:/",
+                                                                                                                                 m_sAccessExternalStylesheet))
                                                                  .setSchemaAware (m_bSchemaAware)
                                                                  .setBackwardsCompatibleClaim (m_bBackwardsCompatible)
                                                                  .setThreading (m_eThreading);

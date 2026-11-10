@@ -31,6 +31,7 @@ import com.helger.base.enforce.ValueEnforcer;
 import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaProvider;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
+import com.helger.phoxtrot.xdm.schema.LocalSchemaResourceResolver;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaException;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSource;
 
@@ -65,6 +66,20 @@ public final class JdkSchemaProvider implements IXdmSchemaProvider
   @NonNull
   public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources) throws XdmSchemaException
   {
+    return compile (aSources, true);
+  }
+
+  /**
+   * {@inheritDoc}
+   * <p>
+   * As {@link #compile(List)}; what the JDK reads on its own goes through a
+   * {@link LocalSchemaResourceResolver}.
+   */
+  @Override
+  @NonNull
+  public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources,
+                                final boolean bReadReferencedFiles) throws XdmSchemaException
+  {
     ValueEnforcer.notNull (aSources, "Sources");
     final Source [] aJaxpSources;
     if (aSources.isEmpty ())
@@ -84,7 +99,9 @@ public final class JdkSchemaProvider implements IXdmSchemaProvider
     final Schema aSchema;
     try
     {
-      aSchema = SchemaFactory.newDefaultInstance ().newSchema (aJaxpSources);
+      final SchemaFactory aFactory = SchemaFactory.newDefaultInstance ();
+      aFactory.setResourceResolver (new LocalSchemaResourceResolver (bReadReferencedFiles));
+      aSchema = aFactory.newSchema (aJaxpSources);
     }
     catch (final SAXException ex)
     {

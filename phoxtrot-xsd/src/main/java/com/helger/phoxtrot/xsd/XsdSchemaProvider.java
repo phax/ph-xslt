@@ -178,6 +178,20 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
   @NonNull
   public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources) throws XdmSchemaException
   {
+    return compile (aSources, true);
+  }
+
+  /**
+   * {@inheritDoc}
+   * <p>
+   * As {@link #compile(List)}, with referenced documents read through
+   * {@link XsdFileAccess#LOCAL_FILES} or {@link XsdFileAccess#NONE}.
+   */
+  @Override
+  @NonNull
+  public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources,
+                                final boolean bReadReferencedFiles) throws XdmSchemaException
+  {
     final ICommonsList <XsdSchemaSource> aDocuments = new CommonsArrayList <> ();
     for (final XdmSchemaSource aSource : aSources)
       aDocuments.add (_toSource (aSource));
@@ -185,7 +199,8 @@ public final class XsdSchemaProvider implements IXdmSchemaProvider
     {
       return createSchemaSet (XsdSchema.compile (aDocuments,
                                                  EXsdVersion.V11,
-                                                 new XsdCompileOptions ().setFileAccess (XsdFileAccess.LOCAL_FILES)));
+                                                 new XsdCompileOptions ().setFileAccess (bReadReferencedFiles ? XsdFileAccess.LOCAL_FILES
+                                                                                                              : XsdFileAccess.NONE)));
     }
     catch (final XsdInvalidException ex)
     {

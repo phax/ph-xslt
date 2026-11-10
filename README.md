@@ -69,8 +69,14 @@ one the engine is a basic XSLT 3.0 processor. Two providers are supported:
   `SAXParserFactory.newInstance ()` and `SchemaFactory.newInstance (...)` return for other code in the same
   application (its `META-INF/services` entries).
 
-In both cases XML parsing stays on the JDK parser. `phoxtrot-xsd` can also be used on its own to validate documents
-(`XsdSchema.validate`, which reports all errors), against XSD 1.0 or 1.1.
+In both cases XML parsing stays on the JDK parser. A schema processor reads the documents an imported schema references
+(`xs:include`, `xs:import`, `xs:redefine`, `xs:override`) only from local files, never from the network, and only while
+`XsltCompileOptions.setReadLocalSchemaFiles` allows it (default `true`; the JAXP adapter derives it from
+`ACCESS_EXTERNAL_STYLESHEET`). A `schema-location` itself is read through the resolver of the compile options if one
+is set. `phoxtrot-xsd` can also be used on its own to validate documents (`XsdSchema.validate`, which reports all
+errors), against XSD 1.0 or 1.1; the `xsi:schemaLocation` hints of an instance are only followed with
+`XsdValidationOptions.setFollowSchemaLocationHints (true)`, because the instance then decides which local files are
+read.
 
 ```xml
 <dependency>
@@ -129,7 +135,9 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
   sources and documents alike: an `EntityResolver` (factory attribute `ATTR_ENTITY_RESOLVER`,
   `PhoxtrotTransformer.setEntityResolver`) is asked first, and the parser opens them itself only for the schemes of
   `XMLConstants.ACCESS_EXTERNAL_DTD` (default `all`, empty with `FEATURE_SECURE_PROCESSING`). Further attributes:
-  `ATTR_SCHEMA_AWARE`, `ATTR_MAX_STEPS`.
+  `ATTR_SCHEMA_AWARE` (the `schema-location` of `xsl:import-schema` goes through the `URIResolver` and
+  `ACCESS_EXTERNAL_STYLESHEET` like a module; the documents it references are read only if `file` is allowed),
+  `ATTR_MAX_STEPS`.
 * Not supported: `SAXTransformerFactory` (`TransformerHandler`, `TemplatesHandler`), StAX sources and results, and
   writing secondary results (`xsl:result-document`); these are available from `PhoxtrotTransformer.getLastResult ()`.
   Initial templates, modes and functions need the phoxtrot API (`PhoxtrotTemplates.getExecutable ()`).

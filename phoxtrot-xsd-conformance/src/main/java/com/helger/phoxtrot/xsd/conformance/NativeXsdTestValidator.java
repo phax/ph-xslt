@@ -28,6 +28,7 @@ import com.helger.phoxtrot.xsd.XsdFileAccess;
 import com.helger.phoxtrot.xsd.XsdInvalidException;
 import com.helger.phoxtrot.xsd.XsdSchema;
 import com.helger.phoxtrot.xsd.XsdUnsupportedException;
+import com.helger.phoxtrot.xsd.XsdValidationOptions;
 import com.helger.phoxtrot.xsd.XsdValidationResult;
 
 /**
@@ -68,7 +69,9 @@ public final class NativeXsdTestValidator implements IXsdTestValidator
     {
       try
       {
-        final XsdValidationResult aResult = m_aSchema.validate (aInstance);
+        // The suite tests schema location hints, which are off by default
+        final XsdValidationResult aResult = m_aSchema.validate (aInstance,
+                                                                new XsdValidationOptions ().setFollowSchemaLocationHints (true));
         if (aResult.valid ())
           return XsdVerdict.valid ();
         return XsdVerdict.invalid (aResult.errors ().isEmpty () ? null : aResult.errors ().getFirstOrNull ().toString ());

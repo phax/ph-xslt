@@ -185,11 +185,14 @@ final class XsdTestSupport
   }
 
   @NonNull
-  static EVerdict validate (@NonNull final XsdSchema aSchema, @NonNull final String sInstance)
+  static EVerdict validate (@NonNull final XsdSchema aSchema,
+                            @NonNull final String sInstance,
+                            final boolean bFollowHints)
   {
     try
     {
-      return aSchema.validateText (sInstance).valid () ? EVerdict.VALID : EVerdict.INVALID;
+      final XsdValidationOptions aOptions = new XsdValidationOptions ().setFollowSchemaLocationHints (bFollowHints);
+      return aSchema.validateText (sInstance, aOptions).valid () ? EVerdict.VALID : EVerdict.INVALID;
     }
     catch (final XsdInvalidException ex)
     {
@@ -201,12 +204,33 @@ final class XsdTestSupport
     }
   }
 
+  @NonNull
+  static EVerdict validate (@NonNull final XsdSchema aSchema, @NonNull final String sInstance)
+  {
+    return validate (aSchema, sInstance, XsdValidationOptions.DEFAULT_FOLLOW_SCHEMA_LOCATION_HINTS);
+  }
+
   /**
    * Run cases: compile each schema under each selected version, compare the
-   * decided verdicts, and run the instance checks of valid schemas.
+   * decided verdicts, and run the instance checks of valid schemas, with the
+   * default for schema location hints.
    */
   @NonNull
   static Tally runCases (@NonNull final Case [] aCases, @Nullable final Path aBaseDir, final boolean bWrapBody)
+  {
+    return runCases (aCases, aBaseDir, bWrapBody, XsdValidationOptions.DEFAULT_FOLLOW_SCHEMA_LOCATION_HINTS);
+  }
+
+  /**
+   * Run cases: compile each schema under each selected version, compare the
+   * decided verdicts, and run the instance checks of valid schemas, following
+   * the schema location hints of the instances if asked.
+   */
+  @NonNull
+  static Tally runCases (@NonNull final Case [] aCases,
+                         @Nullable final Path aBaseDir,
+                         final boolean bWrapBody,
+                         final boolean bFollowHints)
   {
     final Tally ret = new Tally ();
     for (final Case aCase : aCases)
@@ -234,7 +258,7 @@ final class XsdTestSupport
         if (aCompiled.schema () != null)
           for (final DocCheck aDoc : aCase.docs ())
           {
-            final EVerdict eDoc = validate (aCompiled.schema (), aDoc.instance ());
+            final EVerdict eDoc = validate (aCompiled.schema (), aDoc.instance (), bFollowHints);
             if (eDoc == EVerdict.UNSUPPORTED)
             {
               ret.m_nUndecided++;

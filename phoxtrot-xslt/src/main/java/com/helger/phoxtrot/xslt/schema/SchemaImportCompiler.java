@@ -44,6 +44,8 @@ import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaException;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSource;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSupport;
+import com.helger.phoxtrot.xpath.XPathException;
+import com.helger.phoxtrot.xpath.context.IResourceResolver;
 import com.helger.phoxtrot.xpath.serialize.SerializationParams;
 import com.helger.phoxtrot.xpath.serialize.XdmSerializer;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
@@ -202,6 +204,56 @@ public final class SchemaImportCompiler
   }
 
   /**
+   * Read the schema document a <code>schema-location</code> names: through
+   * the resolver of the compile options if there is one (as text, so that the
+   * schema processor does not read it again; in JAXP this applies the URI
+   * resolver and the external access settings), otherwise from the local file
+   * if {@link XsltCompileOptions#isReadLocalSchemaFiles()} allows it. The
+   * network is only used if the resolver does.
+   *
+   * @param sUri
+   *        The absolute location.
+   * @param aOptions
+   *        The compile options.
+   * @return The source, or <code>null</code> if the document cannot be read
+   *         (a resolver that refuses included).
+   */
+  @Nullable
+  private static XdmSchemaSource _readLocation (@NonNull final String sUri, @NonNull final XsltCompileOptions aOptions)
+  {
+    final IResourceResolver aResolver = aOptions.getResolver ();
+    if (aResolver != null)
+    {
+      try
+      {
+        final IXdmNode aDoc = aResolver.resolveDocument (sUri);
+        if (aDoc == null)
+          return null;
+        final SerializationParams aParams = new SerializationParams ();
+        aParams.setOmitXmlDeclaration (true);
+        return new XdmSchemaSource (sUri, XdmSerializer.serialize (XdmSequence.of (aDoc), aParams));
+      }
+      catch (final XPathException ex)
+      {
+        // A resolver that refuses: unavailable, like a missing file
+        return null;
+      }
+    }
+    if (!aOptions.isReadLocalSchemaFiles ())
+      return null;
+    try
+    {
+      // No network access: only local files are read
+      return sUri.startsWith ("file:") && Files.isRegularFile (Path.of (new URI (sUri))) ? new XdmSchemaSource (sUri, null)
+                                                                                          : null;
+    }
+    catch (final URISyntaxException | IllegalArgumentException ex)
+    {
+      return null;
+    }
+  }
+
+  /**
    * Determine the schema document of one xsl:import-schema declaration
    * (XSLT 3.0 section 3.15), in this order:
    * <ul>
@@ -210,9 +262,9 @@ public final class SchemaImportCompiler
    * <li>without (or with a blank) <code>schema-location</code>: a host
    * schema for the namespace, else the built-in schema of the XML namespace
    * for that namespace, else nothing;</li>
-   * <li>otherwise the location resolved against the static base URI. Only
-   * existing local <code>file:</code> resources are read (no network
-   * access). A location that cannot be read is only a hint and falls back to
+   * <li>otherwise the location resolved against the static base URI, read
+   * by {@link #_readLocation(String, XsltCompileOptions)}. A location that
+   * cannot be read is only a hint and falls back to
    * a host schema; one whose target namespace differs from the imported
    * namespace also falls back to a host schema before it is an error.</li>
    * </ul>
@@ -280,18 +332,8 @@ public final class SchemaImportCompiler
     {
       // keep it as written
     }
-    final XdmSchemaSource aSource = new XdmSchemaSource (sUri, null);
-    final boolean bReadable;
-    try
-    {
-      // No network access: only local files are read
-      bReadable = sUri.startsWith ("file:") && Files.isRegularFile (Path.of (new URI (sUri)));
-    }
-    catch (final URISyntaxException | IllegalArgumentException ex)
-    {
-      return _getHostSchema (aOptions, sNamespace);
-    }
-    final String sTns = bReadable ? _getTargetNamespace (aSource) : null;
+    final XdmSchemaSource aSource = _readLocation (sUri, aOptions);
+    final String sTns = aSource != null ? _getTargetNamespace (aSource) : null;
     if (sTns == null)
     {
       // The location is a hint: one that leads nowhere contributes nothing,
@@ -584,7 +626,7 @@ public final class SchemaImportCompiler
     _mergeInlineSchemas (aSources);
     try
     {
-      return XdmSchemaSupport.compile (aSources);
+      return XdmSchemaSupport.compile (aSources, aOptions.isReadLocalSchemaFiles ());
     }
     catch (final XdmSchemaException ex)
     {

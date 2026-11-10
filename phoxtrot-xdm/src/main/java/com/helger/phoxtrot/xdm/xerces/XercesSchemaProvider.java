@@ -18,6 +18,7 @@ package com.helger.phoxtrot.xdm.xerces;
 
 import java.util.List;
 
+import javax.xml.XMLConstants;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
@@ -40,6 +41,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaProvider;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
+import com.helger.phoxtrot.xdm.schema.LocalSchemaResourceResolver;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaException;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSource;
 
@@ -80,22 +82,40 @@ public final class XercesSchemaProvider implements IXdmSchemaProvider
 
   /**
    * Compile the sources with a Xerces-J schema factory that fails on the first error (warnings are
-   * ignored); without sources an empty schema is compiled, which gives the built-in types. The
+   * ignored); without sources an empty schema is compiled, which gives the built-in types. What
+   * Xerces-J reads on its own (referenced schema documents, external DTDs and entities) goes
+   * through a {@link LocalSchemaResourceResolver}: local files only if allowed, never the network.
+   * Secure processing is on (the limits of the Xerces-J security manager, e.g. entity expansion).
+   * The
    * schema component model is then built from the very grammars of the compiled schema, so that the
    * types a validator of it reports are components of that model.
    *
    * @param aSources
    *        The schema documents; a source with text is read from it, with the system ID as base
    *        URI, otherwise from the system ID.
+   * @param bReadReferencedFiles
+   *        Whether referenced documents may be read from local files.
    * @return The new schema set.
    * @throws XdmSchemaException
    *         if the documents cannot be read or are not a valid schema
    */
   @NonNull
-  private static IXdmSchemaSet _compile (@NonNull final List <XdmSchemaSource> aSources) throws XdmSchemaException
+  private static IXdmSchemaSet _compile (@NonNull final List <XdmSchemaSource> aSources,
+                                         final boolean bReadReferencedFiles) throws XdmSchemaException
   {
     final XMLSchemaFactory aFactory = new XMLSchemaFactory ();
+    try
+    {
+      // Entity expansion and other limits for the schema documents, as the
+      // JDK schema factory has by default
+      aFactory.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    }
+    catch (final SAXException ex)
+    {
+      throw new XdmSchemaException ("Failed to enable secure processing: " + ex.getMessage (), ex);
+    }
     aFactory.setErrorHandler (THROWING_ERROR_HANDLER);
+    aFactory.setResourceResolver (new LocalSchemaResourceResolver (bReadReferencedFiles));
     final ICommonsList <Source> aJaxpSources = new CommonsArrayList <> ();
     for (final XdmSchemaSource aSource : aSources)
     {
@@ -131,12 +151,26 @@ public final class XercesSchemaProvider implements IXdmSchemaProvider
   @NonNull
   public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources) throws XdmSchemaException
   {
+    return compile (aSources, true);
+  }
+
+  /**
+   * {@inheritDoc}
+   * <p>
+   * As {@link #compile(List)}, with referenced documents read only as allowed.
+   */
+  @Override
+  @NonNull
+  public IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources,
+                                final boolean bReadReferencedFiles) throws XdmSchemaException
+  {
     if (!aSources.isEmpty ())
-      return _compile (aSources);
+      return _compile (aSources, bReadReferencedFiles);
     IXdmSchemaSet ret = m_aRWLock.readLockedGet (() -> m_aBuiltin);
     if (ret == null)
     {
-      final IXdmSchemaSet aNew = _compile (aSources);
+      // The built-in types read nothing
+      final IXdmSchemaSet aNew = _compile (aSources, false);
       ret = m_aRWLock.writeLockedGet (() -> {
         if (m_aBuiltin == null)
           m_aBuiltin = aNew;

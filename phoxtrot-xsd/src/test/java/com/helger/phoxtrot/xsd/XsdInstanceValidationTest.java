@@ -444,13 +444,16 @@ public final class XsdInstanceValidationTest
       return;
     }
     // The empty schema set is governed by the hints of the instance, found
-    // next to the instance
+    // next to the instance, if they are followed
+    final XsdValidationOptions aHints = new XsdValidationOptions ().setFollowSchemaLocationHints (true);
     try
     {
-      assertTrue (aSchema.validate (aDir.resolve ("ok.xml")).valid ());
-      assertFalse (aSchema.validate (aDir.resolve ("bad.xml")).valid ());
+      assertTrue (aSchema.validate (aDir.resolve ("ok.xml"), aHints).valid ());
+      assertFalse (aSchema.validate (aDir.resolve ("bad.xml"), aHints).valid ());
       // A hint that cannot be read is ignored: the element is then undeclared
-      assertFalse (aSchema.validate (aDir.resolve ("broken.xml")).valid ());
+      assertFalse (aSchema.validate (aDir.resolve ("broken.xml"), aHints).valid ());
+      // By default no hint is followed: the element is undeclared
+      assertFalse (aSchema.validate (aDir.resolve ("ok.xml")).valid ());
     }
     catch (final XsdUnsupportedException ex)
     {

@@ -175,6 +175,29 @@ public final class XdmSchemaSupport
   }
 
   /**
+   * Compile schema documents into one schema set, reading referenced documents only if allowed
+   * (see {@link IXdmSchemaProvider#compile(List, boolean)}).
+   *
+   * @param aSources
+   *        The schema documents. May not be <code>null</code>.
+   * @param bReadReferencedFiles
+   *        <code>true</code> to read referenced documents from local files, <code>false</code> to
+   *        read none.
+   * @return The schema set.
+   * @throws XdmSchemaException
+   *         if the documents cannot be read or are not a valid schema
+   * @throws IllegalStateException
+   *         if schema processing is not available
+   */
+  @NonNull
+  public static IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources,
+                                       final boolean bReadReferencedFiles) throws XdmSchemaException
+  {
+    ValueEnforcer.notNull (aSources, "Sources");
+    return _getProvider ().compile (aSources, bReadReferencedFiles);
+  }
+
+  /**
    * @return The schema set with only the built-in types.
    * @throws IllegalStateException
    *         if schema processing is not available

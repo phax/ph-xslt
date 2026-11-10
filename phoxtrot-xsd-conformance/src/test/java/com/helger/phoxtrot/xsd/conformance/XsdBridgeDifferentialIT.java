@@ -42,6 +42,7 @@ import com.helger.phoxtrot.xsd.XsdInvalidException;
 import com.helger.phoxtrot.xsd.XsdSchema;
 import com.helger.phoxtrot.xsd.XsdSchemaProvider;
 import com.helger.phoxtrot.xsd.XsdUnsupportedException;
+import com.helger.phoxtrot.xsd.XsdValidationOptions;
 import com.helger.phoxtrot.xsd.XsdValidationResult;
 
 /**
@@ -146,7 +147,8 @@ public final class XsdBridgeDifferentialIT
     final XsdValidationResult aTextResult;
     try
     {
-      aTextResult = aSchema.validate (aInstance);
+      // The in-place side adds the hinted documents itself (_withHints)
+      aTextResult = aSchema.validate (aInstance, new XsdValidationOptions ().setFollowSchemaLocationHints (true));
       bText = aTextResult.valid ();
     }
     catch (final XsdUnsupportedException ex)

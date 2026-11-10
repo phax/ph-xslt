@@ -53,6 +53,8 @@ public final class XsdFileAccess
 {
   /** Any local file may be read; never the network. */
   public static final XsdFileAccess LOCAL_FILES = new XsdFileAccess (null);
+  /** Nothing may be read: only the schema documents handed to the compiler count. */
+  public static final XsdFileAccess NONE = new XsdFileAccess (new CommonsArrayList <> ());
 
   private static final Pattern SCHEME = Pattern.compile ("^([A-Za-z][A-Za-z0-9+.-]*):");
 

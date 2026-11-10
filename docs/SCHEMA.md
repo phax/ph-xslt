@@ -110,7 +110,9 @@ schema-awareness, but it is not a good permanent base:
   followed (2 cases, or 2 others with `honour-all-schemaLocations`).
 * **Resource limits.** Without secure processing, Xerces-J expands large occurrence ranges in content models until
   the heap is exhausted (`particlesZ036_*`); with it, content models are capped at 3,000 nodes, which makes 6 valid
-  test cases fail. go-xslt uses a position-set matcher and a linear counting matcher that need neither.
+  test cases fail. go-xslt uses a position-set matcher and a linear counting matcher that need neither. The
+  `XercesSchemaProvider` compiles with secure processing (entity limits for schema documents), so the cap applies to
+  schema-aware stylesheets on Xerces-J; the xsdtests run of Xerces-J uses its own factory without it.
 * **API defects.** The DOM `TypeInfo.isDerivedFrom (null, ...)` of a Xerces-J complex type in no namespace returns
   `true` for an unrelated type and even for a type name that does not exist, while the XS API
   (`XSTypeDefinition.derivedFrom`) answers `false` for both (reproduced with 2.12.2 on 2026-10-26).

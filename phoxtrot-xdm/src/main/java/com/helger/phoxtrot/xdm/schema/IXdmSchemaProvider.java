@@ -39,4 +39,35 @@ public interface IXdmSchemaProvider
    */
   @NonNull
   IXdmSchemaSet compile (@NonNull List <XdmSchemaSource> aSources) throws XdmSchemaException;
+
+  /**
+   * Compile schema documents and control what the processor reads on its own. The sources passed
+   * here are trusted and read as given (a source without text from its system ID). The documents
+   * they reference (<code>xs:include</code>, <code>xs:import</code>, <code>xs:redefine</code>,
+   * <code>xs:override</code>) are read from local files only if allowed, and never from the
+   * network.
+   * <p>
+   * The default implementation fails closed: a provider that cannot restrict its reads refuses to
+   * compile non-empty sources without local file access.
+   *
+   * @param aSources
+   *        The schema documents. May be empty for the built-in types only.
+   * @param bReadReferencedFiles
+   *        <code>true</code> to read referenced documents from local files, <code>false</code> to
+   *        read none (a reference then contributes nothing, as an unavailable location does).
+   * @return The compiled schema set.
+   * @throws XdmSchemaException
+   *         if the documents cannot be read or are not a valid schema
+   */
+  @NonNull
+  default IXdmSchemaSet compile (@NonNull final List <XdmSchemaSource> aSources,
+                                 final boolean bReadReferencedFiles) throws XdmSchemaException
+  {
+    if (!bReadReferencedFiles && !aSources.isEmpty ())
+      throw new XdmSchemaException ("The schema processor " +
+                                    getClass ().getSimpleName () +
+                                    " cannot compile without reading referenced documents",
+                                    new UnsupportedOperationException ());
+    return compile (aSources);
+  }
 }

@@ -23,7 +23,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
@@ -37,6 +42,7 @@ import com.helger.phoxtrot.xdm.schema.EXdmContentType;
 import com.helger.phoxtrot.xdm.schema.IXdmElementDeclaration;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 import com.helger.phoxtrot.xdm.schema.IXdmTypeDefinition;
+import com.helger.phoxtrot.xdm.schema.XdmSchemaException;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSource;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSupport;
 import com.helger.phoxtrot.xdm.schema.XdmTypedToken;
@@ -60,6 +66,9 @@ public final class XercesSchemaProviderTest
                                     "<xs:simpleType name='size'><xs:restriction base='xs:positiveInteger'><xs:maxInclusive value='20'/></xs:restriction></xs:simpleType>" +
                                     "<xs:simpleType name='sizes'><xs:list itemType='t:size'/></xs:simpleType>" +
                                     "</xs:schema>";
+
+  @Rule
+  public final TemporaryFolder m_aTempDir = new TemporaryFolder ();
 
   private static IXdmSchemaSet _compile () throws Exception
   {
@@ -161,6 +170,52 @@ public final class XercesSchemaProviderTest
     catch (final XdmValidationException ex)
     {
       // expected
+    }
+  }
+
+  @Test
+  public void testReadReferencedFiles () throws Exception
+  {
+    final Path aDir = m_aTempDir.getRoot ().toPath ();
+    final String sXsdStart = "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' targetNamespace='urn:t'>";
+    Files.writeString (aDir.resolve ("inc.xsd"),
+                       sXsdStart + "<xs:simpleType name='code'><xs:restriction base='xs:string'/></xs:simpleType></xs:schema>");
+    final ICommonsList <XdmSchemaSource> aSources = new CommonsArrayList <> (new XdmSchemaSource (aDir.resolve ("main.xsd")
+                                                                                                      .toUri ()
+                                                                                                      .toString (),
+                                                                                                  sXsdStart +
+                                                                                                                    "<xs:include schemaLocation='inc.xsd'/></xs:schema>"));
+    final XdmQName aCode = new XdmQName ("urn:t", "code");
+    final XercesSchemaProvider aProvider = new XercesSchemaProvider ();
+    // Referenced local files are read by default
+    assertNotNull (aProvider.compile (aSources).getTypeDefinition (aCode));
+    // Without local file access the include is unavailable like a missing file
+    assertNull (aProvider.compile (aSources, false).getTypeDefinition (aCode));
+
+    // The network is never used: an include from it is unavailable too
+    final ICommonsList <XdmSchemaSource> aRemote = new CommonsArrayList <> (new XdmSchemaSource (null,
+                                                                                                 sXsdStart +
+                                                                                                       "<xs:include schemaLocation='http://example.invalid/inc.xsd'/></xs:schema>"));
+    assertNull (aProvider.compile (aRemote).getTypeDefinition (aCode));
+  }
+
+  @Test
+  public void testEntityExpansionLimit ()
+  {
+    // An exponential entity expansion in a schema document
+    final StringBuilder aSB = new StringBuilder ("<!DOCTYPE xs:schema [<!ENTITY e0 'aaaaaaaaaa'>");
+    for (int i = 1; i <= 12; ++i)
+      aSB.append ("<!ENTITY e").append (i).append (" '").append (("&e" + (i - 1) + ";").repeat (10)).append ("'>");
+    aSB.append ("]><xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'><xs:annotation><xs:documentation>&e12;")
+       .append ("</xs:documentation></xs:annotation></xs:schema>");
+    try
+    {
+      new XercesSchemaProvider ().compile (new CommonsArrayList <> (new XdmSchemaSource (null, aSB.toString ())));
+      fail ();
+    }
+    catch (final XdmSchemaException ex)
+    {
+      // expected: refused by the limits of secure processing
     }
   }
 }

@@ -23,15 +23,23 @@ import com.helger.base.enforce.ValueEnforcer;
 
 /**
  * Options of an instance validation (go-xslt <code>ValidateRequest.Language</code>
- * and <code>ValidateRequest.MaxErrors</code>). Neither option changes the verdict.
+ * and <code>ValidateRequest.MaxErrors</code>, which do not change the verdict), and
+ * whether the <code>xsi:schemaLocation</code> hints of the instance are followed.
  *
  * @author Philip Helger
  */
 @NotThreadSafe
 public final class XsdValidationOptions
 {
+  /**
+   * The default of {@link #setFollowSchemaLocationHints(boolean)}: hints are not followed, so that
+   * an untrusted instance cannot make the validator read files.
+   */
+  public static final boolean DEFAULT_FOLLOW_SCHEMA_LOCATION_HINTS = false;
+
   private String m_sLanguage = "";
   private int m_nMaxErrors = 0;
+  private boolean m_bFollowSchemaLocationHints = DEFAULT_FOLLOW_SCHEMA_LOCATION_HINTS;
 
   /**
    * @return The preferred <code>xml:lang</code> of <code>msg:message</code>
@@ -83,6 +91,36 @@ public final class XsdValidationOptions
   {
     ValueEnforcer.isGE0 (nMaxErrors, "MaxErrors");
     m_nMaxErrors = nMaxErrors;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if the <code>xsi:schemaLocation</code> and
+   *         <code>xsi:noNamespaceSchemaLocation</code> hints of the instance
+   *         are followed. Default {@link #DEFAULT_FOLLOW_SCHEMA_LOCATION_HINTS}.
+   */
+  public boolean isFollowSchemaLocationHints ()
+  {
+    return m_bFollowSchemaLocationHints;
+  }
+
+  /**
+   * Follow the schema location hints on the document element of the instance
+   * (XSD 1.0 section 4.3.2): the schema documents they name are added to the
+   * compiled schema for this validation. They are read through the
+   * {@link XsdFileAccess} the schema was compiled with (local files only,
+   * never the network), so the instance decides which files are read; switch
+   * this on only for trusted instances or with a confined file access. The
+   * position rule of hints is checked either way.
+   *
+   * @param bFollowSchemaLocationHints
+   *        <code>true</code> to follow the hints.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsdValidationOptions setFollowSchemaLocationHints (final boolean bFollowSchemaLocationHints)
+  {
+    m_bFollowSchemaLocationHints = bFollowSchemaLocationHints;
     return this;
   }
 }

@@ -212,7 +212,7 @@ public final class XsdSchemaCompositionTest
   @Test
   public void testSchemaLocationHints ()
   {
-    final Tally aTally = XsdTestSupport.runCases (HINT_CASES, XsdTestSupport.resourceDir ("imports"), false);
+    final Tally aTally = XsdTestSupport.runCases (HINT_CASES, XsdTestSupport.resourceDir ("imports"), false, true);
     aTally.finish ("schema location hints");
     assertTrue (String.join ("\n", aTally.m_aWrong), aTally.m_aWrong.isEmpty ());
   }
