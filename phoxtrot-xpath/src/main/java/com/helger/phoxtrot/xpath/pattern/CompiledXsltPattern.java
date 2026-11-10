@@ -99,6 +99,8 @@ public final class CompiledXsltPattern implements XsltPattern
     final Set <IExpr> aPositional = Collections.newSetFromMap (new IdentityHashMap <> ());
     _collectPositionalPredicates (aExpr, aPositional);
     m_aPositionalPredicates = Collections.unmodifiableSet (aPositional);
+    // Optimisation: a parenthesised union with boolean predicates is matched as a union of its
+    // paths, so that it gets final names (rule and key indexes) and direct matchers
     final List <IExpr.PathExpr> aDistributed = _getUnionPaths (aExpr, true);
     m_aUnionPaths = aDistributed != null ? aDistributed : _getUnionPaths (aExpr, false);
     if (m_aUnionPaths == null)
@@ -410,6 +412,8 @@ public final class CompiledXsltPattern implements XsltPattern
       }
       if (aNodeCtx == null)
         aNodeCtx = aCtx.withCurrentItem (aNode);
+      // Optimisation for the common simple paths (a/b[@c = 'x'], /a/b): matched along the parents
+      // without allocating a search
       final PatternMatcher.DirectPath aDirect = m_aDirectPaths[i];
       if (aDirect != null)
       {
@@ -418,6 +422,7 @@ public final class CompiledXsltPattern implements XsltPattern
           return true;
         if (eMatch == PatternMatcher.EDirectMatch.NO_MATCH)
           continue;
+        // UNDECIDED: a numeric predicate, the general search decides
       }
       if (aMatcher == null)
         aMatcher = new PatternMatcher (aNodeCtx, aNode, m_aPositionalPredicates);

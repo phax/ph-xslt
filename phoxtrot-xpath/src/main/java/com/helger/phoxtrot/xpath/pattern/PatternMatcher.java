@@ -549,6 +549,8 @@ final class PatternMatcher
             return EDirectMatch.NO_MATCH;
           aContext = aCur;
         }
+        // Position 1 of 1 is enough: no predicate reads the position, and a number (which would be
+        // read as a position) hands the path back to the search
         for (final IExpr aPred : aStep.predicates ())
         {
           final XdmSequence aValue = XPathEvaluator.evaluate (aPred, aCtx.withFocus (aCur, 1, 1));
