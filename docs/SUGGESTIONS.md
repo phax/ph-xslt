@@ -380,3 +380,105 @@ Checked and not proposed: `contains($cl_iso3166, ...)` (1.4 %) already ends in `
 collation; the key indexes are built once per key and document, from the name index (`_getKeyCandidatesFromNames`).
 
 - Expected: items 1 to 4 together a few percent, not the whole gap (phoxtrot takes 1.1 to 1.4 times as long as Saxon).
+
+## Suggestions from the ph-commons review (2026-11-10)
+
+A review of ph-base and ph-collection for phoxtrot found three changes phoxtrot can make with the current ph-commons
+(12.5.3), without waiting for new API. Larger proposals (code point compare, primitive int collections, XML
+whitespace and name helpers, hex helpers, a concurrent bounded cache) are being added to ph-commons 12.6.0 and are
+not listed here.
+
+### S26 - Use the existing ph-commons helpers
+
+Status: done (2026-11-10), built against ph-commons 12.5.4-SNAPSHOT (the API of the coming 12.6.0). Item 1 was
+replaced by `ConcurrentBoundedCache` (see S28); items 2 and 3 use `StringHelper.iterateCodePoints`/`getCodePoints`
+(33 sites) and `StringHex.appendHexStringLeadingZero`.
+
+1. **Regex cache through `LRUMap`.** `XPathRegex` (`phoxtrot-xpath/.../regex/XPathRegex.java:51-59`) declares an
+   anonymous access-ordered `LinkedHashMap` subclass with `removeEldestEntry`. ph-collection's `LRUMap` is the same
+   design (`new LRUMap <> (CACHE_SIZE)`), so the anonymous class can go. The write lock per lookup stays as long as
+   the map is access-ordered.
+2. **Code points without streams.** 10 `codePoints ().forEach (...)` calls in main code can use
+   `StringHelper.iterateCodePoints (String, IntConsumer)` (ph-base), which avoids the `IntStream` pipeline. The 24
+   `codePoints ().toArray ()` calls need an `int []`; from ph-commons 12.6.0 on, `StringHelper.getCodePoints (String)`
+   returns it without a stream.
+3. **No `String.format` for `\uXXXX`.** `JsonWriter.java:121,127`, `JsonParser.java:257` and `FnJson.java:790` (and
+   `XdmParser.java:508` for `U+XXXX`) format 4 hex digits with `String.format`. `StringHex.getHexStringLeadingZero
+   (int, 4)` gives the lower case form; for upper case, upper-case the 4 characters, or use a 16 character table.
+   From ph-commons 12.6.0 on, `StringHex.appendHexStringLeadingZero (aSB, nValue, 4, true)` appends the upper case
+   form without an intermediate String.
+
+### S28 - Use the new ph-commons 12.6.0 helpers
+
+Status: done (2026-11-10) for the targeted sites below; built against 12.5.4-SNAPSHOT.
+
+- Code point collation: `CollationRegistry.CODEPOINT.compare` is `CompareHelper.compareByCodePoint` (callers use only
+  the sign).
+- XML names: the checks of `XmlNames` delegate to `XmlNameChars` (same rules); `XmlNames` keeps the code point ranges
+  for the regular expression classes `\i` and `\c`.
+- XML whitespace: `XsdLexical` (`isXmlWhitespace`, `replaceWhitespace`, `collapseWhitespace`, `trimWhitespace`),
+  `FnString.normalizeSpace`, `XsltNames.trimXmlWhitespace`/`isWhitespaceOnly` and `XdmDateTimeValue.trimXmlWhitespace`
+  delegate to `XmlWhitespace`; the private copies in `XdmDateTimeValue`, `FnConstructor`, `FnSequence`, `FnString`,
+  `XPathLexer`, `XsltNames` and `XsdFacetValidator` are gone. The whitespace-only checks of `XdmStreamReader`,
+  `XdmToDom`, `MarkupWriter`, `FnJson` and `XsdBridge` keep "empty counts as whitespace" around
+  `XmlWhitespace.isAllXmlWhitespace` (false for the empty string). `XsdInstanceValidator._isSpace` is Unicode
+  whitespace, not XML whitespace, and stays.
+- Caches: the regex cache (`XPathRegex`, was LRU with a write lock per lookup) and the UCA collation cache
+  (`CollationRegistry`, was a read lock and a complete clear at 256 entries) are `ConcurrentBoundedCache`: lock-free
+  reads, approximate eviction.
+- `xsl:sort` (`SortKeyDef`) and the sorted groups of `xsl:for-each-group` sort their positions with
+  `CollectionSort.getSortedIndices` (stable, no boxing) instead of a list of `Integer`.
+
+Open, not done here:
+- Primitive int collections for the remaining `Integer` lists, sets and maps: `RegexTranslator` (group bookkeeping),
+  `FormatNumber`/`FormatInteger`/`FormatDateTime` (separator positions), `CaseVariants.VARIANTS` and
+  `NumberFormatter` (`FAMILY_INDEX`, `ALPHABET_INDEX`).
+- Not proposed: the character maps (`SerializationParams`, `CharacterMapExtension`: public API with `Integer` keys),
+  compile-time `Integer` lists in the XSD and XSLT compilers, type-only swaps of `IdentityHashMap` and `ArrayDeque`,
+  `codePointCount (0, len)` (no stream) and `XdmParser.JDK_NAME_CHARS` (parse error path only).
+
+## Suggestions from the ph-schematron v11 plan (2026-11-10)
+
+Source: `../ph-schematron/docs/PLAN-phoxtrot-engine.md`. ph-schematron 11 runs its XSLT pipelines on Saxon or
+phoxtrot. For `document()`, `doc()` and `unparsed-text()` at validation time it gives phoxtrot the same policy as
+Saxon today (`SaxonSecureResourceResolver`): local URL schemes are always allowed, remote network schemes are blocked
+unless explicitly allowed, and `jar:` URIs are checked against the nested URI. ph-schematron implements this as a
+JAXP `URIResolver` that throws for a blocked URI, so it relies on the resolver paths of the JAXP adapter below.
+
+### S27 - Resolver and entity resolver of the JAXP adapter: tests and gaps
+
+Status: open.
+
+The direct parser API is well tested (`XdmParserEntityResolverTest`: external DTD and entity, `null` from the
+resolver, `EntityResolver2`, `SAXException` and `IOException` from the resolver, no call without external entities).
+The JAXP adapter has three tests for resolution (`PhoxtrotTransformerFactoryTest.testUriResolverForInclude`,
+`testUriResolverForDocument`, `testSecureProcessingBlocksDirectAccess`). Missing:
+
+1. **No entity resolver on the JAXP path.** `phoxtrot-xslt` never calls `XdmParser.setEntityResolver`. Documents
+   read for `document()`/`doc()` and stylesheet modules (`JaxpResourceResolver`, `FileResourceResolver`) are parsed
+   without one; only `ATTR_LOAD_EXTERNAL_ENTITIES` switches external DTDs and entities on or off. Proposal: a factory
+   attribute (e.g. `ATTR_ENTITY_RESOLVER`) and `PhoxtrotTransformer.setEntityResolver`, passed to every parser of
+   the adapter. Tests: a `document()`-loaded file with an external DTD and an external entity, with
+   `ATTR_LOAD_EXTERNAL_ENTITIES` off (nothing read, resolver not called) and on (resolver called with the resolved
+   system ID, its result used), the same for an `xsl:include`d module.
+2. **`ACCESS_EXTERNAL_DTD` has no effect.** The factory accepts and returns it, but with
+   `ATTR_LOAD_EXTERNAL_ENTITIES` on `XdmParser` sets `ACCESS_EXTERNAL_DTD` to `all` on the reader
+   (`XdmParser.java:629`), so secure processing (which sets it to the empty string) does not stop external DTDs.
+   Either pass the factory value through or document that it is ignored. Test: secure processing plus
+   `ATTR_LOAD_EXTERNAL_ENTITIES` on, a `document()` with an external DTD.
+3. **Nested schemes pass the scheme check.** `JaxpResourceResolver.isAccessAllowed` (line 96) checks only the outer
+   scheme: with `ACCESS_EXTERNAL_STYLESHEET` = `jar`, `jar:http://host/x.jar!/a.xml` is read. Check the nested URI
+   of `jar:` too (as `SaxonSecureResourceResolver.isResourceAccessAllowed` does). Tests: `jar:file:` allowed and
+   `jar:http:` refused with `jar` allowed; `jar:jar:http:` refused.
+4. **A `URIResolver` that refuses.** No test for a resolver that throws `TransformerException`, which is how a
+   blocking resolver works. Tests for `xsl:include`/`xsl:import` (compile error with location), `document()`,
+   `doc()` (FODC0002 with the resolver's message), `doc-available()` (`false` or error, as specified), and
+   `unparsed-text()`/`unparsed-text-available()`. In `resolveText` (line 298) the FODC0002 of the resolver is caught
+   as `RuntimeException` and becomes "unavailable", so the reason of the refusal is lost; `resolveDocument` keeps it.
+   Proposal: let the `XPathException` of the resolver through in `resolveText` as well.
+5. **Smaller paths without tests:**
+   - a directly read document that is not well-formed returns `null` (line 200) without a log entry, so
+     `document()` cannot tell "missing" from "broken";
+   - a URI without a scheme is refused by `isAccessAllowed`;
+   - schemes are compared case-insensitively (`FILE:` against `file`);
+   - the `URIResolver` of the factory against the one set on the `Transformer` for `document()` at run time.

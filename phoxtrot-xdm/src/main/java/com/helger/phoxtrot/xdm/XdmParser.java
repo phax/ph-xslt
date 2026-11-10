@@ -48,6 +48,7 @@ import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.base.io.nonblocking.NonBlockingStringReader;
+import com.helger.base.string.StringHex;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 
 /**
@@ -505,7 +506,7 @@ public class XdmParser
               bInRef = true;
           continue;
         }
-      final String sChar = String.format ("U+%04X", Integer.valueOf (c));
+      final String sChar = StringHex.appendHexStringLeadingZero (new StringBuilder ("U+"), c, 4, true).toString ();
       if (_isRejectedNameChar (c) && aChars.indexOf (sChar) < 0)
       {
         if (!aChars.isEmpty ())

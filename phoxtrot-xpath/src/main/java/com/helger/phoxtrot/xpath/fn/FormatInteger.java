@@ -24,6 +24,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
@@ -76,7 +77,7 @@ public final class FormatInteger
     public String render (@NonNull final String sAscii)
     {
       final String sFam = mapDigitsToFamily (sAscii, m_nZero);
-      final int [] aCPs = sFam.codePoints ().toArray ();
+      final int [] aCPs = StringHelper.getCodePoints (sFam);
       final int n = aCPs.length;
       final StringBuilder aSB = new StringBuilder ();
       for (int i = 0; i < n; ++i)
@@ -181,7 +182,7 @@ public final class FormatInteger
   @Nullable
   public static DigitPattern parseDigitPattern (@NonNull final String sPattern)
   {
-    final int [] aCPs = sPattern.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sPattern);
     if (aCPs.length == 0)
       return null;
     int nTotal = 0;

@@ -25,6 +25,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
@@ -146,13 +147,13 @@ public final class NumberFormatter
   {
     for (int i = 0; i < FAMILY_GLYPHS.length; ++i)
     {
-      final Family aFamily = new Family (FAMILY_STARTS[i], FAMILY_GLYPHS[i].codePoints ().toArray ());
+      final Family aFamily = new Family (FAMILY_STARTS[i], StringHelper.getCodePoints (FAMILY_GLYPHS[i]));
       for (final int c : aFamily.glyphs ())
         FAMILY_INDEX.put (Integer.valueOf (c), aFamily);
     }
     for (final String sAlphabet : ALPHABETS)
     {
-      final int [] aAlphabet = sAlphabet.codePoints ().toArray ();
+      final int [] aAlphabet = StringHelper.getCodePoints (sAlphabet);
       for (final int c : aAlphabet)
         ALPHABET_INDEX.put (Integer.valueOf (c), aAlphabet);
     }
@@ -223,7 +224,7 @@ public final class NumberFormatter
   static Picture parsePicture (@NonNull final String sFormatIn)
   {
     final String sFormat = sFormatIn.isEmpty () ? "1" : sFormatIn;
-    final int [] aCPs = sFormat.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sFormat);
     final int nLen = aCPs.length;
     int i = 0;
     while (i < nLen && !_isAlnum (aCPs[i]))
@@ -263,7 +264,7 @@ public final class NumberFormatter
   @Nullable
   private static int [] _digitFamily (@NonNull final String sToken)
   {
-    final int [] aCPs = sToken.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sToken);
     if (aCPs.length == 0)
       return null;
     int nZero = -1;

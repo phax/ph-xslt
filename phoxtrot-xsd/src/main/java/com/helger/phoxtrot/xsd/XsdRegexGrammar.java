@@ -20,6 +20,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.phoxtrot.xpath.XPathException;
@@ -440,7 +441,7 @@ final class XsdRegexGrammar
    */
   private static void _validate (@NonNull final String sPattern, final boolean bXsd11)
   {
-    final int [] a = sPattern.codePoints ().toArray ();
+    final int [] a = StringHelper.getCodePoints (sPattern);
     boolean bPrevQuant = false;
     boolean bPrevAtom = false;
     int nDepth = 0;

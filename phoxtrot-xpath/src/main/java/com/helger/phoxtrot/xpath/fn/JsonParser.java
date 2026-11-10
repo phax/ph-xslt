@@ -17,13 +17,13 @@
 package com.helger.phoxtrot.xpath.fn;
 
 import java.util.ArrayDeque;
-import java.util.Locale;
 import java.util.function.UnaryOperator;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.base.string.StringHex;
 import com.helger.phoxtrot.xpath.XPathException;
 
 /**
@@ -254,7 +254,7 @@ final class JsonParser
    */
   private static void _appendHex (@NonNull final StringBuilder aSB, final int c)
   {
-    aSB.append ("\\u").append (String.format (Locale.ROOT, "%04X", Integer.valueOf (c)));
+    StringHex.appendHexStringLeadingZero (aSB.append ("\\u"), c, 4, true);
   }
 
   /** Emit one decoded character with the escape/fallback rules. */

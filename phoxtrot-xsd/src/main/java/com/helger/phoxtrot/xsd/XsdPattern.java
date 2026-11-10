@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 
 import org.jspecify.annotations.NonNull;
 
+import com.helger.base.string.StringHelper;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.EXsdVersion;
 import com.helger.phoxtrot.xpath.regex.XPathRegex;
@@ -53,7 +54,7 @@ final class XsdPattern
   @NonNull
   private static String _rewriteUnknownBlocks (@NonNull final String sPattern)
   {
-    final int [] a = sPattern.codePoints ().toArray ();
+    final int [] a = StringHelper.getCodePoints (sPattern);
     final StringBuilder aSB = new StringBuilder (sPattern.length ());
     boolean bInClass = false;
     for (int i = 0; i < a.length; i++)
@@ -100,7 +101,7 @@ final class XsdPattern
   @NonNull
   private static String _escapeAnchors (@NonNull final String sPattern)
   {
-    final int [] a = sPattern.codePoints ().toArray ();
+    final int [] a = StringHelper.getCodePoints (sPattern);
     final StringBuilder aSB = new StringBuilder (sPattern.length () + 4);
     boolean bInClass = false;
     for (int i = 0; i < a.length; i++)

@@ -25,6 +25,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsMap;
@@ -277,7 +278,7 @@ final class UcaCollation implements ICollation
   @NonNull
   private static String _reverse (@NonNull final String s)
   {
-    final int [] aCP = s.codePoints ().toArray ();
+    final int [] aCP = StringHelper.getCodePoints (s);
     final StringBuilder aSB = new StringBuilder (s.length ());
     for (int i = aCP.length - 1; i >= 0; --i)
       aSB.appendCodePoint (aCP[i]);
@@ -399,7 +400,7 @@ final class UcaCollation implements ICollation
       // Without caseLevel, case is a tertiary difference: caseFirst does not
       // count below tertiary strength
       if (m_bCaseLevel || (m_bUpperFirst && m_nLevel >= 3))
-        sBase.codePoints ().forEach (c -> {
+        StringHelper.iterateCodePoints (sBase, c -> {
           if (Character.isUpperCase (c))
             aList.add (m_bUpperFirst ? 1 : 2);
           else
@@ -415,12 +416,12 @@ final class UcaCollation implements ICollation
       // Quaternary level of alternate=shifted: a variable character weighs by
       // its group and code point, every other one the maximum
       aList.add (0);
-      s1.codePoints ().forEach (c -> aList.add (_isVariable (c) ? (_getVariableGroup (c) << 21 | c) + 1 : 0xFFFFFF));
+      StringHelper.iterateCodePoints (s1, c -> aList.add (_isVariable (c) ? (_getVariableGroup (c) << 21 | c) + 1 : 0xFFFFFF));
     }
     if (m_bIdentical)
     {
       aList.add (0);
-      sValue.codePoints ().forEach (c -> aList.add (c + 1));
+      StringHelper.iterateCodePoints (sValue, c -> aList.add (c + 1));
     }
     return aList.toArray ();
   }

@@ -25,6 +25,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
@@ -404,7 +405,7 @@ public final class FormatNumber
    */
   private static void _validatePicture (@NonNull final String sPicture, @NonNull final FormatDecimalFormat aDF)
   {
-    final int [] aCPs = sPicture.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sPicture);
     if (_count (aCPs, aDF.getPatternSeparator ()) > 1)
       throw _err ("Too many sub-pictures", sPicture);
     for (final int [] aSub : _split (aCPs, aDF.getPatternSeparator ()))
@@ -639,7 +640,7 @@ public final class FormatNumber
   @NonNull
   private static String _group (@NonNull final String sDigits, final int nSize, final int nSep)
   {
-    final int [] aCPs = sDigits.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sDigits);
     if (nSize <= 0 || aCPs.length <= nSize)
       return sDigits;
     final StringBuilder aSB = new StringBuilder ();
@@ -671,7 +672,7 @@ public final class FormatNumber
                                           @NonNull final ICommonsSet <Integer> aSeps,
                                           final int nSep)
   {
-    final int [] aCPs = sDigits.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sDigits);
     final int n = aCPs.length;
     final StringBuilder aSB = new StringBuilder ();
     for (int i = 0; i < n; ++i)
@@ -703,7 +704,7 @@ public final class FormatNumber
   {
     if (aPositions.isEmpty ())
       return sDigits;
-    final int [] aCPs = sDigits.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sDigits);
     final StringBuilder aSB = new StringBuilder ();
     for (int i = 0; i < aCPs.length; ++i)
     {
@@ -822,7 +823,7 @@ public final class FormatNumber
     final Input aIn = _input (aValue);
     if (aIn.m_bNaN)
       return aDF.getNaN ();
-    final int [] [] aSubs = _split (sPicture.codePoints ().toArray (), aDF.getPatternSeparator ());
+    final int [] [] aSubs = _split (StringHelper.getCodePoints (sPicture), aDF.getPatternSeparator ());
     SubPicture aSP = _parseSubPicture (aSubs[0], aDF);
     boolean bSoleNeg = false;
     if (aIn.m_bNeg)

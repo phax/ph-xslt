@@ -23,6 +23,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 
 /**
  * Helpers shared by the collation implementations.
@@ -95,7 +96,7 @@ final class CollationSupport
   @NonNull
   static byte [] getCodepointBytes (@NonNull final String sValue)
   {
-    return toBytes (sValue.codePoints ().toArray ());
+    return toBytes (StringHelper.getCodePoints (sValue));
   }
 
   /**

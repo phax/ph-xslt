@@ -21,6 +21,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.phoxtrot.xdm.XmlNames;
 
 /**
@@ -50,7 +51,7 @@ public final class XsdLexical
    */
   public static boolean isXmlWhitespace (final char c)
   {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+    return XmlWhitespace.isXmlWhitespace (c);
   }
 
   /**
@@ -63,20 +64,7 @@ public final class XsdLexical
   @NonNull
   public static String replaceWhitespace (@NonNull final String s)
   {
-    int i = 0;
-    final int nLen = s.length ();
-    while (i < nLen && s.charAt (i) != '\t' && s.charAt (i) != '\n' && s.charAt (i) != '\r')
-      i++;
-    if (i == nLen)
-      return s;
-    final char [] aChars = s.toCharArray ();
-    for (; i < nLen; ++i)
-    {
-      final char c = aChars[i];
-      if (c == '\t' || c == '\n' || c == '\r')
-        aChars[i] = ' ';
-    }
-    return new String (aChars);
+    return XmlWhitespace.replaceXmlWhitespace (s);
   }
 
   /**
@@ -90,39 +78,7 @@ public final class XsdLexical
   @NonNull
   public static String collapseWhitespace (@NonNull final String s)
   {
-    final int nLen = s.length ();
-    // Fast path: nothing to do
-    boolean bClean = nLen == 0 || (!isXmlWhitespace (s.charAt (0)) && !isXmlWhitespace (s.charAt (nLen - 1)));
-    if (bClean)
-      for (int i = 0; i < nLen; ++i)
-      {
-        final char c = s.charAt (i);
-        if (c == '\t' || c == '\n' || c == '\r' || (c == ' ' && i + 1 < nLen && s.charAt (i + 1) == ' '))
-        {
-          bClean = false;
-          break;
-        }
-      }
-    if (bClean)
-      return s;
-    final StringBuilder aSB = new StringBuilder (nLen);
-    boolean bPendingSpace = false;
-    for (int i = 0; i < nLen; ++i)
-    {
-      final char c = s.charAt (i);
-      if (isXmlWhitespace (c))
-        bPendingSpace = aSB.length () > 0;
-      else
-      {
-        if (bPendingSpace)
-        {
-          aSB.append (' ');
-          bPendingSpace = false;
-        }
-        aSB.append (c);
-      }
-    }
-    return aSB.toString ();
+    return XmlWhitespace.collapseXmlWhitespace (s);
   }
 
   /**
@@ -136,13 +92,7 @@ public final class XsdLexical
   @NonNull
   public static String trimWhitespace (@NonNull final String s)
   {
-    int nStart = 0;
-    int nEnd = s.length ();
-    while (nStart < nEnd && isXmlWhitespace (s.charAt (nStart)))
-      nStart++;
-    while (nEnd > nStart && isXmlWhitespace (s.charAt (nEnd - 1)))
-      nEnd--;
-    return nStart == 0 && nEnd == s.length () ? s : s.substring (nStart, nEnd);
+    return XmlWhitespace.trimXmlWhitespace (s);
   }
 
   private static boolean _isDigit (final char c)

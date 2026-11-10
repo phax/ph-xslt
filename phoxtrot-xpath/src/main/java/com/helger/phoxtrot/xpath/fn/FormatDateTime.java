@@ -31,6 +31,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.phoxtrot.xdm.XmlNames;
@@ -579,7 +580,7 @@ public final class FormatDateTime
   private static FracPattern _parseFracPattern (@NonNull final String sPattern)
   {
     final FracPattern ret = new FracPattern ();
-    final int [] aCPs = sPattern.codePoints ().toArray ();
+    final int [] aCPs = StringHelper.getCodePoints (sPattern);
     int nFamZero = -1;
     boolean bSawOptional = false;
     boolean bLastWasSep = false;
@@ -659,7 +660,7 @@ public final class FormatDateTime
     s = s.substring (0, nEnd);
     if (s.length () < aW[0])
       s = s + "0".repeat (aW[0] - s.length ());
-    final int [] aDigits = FormatInteger.mapDigitsToFamily (s, aFP.m_nZero).codePoints ().toArray ();
+    final int [] aDigits = StringHelper.getCodePoints (FormatInteger.mapDigitsToFamily (s, aFP.m_nZero));
     final StringBuilder aSB = new StringBuilder ();
     for (int i = 0; i < aDigits.length; ++i)
     {
@@ -683,7 +684,7 @@ public final class FormatDateTime
     int nZero = -1;
     boolean bInMinutes = false;
     final StringBuilder aSep = new StringBuilder ();
-    for (final int c : sMod.codePoints ().toArray ())
+    for (final int c : StringHelper.getCodePoints (sMod))
     {
       if (FormatInteger.isDigit (c) || c == '#')
       {
@@ -916,7 +917,7 @@ public final class FormatDateTime
   private static String _stripWhitespace (@NonNull final String s)
   {
     final StringBuilder aSB = new StringBuilder ();
-    for (final int c : s.codePoints ().toArray ())
+    for (final int c : StringHelper.getCodePoints (s))
       if (!Character.isWhitespace (c) && !Character.isSpaceChar (c))
         aSB.appendCodePoint (c);
     return aSB.toString ();

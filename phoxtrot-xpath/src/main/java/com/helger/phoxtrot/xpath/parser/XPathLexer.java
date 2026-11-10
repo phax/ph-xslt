@@ -18,6 +18,7 @@ package com.helger.phoxtrot.xpath.parser;
 
 import org.jspecify.annotations.NonNull;
 
+import com.helger.base.string.XmlWhitespace;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.XmlNames;
@@ -42,15 +43,6 @@ final class XPathLexer
   {
     m_sSrc = sSrc;
     m_nLen = sSrc.length ();
-  }
-
-  /**
-   * @return <code>true</code> for the four XML whitespace characters (space,
-   *         tab, line feed, carriage return) that separate tokens.
-   */
-  private static boolean _isWhitespace (final int c)
-  {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
   }
 
   private static boolean _isDigit (final int c)
@@ -158,31 +150,6 @@ final class XPathLexer
   }
 
   /**
-   * Collapse whitespace of a BracedURILiteral like xs:anyURI whitespace
-   * normalisation does.
-   */
-  @NonNull
-  private static String _collapseWhitespace (@NonNull final String s)
-  {
-    final StringBuilder aSB = new StringBuilder (s.length ());
-    boolean bPendingSpace = false;
-    for (int i = 0; i < s.length (); ++i)
-    {
-      final char c = s.charAt (i);
-      if (_isWhitespace (c))
-        bPendingSpace = true;
-      else
-      {
-        if (bPendingSpace && aSB.length () > 0)
-          aSB.append (' ');
-        bPendingSpace = false;
-        aSB.append (c);
-      }
-    }
-    return aSB.toString ();
-  }
-
-  /**
    * Read a URIQualifiedName <code>Q{uri}local</code> or a braced wildcard
    * <code>Q{uri}*</code> starting at the <code>Q</code>. The URI is whitespace
    * collapsed and may be empty (no namespace); it is stored in the token's
@@ -207,7 +174,7 @@ final class XPathLexer
     }
     if (m_nPos >= m_nLen)
       throw _error ("Unterminated braced URI literal", nStart);
-    final String sUri = _collapseWhitespace (m_sSrc.substring (nUriStart, m_nPos));
+    final String sUri = XmlWhitespace.collapseXmlWhitespace (m_sSrc.substring (nUriStart, m_nPos));
     m_nPos++;
     if (_peek (0) == '*')
     {
@@ -377,7 +344,7 @@ final class XPathLexer
   {
     while (true)
     {
-      while (m_nPos < m_nLen && _isWhitespace (m_sSrc.charAt (m_nPos)))
+      while (m_nPos < m_nLen && XmlWhitespace.isXmlWhitespace (m_sSrc.charAt (m_nPos)))
         m_nPos++;
       if (m_nPos >= m_nLen)
       {

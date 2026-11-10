@@ -96,7 +96,10 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `XdmTreeBuilder` as SAX events (numbered while built, shared names), `XdmToDom` and `XdmToSax` write trees with
   namespace fixup (`NamespaceScope`). All three walk iteratively. The JDK DOM leaves entity reference nodes empty
   (`setExpandEntityReferences (false)`); tests that need their content use Xerces-J's DOM.
-- XML name characters (5th edition): only `XmlNames` (`phoxtrot-xdm`); do not add another copy of the tables.
+- XML name characters (5th edition): only `XmlNames` (`phoxtrot-xdm`), whose checks delegate to ph-commons
+  `XmlNameChars` and which keeps the code point ranges for the regex classes; do not add another copy of the tables.
+  XML whitespace (space, tab, CR, LF) checks, trimming and the XSD replace/collapse go through ph-commons
+  `XmlWhitespace` (`XsdLexical` delegates to it); do not add private copies.
 - `XdmMap` is a persistent hash trie and `XdmArray.append` shares a backing array; both stay immutable from the outside.
   Iterate with `entries ()`/`members ()` (views); `getAllEntries ()`/`getAllMembers ()` copy.
 - `XdmSequence` keeps a single item in a field without an array (an item array has 0 or at least 2 entries).

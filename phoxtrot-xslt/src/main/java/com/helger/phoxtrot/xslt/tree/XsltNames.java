@@ -21,6 +21,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XmlNames;
 
@@ -40,11 +41,6 @@ public final class XsltNames
 
   private XsltNames ()
   {}
-
-  private static boolean _isXmlWhitespace (final char c)
-  {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
 
   /**
    * @param s
@@ -184,15 +180,8 @@ public final class XsltNames
    */
   public static boolean isWhitespaceOnly (@Nullable final String s)
   {
-    if (s == null)
-      return true;
-    for (int i = 0; i < s.length (); ++i)
-    {
-      final char c = s.charAt (i);
-      if (c != ' ' && c != '\t' && c != '\n' && c != '\r')
-        return false;
-    }
-    return true;
+    // Unlike XmlWhitespace.isAllXmlWhitespace, null and the empty string count as whitespace only
+    return s == null || s.isEmpty () || XmlWhitespace.isAllXmlWhitespace (s);
   }
 
   /**
@@ -204,13 +193,7 @@ public final class XsltNames
   @NonNull
   public static String trimXmlWhitespace (@NonNull final String s)
   {
-    int nStart = 0;
-    int nEnd = s.length ();
-    while (nStart < nEnd && _isXmlWhitespace (s.charAt (nStart)))
-      nStart++;
-    while (nEnd > nStart && _isXmlWhitespace (s.charAt (nEnd - 1)))
-      nEnd--;
-    return s.substring (nStart, nEnd);
+    return XmlWhitespace.trimXmlWhitespace (s);
   }
 
   /**

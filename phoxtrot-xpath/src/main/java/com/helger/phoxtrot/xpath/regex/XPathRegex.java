@@ -16,8 +16,6 @@
  */
 package com.helger.phoxtrot.xpath.regex;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,8 +25,8 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
-import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.wrapper.Wrapper;
+import com.helger.collection.map.ConcurrentBoundedCache;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 
@@ -47,16 +45,8 @@ public final class XPathRegex
   /** Stack size of the fallback thread for deeply recursing matches */
   private static final long LARGE_STACK_SIZE = 512L * 1024 * 1024;
 
-  // A get reorders the access-ordered map, so every access takes the write lock
-  private static final SimpleReadWriteLock CACHE_LOCK = new SimpleReadWriteLock ();
-  private static final Map <String, XPathRegex> CACHE = new LinkedHashMap <> (64, 0.75f, true)
-  {
-    @Override
-    protected boolean removeEldestEntry (final Map.Entry <String, XPathRegex> aEldest)
-    {
-      return size () > CACHE_SIZE;
-    }
-  };
+  // Lock-free reads; when full, about a quarter of the entries is dropped (not LRU)
+  private static final ConcurrentBoundedCache <String, XPathRegex> CACHE = new ConcurrentBoundedCache <> (CACHE_SIZE);
 
   private final Pattern m_aPattern;
   private final boolean m_bMatchesEmptyString;
@@ -262,12 +252,8 @@ public final class XPathRegex
   {
     final String sRealFlags = sFlags == null ? "" : sFlags;
     final String sKey = (bXsd11Classes ? "1" : "0") + sRealFlags + '\u0000' + sPattern;
-    final XPathRegex aCached = CACHE_LOCK.writeLockedGet ( () -> CACHE.get (sKey));
-    if (aCached != null)
-      return aCached;
-    final XPathRegex ret = _compile (sPattern, sRealFlags, bXsd11Classes);
-    CACHE_LOCK.writeLocked ( () -> CACHE.put (sKey, ret));
-    return ret;
+    // A failed compilation throws and is not cached
+    return CACHE.getOrCompute (sKey, k -> _compile (sPattern, sRealFlags, bXsd11Classes));
   }
 
   /** @return The Java pattern this expression was translated into. */

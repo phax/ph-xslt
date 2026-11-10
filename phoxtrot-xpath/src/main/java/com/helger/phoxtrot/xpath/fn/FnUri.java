@@ -24,6 +24,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.XdmConstants;
@@ -410,7 +411,7 @@ public final class FnUri
   public static String encodeForUri (@NonNull final String s)
   {
     final StringBuilder aSB = new StringBuilder (s.length ());
-    s.codePoints ().forEach (c -> {
+    StringHelper.iterateCodePoints (s, c -> {
       if (_isUnreserved (c))
         aSB.append ((char) c);
       else
@@ -430,7 +431,7 @@ public final class FnUri
   public static String iriToUri (@NonNull final String s)
   {
     final StringBuilder aSB = new StringBuilder (s.length ());
-    s.codePoints ().forEach (c -> {
+    StringHelper.iterateCodePoints (s, c -> {
       if (c <= 0x20 || c >= 0x7f || "<>\"{}|\\^`".indexOf (c) >= 0)
         _appendEscaped (aSB, c);
       else
@@ -450,7 +451,7 @@ public final class FnUri
   public static String escapeHtmlUri (@NonNull final String s)
   {
     final StringBuilder aSB = new StringBuilder (s.length ());
-    s.codePoints ().forEach (c -> {
+    StringHelper.iterateCodePoints (s, c -> {
       if (c >= 32 && c <= 126)
         aSB.append ((char) c);
       else

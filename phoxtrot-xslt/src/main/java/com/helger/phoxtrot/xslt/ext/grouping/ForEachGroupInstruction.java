@@ -27,6 +27,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.helper.CollectionSort;
 import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmConstants;
@@ -551,13 +552,11 @@ public final class ForEachGroupInstruction
     final XdmAtomic [] [] aValues = new XdmAtomic [nSize] [];
     for (int i = 0; i < nSize; ++i)
       aValues[i] = aKeys.computeKeys (_groupContext (aBase, aGroups.get (i), i + 1, nSize));
-    final ICommonsList <Integer> aOrder = new CommonsArrayList <> (nSize);
-    for (int i = 0; i < nSize; ++i)
-      aOrder.add (Integer.valueOf (i));
-    aOrder.sort ( (x, y) -> aKeys.compare (aValues[x.intValue ()], aValues[y.intValue ()]));
+    // Stable sort of the positions without boxing
+    final int [] aOrder = CollectionSort.getSortedIndices (nSize, (nX, nY) -> aKeys.compare (aValues[nX], aValues[nY]));
     final ICommonsList <Group> ret = new CommonsArrayList <> (nSize);
-    for (final Integer aIdx : aOrder)
-      ret.add (aGroups.get (aIdx.intValue ()));
+    for (final int nIdx : aOrder)
+      ret.add (aGroups.get (nIdx));
     return ret;
   }
 

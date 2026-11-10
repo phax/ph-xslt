@@ -22,6 +22,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
@@ -77,11 +78,6 @@ public final class FnConstructor
     return XdmSequence.of (AtomicCaster.cast ((XdmAtomic) aArg.get (0), eTarget, aCtx.getStaticContext ()));
   }
 
-  private static boolean _isXmlWhitespace (final char c)
-  {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
-
   /**
    * The constructor function of a built-in list type (F&amp;O 3.1 section
    * 18.3, casting rules of section 19.3.6): split the string value of the
@@ -120,7 +116,7 @@ public final class FnConstructor
     int nStart = -1;
     for (int i = 0; i <= s.length (); ++i)
     {
-      final boolean bWS = i == s.length () || _isXmlWhitespace (s.charAt (i));
+      final boolean bWS = i == s.length () || XmlWhitespace.isXmlWhitespace (s.charAt (i));
       if (bWS)
       {
         if (nStart >= 0)

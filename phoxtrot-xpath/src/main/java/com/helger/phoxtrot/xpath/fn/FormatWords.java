@@ -23,6 +23,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 
@@ -784,7 +785,7 @@ public final class FormatWords
   {
     final StringBuilder aSB = new StringBuilder ();
     boolean bUpNext = true;
-    for (final int c : s.codePoints ().toArray ())
+    for (final int c : StringHelper.getCodePoints (s))
     {
       if (c == ' ' || c == '-')
       {

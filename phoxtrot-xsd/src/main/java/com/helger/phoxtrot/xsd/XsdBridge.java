@@ -24,6 +24,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.base.concurrent.SimpleReadWriteLock;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
@@ -355,13 +356,8 @@ final class XsdBridge implements IXdmSchemaSet
    */
   private static boolean _isXmlWhitespace (@NonNull final String sText)
   {
-    for (int i = 0; i < sText.length (); i++)
-    {
-      final char c = sText.charAt (i);
-      if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
-        return false;
-    }
-    return true;
+    // Unlike XmlWhitespace.isAllXmlWhitespace, the empty string counts as whitespace only
+    return sText.isEmpty () || XmlWhitespace.isAllXmlWhitespace (sText);
   }
 
   /**

@@ -23,6 +23,7 @@ import java.util.Locale;
 import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.XmlNames;
@@ -131,7 +132,7 @@ final class RegexTranslator
                            @NonNull final BitSet aWithMarker)
   {
     m_sPattern = sPattern;
-    m_aCP = sPattern.codePoints ().toArray ();
+    m_aCP = StringHelper.getCodePoints (sPattern);
     m_bCaseInsensitive = bCaseInsensitive;
     m_bDotAll = bDotAll;
     m_bMultiLine = bMultiLine;
@@ -1065,7 +1066,7 @@ final class RegexTranslator
   static Result translateLiteral (@NonNull final String sLiteral, final boolean bCaseInsensitive)
   {
     final RegexTranslator aTranslator = new RegexTranslator ("", bCaseInsensitive, false, false, false, new BitSet ());
-    sLiteral.codePoints ().forEach (aTranslator::_emitLiteral);
+    StringHelper.iterateCodePoints (sLiteral, aTranslator::_emitLiteral);
     return new Result (aTranslator.m_aSB.toString (), 0, new int [] { 0 }, new int [] { 0 });
   }
 }

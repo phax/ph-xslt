@@ -26,6 +26,8 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHelper;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xpath.XPathException;
@@ -132,17 +134,6 @@ public final class FnString
   }
 
   /**
-   * @param c
-   *        A character.
-   * @return <code>true</code> for XML whitespace: space, tab, line feed and
-   *         carriage return.
-   */
-  private static boolean _isXmlSpace (final int c)
-  {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
-
-  /**
    * The collation of a function call: the explicit argument at the passed
    * index (resolved against the static base URI), else the default collation
    * of the static context.
@@ -246,7 +237,7 @@ public final class FnString
   {
     final String s = _optString (aArgs.get (0));
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
-    s.codePoints ().forEach (c -> aBuilder.add (XdmAtomic.integer (c)));
+    StringHelper.iterateCodePoints (s, c -> aBuilder.add (XdmAtomic.integer (c)));
     return aBuilder.build ();
   }
 
@@ -509,10 +500,10 @@ public final class FnString
   private static XdmSequence _translate (@NonNull final List <XdmSequence> aArgs)
   {
     final String s = _optString (aArgs.get (0));
-    final int [] aMap = _optString (aArgs.get (1)).codePoints ().toArray ();
-    final int [] aTrans = _optString (aArgs.get (2)).codePoints ().toArray ();
+    final int [] aMap = StringHelper.getCodePoints (_optString (aArgs.get (1)));
+    final int [] aTrans = StringHelper.getCodePoints (_optString (aArgs.get (2)));
     final StringBuilder aSB = new StringBuilder (s.length ());
-    s.codePoints ().forEach (c -> {
+    StringHelper.iterateCodePoints (s, c -> {
       int nIndex = -1;
       for (int i = 0; i < aMap.length; ++i)
         if (aMap[i] == c)
@@ -722,44 +713,7 @@ public final class FnString
   @NonNull
   public static String normalizeSpace (@NonNull final String s)
   {
-    final int nLen = s.length ();
-    int nStart = 0;
-    while (nStart < nLen && _isXmlSpace (s.charAt (nStart)))
-      nStart++;
-    int nEnd = nLen;
-    while (nEnd > nStart && _isXmlSpace (s.charAt (nEnd - 1)))
-      nEnd--;
-    // The trimmed part up to the first whitespace that is not a single space;
-    // s[nEnd - 1] is no whitespace, so i + 1 stays in range
-    int i = nStart;
-    while (i < nEnd)
-    {
-      final char c = s.charAt (i);
-      if (_isXmlSpace (c) && (c != ' ' || _isXmlSpace (s.charAt (i + 1))))
-        break;
-      i++;
-    }
-    if (i == nEnd)
-    {
-      // Already normalised apart from leading and trailing whitespace: no copy
-      // at all, or one substring
-      return s.substring (nStart, nEnd);
-    }
-    // s[nStart, i) is normalised and ends with no whitespace; then the runs
-    // of other characters are appended at once, separated by one space
-    final StringBuilder aSB = new StringBuilder (nEnd - nStart);
-    aSB.append (s, nStart, i);
-    while (i < nEnd)
-    {
-      // Skip the whitespace; s[nEnd - 1] is no whitespace
-      while (_isXmlSpace (s.charAt (i)))
-        i++;
-      final int nRunStart = i;
-      while (i < nEnd && !_isXmlSpace (s.charAt (i)))
-        i++;
-      aSB.append (' ').append (s, nRunStart, i);
-    }
-    return aSB.toString ();
+    return XmlWhitespace.collapseXmlWhitespace (s);
   }
 
   /**

@@ -25,6 +25,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.phoxtrot.xpath.XPathException;
 
 /**
@@ -98,11 +99,6 @@ public final class XdmDateTimeValue
       return BigDecimal.ZERO;
     final BigDecimal ret = aSecond.stripTrailingZeros ();
     return ret.scale () < 0 ? ret.setScale (0) : ret;
-  }
-
-  private static boolean _isXmlSpace (final char c)
-  {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
   }
 
   /**
@@ -336,13 +332,7 @@ public final class XdmDateTimeValue
   @NonNull
   public static String trimXmlWhitespace (@NonNull final String s)
   {
-    int nStart = 0;
-    int nEnd = s.length ();
-    while (nStart < nEnd && _isXmlSpace (s.charAt (nStart)))
-      nStart++;
-    while (nEnd > nStart && _isXmlSpace (s.charAt (nEnd - 1)))
-      nEnd--;
-    return s.substring (nStart, nEnd);
+    return XmlWhitespace.trimXmlWhitespace (s);
   }
 
   /**

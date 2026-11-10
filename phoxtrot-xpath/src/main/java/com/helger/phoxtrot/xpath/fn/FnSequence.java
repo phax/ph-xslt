@@ -29,6 +29,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsHashSet;
@@ -427,17 +428,6 @@ public final class FnSequence
     return aRoot;
   }
 
-  /**
-   * @param c
-   *        A character.
-   * @return <code>true</code> for XML whitespace: space, tab, line feed and
-   *         carriage return.
-   */
-  private static boolean _isXmlWhitespace (final char c)
-  {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
-
   /** Split at XML whitespace, dropping empty tokens. */
   @NonNull
   private static ICommonsList <String> _tokenize (@NonNull final String s)
@@ -446,7 +436,7 @@ public final class FnSequence
     int nStart = -1;
     for (int i = 0; i <= s.length (); ++i)
     {
-      final boolean bWS = i == s.length () || _isXmlWhitespace (s.charAt (i));
+      final boolean bWS = i == s.length () || XmlWhitespace.isXmlWhitespace (s.charAt (i));
       if (bWS)
       {
         if (nStart >= 0)

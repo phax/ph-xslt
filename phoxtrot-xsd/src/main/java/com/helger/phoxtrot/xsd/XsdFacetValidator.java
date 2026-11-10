@@ -21,6 +21,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xpath.context.EXsdVersion;
@@ -144,11 +145,6 @@ final class XsdFacetValidator
     return c >= '0' && c <= '9';
   }
 
-  private static boolean _isXmlSpace (final char c)
-  {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-  }
-
   /**
    * @return The length of the value in the unit of its primitive: octets for
    *         the binary types, characters otherwise.
@@ -188,7 +184,7 @@ final class XsdFacetValidator
     for (int i = 0; i < sValue.length (); i++)
     {
       final char c = sValue.charAt (i);
-      if (!_isXmlSpace (c))
+      if (!XmlWhitespace.isXmlWhitespace (c))
         aSB.append (c);
     }
     return aSB.toString ();

@@ -40,6 +40,7 @@ import org.xml.sax.InputSource;
 import com.helger.annotation.Nonnegative;
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsMap;
 
@@ -349,13 +350,8 @@ public final class XdmStreamReader implements AutoCloseable
    */
   private static boolean _isWhitespace (@NonNull final String s)
   {
-    for (int i = 0; i < s.length (); ++i)
-    {
-      final char c = s.charAt (i);
-      if (c != ' ' && c != '\t' && c != '\n' && c != '\r')
-        return false;
-    }
-    return true;
+    // Unlike XmlWhitespace.isAllXmlWhitespace, the empty string counts as whitespace only
+    return s.isEmpty () || XmlWhitespace.isAllXmlWhitespace (s);
   }
 
   /**

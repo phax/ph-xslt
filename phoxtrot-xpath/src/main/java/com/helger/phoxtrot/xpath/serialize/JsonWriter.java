@@ -17,12 +17,12 @@
 package com.helger.phoxtrot.xpath.serialize;
 
 import java.util.ArrayDeque;
-import java.util.Locale;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
+import com.helger.base.string.StringHex;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.phoxtrot.xdm.ENodeKind;
@@ -118,13 +118,13 @@ final class JsonWriter
             if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F))
             {
               // F&O 3.1 §17.5.4 (xml-to-json): upper-case hexadecimal
-              aTarget.append ("\\u").append (String.format (Locale.ROOT, "%04X", Integer.valueOf (cp)));
+              StringHex.appendHexStringLeadingZero (aTarget.append ("\\u"), cp, 4, true);
             }
             else
               if (aCharset != null && !aCharset.canEncode (cp))
               {
                 for (final char c : Character.toChars (cp))
-                  aTarget.append ("\\u").append (String.format (Locale.ROOT, "%04x", Integer.valueOf (c)));
+                  StringHex.appendHexStringLeadingZero (aTarget.append ("\\u"), c, 4, false);
               }
               else
                 aTarget.appendCodePoint (cp);

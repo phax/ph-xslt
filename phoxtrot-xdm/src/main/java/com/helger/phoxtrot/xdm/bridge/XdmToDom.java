@@ -32,6 +32,7 @@ import org.w3c.dom.Node;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.phoxtrot.xdm.EIDKind;
@@ -175,13 +176,8 @@ public final class XdmToDom
    */
   private static boolean _isWhitespace (@NonNull final String s)
   {
-    for (int i = 0; i < s.length (); ++i)
-    {
-      final char c = s.charAt (i);
-      if (c != ' ' && c != '\t' && c != '\n' && c != '\r')
-        return false;
-    }
-    return true;
+    // Unlike XmlWhitespace.isAllXmlWhitespace, the empty string counts as whitespace only
+    return s.isEmpty () || XmlWhitespace.isAllXmlWhitespace (s);
   }
 
   /**

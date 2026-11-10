@@ -20,7 +20,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayDeque;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.UnaryOperator;
 
 import org.jspecify.annotations.NonNull;
@@ -28,6 +27,8 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.base.string.StringHex;
+import com.helger.base.string.XmlWhitespace;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
@@ -637,13 +638,8 @@ public final class FnJson
    */
   private static boolean _isWhitespace (@NonNull final String s)
   {
-    for (int i = 0; i < s.length (); ++i)
-    {
-      final char c = s.charAt (i);
-      if (c != ' ' && c != '\t' && c != '\n' && c != '\r')
-        return false;
-    }
-    return true;
+    // Unlike XmlWhitespace.isAllXmlWhitespace, the empty string counts as whitespace only
+    return s.isEmpty () || XmlWhitespace.isAllXmlWhitespace (s);
   }
 
   /**
@@ -787,7 +783,7 @@ public final class FnJson
           break;
         default:
           if (c < 0x20 || (c >= 0x7F && c <= 0x9F))
-            aSB.append (String.format (Locale.ROOT, "\\u%04X", Integer.valueOf (c)));
+            StringHex.appendHexStringLeadingZero (aSB.append ("\\u"), c, 4, true);
           else
             aSB.append (c);
       }

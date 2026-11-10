@@ -25,9 +25,8 @@ import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.annotation.style.PresentForCodeCoverage;
-import com.helger.base.concurrent.SimpleReadWriteLock;
-import com.helger.collection.commons.CommonsHashMap;
-import com.helger.collection.commons.ICommonsMap;
+import com.helger.base.compare.CompareHelper;
+import com.helger.collection.map.ConcurrentBoundedCache;
 import com.helger.phoxtrot.xpath.XPathException;
 
 /**
@@ -67,20 +66,7 @@ public final class CollationRegistry
     {
       // String.compareTo compares UTF-16 units; codepoint order differs for
       // supplementary characters vs. U+E000..U+FFFF
-      final int nLeftLen = sLeft.length ();
-      final int nRightLen = sRight.length ();
-      int i = 0;
-      int j = 0;
-      while (i < nLeftLen && j < nRightLen)
-      {
-        final int cLeft = sLeft.codePointAt (i);
-        final int cRight = sRight.codePointAt (j);
-        if (cLeft != cRight)
-          return cLeft < cRight ? -1 : 1;
-        i += Character.charCount (cLeft);
-        j += Character.charCount (cRight);
-      }
-      return Integer.compare (nLeftLen - i, nRightLen - j);
+      return CompareHelper.compareByCodePoint (sLeft, sRight);
     }
 
     public Object getCollationKey (final String sValue)
@@ -235,8 +221,8 @@ public final class CollationRegistry
 
   private static final ICollation QT3_CASE_BLIND = new CaseBlindCollation (QT3_CASE_BLIND_URI);
 
-  private static final SimpleReadWriteLock UCA_CACHE_LOCK = new SimpleReadWriteLock ();
-  private static final ICommonsMap <String, ICollation> UCA_CACHE = new CommonsHashMap <> ();
+  // Lock-free reads; when full, about a quarter of the entries is dropped (not LRU)
+  private static final ConcurrentBoundedCache <String, ICollation> UCA_CACHE = new ConcurrentBoundedCache <> (CACHE_SIZE);
 
   @PresentForCodeCoverage
   private static final CollationRegistry INSTANCE = new CollationRegistry ();
@@ -269,8 +255,8 @@ public final class CollationRegistry
    * codepoint, HTML ASCII case-insensitive and QT3 case-blind collations are
    * shared constants; the UCA URI with or without query parameters creates a
    * UCA collation. UCA collations are cached by their full URI (parameter
-   * order and spelling matter); when the cache holds 256 entries it is emptied
-   * completely before the new one is added.
+   * order and spelling matter); when the cache holds more than 256 entries,
+   * arbitrary entries are dropped until three quarters are left.
    *
    * @param sUri
    *        Absolute collation URI.
@@ -296,17 +282,9 @@ public final class CollationRegistry
     }
     if (sUri.equals (UCA_URI) || sUri.startsWith (UCA_URI + "?"))
     {
-      final ICollation aCached = UCA_CACHE_LOCK.readLockedGet ( () -> UCA_CACHE.get (sUri));
-      if (aCached != null)
-        return aCached;
-      // Created outside the lock: it initialises the JDK collators
-      final ICollation ret = UcaCollation.create (sUri);
-      UCA_CACHE_LOCK.writeLocked ( () -> {
-        if (UCA_CACHE.size () >= CACHE_SIZE)
-          UCA_CACHE.clear ();
-        UCA_CACHE.put (sUri, ret);
-      });
-      return ret;
+      // Created outside any lock (it initialises the JDK collators); a failed
+      // creation throws and is not cached
+      return UCA_CACHE.getOrCompute (sUri, UcaCollation::create);
     }
     throw XPathException.of ("FOCH0002", "Unsupported collation '" + sUri + "'");
   }
