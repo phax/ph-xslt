@@ -33,8 +33,11 @@ import com.helger.collection.commons.ICommonsSet;
 import com.helger.phoxtrot.xdm.ENodeKind;
 import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xdm.XdmConstants;
+import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.ast.EAxis;
 import com.helger.phoxtrot.xpath.ast.ENodeTestKind;
+import com.helger.phoxtrot.xpath.ast.ExprWalker;
 import com.helger.phoxtrot.xpath.ast.IExpr;
 import com.helger.phoxtrot.xpath.ast.IExpr.StepExpr;
 import com.helger.phoxtrot.xpath.ast.NodeTest;
@@ -468,6 +471,129 @@ final class PatternMatcher
       return true;
     final boolean bFirstRelative = nLast == 0 && aPath.start () == null && !aPath.absolute ();
     return _getSelectingAxis (aStep, bFirstRelative, aNode) != null;
+  }
+
+  /**
+   * @return <code>true</code> for <code>fn:position</code>, <code>fn:last</code> and
+   *         <code>fn:function-lookup</code> (which can return either): a predicate calling none of
+   *         them has the same value whatever the context position and size are.
+   */
+  private static boolean _isPositionFunction (@NonNull final XdmQName aName)
+  {
+    return ExprWalker.isPositionOrLast (aName) ||
+           (XdmConstants.NS_FN.equals (aName.namespaceUri ()) && aName.localName ().equals ("function-lookup"));
+  }
+
+  /** The outcome of {@link DirectPath#match(IXdmNode, DynamicContext)}. */
+  enum EDirectMatch
+  {
+    /** The path matches the node. */
+    MATCH,
+    /** The path does not match the node. */
+    NO_MATCH,
+    /** A predicate returned a number: the general search must decide. */
+    UNDECIDED
+  }
+
+  /**
+   * A path pattern matched bottom-up without a search (see {@link PatternMatcher#getDirectPath(IExpr.PathExpr)}):
+   * every step is a <code>child</code> or <code>attribute</code> step, so each step has exactly one candidate
+   * context node, the parent of the node it must have selected (or, for the first step of a relative path, a
+   * parentless node itself: child-or-top, attribute-or-top). Immutable, so a compiled pattern can share it between
+   * threads.
+   */
+  static final class DirectPath
+  {
+    private final boolean m_bAbsolute;
+    private final List <StepExpr> m_aSteps;
+    private final ENodeKind [] m_aPrincipalKinds;
+
+    DirectPath (final boolean bAbsolute, @NonNull final List <StepExpr> aSteps)
+    {
+      m_bAbsolute = bAbsolute;
+      m_aSteps = aSteps;
+      m_aPrincipalKinds = new ENodeKind [aSteps.size ()];
+      for (int i = 0; i < m_aPrincipalKinds.length; ++i)
+        m_aPrincipalKinds[i] = AxisNavigator.getPrincipalNodeKind (aSteps.get (i).axis ());
+    }
+
+    /**
+     * Match the node as the search of {@link PatternMatcher#searchPath(IExpr.PathExpr, IXdmNode)} would: from the
+     * last step to the first, test the node kind and node test of the step, take the parent as context node,
+     * evaluate the predicates with the node as context item at position 1 of 1, and go on with the parent. An
+     * absolute path then requires a parentless document node; for a relative path every context node of the first
+     * step is an eligible anchor (an element or document node with a child, or a parentless node).
+     *
+     * @param aNode
+     *        The candidate node.
+     * @param aCtx
+     *        The context, with the current item set to the candidate.
+     * @return {@link EDirectMatch#UNDECIDED} if a predicate returned a single number (its value then depends on the
+     *         position), else whether the path matches.
+     */
+    @NonNull
+    EDirectMatch match (@NonNull final IXdmNode aNode, @NonNull final DynamicContext aCtx)
+    {
+      IXdmNode aCur = aNode;
+      for (int i = m_aSteps.size () - 1; i >= 0; --i)
+      {
+        aCtx.checkInterrupt ();
+        final StepExpr aStep = m_aSteps.get (i);
+        if (!_canAxisSelect (aStep.axis (), aStep.test (), m_aPrincipalKinds[i], aCur))
+          return EDirectMatch.NO_MATCH;
+        IXdmNode aContext = aCur.getParent ();
+        if (aContext == null)
+        {
+          // Only the first step of a relative path selects a parentless node (child-or-top, attribute-or-top)
+          if (i > 0 || m_bAbsolute)
+            return EDirectMatch.NO_MATCH;
+          aContext = aCur;
+        }
+        for (final IExpr aPred : aStep.predicates ())
+        {
+          final XdmSequence aValue = XPathEvaluator.evaluate (aPred, aCtx.withFocus (aCur, 1, 1));
+          if (_getNumericSingleton (aValue) != null)
+            return EDirectMatch.UNDECIDED;
+          if (!Atomizer.getEffectiveBooleanValue (aValue))
+            return EDirectMatch.NO_MATCH;
+        }
+        aCur = aContext;
+      }
+      if (m_bAbsolute && (aCur.getParent () != null || !aCur.isDocument ()))
+        return EDirectMatch.NO_MATCH;
+      return EDirectMatch.MATCH;
+    }
+  }
+
+  /**
+   * The direct matcher of a path pattern, computed once for a path: only for a path without a leading variable or
+   * function call, with at least one step, whose steps are all axis steps on the effective <code>child</code> or
+   * <code>attribute</code> axis and whose predicates call neither <code>fn:position</code>, <code>fn:last</code> nor
+   * <code>fn:function-lookup</code>.
+   *
+   * @param aPath
+   *        A path pattern.
+   * @return The direct matcher, or <code>null</code> if the path needs the general search.
+   */
+  @Nullable
+  static DirectPath getDirectPath (final IExpr.@NonNull PathExpr aPath)
+  {
+    final List <StepExpr> aSteps = aPath.steps ();
+    if (aPath.start () != null || aSteps.isEmpty ())
+      return null;
+    for (int i = 0; i < aSteps.size (); ++i)
+    {
+      final StepExpr aStep = aSteps.get (i);
+      if (aStep.postfix () != null)
+        return null;
+      final EAxis eAxis = _getEffectiveAxis (aStep, i == 0 && !aPath.absolute ());
+      if (eAxis != EAxis.CHILD && eAxis != EAxis.ATTRIBUTE)
+        return null;
+      for (final IExpr aPred : aStep.predicates ())
+        if (ExprWalker.containsFunction (aPred, PatternMatcher::_isPositionFunction))
+          return null;
+    }
+    return new DirectPath (aPath.absolute (), aSteps);
   }
 
   /** The search of one path for one candidate. */

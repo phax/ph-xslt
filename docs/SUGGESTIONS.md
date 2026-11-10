@@ -254,3 +254,122 @@ reset after each parse; a parse started during another on the same thread create
   `newSAXParser`): about 3 % of a 1-line validation (`SAXParserFactoryImpl.setFeature`, `SAXParserImpl.<init>`).
 - Proposal: a configured factory shared per `XdmParser` configuration, and the `XMLReader` reused per thread (with
   `reset` semantics of the JDK parser), or at least the factory created once.
+
+### S24 - Path patterns matched without a search
+
+Status: done (2026-11-09): both parts in `CompiledXsltPattern` and `PatternMatcher.DirectPath`. Part 2 also takes
+predicates that are not provably boolean (such as `[$isGreekSender]`) as long as they call neither `position`,
+`last` nor `function-lookup`: a predicate that returns a single number at run time hands the path back to the search.
+
+Measured again after S21 to S23 (`1e44250`, same set-up as above, load average 2.2 to 2.6):
+
+| Rules | Size | Saxon | before S21 | after S23 |
+|---|--:|--:|--:|--:|
+| `PEPPOL-EN16931-UBL` | 1 line | 0.50 ms | 0.89 to 0.95 ms | 0.70 to 0.76 ms |
+| `PEPPOL-EN16931-UBL` | 1,000 lines | 78 ms | 131 ms | 116 ms |
+| `PEPPOL-EN16931-UBL` | 10,000 lines | 767 ms | 1,339 ms | 1,118 ms |
+| `CEN-EN16931-UBL` | 1 line | 0.62 ms | 0.82 to 0.85 ms | 0.48 to 0.54 ms |
+| `CEN-EN16931-UBL` | 1,000 lines | 79 ms | 91 ms | 60 ms |
+| `CEN-EN16931-UBL` | 10,000 lines | 734 ms | 928 ms | 646 ms |
+
+With `PEPPOL-EN16931-UBL`, `Engine._findRule` is still 44 % (1 line) and 48 % (10,000 lines) of the validation, now
+in the full match of candidates whose name already fits: `CompiledXsltPattern.matches` 25 to 26 % inclusive, with
+`PatternMatcher` and `PathSearch` allocated per match (`PathSearch.<init>` 3.5 to 3.8 % self), the anchor search
+(`PatternMatcher.getAnchors`, `_getPostfixContexts` 5.7 %) and `HashSet`/`AnchorSet` creation. The index lookup itself
+(`Mode.getNamedRuleIndexes`) is 1.2 to 3.5 %.
+
+The patterns behind it, from the XSLT the ISO skeleton generates for `PEPPOL-EN16931-UBL.sch` (after abstract rule
+expansion; 119 template rules in 13 pattern modes):
+- Unions of short child paths with boolean predicates, e.g. eleven rules
+  `cbc:EndpointID[@schemeID = '0088'] | cac:PartyIdentification/cbc:ID[@schemeID = '0088'] | cbc:CompanyID[@schemeID = '0088']`
+  for the scheme identifiers, the amount rule with 13 names, `cac:TaxCategory[upper-case(cbc:TaxExemptionReasonCode)='VATEX-EU-O']`
+  and absolute paths such as `/ubl-invoice:Invoice/cbc:ID[$isGreekSender]`. Every `cbc:ID`, `cbc:CompanyID` and
+  amount element is a candidate of several of them, and each full match runs the general search.
+- Ten German rules (mode `M41`, 10 of its 12 rules) of the form
+  `(/ubl-invoice:Invoice/cac:TaxTotal/cac:TaxSubtotal | /ubl-creditnote:CreditNote/cac:TaxTotal/cac:TaxSubtotal)[$supplierCountryIsDE and $customerCountryIsDE]`.
+  The parenthesised union with a predicate is a single path with a postfix step: it has no final names and no last
+  step for the pre-test, so S21 puts it in the list for every node and each element of the document goes through
+  `getAnchors` (a `PathSearch` per branch) and, when a branch matches, the whole filter expression evaluated from the
+  root.
+
+Proposal, two parts:
+
+1. **Distribute a boolean predicate over a parenthesised union** when compiling the matcher. For
+   `(P1 | ... | Pn)[q1]...[qk]` where every `Pi` is a path pattern and every `qj` passes
+   `ExprWalker.isFocusFreeBoolean` (never read as a position, so its value only depends on the node as context item),
+   match it as `P1[q1]...[qk] | ... | Pn[q1]...[qk]`, the predicates appended to the last step of each `Pi`. A node
+   is selected by the left side if and only if it is selected by some `Pi` and every `qj` is true for it as context
+   item, which is the right side. This only changes `m_aUnionPaths`, `m_aLastSteps` and `m_aFinalNames` of
+   `CompiledXsltPattern`; the pattern source, the default priority (0.5 for the parenthesised form) and the split into
+   alternatives of XSLT 3.0 section 6.5 stay as they are. The German rules then get final names, go into the S21
+   index, and the postfix search is not needed for them. Predicates that fail the test (numeric or positional)
+   keep the current path.
+2. **A direct matcher for simple path patterns.** At compile time, mark each union path whose steps are all `child`
+   or `attribute` axis steps (plus the leading `/` of an absolute path) with name or kind tests and only predicates
+   passing `ExprWalker.isFocusFreeBoolean`. Such a path is matched bottom-up without `PatternMatcher`, `PathSearch`,
+   `AnchorSet` or visited sets: test the last step on the node, evaluate its predicates with the node as context
+   item (`withFocus (aNode, 1, 1)`, as the fast path of `_predicatesMatch` already does, without the numeric check),
+   go to the parent for the previous step, and at the start require a document node for an absolute path, or apply
+   the child-or-top rule for a relative one-step path as `PathSearch.search` does. Each step has exactly one
+   candidate (the parent), so there is no branching and no search state. Everything else (`//`, other axes, `start`
+   expressions, postfix steps, positional or possibly numeric predicates) keeps the general search.
+
+- Both parts can be checked with the existing pattern tests and the XSLT 3.0 conformance run; part 1 also with
+  patterns whose predicate is numeric at run time (`(a | b)[$n]` with `$n` = 1 must keep the union semantics).
+- Expected: most of the 25 % of the full matches and the 5.7 % of the postfix search on `PEPPOL-EN16931-UBL`;
+  `CEN-EN16931-UBL` (no parenthesised patterns, mostly single names) gains less.
+
+### S25 - Smaller costs in the Peppol reporting rules
+
+Measured 2026-11-10: the same pipeline with Peppol Transaction Statistics Reporting 1.0.5 (TSR) and End User
+Statistics Reporting 1.1.5 (EUSR), on generated valid reports with N unique entries (TSR: N subtotals each of
+`PerSP-DT-PR` and `PerSP-DT-PR-CC`; EUSR: N subsets each of `PerDT-PR`, `PerDT-PR-EUC` and `PerDT-EUC`). Build
+`1e44250` plus the S24 working copy, `CALLING_THREAD`, minimum of 4 to 8 runs, load average 6 to 7 (the ratios are more
+reliable than the absolute times). Both engines report 0 failed asserts on the generated reports and the same results
+on the 20 official test files of TSR 1.0.4 and 1.0.5 and EUSR 1.1.4 and 1.1.5.
+
+| Rules | N | Size | Saxon | phoxtrot |
+|---|--:|--:|--:|--:|
+| TSR | 1 | 2 KB | 0.09 ms | 0.10 ms |
+| TSR | 1,000 | 1.1 MB | 40 ms | 49 ms |
+| TSR | 10,000 | 11 MB | 399 ms | 538 ms |
+| TSR | 50,000 | 54 MB | 2,015 ms | 2,822 ms |
+| EUSR | 1 | 12 KB | 0.38 ms | 0.43 ms |
+| EUSR | 1,000 | 1.5 MB | 40 ms | 44 ms |
+| EUSR | 10,000 | 15 MB | 371 ms | 493 ms |
+| EUSR | 50,000 | 76 MB | 1,915 ms | 2,564 ms |
+
+There is no dominant cost as in S21 or S24. In JFR profiles of N = 10,000 (shares of all samples; the recorded stacks
+are cut at 64 frames, so the shares of outer frames are lower bounds) the large blocks are of similar size on both
+engines: building the `xsl:key` indexes (phoxtrot `Engine._buildKeyIndex` 19 to 20 %, Saxon `KeyIndex.buildIndex`
+21.6 %, TSR), parsing, rule lookup (phoxtrot `Engine._findRule` 6 to 9 %, Saxon `SimpleMode.getRule` 6.9 %) and
+writing the SVRL. The gap is spread over the XPath evaluation of the asserts and the key `use` expressions. Four
+items stand out:
+
+1. **String equality through the collation order.** `AtomicComparator._compareAtomics` decides `eq`, `ne`, `=` and
+   `!=` on two strings via `_compareComparable` → `_compareStrings` → `CollationRegistry.CODEPOINT.compare`, a
+   code point loop: 4.0 % (TSR) and 3.2 % (EUSR) self time, from `normalize-space(@type) = 'PerSP-DT-PR'` and
+   `normalize-space(@metaSchemeID) = 'SP'` in rule contexts, predicates and key `use` expressions. The node comparisons
+   already use `_stringsEqual`, which is `String.equals` for the codepoint collation. Proposal: for `VALUE_EQ`,
+   `VALUE_NE`, `GENERAL_EQ` and `GENERAL_NE` on two values of the string class, use `_stringsEqual` instead of the
+   order.
+2. **Argument conversion of built-in functions.** `XPathOperators.convertArgument` → `SequenceTypeMatcher.convert` is
+   6.5 % (TSR) and 6.0 % (EUSR) inclusive, nearly all for built-in calls such as `normalize-space(@type)` with a single
+   node as argument: atomisation (`Atomizer.getUntypedValue`), a new `xs:untypedAtomic` (`XdmAtomic.of`) and its cast
+   to `xs:string` (`_convertSingleAtomic`). Proposal: a fast path for a single node passed to an optional atomic
+   string parameter, from the string value of the node to the converted value without the intermediate atomic value.
+   Whether this preserves every rule of the function conversion (typed nodes, XPath 1.0 compatibility mode) must be
+   checked first.
+3. **Modification stamp per function call.** `FunctionCallSite.getFunction` reads
+   `FunctionLibrary.getModificationStamp` on every call, which adds the counters of the whole parent chain: 1.2 %
+   (TSR) and 0.6 % (EUSR) self time. Proposal: if a library cannot change after compilation, mark it as frozen and
+   return the cached definition without reading the stamp; otherwise keep a stamp that a change propagates, so that
+   the read is a single field.
+4. **Untyped values in `min` and `max`.** `FnNumeric._getAggregateInput` casts each `xs:untypedAtomic` to `xs:double`
+   through the general `AtomicCaster.cast`: 2.7 % in EUSR, from the three `max(eusr:Subset/...)` asserts over 30,000
+   values each. Proposal: a direct `xs:untypedAtomic` to `xs:double` conversion for this rule.
+
+Checked and not proposed: `contains($cl_iso3166, ...)` (1.4 %) already ends in `String.indexOf` for the codepoint
+collation; the key indexes are built once per key and document, from the name index (`_getKeyCandidatesFromNames`).
+
+- Expected: items 1 to 4 together a few percent, not the whole gap (phoxtrot takes 1.1 to 1.4 times as long as Saxon).

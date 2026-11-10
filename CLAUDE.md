@@ -205,6 +205,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   pre-test of what the path search rejects first); `getFinalNames` gives the exact element/attribute names when every
   alternative ends in one, and `Engine._buildKeyIndex` then tests only those nodes from the document's name index
   instead of walking the tree (`Engine.getKeyIndexFromNamesCount ()` tells tests which path ran).
+  `CompiledXsltPattern` opens a parenthesised union whose predicates pass `ExprWalker.isFocusFreeBoolean`
+  (`(P1 | P2)[q]` is matched as `P1[q] | P2[q]`, the source, priority and alternatives unchanged), so it has union
+  paths and final names. A union path of only `child`/`attribute` steps without `position`/`last`/`function-lookup`
+  in its predicates is matched bottom-up by `PatternMatcher.DirectPath` (one candidate per step, no `PathSearch`); a
+  predicate that returns a number hands the path back to the search.
 - Template rules: `Mode.sortRules` also builds a rule index (modes with at least `Mode.MIN_INDEXED_RULES` rules, 2
   by measurement): the rule positions by the final element/attribute names of their patterns (`getFinalNames`) and
   the positions of all other rules. `Engine._findRule` merges the named candidates of the item with the other rules

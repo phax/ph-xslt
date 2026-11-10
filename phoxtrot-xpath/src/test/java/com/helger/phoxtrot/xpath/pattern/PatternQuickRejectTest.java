@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -173,8 +174,15 @@ public final class PatternQuickRejectTest
     assertNotNull (aNames);
     assertEquals (List.of (aA, aB, new XdmQName ("urn:p", "c")), aNames.elementNames ());
     assertEquals (List.of (aY), aNames.attributeNames ());
-    for (final String s : new String [] { "*", "p:*", "*:c", "node()", "text()", "element(b)", "attribute(x)", "/", "document-node()", "b except b[1]", "b intersect a/b", "(a | b)", "(a | b)/c[1]/(d)", "@*", "namespace::x" })
+    for (final String s : new String [] { "*", "p:*", "*:c", "node()", "text()", "element(b)", "attribute(x)", "/", "document-node()", "b except b[1]", "b intersect a/b", "(a | b)/c[1]/(d)", "(a | b)[1]", "(a | b)[position() = 1]", "(a | /)[@x]", "((a)/(b) | c)[@x]", "@*", "namespace::x" })
       assertNull (s, XsltPatternParser.parse (s, aSC).getFinalNames ());
+    // Parenthesised unions with boolean predicates count as their paths
+    final PatternFinalNames aParenNames = XsltPatternParser.parse ("(a | (b[1] | x/@y)[@z = '1'])[c]", aSC)
+                                                           .getFinalNames ();
+    assertNotNull (aParenNames);
+    assertEquals (List.of (aA, aB), aParenNames.elementNames ());
+    assertEquals (List.of (aY), aParenNames.attributeNames ());
+    assertEquals (List.of (aA, aB), XsltPatternParser.parse ("(a | b)", aSC).getFinalNames ().elementNames ());
     for (final String [] aCase : CASES)
     {
       final XsltPattern aPattern = XsltPatternParser.parse (aCase[0], aSC);
@@ -215,7 +223,9 @@ public final class PatternQuickRejectTest
 
   /**
    * The last step computed once per path (canMatch and the union match) gives the same answer as
-   * computing it from the path for every node.
+   * computing it from the path for every node. A pattern that is one parenthesised union is opened
+   * into its paths when it is compiled, so its canMatch may reject more than the pre-test of the
+   * parenthesised path, never less.
    */
   @Test
   public void testPrecomputedLastStep () throws Exception
@@ -250,7 +260,16 @@ public final class PatternQuickRejectTest
           assertEquals (sPattern, Boolean.valueOf (bOld), Boolean.valueOf (aLast == null || aLast.canSelect (aNode)));
           bAny |= bOld;
         }
-        assertEquals (sPattern, Boolean.valueOf (bAny), Boolean.valueOf (aPattern.canMatch (aNode)));
+        final boolean bParenthesised = aPaths.size () == 1 &&
+                                       aPaths.getFirst ().steps ().size () == 1 &&
+                                       aPaths.getFirst ().steps ().getFirst ().postfix () != null;
+        if (bParenthesised)
+        {
+          if (aPattern.canMatch (aNode))
+            assertTrue (sPattern, bAny);
+        }
+        else
+          assertEquals (sPattern, Boolean.valueOf (bAny), Boolean.valueOf (aPattern.canMatch (aNode)));
       }
     }
   }

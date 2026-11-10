@@ -66,7 +66,8 @@ public interface XsltPattern
    * The names the nodes this pattern matches must have: if every alternative of the pattern (the
    * operands of top-level unions) is a path whose last step tests an exact element or attribute
    * name (no wildcard, no kind test, not the namespace axis), every matching node is an element
-   * or attribute with one of these names. A host may then take the candidate nodes from a name
+   * or attribute with one of these names. A parenthesised union with predicates that are never
+   * read as a position counts as the union of its paths. A host may then take the candidate nodes from a name
    * index and test only those with {@link #matches(IXdmItem, DynamicContext)}.
    *
    * @return The names, or <code>null</code> if the pattern can match other nodes.

@@ -60,11 +60,15 @@ public final class CompiledXsltPattern implements XsltPattern
   private final List <CompiledXsltPattern> m_aAlternatives;
   private final Set <IExpr> m_aPositionalPredicates;
   // The paths of a pattern that is a union of paths, for the quick test of
-  // canMatch; null for any other pattern
+  // canMatch, with boolean predicates of parenthesised unions distributed
+  // over their paths; null for any other pattern
   private final List <IExpr.PathExpr> m_aUnionPaths;
   // Parallel to m_aUnionPaths: the precomputed last step of each path, null
   // for a path the pre-test does not decide
   private final PatternMatcher.LastStep [] m_aLastSteps;
+  // Parallel to m_aUnionPaths: the direct matcher of each path, null for a
+  // path that needs the general search
+  private final PatternMatcher.DirectPath [] m_aDirectPaths;
   // See getFinalNames; null if not every path ends in an exact name test
   private final PatternFinalNames m_aFinalNames;
 
@@ -95,43 +99,126 @@ public final class CompiledXsltPattern implements XsltPattern
     final Set <IExpr> aPositional = Collections.newSetFromMap (new IdentityHashMap <> ());
     _collectPositionalPredicates (aExpr, aPositional);
     m_aPositionalPredicates = Collections.unmodifiableSet (aPositional);
-    m_aUnionPaths = _getUnionPaths (aExpr);
+    final List <IExpr.PathExpr> aDistributed = _getUnionPaths (aExpr, true);
+    m_aUnionPaths = aDistributed != null ? aDistributed : _getUnionPaths (aExpr, false);
     if (m_aUnionPaths == null)
+    {
       m_aLastSteps = null;
+      m_aDirectPaths = null;
+    }
     else
     {
       m_aLastSteps = new PatternMatcher.LastStep [m_aUnionPaths.size ()];
+      m_aDirectPaths = new PatternMatcher.DirectPath [m_aUnionPaths.size ()];
       for (int i = 0; i < m_aLastSteps.length; ++i)
+      {
         m_aLastSteps[i] = PatternMatcher.getLastStep (m_aUnionPaths.get (i));
+        m_aDirectPaths[i] = PatternMatcher.getDirectPath (m_aUnionPaths.get (i));
+      }
     }
     m_aFinalNames = m_aUnionPaths == null ? null : _getFinalNames (m_aUnionPaths);
   }
 
   /**
+   * A part of a pattern still to be split into union paths, with the predicates of the enclosing
+   * parenthesised unions that are distributed over its paths (in the order they apply).
+   */
+  private record PendingPart (@NonNull IExpr expr, @NonNull List <IExpr> predicates)
+  {}
+
+  /**
+   * @return <code>true</code> if the path is a single parenthesised step (<code>(P1 | ... |
+   *         Pn)[q1]...[qk]</code>, k &ge; 0) whose predicates all pass
+   *         {@link ExprWalker#isFocusFreeBoolean(IExpr)}.
+   */
+  private static boolean _isDistributable (final IExpr.@NonNull PathExpr aPath)
+  {
+    if (aPath.start () != null || aPath.absolute () || aPath.steps ().size () != 1)
+      return false;
+    final IExpr.StepExpr aStep = aPath.steps ().getFirst ();
+    if (aStep.postfix () == null)
+      return false;
+    for (final IExpr aPred : aStep.predicates ())
+      if (!ExprWalker.isFocusFreeBoolean (aPred))
+        return false;
+    return true;
+  }
+
+  /**
+   * @return The path with the predicates appended to its last step, or <code>null</code> if it has
+   *         no steps or ends in a parenthesised step.
+   */
+  private static IExpr.@Nullable PathExpr _getWithPredicates (final IExpr.@NonNull PathExpr aPath,
+                                                              @NonNull final List <IExpr> aPredicates)
+  {
+    if (aPredicates.isEmpty ())
+      return aPath;
+    final List <IExpr.StepExpr> aSteps = aPath.steps ();
+    if (aSteps.isEmpty ())
+      return null;
+    final IExpr.StepExpr aLast = aSteps.getLast ();
+    if (aLast.postfix () != null)
+      return null;
+    final ICommonsList <IExpr> aAllPredicates = new CommonsArrayList <> (aLast.predicates ());
+    aAllPredicates.addAll (aPredicates);
+    final ICommonsList <IExpr.StepExpr> aNewSteps = new CommonsArrayList <> (aSteps);
+    aNewSteps.set (aNewSteps.size () - 1,
+                   new IExpr.StepExpr (aLast.axis (), aLast.axisExplicit (), aLast.test (), aAllPredicates, null));
+    return new IExpr.PathExpr (aPath.start (), aPath.absolute (), aNewSteps);
+  }
+
+  /**
    * The alternatives of a pattern that consists only of path patterns joined by top-level or
    * nested unions, walked iteratively from left to right.
+   * <p>
+   * With distribution, a path that is a parenthesised union with predicates that are never read as
+   * a position (see {@link #_isDistributable(IExpr.PathExpr)}) is opened:
+   * <code>(P1 | ... | Pn)[q1]...[qk]</code> becomes <code>P1[q1]...[qk] | ... |
+   * Pn[q1]...[qk]</code>, the predicates appended to the last step of each path. Both select the
+   * nodes that some <code>Pi</code> selects and for which every <code>qj</code> is true with the
+   * node as context item, since such a predicate has the same value at every position.
    *
    * @param aPattern
    *        The parsed pattern.
+   * @param bDistribute
+   *        <code>true</code> to open parenthesised unions.
    * @return The paths, or <code>null</code> if the pattern contains anything else (a predicate
-   *         pattern, an intersection or a difference).
+   *         pattern, an intersection or a difference) or, with distribution, if a path inside a
+   *         parenthesised union with predicates cannot take them (no steps, or a parenthesised last
+   *         step).
    */
   @Nullable
-  private static List <IExpr.PathExpr> _getUnionPaths (@NonNull final IExpr aPattern)
+  private static List <IExpr.PathExpr> _getUnionPaths (@NonNull final IExpr aPattern, final boolean bDistribute)
   {
     final ICommonsList <IExpr.PathExpr> ret = new CommonsArrayList <> ();
-    final ICommonsList <IExpr> aStack = new CommonsArrayList <> (aPattern);
+    final ICommonsList <PendingPart> aStack = new CommonsArrayList <> (new PendingPart (aPattern, List.of ()));
     while (aStack.isNotEmpty ())
     {
-      final IExpr aCur = aStack.removeLast ();
-      if (aCur instanceof final IExpr.SetExpr aSet && aSet.op () == IExpr.SetExpr.ESetOp.UNION)
+      final PendingPart aCur = aStack.removeLast ();
+      if (aCur.expr () instanceof final IExpr.SetExpr aSet && aSet.op () == IExpr.SetExpr.ESetOp.UNION)
       {
-        aStack.add (aSet.right ());
-        aStack.add (aSet.left ());
+        aStack.add (new PendingPart (aSet.right (), aCur.predicates ()));
+        aStack.add (new PendingPart (aSet.left (), aCur.predicates ()));
       }
       else
-        if (aCur instanceof final IExpr.PathExpr aPath)
-          ret.add (aPath);
+        if (aCur.expr () instanceof final IExpr.PathExpr aPath)
+        {
+          if (bDistribute && _isDistributable (aPath))
+          {
+            // The predicates of the inner parentheses apply first
+            final IExpr.StepExpr aStep = aPath.steps ().getFirst ();
+            final ICommonsList <IExpr> aPredicates = new CommonsArrayList <> (aStep.predicates ());
+            aPredicates.addAll (aCur.predicates ());
+            aStack.add (new PendingPart (aStep.postfix (), aPredicates));
+          }
+          else
+          {
+            final IExpr.PathExpr aWith = _getWithPredicates (aPath, aCur.predicates ());
+            if (aWith == null)
+              return null;
+            ret.add (aWith);
+          }
+        }
         else
           return null;
     }
@@ -299,8 +386,9 @@ public final class CompiledXsltPattern implements XsltPattern
   /**
    * Match a node against a pattern that is a union of paths, as <code>PatternMatcher.matchesNode</code> does: the
    * paths from left to right until one matches, each rejected by the pre-test of its precomputed last step before a
-   * search is allocated. The context with the node as current item is only created for the first path that passes
-   * the pre-test.
+   * search is allocated. A path with a direct matcher is decided by it without a search, unless a predicate returns
+   * a number. The context with the node as current item is only created for the first path that passes the
+   * pre-test.
    *
    * @param aNode
    *        The candidate node.
@@ -310,6 +398,7 @@ public final class CompiledXsltPattern implements XsltPattern
    */
   private boolean _matchesUnionPaths (@NonNull final IXdmNode aNode, @NonNull final DynamicContext aCtx)
   {
+    DynamicContext aNodeCtx = null;
     PatternMatcher aMatcher = null;
     for (int i = 0; i < m_aLastSteps.length; ++i)
     {
@@ -319,8 +408,19 @@ public final class CompiledXsltPattern implements XsltPattern
         aCtx.checkInterrupt ();
         continue;
       }
+      if (aNodeCtx == null)
+        aNodeCtx = aCtx.withCurrentItem (aNode);
+      final PatternMatcher.DirectPath aDirect = m_aDirectPaths[i];
+      if (aDirect != null)
+      {
+        final PatternMatcher.EDirectMatch eMatch = aDirect.match (aNode, aNodeCtx);
+        if (eMatch == PatternMatcher.EDirectMatch.MATCH)
+          return true;
+        if (eMatch == PatternMatcher.EDirectMatch.NO_MATCH)
+          continue;
+      }
       if (aMatcher == null)
-        aMatcher = new PatternMatcher (aCtx.withCurrentItem (aNode), aNode, m_aPositionalPredicates);
+        aMatcher = new PatternMatcher (aNodeCtx, aNode, m_aPositionalPredicates);
       if (aMatcher.searchPath (m_aUnionPaths.get (i), aNode))
         return true;
     }
