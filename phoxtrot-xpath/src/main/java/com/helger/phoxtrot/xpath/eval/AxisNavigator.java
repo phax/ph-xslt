@@ -301,7 +301,8 @@ public final class AxisNavigator
     final XdmDocumentNode aDoc = _getCommonDocument (aContextNodes);
     if (aDoc == null)
       return false;
-    // Built on demand; null if the tree is not numbered
+    // Optimisation: the descendants by name from the document's element index instead of a walk
+    // over the subtrees. Built on demand; null if the tree is not numbered
     final List <IXdmNode> aElements = aDoc.getElementsByName (aName);
     if (aElements == null)
       return false;
@@ -336,6 +337,7 @@ public final class AxisNavigator
     final XdmDocumentNode aDoc = _getCommonDocument (aContextNodes);
     if (aDoc == null)
       return false;
+    // Optimisation: the attributes by name from the document's attribute index instead of a walk
     final List <IXdmNode> aAttributes = aDoc.getAttributesByName (aName);
     if (aAttributes == null)
       return false;
@@ -364,6 +366,8 @@ public final class AxisNavigator
     final int nCount = aNode.getChildCount ();
     if (nCount == 0)
       return;
+    // Optimisation for nodes with many children (the root of a large document): the kept child
+    // elements by name, so that a repeated step does not scan all children again
     if (nCount > MIN_CHILDREN_FOR_INDEX && aNode.getRoot () instanceof final XdmDocumentNode aDoc)
     {
       final List <IXdmNode> aChildren = aDoc.getChildElementsByName (aNode, aName);
@@ -375,7 +379,7 @@ public final class AxisNavigator
     }
     for (int i = 0; i < nCount; ++i)
     {
-      // The element class is final: a type check and a direct call instead of
+      // Optimisation: the element class is final, so a type check and a direct call instead of
       // two calls through the interface
       if (aNode.getChildAtIndex (i) instanceof final XdmElementNode aChild && aName.equals (aChild.getName ()))
         aOut.add (aChild);

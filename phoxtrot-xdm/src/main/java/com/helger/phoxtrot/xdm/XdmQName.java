@@ -138,7 +138,7 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
   {
     if (this == aOther)
       return true;
-    // The local names are short and usually differ, the namespace URIs are
+    // Optimisation: the local names are short and usually differ, the namespace URIs are
     // long and often equal, so the local name is compared first. Different
     // local names are told apart by their cached hash codes, without reading
     // the characters
@@ -151,7 +151,7 @@ public record XdmQName (@NonNull String namespaceUri, @NonNull String localName,
   @Override
   public int hashCode ()
   {
-    // The value of Objects.hash (namespaceUri, localName) without the varargs
+    // Optimisation: the value of Objects.hash (namespaceUri, localName) without the varargs
     // array
     return 31 * (31 + namespaceUri.hashCode ()) + localName.hashCode ();
   }

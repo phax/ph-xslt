@@ -177,6 +177,7 @@ public final class XPathEvaluator
                                            @NonNull final DynamicContext aCtx)
   {
     final DynamicContext aFocus = aCtx.withFocus (aItem, nPosition, nSize);
+    // Optimisation (early exit): a path predicate stops at its first node
     final Boolean aEarly = _tryEarlyEbv (aPredicate, aFocus, true);
     if (aEarly != null)
       return aEarly.booleanValue ();
@@ -231,6 +232,7 @@ public final class XPathEvaluator
                                                      @NonNull final DynamicContext aCtx)
   {
     final DynamicContext aFocus = aCtx.withFocus (aItem, nPosition, nSize);
+    // Optimisation (early exit): a path predicate stops at its first node
     final Boolean aEarly = _tryEarlyEbv (aPredicate, aFocus, true);
     if (aEarly != null)
       return aEarly.booleanValue () ? SELECT_ALL : SELECT_NONE;
@@ -410,6 +412,8 @@ public final class XPathEvaluator
     final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     final XdmQName aIndexName = _getIndexableName (aStep);
     final XdmQName aChildName = eAxis == EAxis.CHILD ? _getExactName (aTest) : null;
+    // Optimisation for the common exact name steps: child elements by name, descendants from the
+    // document's name index; any other step walks the axis
     if (aChildName != null)
       AxisNavigator.collectNamedChildren (aNode, aChildName, aNodes);
     else
@@ -660,7 +664,7 @@ public final class XPathEvaluator
       // the caller evaluates itself (_existsInPath)
       if (i + 1 < nEnd && _isDescendantOrSelfNode (aStep) && aStep.fused () == null)
       {
-        // "//@name": the attributes from the index in place of all nodes of
+        // Optimisation for "//@name": the attributes from the index in place of all nodes of
         // the subtrees and the attribute step after them
         final XdmSequence aAttributes = _applySubtreeAttributeStep (aSteps.get (i + 1), aCurrent, aCtx);
         if (aAttributes != null)
@@ -672,7 +676,7 @@ public final class XPathEvaluator
       }
       if (aStep.fused () != null)
       {
-        // "//name": one descendant step in place of descendant-or-self::node()
+        // Optimisation for "//name": one descendant step in place of descendant-or-self::node()
         // and the child step after it
         aStep = aStep.fused ();
         i++;
@@ -803,6 +807,8 @@ public final class XPathEvaluator
       // The fused "//name" step replaces the last two steps
       final boolean bFused = nSteps >= 2 && aSteps.get (nSteps - 2).fused () != null;
       final IExpr.StepExpr aLast = bFused ? aSteps.get (nSteps - 2).fused () : aSteps.get (nSteps - 1);
+      // Optimisation: a last element name the document does not contain makes the path empty
+      // without evaluating its prefix
       if (_isEmptyByNameIndex (aExpr, aLast, bFused ? nSteps - 2 : nSteps - 1, aCtx))
         return XdmSequence.EMPTY;
     }
@@ -870,6 +876,7 @@ public final class XPathEvaluator
     }
     if (aLast.postfix () != null)
       return null;
+    // Optimisation: empty by the document's name index, without evaluating the prefix
     if (_isEmptyByNameIndex (aExpr, aLast, nPrefix, aCtx))
       return Boolean.FALSE;
     // "//@name": the full evaluation answers it from the attribute index,
@@ -942,6 +949,7 @@ public final class XPathEvaluator
    */
   private static boolean _getEbv (@NonNull final IExpr aExpr, @NonNull final DynamicContext aCtx)
   {
+    // Optimisation (early exit): stop at the first decisive item where the shape allows it
     final Boolean aEarly = _tryEarlyEbv (aExpr, aCtx, false);
     if (aEarly != null)
       return aEarly.booleanValue ();
@@ -1139,6 +1147,7 @@ public final class XPathEvaluator
       return _partialApply (new BuiltInFunctionItem (aDef, aCtx), aArgExprs, aCtx);
     if (aArgExprs.size () == 1)
     {
+      // Optimisation (early exit) for exists, empty, boolean and not: only existence matters
       final XdmSequence aEarly = _tryExistenceCall (aDef, aArgExprs.get (0), aCtx);
       if (aEarly != null)
         return aEarly;

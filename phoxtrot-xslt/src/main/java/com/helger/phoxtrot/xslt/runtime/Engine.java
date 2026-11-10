@@ -705,8 +705,8 @@ public final class Engine
           return aRules.get (i);
       return null;
     }
-    // The candidates of the index merged in rule order; the rules left out
-    // cannot match the item. One cancellation check stands for those of the
+    // Optimisation: only the candidates of the rule index, merged in rule order; the rules left
+    // out cannot match the item. One cancellation check stands for those of the
     // matches skipped
     aCtx.getEngine ().getPatternContext ().checkInterrupt ();
     final int [] aUnnamed = aMode.getUnnamedRuleIndexes ();
@@ -1649,6 +1649,8 @@ public final class Engine
     final boolean bComposite = aDefs.getFirst ().isComposite ();
     final boolean bAsStrings = _isBackwardsCompatibleKey (aDefs);
     final XsltContext aUseCtx = createRootContext ().withState (XsltState.EMPTY);
+    // Optimisation: candidates from the document's name index where every match pattern ends in an
+    // exact name, instead of a walk over the whole tree
     final List <IXdmNode> aCandidates = _getKeyCandidatesFromNames (aDefs, aRoot);
     if (aCandidates != null)
     {

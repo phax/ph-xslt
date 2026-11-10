@@ -151,6 +151,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
    */
   private void _append (@NonNull final AbstractXdmNode aNode)
   {
+    // Optimisation: numbered while built, so a parsed document needs no second numbering pass
     m_aCurrent.internalAppendNumbered (aNode);
     _stamp (aNode);
   }
@@ -230,6 +231,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   @NonNull
   private String _getText (@NonNull final char [] aChars, final int nStart, final int nLength)
   {
+    // Optimisation for the common indentation text: one shared string per document
     if (nLength <= MAX_SHARED_INDENT && aChars[nStart] == '\n')
     {
       final int nEnd = nStart + nLength;
@@ -302,6 +304,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   @NonNull
   private XdmQName _getName (@NonNull final String sUri, @NonNull final String sLocalName, @NonNull final String sQName)
   {
+    // Optimisation: one shared name per lexical name and namespace instead of a new one per node.
     // Keyed by the lexical name and not by XdmQName, whose equals ignores the
     // prefix. The strings of the JDK parser are canonical and keep their hash
     // code, so a hit is mostly two identity checks
@@ -552,6 +555,7 @@ public final class XdmTreeBuilder extends DefaultHandler2
   public void endElement (final String sUri, final String sLocalName, final String sQName)
   {
     _flushText ();
+    // Optimisation (memory): no spare capacity in the child array of a finished element
     m_aCurrent.internalTrimChildren ();
     m_aCurrent.internalSetEndOrder (m_nOrder - 1);
     m_aCurrent = (AbstractXdmParentNode) m_aCurrent.getParent ();
@@ -571,7 +575,8 @@ public final class XdmTreeBuilder extends DefaultHandler2
       return;
     if (m_sText == null && m_aText.isEmpty ())
     {
-      // The first event of a text node: most text nodes have only one
+      // Optimisation for the common case: the first event of a text node is kept without a
+      // buffer, since most text nodes have only one
       m_sText = _getText (aChars, nStart, nLength);
     }
     else

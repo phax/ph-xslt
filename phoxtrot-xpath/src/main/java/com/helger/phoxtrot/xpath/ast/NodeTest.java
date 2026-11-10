@@ -81,6 +81,7 @@ public record NodeTest (@NonNull ENodeTestKind kind,
    */
   public NodeTest
   {
+    // Optimisation: interned, so that a matching name test is decided by identity
     if (name != null)
       name = name.getInterned ();
   }

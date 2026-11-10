@@ -216,6 +216,8 @@ public final class Mode
    */
   private void _buildRuleIndex ()
   {
+    // Optimisation: the rule positions by the final names of their patterns, so that the rule
+    // search tests only the rules that can match a node of that name
     m_aElementRules = null;
     m_aAttributeRules = null;
     m_aUnnamedRules = null;

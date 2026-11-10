@@ -2316,7 +2316,8 @@ public final class StylesheetCompiler
       if (m_aOptions.isStreamingClaim ())
         m_aStylesheet.setStreamVerdicts (aVerdicts);
     }
-    // Decides per run whether the principal result can be drained
+    // Optimisation: computed once per stylesheet instead of per run; decides per run whether the
+    // principal result can be drained
     m_aStylesheet.setHasResultDocument (_hasResultDocument (m_aStylesheet.modules ()));
     // For host expressions (XsltExecutable.createStaticContext): the scope of
     // the principal stylesheet element

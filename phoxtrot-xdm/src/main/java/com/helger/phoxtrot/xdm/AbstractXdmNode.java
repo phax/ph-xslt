@@ -92,7 +92,7 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   private int m_nOrder;
   // null = not numbered yet
   private TreeStamp m_aTree;
-  // Created on demand
+  // Optimisation (memory): the rare properties live in a holder created on demand
   private Details m_aDetails;
 
   protected AbstractXdmNode ()

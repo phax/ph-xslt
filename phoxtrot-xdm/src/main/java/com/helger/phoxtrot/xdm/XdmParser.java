@@ -83,8 +83,9 @@ public class XdmParser
   // The location default of the parsers and tree builders created on a thread
   // while getWithRecordLocations runs there; not set outside of it
   private static final ThreadLocal <Boolean> RECORD_LOCATIONS_SCOPE = new ThreadLocal <> ();
-  // The reusable SAX parser of each thread, without (index 0) and with
-  // (index 1) external entities; a slot is empty while its parser is in use
+  // Optimisation: the reusable SAX parser of each thread, without (index 0) and with
+  // (index 1) external entities, instead of a new parser per parse; a slot is empty while its
+  // parser is in use
   private static final ThreadLocal <SAXParser []> PARSERS = ThreadLocal.withInitial ( () -> new SAXParser [2]);
   /**
    * Whether the JDK parser accepts a code point in an XML 1.0 name, per code point that XML 1.0
