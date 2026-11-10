@@ -36,6 +36,7 @@ import javax.xml.transform.stream.StreamSource;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.xml.sax.EntityResolver;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
@@ -68,7 +69,12 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * <li>Stylesheets and sources: {@link StreamSource}, {@link DOMSource},
  * {@link SAXSource} and {@link XdmSource}. A stylesheet is parsed with
  * phoxtrot's own parser (secure processing, no external DTD or entities
- * unless {@link #ATTR_LOAD_EXTERNAL_ENTITIES} is set).</li>
+ * unless {@link #ATTR_LOAD_EXTERNAL_ENTITIES} is set; then the
+ * {@link EntityResolver} of {@link #ATTR_ENTITY_RESOLVER} is asked first, and
+ * the parser opens them itself only for the schemes of
+ * {@link XMLConstants#ACCESS_EXTERNAL_DTD}). The same applies to the sources
+ * and the documents of the run, with the entity resolver of the
+ * transformer.</li>
  * <li><code>xsl:include</code>, <code>xsl:import</code> and the documents of
  * the run (<code>document()</code>, <code>fn:doc</code>,
  * <code>fn:unparsed-text</code>) go to the {@link URIResolver} first (the
@@ -88,14 +94,17 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * <code>false</code>; setting it to <code>true</code> sets
  * {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} and
  * {@link XMLConstants#ACCESS_EXTERNAL_DTD} to the empty string, as JAXP
- * specifies, so that only the URI resolver gives access to other resources),
+ * specifies, so that only the URI resolver, and for external DTDs and
+ * entities the entity resolver, gives access to other resources),
  * and the source and result features of the supported kinds (fixed to
  * <code>true</code>). Not supported: {@link javax.xml.transform.sax.SAXTransformerFactory},
  * StAX sources and results.</li>
- * <li>Attributes: {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET},
- * {@link XMLConstants#ACCESS_EXTERNAL_DTD} (accepted and kept; phoxtrot reads
- * no external DTD unless {@link #ATTR_LOAD_EXTERNAL_ENTITIES} is set), and
- * the phoxtrot attributes {@link #ATTR_LOAD_EXTERNAL_ENTITIES},
+ * <li>Attributes: {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} (a
+ * <code>jar:</code> URI needs its nested URI to be allowed as well),
+ * {@link XMLConstants#ACCESS_EXTERNAL_DTD} (in effect only with
+ * {@link #ATTR_LOAD_EXTERNAL_ENTITIES}: phoxtrot reads no external DTD or
+ * entity otherwise), and the phoxtrot attributes
+ * {@link #ATTR_LOAD_EXTERNAL_ENTITIES}, {@link #ATTR_ENTITY_RESOLVER},
  * {@link #ATTR_SCHEMA_AWARE}, {@link #ATTR_BACKWARDS_COMPATIBLE},
  * {@link #ATTR_MESSAGE_LISTENER}, {@link #ATTR_TRACE_LISTENER},
  * {@link #ATTR_MAX_STEPS} and {@link #ATTR_THREADING}. Other names are
@@ -115,6 +124,16 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
    * <code>false</code>).
    */
   public static final String ATTR_LOAD_EXTERNAL_ENTITIES = ATTR_PREFIX + "load-external-entities";
+  /**
+   * Attribute ({@link EntityResolver} or <code>null</code>): the SAX entity
+   * resolver asked first for external DTDs and entities when they are loaded
+   * ({@link #ATTR_LOAD_EXTERNAL_ENTITIES}), for stylesheets, included and
+   * imported modules, and as initial resolver of the transformers for their
+   * sources and the documents of the run (default <code>null</code>, see
+   * {@link XdmParser#setEntityResolver(EntityResolver)}). What it returns is
+   * not checked against {@link XMLConstants#ACCESS_EXTERNAL_DTD}.
+   */
+  public static final String ATTR_ENTITY_RESOLVER = ATTR_PREFIX + "entity-resolver";
   /**
    * Attribute ({@link Boolean} or "true"/"false"): compile stylesheets as a
    * schema-aware processor (default <code>false</code>, see
@@ -184,6 +203,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   private String m_sAccessExternalStylesheet = DEFAULT_ACCESS_EXTERNAL;
   private String m_sAccessExternalDtd = DEFAULT_ACCESS_EXTERNAL;
   private boolean m_bLoadExternalEntities = XdmParser.DEFAULT_LOAD_EXTERNAL_ENTITIES;
+  private EntityResolver m_aEntityResolver;
   private boolean m_bSchemaAware = XsltCompileOptions.DEFAULT_SCHEMA_AWARE;
   private boolean m_bBackwardsCompatible = XsltCompileOptions.DEFAULT_BACKWARDS_COMPATIBLE_CLAIM;
   private IXsltMessageListener m_aMessageListener;
@@ -196,11 +216,17 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   {}
 
   @NonNull
+  private JaxpParserSettings _createParserSettings ()
+  {
+    return new JaxpParserSettings (m_bLoadExternalEntities, m_sAccessExternalDtd, m_aEntityResolver);
+  }
+
+  @NonNull
   private JaxpSettings _createSettings ()
   {
     return new JaxpSettings (m_aURIResolver,
                              m_sAccessExternalStylesheet,
-                             m_bLoadExternalEntities,
+                             _createParserSettings (),
                              m_aMessageListener,
                              m_aTraceListener,
                              m_nMaxSteps,
@@ -226,10 +252,11 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   {
     ValueEnforcer.notNull (aSource, "Source");
     final String sBaseUri = JaxpSources.getSystemId (aSource);
+    final JaxpParserSettings aParserSettings = _createParserSettings ();
     final IXdmNode aSheet;
     try
     {
-      aSheet = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, true);
+      aSheet = JaxpSources.toXdm (aSource, aParserSettings, true);
     }
     catch (final TransformerException ex)
     {
@@ -247,7 +274,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
     final XsltCompileOptions aOptions = new XsltCompileOptions ().setBaseUri (sBaseUri)
                                                                  .setResolver (new JaxpResourceResolver (m_aURIResolver,
                                                                                                          m_sAccessExternalStylesheet,
-                                                                                                         m_bLoadExternalEntities))
+                                                                                                         aParserSettings))
                                                                  .setLoadExternalEntities (m_bLoadExternalEntities)
                                                                  .setSchemaAware (m_bSchemaAware)
                                                                  .setBackwardsCompatibleClaim (m_bBackwardsCompatible)
@@ -335,7 +362,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
     try
     {
       // Only the processing instructions are read
-      aDoc = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, false).getRoot ();
+      aDoc = JaxpSources.toXdm (aSource, _createParserSettings (), false).getRoot ();
     }
     catch (final TransformerException ex)
     {
@@ -527,6 +554,13 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
       case ATTR_LOAD_EXTERNAL_ENTITIES:
         m_bLoadExternalEntities = _toBoolean (sName, aValue);
         break;
+      case ATTR_ENTITY_RESOLVER:
+      {
+        if (aValue != null && !(aValue instanceof EntityResolver))
+          throw new IllegalArgumentException ("The attribute '" + sName + "' needs an EntityResolver");
+        m_aEntityResolver = (EntityResolver) aValue;
+        break;
+      }
       case ATTR_SCHEMA_AWARE:
         m_bSchemaAware = _toBoolean (sName, aValue);
         break;
@@ -592,6 +626,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
       case XMLConstants.ACCESS_EXTERNAL_STYLESHEET -> m_sAccessExternalStylesheet;
       case XMLConstants.ACCESS_EXTERNAL_DTD -> m_sAccessExternalDtd;
       case ATTR_LOAD_EXTERNAL_ENTITIES -> Boolean.valueOf (m_bLoadExternalEntities);
+      case ATTR_ENTITY_RESOLVER -> m_aEntityResolver;
       case ATTR_SCHEMA_AWARE -> Boolean.valueOf (m_bSchemaAware);
       case ATTR_BACKWARDS_COMPATIBLE -> Boolean.valueOf (m_bBackwardsCompatible);
       case ATTR_MESSAGE_LISTENER -> m_aMessageListener;

@@ -42,6 +42,7 @@ import org.jspecify.annotations.Nullable;
 import org.w3c.dom.Document;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Node;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.SAXException;
 import org.xml.sax.ext.LexicalHandler;
 
@@ -72,7 +73,9 @@ import com.helger.phoxtrot.xslt.XsltTransformResult;
  * context item, in a copy of its whole DOM tree),
  * {@link javax.xml.transform.sax.SAXSource} (with or without XML reader) and
  * {@link XdmSource}; the node becomes the global context item and the
- * initial match selection.</li>
+ * initial match selection. Sources and the documents read while transforming
+ * are parsed with the external entity settings of the factory and the entity
+ * resolver of this transformer ({@link #setEntityResolver(EntityResolver)}).</li>
  * <li>Results: {@link StreamResult} (writer, output stream, or a
  * <code>file:</code> system ID or file path; written while the result is
  * built where the output definition allows it, see
@@ -179,6 +182,7 @@ public class PhoxtrotTransformer extends Transformer
   private final ICommonsOrderedMap <String, Param> m_aParams = new CommonsLinkedHashMap <> ();
   private final Properties m_aOutputProperties = new Properties ();
   private URIResolver m_aURIResolver;
+  private EntityResolver m_aEntityResolver;
   private ErrorListener m_aErrorListener;
   private IXsltMessageListener m_aMessageListener;
   private IXsltTraceListener m_aTraceListener;
@@ -287,6 +291,47 @@ public class PhoxtrotTransformer extends Transformer
   }
 
   /**
+   * @return The SAX entity resolver for external DTDs and entities of the
+   *         source and the documents of the run, <code>null</code> for none.
+   */
+  @Nullable
+  public final EntityResolver getEntityResolver ()
+  {
+    return m_aEntityResolver;
+  }
+
+  /**
+   * Set the SAX entity resolver that is asked first for the external DTDs and
+   * entities of the source and of the documents read while transforming
+   * (<code>document()</code>, <code>fn:doc</code>). It is used only if the
+   * factory loads them
+   * ({@link PhoxtrotTransformerFactory#ATTR_LOAD_EXTERNAL_ENTITIES}); what it
+   * returns is not checked against
+   * {@link javax.xml.XMLConstants#ACCESS_EXTERNAL_DTD}.
+   *
+   * @param aEntityResolver
+   *        The resolver; <code>null</code> for none. The initial one is the
+   *        factory's ({@link PhoxtrotTransformerFactory#ATTR_ENTITY_RESOLVER}).
+   */
+  public final void setEntityResolver (@Nullable final EntityResolver aEntityResolver)
+  {
+    m_aEntityResolver = aEntityResolver;
+  }
+
+  /**
+   * @return The parser settings of the factory with the entity resolver of
+   *         this transformer.
+   */
+  @NonNull
+  private JaxpParserSettings _getParserSettings ()
+  {
+    final JaxpParserSettings aFactorySettings = m_aTemplates.getSettings ().parserSettings ();
+    return new JaxpParserSettings (aFactorySettings.loadExternalEntities (),
+                                   aFactorySettings.accessExternalDtd (),
+                                   m_aEntityResolver);
+  }
+
+  /**
    * Build the request for one transformation: the source as global context
    * item, the parameters, the resolver, the message and trace listeners, the
    * interrupt hook, the step limit, the threading mode and the base output
@@ -303,9 +348,7 @@ public class PhoxtrotTransformer extends Transformer
     for (final var aEntry : m_aParams.entrySet ())
       ret.params ().put (JaxpValueConverter.parseName (aEntry.getKey ()), aEntry.getValue ().converted ());
     // Documents read while transforming need no node locations
-    ret.setResolver (new JaxpResourceResolver (m_aURIResolver,
-                                               aSettings.accessExternalStylesheet (),
-                                               aSettings.loadExternalEntities ()));
+    ret.setResolver (new JaxpResourceResolver (m_aURIResolver, aSettings.accessExternalStylesheet (), _getParserSettings ()));
     ret.setMessageListener (m_aMessageListener != null ? m_aMessageListener : new ErrorListenerMessages (m_aErrorListener));
     ret.setTraceListener (m_aTraceListener);
     ret.setInterrupt (aInterrupt);
@@ -478,7 +521,7 @@ public class PhoxtrotTransformer extends Transformer
     final AtomicBoolean aStopped = new AtomicBoolean (false);
     try
     {
-      final IXdmNode aNode = JaxpSources.toXdm (aSource, m_aTemplates.getSettings ().loadExternalEntities (), false);
+      final IXdmNode aNode = JaxpSources.toXdm (aSource, _getParserSettings (), false);
       final XsltTransformRequest aRequest = _createRequest (aNode,
                                                             _getAbsoluteUri (aResult.getSystemId ()),
                                                             () -> aStopped.get () || aCaller.isInterrupted ());
@@ -692,9 +735,10 @@ public class PhoxtrotTransformer extends Transformer
 
   /**
    * Return to the state after {@link PhoxtrotTemplates#newTransformer()}: no
-   * parameters and output properties, the URI resolver, message listener,
-   * trace listener and threading mode of the factory, the default error listener (which logs warnings and
-   * throws fatal errors), no last result.
+   * parameters and output properties, the URI resolver, entity resolver,
+   * message listener, trace listener and threading mode of the factory, the
+   * default error listener (which logs warnings and throws fatal errors), no
+   * last result.
    */
   @Override
   public void reset ()
@@ -702,6 +746,7 @@ public class PhoxtrotTransformer extends Transformer
     m_aParams.clear ();
     m_aOutputProperties.clear ();
     m_aURIResolver = m_aTemplates.getSettings ().uriResolver ();
+    m_aEntityResolver = m_aTemplates.getSettings ().parserSettings ().entityResolver ();
     m_aErrorListener = new JaxpErrors.LoggingErrorListener ();
     m_aMessageListener = m_aTemplates.getSettings ().messageListener ();
     m_aTraceListener = m_aTemplates.getSettings ().traceListener ();

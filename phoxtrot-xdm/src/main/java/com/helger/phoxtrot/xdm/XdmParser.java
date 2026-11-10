@@ -72,6 +72,11 @@ public class XdmParser
    */
   public static final int DEFAULT_MAX_ELEMENT_DEPTH = 10_000;
   /**
+   * The schemes the parser may open itself for the external DTD subset and external entities when
+   * they are loaded ({@link #setAccessExternalDtd(String)}): all.
+   */
+  public static final String DEFAULT_ACCESS_EXTERNAL_DTD = "all";
+  /**
    * Whether the nodes get the location the parser reports. Off by default: an input document of a
    * transformation or query needs none. Every parse of a stylesheet module, a package, a schema
    * document or a document whose validation errors are reported with a line switches it on
@@ -193,6 +198,7 @@ public class XdmParser
   private boolean m_bRecordLocations = isRecordLocationsByDefault ();
   private IXdmSchemaSet m_aSchemaSet;
   private EntityResolver m_aEntityResolver;
+  private String m_sAccessExternalDtd = DEFAULT_ACCESS_EXTERNAL_DTD;
 
   public final boolean isLoadExternalEntities ()
   {
@@ -244,6 +250,34 @@ public class XdmParser
   public final XdmParser setEntityResolver (@Nullable final EntityResolver aEntityResolver)
   {
     m_aEntityResolver = aEntityResolver;
+    return this;
+  }
+
+  @NonNull
+  public final String getAccessExternalDtd ()
+  {
+    return m_sAccessExternalDtd;
+  }
+
+  /**
+   * Set the schemes the parser may open itself for the external DTD subset and external entities,
+   * as the JAXP property {@link XMLConstants#ACCESS_EXTERNAL_DTD} defines it: <code>all</code>, or a
+   * comma-separated list of schemes such as <code>file,jar</code>; the empty string allows none. It
+   * applies only when they are loaded ({@link #setLoadExternalEntities(boolean)}). A resource the
+   * {@link #setEntityResolver(EntityResolver) entity resolver} returns is not checked, so with the
+   * empty string only the entity resolver gives access. A resource that is not allowed fails the
+   * parse with an {@link XdmParseException}.
+   *
+   * @param sAccessExternalDtd
+   *        The allowed schemes. May not be <code>null</code>; the default is
+   *        {@link #DEFAULT_ACCESS_EXTERNAL_DTD}.
+   * @return this for chaining
+   */
+  @NonNull
+  public final XdmParser setAccessExternalDtd (@NonNull final String sAccessExternalDtd)
+  {
+    ValueEnforcer.notNull (sAccessExternalDtd, "AccessExternalDtd");
+    m_sAccessExternalDtd = sAccessExternalDtd;
     return this;
   }
 
@@ -591,7 +625,8 @@ public class XdmParser
    * Read a source with the JDK SAX parser into a tree built by {@link XdmTreeBuilder}: namespace
    * aware, not DTD validating, secure processing on, external entities and the external DTD subset
    * only with {@link #setLoadExternalEntities(boolean)} (then through the
-   * {@link #setEntityResolver(EntityResolver) entity resolver} if one is set), the
+   * {@link #setEntityResolver(EntityResolver) entity resolver} if one is set, and opened by the
+   * parser itself only for the schemes of {@link #setAccessExternalDtd(String)}), the
    * {@link #ENTITY_LIMITS} and the {@link #getMaxElementDepth() maximum element depth} set
    * explicitly. With a schema set the finished document is validated afterwards. A parse error that
    * comes from a name the JDK parser rejects against the 5th edition rules gets an explanation
@@ -625,9 +660,11 @@ public class XdmParser
         aParser = _createSAXParser (m_bLoadExternalEntities);
       final XMLReader aReader = aParser.getXMLReader ();
       // Secure processing denies every external access by default, which
-      // would make the features above ineffective
+      // would make the features above ineffective; the JDK parser applies the
+      // list to the external DTD subset and external entities, but not to a
+      // source the entity resolver returns
       if (m_bLoadExternalEntities)
-        aReader.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, "all");
+        aReader.setProperty (XMLConstants.ACCESS_EXTERNAL_DTD, m_sAccessExternalDtd);
       final XdmTreeBuilder aBuilder = new XdmTreeBuilder (m_bRecordLocations);
       aReader.setContentHandler (aBuilder);
       aReader.setErrorHandler (aBuilder);

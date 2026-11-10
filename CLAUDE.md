@@ -85,7 +85,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `META-INF/services/javax.xml.transform.TransformerFactory` (it would replace the JDK transformer of every
   application on the class path). Sources and DOM conversion go through `JaxpSources`, resources (include, import,
   `document()`, `unparsed-text()`) through `JaxpResourceResolver` (URIResolver first, called with the absolute URI as
-  href and base, then direct access as `ACCESS_EXTERNAL_STYLESHEET` allows). JAXP output properties become
+  href and base, then direct access as `ACCESS_EXTERNAL_STYLESHEET` allows, a `jar:` URI only if its nested URI is
+  allowed too; a refusing URIResolver gives XTSE0165 for modules (`StylesheetLoader`), FODC0002 for documents and
+  FOUT1170 for text). Every `XdmParser` of the adapter is created from `JaxpParserSettings` (external entities,
+  `ACCESS_EXTERNAL_DTD` through `XdmParser.setAccessExternalDtd`, the entity resolver of the factory or transformer),
+  also for stylesheets and sources; a new parse site in the adapter uses it. JAXP output properties become
   `XsltTransformRequest.outputOverrides ()`, applied by `XsltTransformer._withOverrides` through
   `OutputDefinition.getWithOverrides` to the definition the principal result is serialized with (also for the
   drain decision). `-Dxslt30.jaxp=true` reruns every XSLT30 case of a shape JAXP can express through the adapter

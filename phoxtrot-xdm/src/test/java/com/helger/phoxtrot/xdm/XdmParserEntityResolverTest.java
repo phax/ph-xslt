@@ -41,7 +41,8 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
 
 /**
- * Test class for {@link XdmParser#setEntityResolver(EntityResolver)}.
+ * Test class for {@link XdmParser#setEntityResolver(EntityResolver)} and
+ * {@link XdmParser#setAccessExternalDtd(String)}.
  *
  * @author Philip Helger
  */
@@ -127,6 +128,80 @@ public final class XdmParserEntityResolverTest
         assertEquals ("def", aRoot.getAttribute ("", "x").getValue ());
         assertEquals (1, aResolver.m_aCalls.size ());
         assertEquals (aDtd.toRealPath (), Path.of (URI.create (aResolver.m_aCalls.getFirstOrNull ())).toRealPath ());
+      }
+      finally
+      {
+        Files.delete (aDoc);
+        Files.delete (aDtd);
+      }
+    }
+    finally
+    {
+      Files.delete (aDir);
+    }
+  }
+
+  @Test
+  public void testAccessExternalDtd () throws Exception
+  {
+    final Path aDir = Files.createTempDirectory ("xdmaccess");
+    try
+    {
+      final Path aDtd = Files.writeString (aDir.resolve ("a.dtd"),
+                                           "<!ATTLIST a x CDATA 'def'>",
+                                           StandardCharsets.UTF_8);
+      final Path aDoc = Files.writeString (aDir.resolve ("a.xml"),
+                                           "<!DOCTYPE a SYSTEM 'a.dtd'><a/>",
+                                           StandardCharsets.UTF_8);
+      try
+      {
+        assertEquals (XdmParser.DEFAULT_ACCESS_EXTERNAL_DTD, new XdmParser ().getAccessExternalDtd ());
+
+        // No scheme allowed: the parser may not open the DTD itself
+        try
+        {
+          new XdmParser ().setLoadExternalEntities (true).setAccessExternalDtd ("").parse (aDoc);
+          fail ();
+        }
+        catch (final XdmParseException ex)
+        {
+          assertTrue (ex.getMessage (), ex.getMessage ().contains ("accessExternalDTD"));
+        }
+
+        // Another scheme only
+        try
+        {
+          new XdmParser ().setLoadExternalEntities (true).setAccessExternalDtd ("http").parse (aDoc);
+          fail ();
+        }
+        catch (final XdmParseException ex)
+        {
+          // expected
+        }
+
+        // The file scheme, case-insensitive
+        IXdmNode aRoot = new XdmParser ().setLoadExternalEntities (true)
+                                         .setAccessExternalDtd ("FILE")
+                                         .parse (aDoc)
+                                         .getChildAtIndex (0);
+        assertEquals ("def", aRoot.getAttribute ("", "x").getValue ());
+
+        // What the entity resolver returns is not checked
+        final MapResolver aResolver = new MapResolver (Map.of (aDtd.toUri ().toString (), "<!ATTLIST a x CDATA 'res'>"));
+        aRoot = new XdmParser ().setLoadExternalEntities (true)
+                                .setAccessExternalDtd ("")
+                                .setEntityResolver ( (sPublicID, sSystemID) -> {
+                                  // The parser passes the URI in its own spelling (file:/ or file:///)
+                                  final String sKey = Path.of (URI.create (sSystemID)).toUri ().toString ();
+                                  return aResolver.resolveEntity (sPublicID, sKey);
+                                })
+                                .parse (aDoc)
+                                .getChildAtIndex (0);
+        assertEquals ("res", aRoot.getAttribute ("", "x").getValue ());
+
+        // The setting is per parse: the reused parser of this thread allows all again
+        aRoot = new XdmParser ().setLoadExternalEntities (true).parse (aDoc).getChildAtIndex (0);
+        assertEquals ("def", aRoot.getAttribute ("", "x").getValue ());
       }
       finally
       {

@@ -449,7 +449,18 @@ JAXP `URIResolver` that throws for a blocked URI, so it relies on the resolver p
 
 ### S27 - Resolver and entity resolver of the JAXP adapter: tests and gaps
 
-Status: open.
+Status: done (2026-11-10), tests in `JaxpResolverTest` and `XdmParserEntityResolverTest.testAccessExternalDtd`.
+1. Factory attribute `ATTR_ENTITY_RESOLVER` and `PhoxtrotTransformer.setEntityResolver` (initially the factory's);
+   every parser of the adapter (stylesheets, modules, sources, `document()`/`doc()`) is created from
+   `JaxpParserSettings`.
+2. `XdmParser.setAccessExternalDtd` (default `all`), set from the factory's `ACCESS_EXTERNAL_DTD`. The JDK parser
+   applies it to the external DTD and external entities, not to a source the entity resolver returns (checked on JDK
+   21), so with secure processing only the entity resolver gives access.
+3. A `jar:` URI needs `jar` and its nested URI allowed, checked down every nesting level.
+4. A refusing `URIResolver`: modules fail with XTSE0165 at the `xsl:include`/`xsl:import` with the resolver's message
+   (`StylesheetLoader`, a resolver that throws was unlocated before); `resolveText` raises FOUT1170 with the message
+   instead of returning `null`; `doc-available`/`unparsed-text-available` stay `false`.
+5. A directly read document that is not well-formed is logged as a warning; the other paths have tests.
 
 The direct parser API is well tested (`XdmParserEntityResolverTest`: external DTD and entity, `null` from the
 resolver, `EntityResolver2`, `SAXException` and `IOException` from the resolver, no call without external entities).

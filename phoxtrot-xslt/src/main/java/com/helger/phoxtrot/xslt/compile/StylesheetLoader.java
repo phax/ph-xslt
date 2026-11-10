@@ -547,7 +547,20 @@ public final class StylesheetLoader
       aDoc = aIncludeEl.getModule ().getSourceDocument ();
     else
     {
-      aDoc = _getResolver ().resolveStylesheetModule (sUri);
+      try
+      {
+        aDoc = _getResolver ().resolveStylesheetModule (sUri);
+      }
+      catch (final XPathException ex)
+      {
+        // A resolver that fails (e.g. a JAXP URIResolver that refuses the
+        // URI): not retrievable either, with its reason
+        final XsltException aEx = XsltException.at (aIncludeEl,
+                                                    "XTSE0165",
+                                                    "The stylesheet module '" + sUri + "' cannot be retrieved: " + ex.getMessage ());
+        aEx.initCause (ex);
+        throw aEx;
+      }
       if (aDoc == null)
         throw XsltException.at (aIncludeEl, "XTSE0165", "The stylesheet module '" + sUri + "' cannot be retrieved");
       if (aDoc.getDocumentUri () == null && aDoc.isDocument ())

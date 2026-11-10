@@ -72,7 +72,7 @@ public final class FileResourceResolver implements IResourceResolver
    *         existing regular file.
    */
   @Nullable
-  private static Path _getPath (@NonNull final String sAbsoluteUri)
+  public static Path getLocalPath (@NonNull final String sAbsoluteUri)
   {
     if (!sAbsoluteUri.startsWith ("file:"))
       return null;
@@ -106,7 +106,7 @@ public final class FileResourceResolver implements IResourceResolver
   @Nullable
   private IXdmNode _parse (@NonNull final String sAbsoluteUri, final boolean bRecordLocations)
   {
-    final Path aPath = _getPath (sAbsoluteUri);
+    final Path aPath = getLocalPath (sAbsoluteUri);
     if (aPath == null)
       return null;
     try
@@ -180,7 +180,7 @@ public final class FileResourceResolver implements IResourceResolver
   public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
                                              @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
   {
-    final Path aPath = _getPath (sAbsoluteUri);
+    final Path aPath = getLocalPath (sAbsoluteUri);
     if (aPath == null)
       return null;
     final InputSource aSource = new InputSource (aPath.toUri ().toString ());
@@ -207,7 +207,7 @@ public final class FileResourceResolver implements IResourceResolver
   @Nullable
   public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
   {
-    final Path aPath = _getPath (sAbsoluteUri);
+    final Path aPath = getLocalPath (sAbsoluteUri);
     if (aPath == null)
       return null;
     try

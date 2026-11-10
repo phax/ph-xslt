@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.net.URI;
+import java.nio.file.Path;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -55,10 +56,13 @@ import com.helger.phoxtrot.xslt.compile.FileResourceResolver;
  * directly, but only if its scheme is allowed by the value of
  * {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} (<code>all</code>, or a
  * comma-separated list of schemes such as <code>file,jar</code>; the empty
- * string allows nothing): <code>file:</code> URIs as files, any other URI
- * through the JDK URL handlers. Collections are not supported. Stylesheet
- * modules ({@link #resolveStylesheetModule(String)}) are parsed with node
- * locations, documents without.
+ * string allows nothing; a <code>jar:</code> URI needs its nested URI to be
+ * allowed as well): <code>file:</code> URIs as files, any other URI through
+ * the JDK URL handlers. Every document is parsed with the parser settings of
+ * the adapter (external DTDs and entities, the schemes allowed for them and
+ * the entity resolver). Collections are not supported. Stylesheet modules
+ * ({@link #resolveStylesheetModule(String)}) are parsed with node locations,
+ * documents without.
  *
  * @author Philip Helger
  */
@@ -69,7 +73,7 @@ final class JaxpResourceResolver implements IResourceResolver
 
   private final URIResolver m_aURIResolver;
   private final String m_sAllowedSchemes;
-  private final boolean m_bLoadExternalEntities;
+  private final JaxpParserSettings m_aParserSettings;
 
   /**
    * @param aURIResolver
@@ -77,45 +81,75 @@ final class JaxpResourceResolver implements IResourceResolver
    * @param sAllowedSchemes
    *        The value of {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} for
    *        the direct access.
-   * @param bLoadExternalEntities
-   *        Whether documents read here load external DTDs and entities.
+   * @param aParserSettings
+   *        The settings of the parsers of the documents read here.
    */
   JaxpResourceResolver (@Nullable final URIResolver aURIResolver,
                         @NonNull final String sAllowedSchemes,
-                        final boolean bLoadExternalEntities)
+                        @NonNull final JaxpParserSettings aParserSettings)
   {
     m_aURIResolver = aURIResolver;
     m_sAllowedSchemes = sAllowedSchemes;
-    m_bLoadExternalEntities = bLoadExternalEntities;
+    m_aParserSettings = aParserSettings;
   }
 
   /**
-   * @return <code>true</code> if the scheme of the URI is in the allowed
-   *         list (case-insensitive), or the list is <code>all</code>.
+   * @return <code>true</code> if the scheme is in the comma-separated list
+   *         (case-insensitive).
+   */
+  private static boolean _isSchemeListed (@NonNull final String sSchemeLC, @NonNull final String sAllowedSchemes)
+  {
+    for (final String sEntry : sAllowedSchemes.split (","))
+      if (sEntry.trim ().toLowerCase (Locale.ROOT).equals (sSchemeLC))
+        return true;
+    return false;
+  }
+
+  /**
+   * Check the direct access to a URI. A <code>jar:</code> URI nests another
+   * URI (<code>jar:&lt;URI&gt;!/&lt;entry&gt;</code>), which is opened by the
+   * JDK URL handler as well: it is allowed only if <code>jar</code> and the
+   * nested URI are allowed (checked the same way, so
+   * <code>jar:jar:http:</code> needs <code>http</code> too). Otherwise
+   * <code>jar:http:...</code> would pass with only <code>jar</code> allowed.
+   *
+   * @return <code>true</code> if the list is <code>all</code>, or the scheme
+   *         of the URI (and of every nested URI) is in the allowed list
+   *         (case-insensitive); <code>false</code> for a URI without scheme.
    */
   static boolean isAccessAllowed (@NonNull final String sAbsoluteUri, @NonNull final String sAllowedSchemes)
   {
     final String sAllowed = sAllowedSchemes.trim ();
     if ("all".equalsIgnoreCase (sAllowed))
       return true;
-    final int nColon = sAbsoluteUri.indexOf (':');
-    if (nColon <= 0)
-      return false;
-    final String sScheme = sAbsoluteUri.substring (0, nColon).toLowerCase (Locale.ROOT);
-    for (final String sEntry : sAllowed.split (","))
-      if (sEntry.trim ().toLowerCase (Locale.ROOT).equals (sScheme))
+    // Iterative: every round removes one scheme and its colon
+    String sRest = sAbsoluteUri;
+    while (true)
+    {
+      final int nColon = sRest.indexOf (':');
+      if (nColon <= 0)
+        return false;
+      final String sScheme = sRest.substring (0, nColon).toLowerCase (Locale.ROOT);
+      if (!_isSchemeListed (sScheme, sAllowed))
+        return false;
+      if (!"jar".equals (sScheme))
         return true;
-    return false;
+      sRest = sRest.substring (nColon + 1);
+    }
   }
 
   /**
+   * @param sErrorCode
+   *        The error code if the resolver throws: FODC0002 for documents,
+   *        FOUT1170 for text.
    * @return The source the URI resolver gives, <code>null</code> if there is
    *         no resolver or it gives none.
    * @throws XPathException
-   *         FODC0002 if the resolver throws
+   *         with the passed code and the message of the resolver if the
+   *         resolver throws
    */
   @Nullable
-  private Source _resolveWithURIResolver (@NonNull final String sAbsoluteUri)
+  private Source _resolveWithURIResolver (@NonNull final String sAbsoluteUri, @NonNull final String sErrorCode)
   {
     if (m_aURIResolver == null)
       return null;
@@ -125,7 +159,7 @@ final class JaxpResourceResolver implements IResourceResolver
     }
     catch (final TransformerException ex)
     {
-      throw new XPathException ("FODC0002", "The URIResolver failed for '" + sAbsoluteUri + "': " + ex.getMessage (), ex);
+      throw new XPathException (sErrorCode, "The URIResolver failed for '" + sAbsoluteUri + "': " + ex.getMessage (), ex);
     }
   }
 
@@ -163,13 +197,13 @@ final class JaxpResourceResolver implements IResourceResolver
   @Nullable
   private IXdmNode _resolve (@NonNull final String sAbsoluteUri, final boolean bRecordLocations)
   {
-    final Source aSource = _resolveWithURIResolver (sAbsoluteUri);
+    final Source aSource = _resolveWithURIResolver (sAbsoluteUri, "FODC0002");
     if (aSource != null)
     {
       final IXdmNode ret;
       try
       {
-        ret = JaxpSources.toXdm (aSource, m_bLoadExternalEntities, bRecordLocations);
+        ret = JaxpSources.toXdm (aSource, m_aParserSettings, bRecordLocations);
       }
       catch (final TransformerException ex)
       {
@@ -182,23 +216,28 @@ final class JaxpResourceResolver implements IResourceResolver
     }
     if (!_checkAccess (sAbsoluteUri))
       return null;
-    if (sAbsoluteUri.startsWith ("file:"))
-    {
-      final FileResourceResolver aFileResolver = new FileResourceResolver (m_bLoadExternalEntities);
-      return bRecordLocations ? aFileResolver.resolveStylesheetModule (sAbsoluteUri)
-                              : aFileResolver.resolveDocument (sAbsoluteUri);
-    }
     try
     {
-      final IXdmNode ret = new XdmParser ().setLoadExternalEntities (m_bLoadExternalEntities)
-                                           .setRecordLocations (bRecordLocations)
-                                           .parse (new InputSource (sAbsoluteUri));
+      final XdmParser aParser = m_aParserSettings.createParser (bRecordLocations);
+      final IXdmNode ret;
+      if (sAbsoluteUri.startsWith ("file:"))
+      {
+        final Path aPath = FileResourceResolver.getLocalPath (sAbsoluteUri);
+        if (aPath == null)
+          return null;
+        ret = aParser.parse (aPath);
+      }
+      else
+        ret = aParser.parse (new InputSource (sAbsoluteUri));
       if (ret.getDocumentUri () == null)
         ret.setDocumentUri (sAbsoluteUri);
       return ret;
     }
     catch (final XdmParseException ex)
     {
+      // Unavailable for the caller, but not silently: missing and broken
+      // documents look the same otherwise
+      LOGGER.warn ("The document '" + sAbsoluteUri + "' cannot be read: " + ex.getMessage ());
       return null;
     }
   }
@@ -269,11 +308,14 @@ final class JaxpResourceResolver implements IResourceResolver
    * the URI read directly if access is allowed.
    *
    * @return The text, or <code>null</code> if it is unavailable.
+   * @throws XPathException
+   *         FOUT1170 with the message of the URI resolver if it throws, so
+   *         that the reason of a refusal reaches the caller
    */
   @Nullable
   public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
   {
-    final Source aSource = _resolveWithURIResolver (sAbsoluteUri);
+    final Source aSource = _resolveWithURIResolver (sAbsoluteUri, "FOUT1170");
     try
     {
       if (aSource != null)

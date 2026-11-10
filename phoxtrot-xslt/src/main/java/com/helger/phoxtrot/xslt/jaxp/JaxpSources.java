@@ -139,18 +139,16 @@ final class JaxpSources
 
   /**
    * @return The document parsed with {@link XdmParser} (the JDK parser with
-   *         secure processing).
+   *         secure processing) and the parser settings of the adapter.
    */
   @NonNull
   private static IXdmNode _parse (@NonNull final InputSource aInput,
-                                  final boolean bLoadExternalEntities,
+                                  @NonNull final JaxpParserSettings aParserSettings,
                                   final boolean bRecordLocations) throws TransformerException
   {
     try
     {
-      return new XdmParser ().setLoadExternalEntities (bLoadExternalEntities)
-                             .setRecordLocations (bRecordLocations)
-                             .parse (aInput);
+      return aParserSettings.createParser (bRecordLocations).parse (aInput);
     }
     catch (final XdmParseException ex)
     {
@@ -187,15 +185,18 @@ final class JaxpSources
    * <li>{@link StreamSource}: parsed with {@link XdmParser} from its byte
    * stream, character stream or system ID;</li>
    * <li>{@link SAXSource}: with its XML reader if it has one (see
-   * {@link #_parseWithReader(XMLReader, InputSource, boolean)}), otherwise parsed
+   * {@link #_parseWithReader(XMLReader, InputSource, boolean)}; the parser
+   * settings do not apply to it, its own configuration does), otherwise parsed
    * with {@link XdmParser} from its input source;</li>
    * <li>any other source with a system ID: parsed from the system ID.</li>
    * </ul>
    *
    * @param aSource
    *        The source.
-   * @param bLoadExternalEntities
-   *        Whether {@link XdmParser} loads external DTDs and entities.
+   * @param aParserSettings
+   *        The settings of every {@link XdmParser} created here: external
+   *        DTDs and entities, the schemes allowed for them and the entity
+   *        resolver.
    * @param bRecordLocations
    *        Whether a parsed source gets node locations
    *        ({@link XdmParser#setRecordLocations(boolean)}): <code>true</code>
@@ -209,7 +210,7 @@ final class JaxpSources
    */
   @NonNull
   static IXdmNode toXdm (@NonNull final Source aSource,
-                         final boolean bLoadExternalEntities,
+                         @NonNull final JaxpParserSettings aParserSettings,
                          final boolean bRecordLocations) throws TransformerException
   {
     if (aSource instanceof final XdmSource aXdmSource)
@@ -235,7 +236,7 @@ final class JaxpSources
       }
     }
     if (aSource instanceof final StreamSource aStreamSource)
-      return _parse (_toInputSource (aStreamSource), bLoadExternalEntities, bRecordLocations);
+      return _parse (_toInputSource (aStreamSource), aParserSettings, bRecordLocations);
     if (aSource instanceof final SAXSource aSAXSource)
     {
       InputSource aInput = aSAXSource.getInputSource ();
@@ -247,10 +248,10 @@ final class JaxpSources
       }
       if (aSAXSource.getXMLReader () != null)
         return _parseWithReader (aSAXSource.getXMLReader (), aInput, bRecordLocations);
-      return _parse (aInput, bLoadExternalEntities, bRecordLocations);
+      return _parse (aInput, aParserSettings, bRecordLocations);
     }
     if (aSource.getSystemId () != null)
-      return _parse (new InputSource (aSource.getSystemId ()), bLoadExternalEntities, bRecordLocations);
+      return _parse (new InputSource (aSource.getSystemId ()), aParserSettings, bRecordLocations);
     throw new TransformerException ("Unsupported Source " + aSource.getClass ().getName ());
   }
 }

@@ -35,8 +35,10 @@ import com.helger.phoxtrot.xslt.IXsltTraceListener;
  * @param accessExternalStylesheet
  *        The schemes allowed for direct access by <code>document()</code>
  *        and friends.
- * @param loadExternalEntities
- *        Whether documents read at run time load external DTDs and entities.
+ * @param parserSettings
+ *        The parser settings of the documents read at run time (external DTDs
+ *        and entities, the schemes allowed for them, the entity resolver,
+ *        which is the initial one of each transformer).
  * @param messageListener
  *        The message listener, <code>null</code> to report messages to the
  *        error listener.
@@ -51,7 +53,7 @@ import com.helger.phoxtrot.xslt.IXsltTraceListener;
  */
 record JaxpSettings (@Nullable URIResolver uriResolver,
                      @NonNull String accessExternalStylesheet,
-                     boolean loadExternalEntities,
+                     @NonNull JaxpParserSettings parserSettings,
                      @Nullable IXsltMessageListener messageListener,
                      @Nullable IXsltTraceListener traceListener,
                      long maxSteps,

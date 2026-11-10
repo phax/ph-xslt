@@ -121,8 +121,15 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
   thread with a large stack per call; also `THREAD_POOL` and `CALLING_THREAD`), a transformer can override it with
   `PhoxtrotTransformer.setThreading`.
 * What the `URIResolver` does not resolve is read directly if `XMLConstants.ACCESS_EXTERNAL_STYLESHEET` allows the
-  scheme (default `all`; `FEATURE_SECURE_PROCESSING` set to `true` allows nothing). External DTDs and entities are
-  only read with the attribute `ATTR_LOAD_EXTERNAL_ENTITIES`. Further attributes: `ATTR_SCHEMA_AWARE`, `ATTR_MAX_STEPS`.
+  scheme (default `all`; `FEATURE_SECURE_PROCESSING` set to `true` allows nothing; a `jar:` URI needs its nested URI
+  allowed too). A `URIResolver` that throws refuses the URI: `xsl:include`/`xsl:import` fail with XTSE0165,
+  `document()`/`doc()` with FODC0002, `unparsed-text()`/`json-doc()` with FOUT1170, each with its message, and the
+  `*-available` functions return `false`.
+* External DTDs and entities are only read with the attribute `ATTR_LOAD_EXTERNAL_ENTITIES`, for stylesheets, modules,
+  sources and documents alike: an `EntityResolver` (factory attribute `ATTR_ENTITY_RESOLVER`,
+  `PhoxtrotTransformer.setEntityResolver`) is asked first, and the parser opens them itself only for the schemes of
+  `XMLConstants.ACCESS_EXTERNAL_DTD` (default `all`, empty with `FEATURE_SECURE_PROCESSING`). Further attributes:
+  `ATTR_SCHEMA_AWARE`, `ATTR_MAX_STEPS`.
 * Not supported: `SAXTransformerFactory` (`TransformerHandler`, `TemplatesHandler`), StAX sources and results, and
   writing secondary results (`xsl:result-document`); these are available from `PhoxtrotTransformer.getLastResult ()`.
   Initial templates, modes and functions need the phoxtrot API (`PhoxtrotTemplates.getExecutable ()`).
