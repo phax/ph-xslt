@@ -26,6 +26,7 @@ import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.string.StringHelper;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.list.IntArrayList;
 import com.helger.phoxtrot.xdm.XmlNames;
 import com.helger.phoxtrot.xpath.XPathException;
 
@@ -94,15 +95,15 @@ final class RegexTranslator
   private int m_nPos;
   private final int m_nTotalGroups;
   private int m_nGroups;
-  private final ICommonsList <Integer> m_aParents = new CommonsArrayList <> ();
+  private final IntArrayList m_aParents = new IntArrayList ();
   private final BitSet m_aClosed = new BitSet ();
   // The groups a back-reference refers to
   private final BitSet m_aReferenced = new BitSet ();
   // Groups that get an empty marker group after them (see _parseBackReference)
   private final BitSet m_aWithMarker;
   private int m_nJavaGroups;
-  private final ICommonsList <Integer> m_aJavaGroups = new CommonsArrayList <> ();
-  private final ICommonsList <Integer> m_aMarkerGroups = new CommonsArrayList <> ();
+  private final IntArrayList m_aJavaGroups = new IntArrayList ();
+  private final IntArrayList m_aMarkerGroups = new IntArrayList ();
 
   /**
    * Prepare one translation pass: the pattern is split into code points and
@@ -139,9 +140,9 @@ final class RegexTranslator
     m_bXsd11Classes = bXsd11Classes;
     m_nTotalGroups = _countGroups (m_aCP);
     m_aWithMarker = aWithMarker;
-    m_aParents.add (Integer.valueOf (0));
-    m_aJavaGroups.add (Integer.valueOf (0));
-    m_aMarkerGroups.add (Integer.valueOf (0));
+    m_aParents.add (0);
+    m_aJavaGroups.add (0);
+    m_aMarkerGroups.add (0);
   }
 
   /**
@@ -709,8 +710,8 @@ final class RegexTranslator
       throw _error ("back-reference \\" + nGroup + " to a group that is not closed before it");
     m_nPos += nLen;
     m_aReferenced.set (nGroup);
-    final int nJavaGroup = m_aJavaGroups.get (nGroup).intValue ();
-    final int nMarker = m_aMarkerGroups.get (nGroup).intValue ();
+    final int nJavaGroup = m_aJavaGroups.get (nGroup);
+    final int nMarker = m_aMarkerGroups.get (nGroup);
     if (nMarker > 0)
     {
       // A back-reference to a group that did not take part in the match
@@ -762,7 +763,7 @@ final class RegexTranslator
   private Result _translate ()
   {
     // Stack of open groups: the capturing group number, or 0 for (?:...)
-    final ICommonsList <Integer> aOpen = new CommonsArrayList <> ();
+    final IntArrayList aOpen = new IntArrayList ();
     boolean bPrevAtom = false;
     boolean bPrevQuant = false;
     while (m_nPos < m_aCP.length)
@@ -863,7 +864,7 @@ final class RegexTranslator
           {
             if (m_nPos + 2 < m_aCP.length && m_aCP[m_nPos + 2] == ':')
             {
-              aOpen.add (Integer.valueOf (0));
+              aOpen.add (0);
               m_aSB.append ("(?:");
               m_nPos += 3;
             }
@@ -874,20 +875,20 @@ final class RegexTranslator
           {
             int nEnclosing = 0;
             for (int i = aOpen.size () - 1; i >= 0; --i)
-              if (aOpen.get (i).intValue () != 0)
+              if (aOpen.get (i) != 0)
               {
-                nEnclosing = aOpen.get (i).intValue ();
+                nEnclosing = aOpen.get (i);
                 break;
               }
             m_nGroups++;
-            m_aParents.add (Integer.valueOf (nEnclosing));
-            aOpen.add (Integer.valueOf (m_nGroups));
+            m_aParents.add (nEnclosing);
+            aOpen.add (m_nGroups);
             if (m_aWithMarker.get (m_nGroups))
               m_aSB.append ("(?:");
             m_aSB.append ('(');
             m_nJavaGroups++;
-            m_aJavaGroups.add (Integer.valueOf (m_nJavaGroups));
-            m_aMarkerGroups.add (Integer.valueOf (0));
+            m_aJavaGroups.add (m_nJavaGroups);
+            m_aMarkerGroups.add (0);
             m_nPos++;
           }
           bPrevAtom = false;
@@ -898,7 +899,7 @@ final class RegexTranslator
         {
           if (aOpen.isEmpty ())
             throw _error ("unbalanced ')'");
-          final int nGroup = aOpen.removeLast ().intValue ();
+          final int nGroup = aOpen.removeLast ();
           if (nGroup > 0)
             m_aClosed.set (nGroup);
           m_aSB.append (')');
@@ -906,7 +907,7 @@ final class RegexTranslator
           {
             m_aSB.append ("())");
             m_nJavaGroups++;
-            m_aMarkerGroups.set (nGroup, Integer.valueOf (m_nJavaGroups));
+            m_aMarkerGroups.set (nGroup, m_nJavaGroups);
           }
           m_nPos++;
           bPrevAtom = true;
@@ -948,16 +949,9 @@ final class RegexTranslator
           break;
       }
     }
-    if (aOpen.isNotEmpty ())
+    if (!aOpen.isEmpty ())
       throw _error ("unterminated group");
-    final int [] aParents = new int [m_aParents.size ()];
-    final int [] aJavaGroups = new int [m_aJavaGroups.size ()];
-    for (int i = 0; i < aParents.length; ++i)
-    {
-      aParents[i] = m_aParents.get (i).intValue ();
-      aJavaGroups[i] = m_aJavaGroups.get (i).intValue ();
-    }
-    return new Result (m_aSB.toString (), m_nGroups, aParents, aJavaGroups);
+    return new Result (m_aSB.toString (), m_nGroups, m_aParents.toArray (), m_aJavaGroups.toArray ());
   }
 
   /**

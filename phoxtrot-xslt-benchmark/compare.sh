@@ -23,11 +23,11 @@
 #
 # The engine of each commit (phoxtrot-xdm, phoxtrot-xpath, phoxtrot-xslt, phoxtrot-xsd) is built with
 # "mvn -o -q package -DskipTests" in a detached git worktree below the work directory, and its jars
-# replace the 0.1.0-SNAPSHOT jars of ~/.m2 on the class path. Nothing is installed: the local
-# repository stays untouched. The benchmark classes themselves are compiled once, from this
-# checkout, so both commits must have the engine API the benchmark uses. That includes the package
-# names: commits before the rename to phoxtrot (com.helger.phoxtrot.*) cannot be compared and are
-# rejected before anything is built.
+# (of whatever version the commit has) replace the engine jars of ~/.m2 on the class path. Nothing
+# is installed: the local repository stays untouched. The benchmark classes themselves are compiled
+# once, from this checkout, so both commits must have the engine API the benchmark uses. That
+# includes the package names: commits before the rename to phoxtrot (com.helger.phoxtrot.*) cannot
+# be compared and are rejected before anything is built.
 #
 # Environment:
 #   BENCH_WORK_DIR  work directory for the worktrees and the result files (default: a new temporary
@@ -98,7 +98,13 @@ run_commit ()
   ENGINE_CP=""
   # Listed literally: an unquoted variable is not split into words by every shell (zsh)
   for MODULE in phoxtrot-xdm phoxtrot-xpath phoxtrot-xslt phoxtrot-xsd; do
-    ENGINE_CP="$ENGINE_CP$TREE/$MODULE/target/$MODULE-0.1.0-SNAPSHOT.jar:"
+    # The version differs between commits (release, snapshot): take the main jar of any version
+    JAR=$(ls "$TREE/$MODULE/target/$MODULE"-*.jar | grep -v -e '-sources\.jar$' -e '-javadoc\.jar$' -e '-tests\.jar$' | head -n 1)
+    if [ -z "$JAR" ]; then
+      echo "No jar of $MODULE was built in $TREE" >&2
+      exit 1
+    fi
+    ENGINE_CP="$ENGINE_CP$JAR:"
   done
   echo "Running JMH against $REV ($SHA)" >&2
   "$JAVA_HOME/bin/java" -Duser.language=en -Duser.country=US \

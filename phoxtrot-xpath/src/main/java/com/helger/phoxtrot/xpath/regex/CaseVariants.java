@@ -22,8 +22,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
-import com.helger.collection.commons.CommonsHashMap;
-import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.map.IntObjectMap;
 
 /**
  * The case variants of a character for the 'i' flag of the XPath regular
@@ -54,7 +53,7 @@ final class CaseVariants
   private static final class Holder
   {
     // For every code point with case variants: all members of its class
-    static final ICommonsMap <Integer, int []> VARIANTS = _build ();
+    static final IntObjectMap <int []> VARIANTS = _build ();
 
     /**
      * @return The simple case folding of the code point as
@@ -79,9 +78,9 @@ final class CaseVariants
      *         members. Code points without case variants are absent.
      */
     @NonNull
-    private static ICommonsMap <Integer, int []> _build ()
+    private static IntObjectMap <int []> _build ()
     {
-      final ICommonsMap <Integer, int []> aClasses = new CommonsHashMap <> ();
+      final IntObjectMap <int []> aClasses = new IntObjectMap <> ();
       for (int c = 0; c <= Character.MAX_CODE_POINT; ++c)
       {
         final int nFold = _fold (c);
@@ -90,8 +89,7 @@ final class CaseVariants
         if (nFold != c && !"Cn".equals (UnicodeCategories.getCategory (c)) &&
             !"Cn".equals (UnicodeCategories.getCategory (nFold)))
         {
-          final Integer aKey = Integer.valueOf (nFold);
-          final int [] aOld = aClasses.get (aKey);
+          final int [] aOld = aClasses.get (nFold);
           final int [] aNew;
           if (aOld == null)
             aNew = new int [] { nFold, c };
@@ -100,13 +98,14 @@ final class CaseVariants
             aNew = Arrays.copyOf (aOld, aOld.length + 1);
             aNew[aOld.length] = c;
           }
-          aClasses.put (aKey, aNew);
+          aClasses.put (nFold, aNew);
         }
       }
-      final ICommonsMap <Integer, int []> ret = new CommonsHashMap <> ();
-      for (final int [] aClass : aClasses.values ())
+      final IntObjectMap <int []> ret = new IntObjectMap <> ();
+      aClasses.forEach ( (nFold, aClass) -> {
         for (final int c : aClass)
-          ret.put (Integer.valueOf (c), aClass);
+          ret.put (c, aClass);
+      });
       return ret;
     }
   }
@@ -121,7 +120,7 @@ final class CaseVariants
   @NonNull
   static int [] getVariants (final int c)
   {
-    final int [] ret = Holder.VARIANTS.get (Integer.valueOf (c));
+    final int [] ret = Holder.VARIANTS.get (c);
     return ret == null ? NONE : ret;
   }
 }

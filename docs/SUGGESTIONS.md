@@ -428,12 +428,12 @@ Status: done (2026-11-10) for the targeted sites below; built against 12.5.4-SNA
   reads, approximate eviction.
 - `xsl:sort` (`SortKeyDef`) and the sorted groups of `xsl:for-each-group` sort their positions with
   `CollectionSort.getSortedIndices` (stable, no boxing) instead of a list of `Integer`.
+- Primitive int collections instead of `Integer` lists, sets and maps: `RegexTranslator` (group bookkeeping,
+  `IntArrayList`), `FormatNumber`/`FormatInteger`/`FormatDateTime` (separator positions, `IntArrayList`, `IntHashSet`,
+  `IntIntMap`), `CaseVariants.VARIANTS` and `NumberFormatter` (`FAMILY_INDEX`, `ALPHABET_INDEX`, `IntObjectMap`).
 
-Open, not done here:
-- Primitive int collections for the remaining `Integer` lists, sets and maps: `RegexTranslator` (group bookkeeping),
-  `FormatNumber`/`FormatInteger`/`FormatDateTime` (separator positions), `CaseVariants.VARIANTS` and
-  `NumberFormatter` (`FAMILY_INDEX`, `ALPHABET_INDEX`).
-- Not proposed: the character maps (`SerializationParams`, `CharacterMapExtension`: public API with `Integer` keys),
+Not proposed:
+- the character maps (`SerializationParams`, `CharacterMapExtension`: public API with `Integer` keys),
   compile-time `Integer` lists in the XSD and XSLT compilers, type-only swaps of `IdentityHashMap` and `ArrayDeque`,
   `codePointCount (0, len)` (no stream) and `XdmParser.JDK_NAME_CHARS` (parse error path only).
 

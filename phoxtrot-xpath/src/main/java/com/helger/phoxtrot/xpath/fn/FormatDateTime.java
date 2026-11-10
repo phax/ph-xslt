@@ -32,8 +32,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.string.StringHelper;
-import com.helger.collection.commons.CommonsHashMap;
-import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.map.IntIntMap;
 import com.helger.phoxtrot.xdm.XmlNames;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.value.DateTimeCalendar;
@@ -188,7 +187,7 @@ public final class FormatDateTime
     private int m_nMandatory;
     private int m_nTotal;
     private int m_nZero = '0';
-    private final ICommonsMap <Integer, Integer> m_aSeps = new CommonsHashMap <> ();
+    private final IntIntMap m_aSeps = new IntIntMap ();
   }
 
   private FormatDateTime ()
@@ -612,7 +611,7 @@ public final class FormatDateTime
         {
           if (i == 0 || i == aCPs.length - 1 || bLastWasSep || Character.isLetter (c) || FormatInteger.isNumber (c))
             return null;
-          ret.m_aSeps.put (Integer.valueOf (ret.m_nTotal), Integer.valueOf (c));
+          ret.m_aSeps.put (ret.m_nTotal, c);
           bLastWasSep = true;
         }
     }
@@ -664,9 +663,9 @@ public final class FormatDateTime
     final StringBuilder aSB = new StringBuilder ();
     for (int i = 0; i < aDigits.length; ++i)
     {
-      final Integer aSep = aFP.m_aSeps.get (Integer.valueOf (i));
-      if (aSep != null && i > 0)
-        aSB.appendCodePoint (aSep.intValue ());
+      final int nSep = aFP.m_aSeps.get (i, -1);
+      if (nSep >= 0 && i > 0)
+        aSB.appendCodePoint (nSep);
       aSB.appendCodePoint (aDigits[i]);
     }
     return aSB.toString ();

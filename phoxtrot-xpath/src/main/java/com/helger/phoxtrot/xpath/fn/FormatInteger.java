@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xpath.fn;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Locale;
 
 import org.jspecify.annotations.NonNull;
@@ -25,10 +26,8 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.string.StringHelper;
-import com.helger.collection.commons.CommonsArrayList;
-import com.helger.collection.commons.CommonsHashMap;
-import com.helger.collection.commons.ICommonsList;
-import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.list.IntArrayList;
+import com.helger.collection.map.IntIntMap;
 import com.helger.phoxtrot.xpath.XPathException;
 
 /**
@@ -47,7 +46,7 @@ public final class FormatInteger
   {
     private int m_nMandatory;
     private int m_nZero = '0';
-    private ICommonsMap <Integer, Integer> m_aSeps = new CommonsHashMap <> ();
+    private IntIntMap m_aSeps = new IntIntMap ();
     private int m_nRegular;
     private int m_nRegularSep;
 
@@ -85,9 +84,9 @@ public final class FormatInteger
         final int nPosFromRight = n - i;
         if (i > 0)
         {
-          final Integer aSep = m_aSeps.get (Integer.valueOf (nPosFromRight));
-          if (aSep != null)
-            aSB.appendCodePoint (aSep.intValue ());
+          final int nSep = m_aSeps.get (nPosFromRight, -1);
+          if (nSep >= 0)
+            aSB.appendCodePoint (nSep);
           else
             if (m_nRegular > 0 && nPosFromRight % m_nRegular == 0)
               aSB.appendCodePoint (m_nRegularSep);
@@ -196,8 +195,8 @@ public final class FormatInteger
     boolean bSawMandatory = false;
     int nDigitCount = 0;
     boolean bLastWasSep = false;
-    final ICommonsMap <Integer, Integer> aSepAt = new CommonsHashMap <> ();
-    final ICommonsList <Integer> aSepIntervals = new CommonsArrayList <> ();
+    final IntIntMap aSepAt = new IntIntMap ();
+    final IntArrayList aSepIntervals = new IntArrayList ();
     for (int i = 0; i < aCPs.length; ++i)
     {
       final int c = aCPs[i];
@@ -227,49 +226,51 @@ public final class FormatInteger
           if (i == 0 || i == aCPs.length - 1 || bLastWasSep || Character.isLetter (c) || isNumber (c))
             return null;
           final int nPosFromRight = nTotal - nDigitCount;
-          aSepAt.put (Integer.valueOf (nPosFromRight), Integer.valueOf (c));
-          aSepIntervals.add (Integer.valueOf (nPosFromRight));
+          aSepAt.put (nPosFromRight, c);
+          aSepIntervals.add (nPosFromRight);
           bLastWasSep = true;
         }
     }
     ret.m_nZero = nFamZero < 0 ? '0' : nFamZero;
     ret.m_aSeps = aSepAt;
-    if (aSepIntervals.isNotEmpty ())
+    if (!aSepIntervals.isEmpty ())
     {
+      final int [] aIntervals = aSepIntervals.toArray ();
       int g = Integer.MAX_VALUE;
-      for (final Integer aIv : aSepIntervals)
-        g = Math.min (g, aIv.intValue ());
-      final Integer aFirstSep = aSepAt.get (aSepIntervals.getFirstOrNull ());
+      for (final int nIv : aIntervals)
+        g = Math.min (g, nIv);
+      final int nFirstSep = aSepAt.get (aIntervals[0], -1);
       boolean bSameRune = true;
       boolean bRegular = g > 0;
-      for (final Integer aIv : aSepIntervals)
+      for (final int nIv : aIntervals)
       {
-        if (!aSepAt.get (aIv).equals (aFirstSep))
+        if (aSepAt.get (nIv, -1) != nFirstSep)
           bSameRune = false;
-        if (g == 0 || aIv.intValue () % g != 0)
+        if (g == 0 || nIv % g != 0)
           bRegular = false;
       }
       if (bRegular && bSameRune)
       {
         int nWant = g;
         int nMaxSep = 0;
-        for (final Integer aIv : aSepIntervals.getSorted (Integer::compare))
+        Arrays.sort (aIntervals);
+        for (final int nIv : aIntervals)
         {
-          if (aIv.intValue () != nWant)
+          if (nIv != nWant)
           {
             bRegular = false;
             break;
           }
           nWant += g;
-          nMaxSep = aIv.intValue ();
+          nMaxSep = nIv;
         }
         if (bRegular && nTotal - nMaxSep > g)
           bRegular = false;
         if (bRegular)
         {
           ret.m_nRegular = g;
-          ret.m_nRegularSep = aFirstSep.intValue ();
-          ret.m_aSeps = new CommonsHashMap <> ();
+          ret.m_nRegularSep = nFirstSep;
+          ret.m_aSeps = new IntIntMap ();
         }
       }
     }
@@ -313,17 +314,17 @@ public final class FormatInteger
   public static String toAlphabetic (final long n, @NonNull final int [] aAlphabet)
   {
     final long nBase = aAlphabet.length;
-    final ICommonsList <Integer> aRev = new CommonsArrayList <> ();
+    final IntArrayList aRev = new IntArrayList ();
     long nRest = n;
     while (nRest > 0)
     {
       nRest--;
-      aRev.add (Integer.valueOf (aAlphabet[(int) (nRest % nBase)]));
+      aRev.add (aAlphabet[(int) (nRest % nBase)]);
       nRest /= nBase;
     }
     final StringBuilder aSB = new StringBuilder ();
     for (int i = aRev.size () - 1; i >= 0; --i)
-      aSB.appendCodePoint (aRev.get (i).intValue ());
+      aSB.appendCodePoint (aRev.get (i));
     return aSB.toString ();
   }
 

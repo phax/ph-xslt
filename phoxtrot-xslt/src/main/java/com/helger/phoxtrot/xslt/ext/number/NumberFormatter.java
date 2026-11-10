@@ -30,6 +30,7 @@ import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
+import com.helger.collection.map.IntObjectMap;
 import com.helger.phoxtrot.xpath.fn.FormatInteger;
 import com.helger.phoxtrot.xpath.fn.FormatWords;
 
@@ -101,8 +102,8 @@ public final class NumberFormatter
   // test suite expects; upper case has no such form
   private static final String [] ALPHABETS = { "αβγδεζηθικλμνξοπρςστυφχψω", "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ" };
 
-  private static final ICommonsMap <Integer, Family> FAMILY_INDEX = new CommonsHashMap <> ();
-  private static final ICommonsMap <Integer, int []> ALPHABET_INDEX = new CommonsHashMap <> ();
+  private static final IntObjectMap <Family> FAMILY_INDEX = new IntObjectMap <> ();
+  private static final IntObjectMap <int []> ALPHABET_INDEX = new IntObjectMap <> ();
 
   private static final String [] EN_ONES = { "zero",
                                              "one",
@@ -149,13 +150,13 @@ public final class NumberFormatter
     {
       final Family aFamily = new Family (FAMILY_STARTS[i], StringHelper.getCodePoints (FAMILY_GLYPHS[i]));
       for (final int c : aFamily.glyphs ())
-        FAMILY_INDEX.put (Integer.valueOf (c), aFamily);
+        FAMILY_INDEX.put (c, aFamily);
     }
     for (final String sAlphabet : ALPHABETS)
     {
       final int [] aAlphabet = StringHelper.getCodePoints (sAlphabet);
       for (final int c : aAlphabet)
-        ALPHABET_INDEX.put (Integer.valueOf (c), aAlphabet);
+        ALPHABET_INDEX.put (c, aAlphabet);
     }
     final String [] aOrdinals = { "zeroth",
                                   "first",
@@ -574,15 +575,15 @@ public final class NumberFormatter
     }
     if (sToken.codePointCount (0, sToken.length ()) == 1)
     {
-      final Integer aCP = Integer.valueOf (sToken.codePointAt (0));
-      final Family aFam = FAMILY_INDEX.get (aCP);
+      final int nCP = sToken.codePointAt (0);
+      final Family aFam = FAMILY_INDEX.get (nCP);
       if (aFam != null)
       {
         final long nIdx = n - aFam.start ();
         if (nIdx >= 0 && nIdx < aFam.glyphs ().length)
           return new String (Character.toChars (aFam.glyphs ()[(int) nIdx]));
       }
-      final int [] aAlphabet = ALPHABET_INDEX.get (aCP);
+      final int [] aAlphabet = ALPHABET_INDEX.get (nCP);
       if (aAlphabet != null)
         return n > 0 ? FormatInteger.toAlphabetic (n, aAlphabet) : Long.toString (n);
     }

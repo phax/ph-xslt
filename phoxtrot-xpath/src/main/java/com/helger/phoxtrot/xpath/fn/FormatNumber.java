@@ -26,10 +26,9 @@ import org.jspecify.annotations.NonNull;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.string.StringHelper;
-import com.helger.collection.commons.CommonsArrayList;
-import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
-import com.helger.collection.commons.ICommonsSet;
+import com.helger.collection.list.IntArrayList;
+import com.helger.collection.set.IntHashSet;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 
@@ -71,8 +70,8 @@ public final class FormatNumber
     private int m_nMinFrac;
     private int m_nMaxFrac;
     private int m_nGroupInt;
-    private ICommonsSet <Integer> m_aGroupSeps = new CommonsHashSet <> ();
-    private final ICommonsList <Integer> m_aFracSeps = new CommonsArrayList <> ();
+    private final IntHashSet m_aGroupSeps = new IntHashSet ();
+    private final IntArrayList m_aFracSeps = new IntArrayList ();
     private int m_nMult = 1;
     private boolean m_bHasExp;
     private int m_nExpChar;
@@ -451,22 +450,23 @@ public final class FormatNumber
    * @return The regular grouping interval, or 0 if the separators are
    *         positional.
    */
-  private static int _classifyGrouping (@NonNull final ICommonsList <Integer> aPos, final int nTotalIntDigits)
+  private static int _classifyGrouping (@NonNull final IntArrayList aPos, final int nTotalIntDigits)
   {
     if (aPos.isEmpty ())
       return 0;
-    final ICommonsList <Integer> aSorted = aPos.getSorted (Integer::compare);
-    final int g = aSorted.getFirstOrNull ().intValue ();
+    final int [] aSorted = aPos.toArray ();
+    Arrays.sort (aSorted);
+    final int g = aSorted[0];
     if (g <= 0)
       return 0;
     int nWant = g;
     int nMaxSep = 0;
-    for (final Integer aIv : aSorted)
+    for (final int nIv : aSorted)
     {
-      if (aIv.intValue () != nWant)
+      if (nIv != nWant)
         return 0;
       nWant += g;
-      nMaxSep = aIv.intValue ();
+      nMaxSep = nIv;
     }
     if (nTotalIntDigits - nMaxSep > g)
       return 0;
@@ -536,7 +536,7 @@ public final class FormatNumber
     boolean bInFrac = false;
     int nIntDigits = 0;
     int nOptInt = 0;
-    final ICommonsList <Integer> aSepLeftDigits = new CommonsArrayList <> ();
+    final IntArrayList aSepLeftDigits = new IntArrayList ();
     for (int i = nFirst; i < nMantEnd; ++i)
     {
       final int c = aCPs[i];
@@ -546,9 +546,9 @@ public final class FormatNumber
         if (c == aDF.getGroupingSeparator ())
         {
           if (bInFrac)
-            ret.m_aFracSeps.add (Integer.valueOf (ret.m_nMaxFrac));
+            ret.m_aFracSeps.add (ret.m_nMaxFrac);
           else
-            aSepLeftDigits.add (Integer.valueOf (nIntDigits));
+            aSepLeftDigits.add (nIntDigits);
         }
         else
           if (_isDigitSign (c, aDF))
@@ -584,20 +584,20 @@ public final class FormatNumber
       ret.m_nMinInt = 1;
     if (ret.m_nMinInt == 0 && ret.m_nMinFrac == 0)
       ret.m_nMinFrac = 1;
-    if (aSepLeftDigits.isNotEmpty ())
+    if (!aSepLeftDigits.isEmpty ())
     {
-      final ICommonsList <Integer> aPosFromRight = new CommonsArrayList <> ();
-      for (final Integer aLeft : aSepLeftDigits)
+      final IntArrayList aPosFromRight = new IntArrayList ();
+      for (final int nLeft : aSepLeftDigits.toArray ())
       {
-        final int p = nIntDigits - aLeft.intValue ();
+        final int p = nIntDigits - nLeft;
         if (p > 0)
-          aPosFromRight.add (Integer.valueOf (p));
+          aPosFromRight.add (p);
       }
       final int g = _classifyGrouping (aPosFromRight, nIntDigits);
       if (g > 0)
         ret.m_nGroupInt = g;
       else
-        ret.m_aGroupSeps = new CommonsHashSet <> (aPosFromRight);
+        aPosFromRight.forEach (ret.m_aGroupSeps::add);
     }
     return ret;
   }
@@ -669,7 +669,7 @@ public final class FormatNumber
    */
   @NonNull
   private static String _groupPositional (@NonNull final String sDigits,
-                                          @NonNull final ICommonsSet <Integer> aSeps,
+                                          @NonNull final IntHashSet aSeps,
                                           final int nSep)
   {
     final int [] aCPs = StringHelper.getCodePoints (sDigits);
@@ -677,7 +677,7 @@ public final class FormatNumber
     final StringBuilder aSB = new StringBuilder ();
     for (int i = 0; i < n; ++i)
     {
-      if (i > 0 && aSeps.contains (Integer.valueOf (n - i)))
+      if (i > 0 && aSeps.contains (n - i))
         aSB.appendCodePoint (nSep);
       aSB.appendCodePoint (aCPs[i]);
     }
@@ -699,7 +699,7 @@ public final class FormatNumber
    */
   @NonNull
   private static String _groupFrac (@NonNull final String sDigits,
-                                    @NonNull final ICommonsList <Integer> aPositions,
+                                    @NonNull final IntArrayList aPositions,
                                     final int nSep)
   {
     if (aPositions.isEmpty ())
@@ -708,7 +708,7 @@ public final class FormatNumber
     final StringBuilder aSB = new StringBuilder ();
     for (int i = 0; i < aCPs.length; ++i)
     {
-      if (i > 0 && aPositions.contains (Integer.valueOf (i)))
+      if (i > 0 && aPositions.contains (i))
         aSB.appendCodePoint (nSep);
       aSB.appendCodePoint (aCPs[i]);
     }
@@ -750,7 +750,7 @@ public final class FormatNumber
     if (aSP.m_nGroupInt > 0)
       sInt = _group (sInt, aSP.m_nGroupInt, aDF.getGroupingSeparator ());
     else
-      if (aSP.m_aGroupSeps.isNotEmpty ())
+      if (!aSP.m_aGroupSeps.isEmpty ())
         sInt = _groupPositional (sInt, aSP.m_aGroupSeps, aDF.getGroupingSeparator ());
     if (sFrac.isEmpty ())
       return sInt;
