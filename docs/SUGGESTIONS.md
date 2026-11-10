@@ -321,6 +321,13 @@ Proposal, two parts:
 
 ### S25 - Smaller costs in the Peppol reporting rules
 
+Status: items 1, 2 and 4 done (2026-11-10): string `eq`/`ne`/`=`/`!=` through `_stringsEqual` in
+`AtomicComparator._compareAtomics` and `_generalPair10`; a node without schema type to `xs:string` straight from its
+string value in `SequenceTypeMatcher._convertSingleAtomic` (after the XPath 1.0 compatibility conversions, so every
+rule of the function conversion still applies); `AtomicCaster.castStringToDouble` for the untyped values of the
+aggregate functions (only the type dispatch is saved, the parse stays). Item 3 is open: it needs the function
+libraries of a stylesheet frozen after compilation.
+
 Measured 2026-11-10: the same pipeline with Peppol Transaction Statistics Reporting 1.0.5 (TSR) and End User
 Statistics Reporting 1.1.5 (EUSR), on generated valid reports with N unique entries (TSR: N subtotals each of
 `PerSP-DT-PR` and `PerSP-DT-PR-CC`; EUSR: N subsets each of `PerDT-PR`, `PerDT-PR-EUC` and `PerDT-EUC`). Build

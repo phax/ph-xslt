@@ -40,6 +40,7 @@ import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.ast.EComparisonOp;
+import com.helger.phoxtrot.xpath.collation.CollationRegistry;
 import com.helger.phoxtrot.xpath.collation.ICollation;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 import com.helger.phoxtrot.xpath.context.StaticContext;
@@ -159,6 +160,57 @@ public final class AtomicComparatorTest
                                                  _seq (untyped ("a")),
                                                  CASE_INSENSITIVE,
                                                  CTX));
+  }
+
+  /** Equality and inequality of strings give what the order under the collation gives. */
+  @Test
+  public void testStringEquality ()
+  {
+    final DynamicContext aCompat = new DynamicContext (new StaticContext ().setXPath10Compatibility (true));
+    final XdmAtomic [] aValues = { str ("a"),
+                                   str ("A"),
+                                   str ("ab"),
+                                   str (""),
+                                   untyped ("a"),
+                                   XdmAtomic.anyUri ("a"),
+                                   XdmAtomic.of (EAtomicType.NCNAME, "a"),
+                                   str ("\uD800\uDC00"),
+                                   str ("\uFFFD") };
+    for (final ICollation aCollation : new ICollation [] { null, CASE_INSENSITIVE })
+      for (final XdmAtomic aLeft : aValues)
+        for (final XdmAtomic aRight : aValues)
+        {
+          final int nCmp = (aCollation == null ? CollationRegistry.CODEPOINT : aCollation).compare (aLeft.getString (),
+                                                                                                   aRight.getString ());
+          final String sCase = aLeft + " vs " + aRight + " with " + aCollation;
+          final boolean bEqual = nCmp == 0;
+          if (aLeft.getType () != EAtomicType.UNTYPED_ATOMIC && aRight.getType () != EAtomicType.UNTYPED_ATOMIC)
+          {
+            assertEquals (sCase,
+                          Boolean.valueOf (bEqual),
+                          Boolean.valueOf (AtomicComparator.valueCompare (EComparisonOp.VALUE_EQ, aLeft, aRight, aCollation, CTX)));
+            assertEquals (sCase,
+                          Boolean.valueOf (!bEqual),
+                          Boolean.valueOf (AtomicComparator.valueCompare (EComparisonOp.VALUE_NE, aLeft, aRight, aCollation, CTX)));
+          }
+          for (final DynamicContext aCtx : new DynamicContext [] { CTX, aCompat })
+          {
+            assertEquals (sCase,
+                          Boolean.valueOf (bEqual),
+                          Boolean.valueOf (AtomicComparator.generalCompare (EComparisonOp.GENERAL_EQ,
+                                                                            _seq (aLeft),
+                                                                            _seq (aRight),
+                                                                            aCollation,
+                                                                            aCtx)));
+            assertEquals (sCase,
+                          Boolean.valueOf (!bEqual),
+                          Boolean.valueOf (AtomicComparator.generalCompare (EComparisonOp.GENERAL_NE,
+                                                                            _seq (aLeft),
+                                                                            _seq (aRight),
+                                                                            aCollation,
+                                                                            aCtx)));
+          }
+        }
   }
 
   @Test

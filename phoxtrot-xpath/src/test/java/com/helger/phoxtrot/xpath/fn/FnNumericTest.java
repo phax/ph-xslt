@@ -175,6 +175,13 @@ public final class FnNumericTest
     assertTyped ("float:NaN", "min((1, xs:float('NaN')))");
     assertTyped ("unsignedShort:7", "max((xs:positiveInteger(5), xs:unsignedShort(7)))");
     assertTyped ("double:5", "max((xs:untypedAtomic('5'), 2))");
+    assertTyped ("double:7", "max((xs:untypedAtomic(' 7 '), xs:untypedAtomic('-INF'), 2))");
+    assertTyped ("double:-INF", "min((xs:untypedAtomic('-INF'), xs:untypedAtomic('1e3')))");
+    assertTyped ("double:INF", "max((xs:untypedAtomic('+INF'), 2))");
+    assertTyped ("double:NaN", "min((xs:untypedAtomic('NaN'), 2))");
+    assertTyped ("double:3.5", "sum((xs:untypedAtomic('1.5'), xs:untypedAtomic('2')))");
+    assertXPathError ("FORG0001", "max((xs:untypedAtomic('1,5'), 2))");
+    assertXPathError ("FORG0001", "max((xs:untypedAtomic(''), 2))");
     assertTyped ("string:b", "max(('a', 'b'))");
     assertTyped ("string:b", "max((xs:anyURI('b'), 'a'))");
     assertTyped ("anyURI:b", "max((xs:anyURI('b'), xs:anyURI('a')))");

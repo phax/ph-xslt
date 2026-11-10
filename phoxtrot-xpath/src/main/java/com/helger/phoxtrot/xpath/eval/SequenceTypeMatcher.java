@@ -910,6 +910,12 @@ public final class SequenceTypeMatcher
     }
     if (aItem instanceof final IXdmNode aNode)
     {
+      // Optimisation for the common call with a node argument (normalize-space(@a)):
+      // a node without schema type or annotation to xs:string: its string value, as the cast of
+      // the xs:untypedAtomic value (or the xs:string value of a comment, PI or namespace node)
+      // would give, without the intermediate value
+      if (eTarget == EAtomicType.STRING && aNode.getSchemaType () == null && aNode.getTypeAnnotation () == null)
+        return XdmSequence.of (XdmAtomic.string (aNode.getStringValue ()));
       // A node without schema type or annotation: one value, no sequence
       final XdmAtomic aUntyped = Atomizer.getUntypedValue (aNode);
       if (aUntyped != null)

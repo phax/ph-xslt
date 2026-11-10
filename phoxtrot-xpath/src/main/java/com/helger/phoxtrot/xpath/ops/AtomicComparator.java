@@ -472,7 +472,24 @@ public final class AtomicComparator
                                 sWhat);
   }
 
-  /** Value comparison of two atomic values, any operator flavour. */
+  /** @return <code>true</code> for <code>eq</code> and <code>=</code>, <code>false</code> for every other operator. */
+  private static boolean _isEqualityOp (@NonNull final EComparisonOp eOp)
+  {
+    return eOp == EComparisonOp.VALUE_EQ || eOp == EComparisonOp.GENERAL_EQ;
+  }
+
+  /** @return <code>true</code> for <code>ne</code> and <code>!=</code>, <code>false</code> for every other operator. */
+  private static boolean _isInequalityOp (@NonNull final EComparisonOp eOp)
+  {
+    return eOp == EComparisonOp.VALUE_NE || eOp == EComparisonOp.GENERAL_NE;
+  }
+
+  /**
+   * Value comparison of two atomic values, any operator flavour. Equality and inequality of two
+   * strings are decided by {@link #_stringsEqual(String, String, ICollation)} (for the codepoint
+   * collation {@link String#equals(Object)}), which gives the same result as an order of 0 under
+   * the collation.
+   */
   private static boolean _compareAtomics (@NonNull final EComparisonOp eOp,
                                           @NonNull final XdmAtomic aLeft,
                                           @NonNull final XdmAtomic aRight,
@@ -481,6 +498,15 @@ public final class AtomicComparator
   {
     if (!_isComparable (aLeft, aRight, _isOrdering (eOp)))
       throw _notComparable (aLeft, aRight, "with " + eOp);
+    if (_getClass (aLeft.getType ()) == ECmpClass.STRING)
+    {
+      // Optimisation for the common string (in)equality: String.equals instead of the code point
+      // order loop of the collation
+      if (_isEqualityOp (eOp))
+        return _stringsEqual (aLeft.getString (), aRight.getString (), aCollation);
+      if (_isInequalityOp (eOp))
+        return !_stringsEqual (aLeft.getString (), aRight.getString (), aCollation);
+    }
     return _applyOp (eOp, _compareComparable (aLeft, aRight, aCollation, aCtx));
   }
 
@@ -609,7 +635,14 @@ public final class AtomicComparator
     final boolean bLU = eLeft == EAtomicType.UNTYPED_ATOMIC;
     final boolean bRU = eRight == EAtomicType.UNTYPED_ATOMIC;
     if (eLeft.isStringFamily () || eRight.isStringFamily () || (bLU && bRU))
+    {
+      // Optimisation: (in)equality without the order, as in _compareAtomics
+      if (_isEqualityOp (eOp))
+        return _stringsEqual (aLeft.getLexical (), aRight.getLexical (), aCollation);
+      if (_isInequalityOp (eOp))
+        return !_stringsEqual (aLeft.getLexical (), aRight.getLexical (), aCollation);
       return _applyOp (eOp, _compareStrings (aLeft.getLexical (), aRight.getLexical (), aCollation));
+    }
     if (bLU)
       return _compareAtomics (eOp, _castUntyped (aLeft, eRight, aCtx), aRight, aCollation, aCtx);
     if (bRU)

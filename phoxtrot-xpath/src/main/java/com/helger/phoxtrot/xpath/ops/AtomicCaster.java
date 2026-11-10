@@ -311,10 +311,7 @@ public final class AtomicCaster
           throw _invalid (sValue, eTarget);
         return XdmAtomic.decimal (new BigDecimal (s));
       case DOUBLE:
-        // "+INF" was added in XSD 1.1
-        if (!XsdLexical.isDoubleLexical (s) || (_isXsd10 (aStaticCtx) && s.equals ("+INF")))
-          throw _invalid (sValue, eTarget);
-        return XdmAtomic.dbl (_parseDouble (s));
+        return _castCollapsedToDouble (sValue, s, aStaticCtx);
       case FLOAT:
         // "+INF" was added in XSD 1.1
         if (!XsdLexical.isDoubleLexical (s) || (_isXsd10 (aStaticCtx) && s.equals ("+INF")))
@@ -361,6 +358,29 @@ public final class AtomicCaster
       default:
         return Double.parseDouble (s);
     }
+  }
+
+  /**
+   * The cast of a whitespace-collapsed string to xs:double.
+   *
+   * @param sValue
+   *        The string as supplied, for the error message.
+   * @param s
+   *        The string with whitespace collapsed.
+   * @param aStaticCtx
+   *        For the XSD version (<code>+INF</code> is not allowed in XSD 1.0), may be
+   *        <code>null</code>.
+   * @return The xs:double value.
+   */
+  @NonNull
+  private static XdmAtomic _castCollapsedToDouble (@NonNull final String sValue,
+                                                   @NonNull final String s,
+                                                   @Nullable final StaticContext aStaticCtx)
+  {
+    // "+INF" was added in XSD 1.1
+    if (!XsdLexical.isDoubleLexical (s) || (_isXsd10 (aStaticCtx) && s.equals ("+INF")))
+      throw _invalid (sValue, EAtomicType.DOUBLE);
+    return XdmAtomic.dbl (_parseDouble (s));
   }
 
   /**
@@ -626,6 +646,25 @@ public final class AtomicCaster
    *        Namespaces, may be <code>null</code>.
    * @return The cast value.
    */
+  /**
+   * Cast a string (as from xs:untypedAtomic) to xs:double: the result of
+   * {@link #cast(XdmAtomic, EAtomicType, StaticContext)} of an xs:untypedAtomic value with this
+   * string to xs:double, without the dispatch on source and target type.
+   *
+   * @param sValue
+   *        Source string.
+   * @param aStaticCtx
+   *        For the XSD version, may be <code>null</code>.
+   * @return The xs:double value.
+   * @throws com.helger.phoxtrot.xpath.XPathException
+   *         FORG0001 if the string is not a valid xs:double.
+   */
+  @NonNull
+  public static XdmAtomic castStringToDouble (@NonNull final String sValue, @Nullable final StaticContext aStaticCtx)
+  {
+    return _castCollapsedToDouble (sValue, XsdLexical.collapseWhitespace (sValue), aStaticCtx);
+  }
+
   @NonNull
   public static XdmAtomic castFromString (@NonNull final String sValue,
                                           @NonNull final EAtomicType eTarget,

@@ -529,9 +529,9 @@ public final class FnNumeric
     for (int i = 0; i < ret.length; ++i)
     {
       final XdmAtomic aAtomic = (XdmAtomic) aSeq.get (i);
-      ret[i] = aAtomic.getType () == EAtomicType.UNTYPED_ATOMIC ? AtomicCaster.cast (aAtomic,
-                                                                                      EAtomicType.DOUBLE,
-                                                                                      null) : aAtomic;
+      // Optimisation: the untyped values of an untyped tree are cast without the type dispatch of AtomicCaster.cast
+      ret[i] = aAtomic.getType () == EAtomicType.UNTYPED_ATOMIC ? AtomicCaster.castStringToDouble (aAtomic.getString (),
+                                                                                                    null) : aAtomic;
     }
     return ret;
   }
