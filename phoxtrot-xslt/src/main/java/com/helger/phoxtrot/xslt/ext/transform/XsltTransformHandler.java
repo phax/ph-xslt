@@ -489,15 +489,26 @@ public final class XsltTransformHandler implements ITransformHandler
     final String sUri = _resolve (sLocation, aHost.staticBaseUri ());
     if (sUri == null)
       throw _invalid ("the location '" + sLocation + "' cannot be resolved");
-    IXdmNode aDoc = aHost.compileResolver ().resolveStylesheetModule (sUri);
-    if (aDoc == null)
+    try
     {
-      final String sText = aHost.compileResolver ().resolveText (sUri, null);
-      if (sText == null)
-        throw _invalid ("the stylesheet '" + sLocation + "' cannot be retrieved");
-      aDoc = _parse (sText, sUri, false);
+      IXdmNode aDoc = aHost.compileResolver ().resolveStylesheetModule (sUri);
+      if (aDoc == null)
+      {
+        final String sText = aHost.compileResolver ().resolveText (sUri, null);
+        if (sText == null)
+          throw _invalid ("the stylesheet '" + sLocation + "' cannot be retrieved");
+        aDoc = _parse (sText, sUri, false);
+      }
+      return aDoc;
     }
-    return aDoc;
+    catch (final XPathException ex)
+    {
+      if (ex.getCode ().startsWith ("FOXT"))
+        throw ex;
+      // A resolver that fails (e.g. a JAXP URIResolver that refuses the URI):
+      // not retrievable either, with its reason
+      throw _invalid ("the stylesheet '" + sLocation + "' cannot be retrieved: " + ex.getMessage ());
+    }
   }
 
   /** The package named by package-name and package-version. */

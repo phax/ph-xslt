@@ -51,6 +51,9 @@ import org.xml.sax.InputSource;
 
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.phoxtrot.xslt.XsltCompileOptions;
+import com.helger.phoxtrot.xslt.XsltCompiler;
+import com.helger.phoxtrot.xslt.XsltException;
 
 /**
  * Test class for the resolvers of the JAXP adapter: the entity resolver and
@@ -307,6 +310,25 @@ public final class JaxpResolverTest
   }
 
   @Test
+  public void testRefusingResolverForTransform () throws Exception
+  {
+    final ICommonsList <String> aCalls = new CommonsArrayList <> ();
+    final Transformer aT = _createRefusingFactory (aCalls).newTemplates (_source (_textSheet ("string(transform(map { 'stylesheet-location' : 'http://example.org/xsl/other.xsl' })?output)")))
+                                                          .newTransformer ();
+    try
+    {
+      _transform (aT, _source (SOURCE));
+      fail ();
+    }
+    catch (final TransformerException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("FOXT0002"));
+      assertTrue (ex.getMessage (), ex.getMessage ().contains (REFUSAL));
+    }
+    assertTrue (aCalls.toString (), aCalls.contains ("http://example.org/xsl/other.xsl"));
+  }
+
+  @Test
   public void testRefusingResolverForModules ()
   {
     for (final String sInstruction : new String [] { "include", "import" })
@@ -329,6 +351,61 @@ public final class JaxpResolverTest
       }
       assertEquals ("[http://example.org/xsl/mod.xsl]", aCalls.toString ());
     }
+  }
+
+  @Test
+  public void testRefusingResolverForParameterDocument ()
+  {
+    final ICommonsList <String> aCalls = new CommonsArrayList <> ();
+    final StreamSource aMain = _source (XSL_START + "<xsl:output parameter-document='params.xml'/>" + XSL_END);
+    aMain.setSystemId ("http://example.org/xsl/main.xsl");
+    try
+    {
+      _createRefusingFactory (aCalls).newTemplates (aMain);
+      fail ();
+    }
+    catch (final TransformerConfigurationException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XTSE0020"));
+      assertTrue (ex.getMessage (), ex.getMessage ().contains (REFUSAL));
+      assertNotNull (ex.getLocator ());
+      assertTrue (ex.getLocator ().getLineNumber () > 0);
+    }
+    assertEquals ("[http://example.org/xsl/params.xml]", aCalls.toString ());
+  }
+
+  @Test
+  public void testRefusingResolverForPackage ()
+  {
+    final ICommonsList <String> aCalls = new CommonsArrayList <> ();
+    final URIResolver aRefusing = (sHref, sBase) -> {
+      aCalls.add (sHref);
+      throw new TransformerException (REFUSAL);
+    };
+    final XsltCompileOptions aOptions = new XsltCompileOptions ().setResolver (new JaxpResourceResolver (aRefusing,
+                                                                                                         "all",
+                                                                                                         new JaxpParserSettings (false,
+                                                                                                                                 "all",
+                                                                                                                                 null)))
+                                                                 .addPackage (new XsltCompileOptions.PackageSource (null,
+                                                                                                                    null,
+                                                                                                                    "http://example.org/pkg/lib.xsl"));
+    try
+    {
+      XsltCompiler.compile ("<xsl:package version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'>" +
+                            "<xsl:use-package name='urn:lib'/>" +
+                            "</xsl:package>",
+                            aOptions);
+      fail ();
+    }
+    catch (final XsltException ex)
+    {
+      // Not found, with the reason why the only source could not be read
+      assertEquals ("XTSE3000", ex.getCode ());
+      assertTrue (ex.getMessage (), ex.getMessage ().contains (REFUSAL));
+      assertTrue (ex.isLocated ());
+    }
+    assertEquals ("[http://example.org/pkg/lib.xsl]", aCalls.toString ());
   }
 
   @Test

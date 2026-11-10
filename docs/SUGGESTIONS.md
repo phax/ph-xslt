@@ -495,3 +495,53 @@ The JAXP adapter has three tests for resolution (`PhoxtrotTransformerFactoryTest
    - a URI without a scheme is refused by `isAccessAllowed`;
    - schemes are compared case-insensitively (`FILE:` against `file`);
    - the `URIResolver` of the factory against the one set on the `Transformer` for `document()` at run time.
+
+### S29 - API for a Schematron XPath binding (`ph-schematron-pure-xpath-phoxtrot`)
+
+Status: open.
+
+ph-schematron 11 splits its pure engine (Schematron evaluated rule by rule with XPath, no XSLT) into a core and one
+XPath binding per processor. The Saxon binding (`ph-schematron-pure-xpath-saxon`) uses s9api: `XPathCompiler`,
+`XPathExecutable`/`XPathSelector` with context item and variables, `ExtensionFunction`, user functions loaded from
+XQuery modules (`XQueryAsXPathFunctionConverter`), and Saxon's `DocumentWrapper` and `NodeOverNodeInfo` to move
+between W3C DOM and the XPath tree. The phoxtrot binding builds on `XPathCompiler.compile (String, StaticContext)`,
+`CompiledXPath` (immutable, thread-safe), `StaticContext`, `DynamicContext` (`withFocus`, `withVariable`,
+`withLazyVariable`, `setGlobalVariableResolver`, `setResourceResolver`, `setInterrupt`) and `FunctionLibrary.register`
+with `IXPathFunction`. What is missing:
+
+1. **Stable public XPath API.** The classes above sit next to internal ones (`ast`, `eval`, `parser`), and
+   `FunctionLibrary`/`IXPathFunction` are in the `fn` package with the built-in functions. Declare (Javadoc, package
+   documentation or a facade package) which types are public API in 0.x and keep them source compatible, so a
+   binding does not break with every phoxtrot release.
+2. **From an XDM node back to the DOM node.** The validation handler API of the pure engine reports the rule context
+   node as `org.w3c.dom.Node`, and callers often validate a DOM they own. `DomToXdm.convert (Node, String)` gives the
+   XDM counterpart of one DOM node, but there is no way back from an `IXdmNode` (a rule match) to the original DOM
+   node, and `XdmToDom` copies whole trees. Proposal, either:
+   - (a) `DomToXdm` with an optional mapping (`IXdmNode` → source `Node`, e.g. a `Function` or a stored user data
+     reference on the XDM node), or
+   - (b) a read-only DOM view over an `IXdmNode` tree (like Saxon's `NodeOverNodeInfo`) for input that was parsed
+     with `XdmParser`, so no DOM has to be built at all.
+   Both are needed for drop-in behaviour: (a) for DOM input, (b) for stream input.
+3. **User functions without Java code.** The Saxon binding loads user functions from XQuery modules. phoxtrot has no
+   XQuery. Proposal: let `XsltCompiler` (or a small helper) compile a stylesheet module and export its public
+   `xsl:function`s into a `FunctionLibrary` that `XPathCompiler` can use (the functions keep their own static
+   context, global variables and keys of that module). The same would serve `xsl:function` elements inside a
+   Schematron schema (ISO query binding `xslt2`/`xslt3`). Plain XPath 3.1 function items bound to variables
+   (`let $f := function ($x) {...}`) work already and need no API.
+4. **Typed Java extension functions.** `FunctionLibrary.register` takes the signature as a string in F&O notation.
+   For an extension function API comparable to s9api `ExtensionFunction` (name, argument and result types as objects,
+   argument conversion done by phoxtrot), a typed overload (`XdmQName`, `List <SeqType>`, `SeqType`, implementation)
+   and documented conversion rules (atomisation, untyped promotion, cardinality errors) are needed.
+5. **Limits for plain XPath.** `XsltTransformRequest` has a step limit and the large stack threads
+   (`LargeStackRunner` in `phoxtrot-xslt`); plain XPath evaluation has only the function call depth
+   (`DynamicContext`, XPDY0130) and runs on the calling thread. Deeply nested `and`/`or` chains or recursive user
+   functions in a Schematron rule can overflow the default stack. Proposal: a step limit on `DynamicContext`, and the
+   large stack runner moved to `phoxtrot-xpath` (or `phoxtrot-xdm`) so an XPath caller can use it.
+6. **Free variables of a compiled expression.** The Saxon binding sets only the variables an expression references
+   (`XPathExecutable.iterateExternalVariables`). With phoxtrot every `sch:let` must be declared on the
+   `StaticContext` before compiling, and `setGlobalVariableResolver` supplies values on demand. A
+   `CompiledXPath.getFreeVariables ()` (the declared variables the expression actually uses) would let the binding
+   skip unused `sch:let` values and report unused ones; not required, the resolver works without it.
+7. **Error details.** `XPathException` carries the error code. For the SVRL and the error handler the binding also
+   needs the position in the expression (column) and, for errors raised in a user function, the function name and
+   module location, as `XsltException` gives for XSLT.

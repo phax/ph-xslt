@@ -81,6 +81,8 @@ public final class PackageRegistry
     private IXdmNode m_aRoot;
     private String m_sName;
     private String m_sVersion;
+    // Why the source could not be read, or null
+    private String m_sReadError;
 
     Entry (final XsltCompileOptions.@NonNull PackageSource aSource, final int nIndex)
     {
@@ -130,17 +132,19 @@ public final class PackageRegistry
    * supplied node, the supplied text (parsed with the source's base URI as
    * system ID and document URI), or the base URI resolved through the
    * configured resolver (a {@link FileResourceResolver} if none). Parse and
-   * resolution failures are swallowed, so a broken source simply provides no
-   * package.
+   * resolution failures do not fail the compilation, so a broken source
+   * simply provides no package; the reason is kept in the entry for the
+   * error message of a package that is not found.
    *
-   * @param aSource
-   *        The package source.
+   * @param aEntry
+   *        The entry with the package source.
    * @return The document element or <code>null</code> if there is none or it
    *         cannot be read.
    */
   @Nullable
-  private IXdmNode _parse (final XsltCompileOptions.@NonNull PackageSource aSource)
+  private IXdmNode _parse (@NonNull final Entry aEntry)
   {
+    final XsltCompileOptions.PackageSource aSource = aEntry.m_aSource;
     if (aSource.node () != null)
       return _getDocumentElement (aSource.node ());
     try
@@ -158,6 +162,7 @@ public final class PackageRegistry
     }
     catch (final XdmParseException ex)
     {
+      aEntry.m_sReadError = ex.getMessage ();
       return null;
     }
     if (aSource.baseUri () == null)
@@ -169,10 +174,14 @@ public final class PackageRegistry
       final IXdmNode aDoc = aResolver.resolveStylesheetModule (aSource.baseUri ());
       if (aDoc != null && aDoc.isDocument () && aDoc.getDocumentUri () == null)
         aDoc.setDocumentUri (aSource.baseUri ());
+      if (aDoc == null)
+        aEntry.m_sReadError = "'" + aSource.baseUri () + "' cannot be retrieved";
       return _getDocumentElement (aDoc);
     }
     catch (final RuntimeException ex)
     {
+      // E.g. a resolver that refuses the URI
+      aEntry.m_sReadError = "'" + aSource.baseUri () + "' cannot be retrieved: " + ex.getMessage ();
       return null;
     }
   }
@@ -191,7 +200,7 @@ public final class PackageRegistry
     if (aEntry.m_bLoaded)
       return;
     aEntry.m_bLoaded = true;
-    final IXdmNode aRoot = _parse (aEntry.m_aSource);
+    final IXdmNode aRoot = _parse (aEntry);
     if (aRoot != null &&
         XsltNames.NS_XSL.equals (aRoot.getName ().namespaceUri ()) &&
         "package".equals (aRoot.getName ().localName ()))
@@ -281,9 +290,15 @@ public final class PackageRegistry
       for (final Entry aEntry : m_aEntries)
         if (aEntry.m_bNotPackage && sName.equals (aEntry.m_sName))
           throw XsltException.at (aUse, "XTSE0165", "The package source for '" + sName + "' is not an xsl:package");
+      // The sources that could not be read and may have been the one: no
+      // name given, or the name looked for
+      final StringBuilder aReasons = new StringBuilder ();
+      for (final Entry aEntry : m_aEntries)
+        if (aEntry.m_sReadError != null && (aEntry.m_aSource.name () == null || sName.equals (aEntry.m_aSource.name ().trim ())))
+          aReasons.append (aReasons.isEmpty () ? "; package sources that could not be read: " : "; ").append (aEntry.m_sReadError);
       throw XsltException.at (aUse,
                               "XTSE3000",
-                              "No package named '" + sName + "' with a version matching '" + sRanges + "' is available");
+                              "No package named '" + sName + "' with a version matching '" + sRanges + "' is available" + aReasons);
     }
     return ret;
   }

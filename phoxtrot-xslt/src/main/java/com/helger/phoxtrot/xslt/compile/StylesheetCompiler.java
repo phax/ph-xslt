@@ -1548,7 +1548,21 @@ public final class StylesheetCompiler
     }
     final IResourceResolver aResolver = m_aOptions.getResolver () != null ? m_aOptions.getResolver ()
                                                                          : new FileResourceResolver (m_aOptions.isLoadExternalEntities ());
-    final IXdmNode aDoc = aResolver.resolveDocument (sUri);
+    final IXdmNode aDoc;
+    try
+    {
+      aDoc = aResolver.resolveDocument (sUri);
+    }
+    catch (final XPathException ex)
+    {
+      // A resolver that fails (e.g. a JAXP URIResolver that refuses the URI):
+      // not retrievable either, with its reason
+      final XsltException aEx = XsltException.at (aEl,
+                                                  "XTSE0020",
+                                                  "The parameter document '" + sUri + "' cannot be retrieved: " + ex.getMessage ());
+      aEx.initCause (ex);
+      throw aEx;
+    }
     if (aDoc == null)
       throw XsltException.at (aEl, "XTSE0020", "The parameter document '" + sUri + "' cannot be retrieved");
     IXdmNode aRoot = null;
