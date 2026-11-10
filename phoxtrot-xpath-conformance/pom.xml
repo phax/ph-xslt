@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.helger.phoxtrot</groupId>
     <artifactId>phoxtrot-parent-pom</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1-SNAPSHOT</version>
   </parent>
   <artifactId>phoxtrot-xpath-conformance</artifactId>
   <packaging>jar</packaging>
