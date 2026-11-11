@@ -54,10 +54,10 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.bridge.XdmToDom;
 import com.helger.phoxtrot.xdm.bridge.XdmToSax;
+import com.helger.phoxtrot.xpath.EThreading;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
-import com.helger.phoxtrot.xslt.EXsltThreading;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltMessage;
 import com.helger.phoxtrot.xslt.XsltTransformRequest;
@@ -99,7 +99,7 @@ import com.helger.phoxtrot.xslt.XsltTransformResult;
  * templates, functions and optionally instructions of each transformation,
  * on the thread that runs it.</li>
  * <li>Threads: a transformation runs on the thread that
- * {@link #setThreading(EXsltThreading)} or the factory attribute
+ * {@link #setThreading(EThreading)} or the factory attribute
  * {@link PhoxtrotTransformerFactory#ATTR_THREADING} chooses (by default a new
  * thread with a large stack per call). An interrupt of the calling thread
  * ends the transformation with FOER0000 in every mode, and a transformation
@@ -186,7 +186,7 @@ public class PhoxtrotTransformer extends Transformer
   private ErrorListener m_aErrorListener;
   private IXsltMessageListener m_aMessageListener;
   private IXsltTraceListener m_aTraceListener;
-  private EXsltThreading m_eThreading;
+  private EThreading m_eThreading;
   private XsltTransformResult m_aLastResult;
 
   /**
@@ -271,20 +271,20 @@ public class PhoxtrotTransformer extends Transformer
    * @return The thread the transformations run on. Never <code>null</code>.
    */
   @NonNull
-  public final EXsltThreading getThreading ()
+  public final EThreading getThreading ()
   {
     return m_eThreading;
   }
 
   /**
    * Choose the thread the transformations of this transformer run on (see
-   * {@link EXsltThreading} and
-   * {@link XsltTransformRequest#setThreading(EXsltThreading)}).
+   * {@link EThreading} and
+   * {@link XsltTransformRequest#setThreading(EThreading)}).
    *
    * @param eThreading
    *        The threading mode. May not be <code>null</code>.
    */
-  public final void setThreading (@NonNull final EXsltThreading eThreading)
+  public final void setThreading (@NonNull final EThreading eThreading)
   {
     ValueEnforcer.notNull (eThreading, "Threading");
     m_eThreading = eThreading;

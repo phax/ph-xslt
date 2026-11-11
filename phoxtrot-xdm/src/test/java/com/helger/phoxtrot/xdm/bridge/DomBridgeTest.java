@@ -369,6 +369,101 @@ public final class DomBridgeTest
     assertEquals (new XdmQName ("urn:x", "a", "x"), aXParentless.getName ());
   }
 
+  /**
+   * Check that every node of an XDM tree built with a mapping maps back to a
+   * DOM node of the same kind, name and (start of the) value.
+   */
+  private static void _assertMappedBack (@NonNull final DomNodeMapping aMapping, @NonNull final IXdmNode aRoot)
+  {
+    final ArrayDeque <IXdmNode> aStack = new ArrayDeque <> ();
+    aStack.push (aRoot);
+    while (!aStack.isEmpty ())
+    {
+      final IXdmNode aCur = aStack.pop ();
+      final Node aDom = aMapping.getDomNode (aCur);
+      final String sWhat = aCur.getKind () + " " + aCur.getStringValue ();
+      assertNotNull (sWhat, aDom);
+      switch (aCur.getKind ())
+      {
+        case DOCUMENT -> assertEquals (Node.DOCUMENT_NODE, aDom.getNodeType ());
+        case ELEMENT ->
+        {
+          assertEquals (Node.ELEMENT_NODE, aDom.getNodeType ());
+          assertEquals (aCur.getName ().localName (), aDom.getLocalName ());
+        }
+        case ATTRIBUTE ->
+        {
+          assertEquals (Node.ATTRIBUTE_NODE, aDom.getNodeType ());
+          assertEquals (aCur.getName ().localName (), aDom.getLocalName ());
+          assertEquals (aCur.getValue (), aDom.getNodeValue ());
+        }
+        case TEXT ->
+        {
+          assertTrue (sWhat, aDom.getNodeType () == Node.TEXT_NODE || aDom.getNodeType () == Node.CDATA_SECTION_NODE);
+          // The first DOM node of a merged run
+          assertTrue (sWhat, aCur.getStringValue ().startsWith (aDom.getNodeValue ()));
+        }
+        case COMMENT ->
+        {
+          assertEquals (Node.COMMENT_NODE, aDom.getNodeType ());
+          assertEquals (aCur.getStringValue (), aDom.getNodeValue ());
+        }
+        case PROCESSING_INSTRUCTION -> assertEquals (Node.PROCESSING_INSTRUCTION_NODE, aDom.getNodeType ());
+        default -> fail (sWhat);
+      }
+      for (int i = 0; i < aCur.getAttributeCount (); ++i)
+        aStack.push (aCur.getAttributeAtIndex (i));
+      for (int i = aCur.getChildCount () - 1; i >= 0; --i)
+        aStack.push (aCur.getChildAtIndex (i));
+    }
+  }
+
+  @Test
+  public void testConvertWithMapping () throws Exception
+  {
+    for (final String sXml : DOCUMENTS)
+      for (final boolean bExpand : new boolean [] { true, false })
+      {
+        final Document aDom = _parseDom (sXml, true, bExpand);
+        final DomNodeMapping aMapping = DomToXdm.convertWithMapping (aDom, null);
+        assertEquals (ENodeKind.DOCUMENT, aMapping.getXdmNode ().getKind ());
+        assertSame (aDom, aMapping.getDomNode (aMapping.getXdmNode ()));
+        _assertMappedBack (aMapping, aMapping.getXdmNode ());
+      }
+
+    // Merged text: the first DOM node of the run
+    final Document aDom = _parseDom ("<r>x<![CDATA[c]]>y<!--c-->z<e a='1' xmlns:p='urn:p'/></r>", true, true);
+    final Element aR = aDom.getDocumentElement ();
+    final DomNodeMapping aMapping = DomToXdm.convertWithMapping (aR, null);
+    final IXdmNode aXR = aMapping.getXdmNode ();
+    assertSame (aR, aMapping.getDomNode (aXR));
+    assertEquals ("xcy", aXR.getChildAtIndex (0).getStringValue ());
+    assertSame (aR.getFirstChild (), aMapping.getDomNode (aXR.getChildAtIndex (0)));
+    assertSame (aR.getChildNodes ().item (3), aMapping.getDomNode (aXR.getChildAtIndex (1)));
+    assertSame (aR.getChildNodes ().item (4), aMapping.getDomNode (aXR.getChildAtIndex (2)));
+    final Element aE = (Element) aR.getLastChild ();
+    // The namespace declaration is no attribute
+    assertEquals (1, aXR.getChildAtIndex (3).getAttributeCount ());
+    assertSame (aE.getAttributeNode ("a"), aMapping.getDomNode (aXR.getChildAtIndex (3).getAttributeAtIndex (0)));
+    // document, r, 3 texts and comment, e, @a
+    assertEquals (7, aMapping.getMappedNodeCount ());
+    assertNull (aMapping.getDomNode (null));
+    assertNull (aMapping.getDomNode (DomToXdm.convert (aR, null)));
+
+    // A detached element: the document node has no DOM counterpart
+    final Element aDetached = aDom.createElementNS (null, "d");
+    aDetached.appendChild (aDom.createTextNode ("t"));
+    final DomNodeMapping aDetachedMapping = DomToXdm.convertWithMapping (aDetached, null);
+    assertSame (aDetached, aDetachedMapping.getDomNode (aDetachedMapping.getXdmNode ()));
+    assertNull (aDetachedMapping.getDomNode (aDetachedMapping.getXdmNode ().getParent ()));
+    assertSame (aDetached.getFirstChild (), aDetachedMapping.getDomNode (aDetachedMapping.getXdmNode ().getChildAtIndex (0)));
+
+    // A parentless attribute
+    final Attr aParentless = aDom.createAttributeNS (null, "p");
+    final DomNodeMapping aAttrMapping = DomToXdm.convertWithMapping (aParentless, null);
+    assertSame (aParentless, aAttrMapping.getDomNode (aAttrMapping.getXdmNode ()));
+  }
+
   @Test
   public void testParentlessDomSubtree () throws Exception
   {

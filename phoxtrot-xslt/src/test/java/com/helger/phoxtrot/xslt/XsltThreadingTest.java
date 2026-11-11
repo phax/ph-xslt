@@ -31,11 +31,12 @@ import java.util.concurrent.Future;
 import org.junit.Test;
 
 import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xpath.EThreading;
+import com.helger.phoxtrot.xpath.LargeStackRunner;
 import com.helger.phoxtrot.xpath.XPathException;
-import com.helger.phoxtrot.xslt.runtime.LargeStackRunner;
 
 /**
- * Test class for {@link EXsltThreading}: the thread each mode runs on, the
+ * Test class for {@link EThreading}: the thread each mode runs on, the
  * same results, errors and stack overflows in every mode, and the
  * interruption of the waiting caller.
  *
@@ -57,19 +58,19 @@ public final class XsltThreadingTest
   public void testThreadOfEachMode ()
   {
     final Thread aCaller = Thread.currentThread ();
-    final Thread aNew = LargeStackRunner.run (Thread::currentThread, "phoxtrot-test", EXsltThreading.NEW_THREAD);
+    final Thread aNew = LargeStackRunner.run (Thread::currentThread, "phoxtrot-test", EThreading.NEW_THREAD);
     assertNotSame (aCaller, aNew);
     assertEquals ("phoxtrot-test", aNew.getName ());
-    final Thread aPooled = LargeStackRunner.run (Thread::currentThread, "phoxtrot-test", EXsltThreading.THREAD_POOL);
+    final Thread aPooled = LargeStackRunner.run (Thread::currentThread, "phoxtrot-test", EThreading.THREAD_POOL);
     assertNotSame (aCaller, aPooled);
     assertTrue (aPooled.getName (), aPooled.getName ().startsWith ("phoxtrot-pool-"));
     assertTrue (aPooled.isDaemon ());
-    assertSame (aCaller, LargeStackRunner.run (Thread::currentThread, "phoxtrot-test", EXsltThreading.CALLING_THREAD));
+    assertSame (aCaller, LargeStackRunner.run (Thread::currentThread, "phoxtrot-test", EThreading.CALLING_THREAD));
 
     // A nested run stays on the worker thread, whatever its mode
-    for (final EXsltThreading eOuter : new EXsltThreading [] { EXsltThreading.NEW_THREAD,
-                                                               EXsltThreading.THREAD_POOL })
-      for (final EXsltThreading eInner : EXsltThreading.values ())
+    for (final EThreading eOuter : new EThreading [] { EThreading.NEW_THREAD,
+                                                               EThreading.THREAD_POOL })
+      for (final EThreading eInner : EThreading.values ())
       {
         final Thread [] aThreads = LargeStackRunner.run ( () -> new Thread [] { Thread.currentThread (),
                                                                                 LargeStackRunner.run (Thread::currentThread,
@@ -84,7 +85,7 @@ public final class XsltThreadingTest
   @Test
   public void testErrors ()
   {
-    for (final EXsltThreading eMode : EXsltThreading.values ())
+    for (final EThreading eMode : EThreading.values ())
     {
       // A runtime exception arrives unchanged
       final IllegalArgumentException aEx = new IllegalArgumentException ("test");
@@ -116,8 +117,8 @@ public final class XsltThreadingTest
   @Test
   public void testInterruptedCaller ()
   {
-    for (final EXsltThreading eMode : new EXsltThreading [] { EXsltThreading.NEW_THREAD,
-                                                              EXsltThreading.THREAD_POOL })
+    for (final EThreading eMode : new EThreading [] { EThreading.NEW_THREAD,
+                                                              EThreading.THREAD_POOL })
     {
       Thread.currentThread ().interrupt ();
       try
@@ -138,7 +139,7 @@ public final class XsltThreadingTest
   public void testTransformInEachMode () throws Exception
   {
     final IXdmNode aDoc = XsltTestHelper.parse ("<d><v>1</v><v>2</v><v>3</v></d>");
-    for (final EXsltThreading eMode : EXsltThreading.values ())
+    for (final EThreading eMode : EThreading.values ())
     {
       final XsltExecutable aExec = XsltCompiler.compile (SHEET, new XsltCompileOptions ().setThreading (eMode));
       final XsltTransformRequest aRequest = new XsltTransformRequest ().setGlobalContextItem (aDoc)
@@ -156,7 +157,7 @@ public final class XsltThreadingTest
     try
     {
       aDeep.transform (new XsltTransformRequest ().setGlobalContextItem (aDoc)
-                                                  .setThreading (EXsltThreading.CALLING_THREAD));
+                                                  .setThreading (EThreading.CALLING_THREAD));
       fail ();
     }
     catch (final XPathException ex)
@@ -176,7 +177,7 @@ public final class XsltThreadingTest
       final List <Future <String>> aResults = new ArrayList <> ();
       for (int i = 0; i < 400; ++i)
         aResults.add (aCallers.submit ( () -> aExec.transform (new XsltTransformRequest ().setGlobalContextItem (aDoc)
-                                                                                          .setThreading (EXsltThreading.THREAD_POOL))
+                                                                                          .setThreading (EThreading.THREAD_POOL))
                                                    .principalSerialized ()));
       for (final Future <String> aResult : aResults)
         assertTrue (aResult.get ().endsWith (">3</r>"));

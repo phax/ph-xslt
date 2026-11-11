@@ -74,8 +74,8 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParser;
+import com.helger.phoxtrot.xpath.EThreading;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
-import com.helger.phoxtrot.xslt.EXsltThreading;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
@@ -985,7 +985,7 @@ public final class PhoxtrotTransformerFactoryTest
     final ICommonsList <Thread> aCompileThreads = new CommonsArrayList <> ();
     final ICommonsList <Thread> aRunThreads = new CommonsArrayList <> ();
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
-    assertSame (EXsltThreading.DEFAULT, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
+    assertSame (EThreading.DEFAULT, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
     // The include is resolved on the compiling thread
     aTF.setURIResolver ( (sHref, sBase) -> {
       aCompileThreads.add (Thread.currentThread ());
@@ -994,9 +994,9 @@ public final class PhoxtrotTransformerFactoryTest
     aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MESSAGE_LISTENER,
                       (IXsltMessageListener) aMsg -> aRunThreads.add (Thread.currentThread ()));
     aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, "CALLING_THREAD");
-    assertSame (EXsltThreading.CALLING_THREAD, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
+    assertSame (EThreading.CALLING_THREAD, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
     final PhoxtrotTransformer aT = aTF.newTemplates (_mainWithInclude ()).newTransformer ();
-    assertSame (EXsltThreading.CALLING_THREAD, aT.getThreading ());
+    assertSame (EThreading.CALLING_THREAD, aT.getThreading ());
     _transform (aT, _source (SOURCE));
     assertEquals (1, aCompileThreads.size ());
     assertSame (aCaller, aCompileThreads.get (0));
@@ -1004,15 +1004,15 @@ public final class PhoxtrotTransformerFactoryTest
     assertSame (aCaller, aRunThreads.get (0));
 
     // The transformer's own choice, back to the factory's after reset
-    aT.setThreading (EXsltThreading.NEW_THREAD);
+    aT.setThreading (EThreading.NEW_THREAD);
     _transform (aT, _source (SOURCE));
     assertEquals (2, aRunThreads.size ());
     assertTrue (aRunThreads.get (1) != aCaller);
     aT.reset ();
-    assertSame (EXsltThreading.CALLING_THREAD, aT.getThreading ());
+    assertSame (EThreading.CALLING_THREAD, aT.getThreading ());
 
     // Compilation on another thread
-    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, EXsltThreading.THREAD_POOL);
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, EThreading.THREAD_POOL);
     aTF.newTemplates (_mainWithInclude ());
     assertEquals (2, aCompileThreads.size ());
     assertTrue (aCompileThreads.get (1) != aCaller);
@@ -1027,7 +1027,7 @@ public final class PhoxtrotTransformerFactoryTest
       {
         // expected
       }
-    assertSame (EXsltThreading.THREAD_POOL, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
+    assertSame (EThreading.THREAD_POOL, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
   }
 
   @Test
@@ -1059,7 +1059,7 @@ public final class PhoxtrotTransformerFactoryTest
                                            nIterations +
                                            "'><xsl:message>m</xsl:message></xsl:iterate><r/></xsl:template>" +
                                            XSL_END);
-    for (final EXsltThreading eMode : EXsltThreading.values ())
+    for (final EThreading eMode : EThreading.values ())
     {
       final Thread aCaller = Thread.currentThread ();
       final AtomicInteger aCount = new AtomicInteger ();

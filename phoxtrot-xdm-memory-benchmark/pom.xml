@@ -22,7 +22,7 @@
   <!-- Standalone on purpose: not part of the phoxtrot reactor build -->
   <groupId>com.helger.phoxtrot</groupId>
   <artifactId>phoxtrot-xdm-memory-benchmark</artifactId>
-  <version>0.1.1-SNAPSHOT</version>
+  <version>0.2.0-SNAPSHOT</version>
   <packaging>jar</packaging>
   <name>phoxtrot-xdm-memory-benchmark</name>
   <description>Compares the retained heap of phoxtrot XdmNode, ph-xml MicroDOM and Saxon TinyTree</description>
@@ -34,7 +34,7 @@
     <dependency>
       <groupId>com.helger.phoxtrot</groupId>
       <artifactId>phoxtrot-xdm</artifactId>
-      <version>0.1.1-SNAPSHOT</version>
+      <version>0.2.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>com.helger.commons</groupId>

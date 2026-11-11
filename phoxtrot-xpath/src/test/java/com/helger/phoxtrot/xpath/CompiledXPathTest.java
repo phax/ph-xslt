@@ -18,11 +18,13 @@ package com.helger.phoxtrot.xpath;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.math.BigDecimal;
 
 import org.junit.Test;
 
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.ast.IExpr;
 import com.helger.phoxtrot.xpath.ast.NodeTest;
@@ -59,6 +61,24 @@ public final class CompiledXPathTest
     assertEquals (2, aResult.size ());
     assertEquals ("1.234,5", Atomizer.getStringValue (aResult.get (0)));
     assertEquals ("urn:p", Atomizer.getStringValue (aResult.get (1)));
+  }
+
+  @Test
+  public void testFreeVariables ()
+  {
+    final StaticContext aSC = new StaticContext ();
+    for (final String s : new String [] { "a", "b", "c", "x", "unused" })
+      aSC.declareVariable (new XdmQName (s));
+    final CompiledXPath aXPath = XPathCompiler.compile ("for $x in $a return $x + $b, $x, let $c := 1 return $c, " +
+                                                        "function ($b) { $b }, some $y in $c satisfies $y, " +
+                                                        "let $x := $x, $z := $x return $z",
+                                                        aSC);
+    assertEquals (new CommonsArrayList <> (new XdmQName ("a"), new XdmQName ("b"), new XdmQName ("x"), new XdmQName ("c")),
+                  new CommonsArrayList <> (aXPath.getFreeVariables ()));
+    // A copy each time
+    aXPath.getFreeVariables ().clear ();
+    assertEquals (4, aXPath.getFreeVariables ().size ());
+    assertTrue (XPathCompiler.compile ("for $i in 1 to 3 return $i", aSC).getFreeVariables ().isEmpty ());
   }
 
   @Test

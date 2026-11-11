@@ -30,8 +30,8 @@ import com.helger.phoxtrot.xdm.IXdmItem;
  * <p>
  * The methods are called synchronously on the thread that runs the
  * transformation: normally the large-stack worker thread of
- * {@link com.helger.phoxtrot.xslt.runtime.LargeStackRunner}, not the thread
- * that called <code>transform</code> (see {@link EXsltThreading}). A listener
+ * {@link com.helger.phoxtrot.xpath.LargeStackRunner}, not the thread
+ * that called <code>transform</code> (see {@link com.helger.phoxtrot.xpath.EThreading}). A listener
  * is used by one transformation at a time unless the implementation is
  * thread-safe. A runtime exception thrown by a method ends the transformation
  * and reaches the caller of <code>transform</code>; an exception thrown by an

@@ -27,6 +27,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xpath.EThreading;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 
@@ -133,7 +134,7 @@ public final class XsltCompileOptions
   private boolean m_bStreamingClaim = DEFAULT_STREAMING_CLAIM;
   private boolean m_bBackwardsCompatibleClaim = DEFAULT_BACKWARDS_COMPATIBLE_CLAIM;
   private final ICommonsList <HostSchema> m_aHostSchemas = new CommonsArrayList <> ();
-  private EXsltThreading m_eThreading = EXsltThreading.DEFAULT;
+  private EThreading m_eThreading = EThreading.DEFAULT;
 
   /** @return The stylesheet's own URI, against which import/include hrefs resolve. */
   @Nullable
@@ -353,16 +354,16 @@ public final class XsltCompileOptions
 
   /**
    * @return The thread the compilation runs on. Default
-   *         {@link EXsltThreading#DEFAULT}.
+   *         {@link EThreading#DEFAULT}.
    */
   @NonNull
-  public EXsltThreading getThreading ()
+  public EThreading getThreading ()
   {
     return m_eThreading;
   }
 
   /**
-   * Choose the thread the compilation runs on (see {@link EXsltThreading}):
+   * Choose the thread the compilation runs on (see {@link EThreading}):
    * a new thread with a large stack per call (the default), a thread of a
    * shared pool, or the calling thread, which then needs a stack deep enough
    * for the nesting of the stylesheet.
@@ -372,7 +373,7 @@ public final class XsltCompileOptions
    * @return this for chaining
    */
   @NonNull
-  public XsltCompileOptions setThreading (@NonNull final EXsltThreading eThreading)
+  public XsltCompileOptions setThreading (@NonNull final EThreading eThreading)
   {
     ValueEnforcer.notNull (eThreading, "Threading");
     m_eThreading = eThreading;

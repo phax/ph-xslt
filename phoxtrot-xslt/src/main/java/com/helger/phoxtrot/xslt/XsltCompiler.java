@@ -27,8 +27,8 @@ import com.helger.base.io.nonblocking.NonBlockingStringReader;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParseException;
 import com.helger.phoxtrot.xdm.XdmParser;
+import com.helger.phoxtrot.xpath.LargeStackRunner;
 import com.helger.phoxtrot.xslt.compile.StylesheetCompiler;
-import com.helger.phoxtrot.xslt.runtime.LargeStackRunner;
 
 /**
  * Entry point: compile an XSLT 3.0 stylesheet (or package). Owner: XSLT core

@@ -24,6 +24,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xslt.tree.XslNode;
 
@@ -32,16 +33,39 @@ import com.helger.phoxtrot.xslt.tree.XslNode;
  * XTDE0640) and, where known, the stylesheet location of the instruction it
  * was raised in. An error that ends a transformation also carries the
  * messages the transformation produced until then
- * ({@link #getCollectedMessages()}).
+ * ({@link #getCollectedMessages()}), and an error raised in the body of an
+ * <code>xsl:function</code> names that function ({@link #getFunctionFrame()}).
  *
  * @author Philip Helger
  */
 public class XsltException extends XPathException
 {
+  /**
+   * The <code>xsl:function</code> an error was raised in: its name, arity and
+   * the location of its declaration.
+   *
+   * @param name
+   *        The function name.
+   * @param arity
+   *        The number of parameters.
+   * @param moduleUri
+   *        The URI of the module that declares it, may be <code>null</code>.
+   * @param line
+   *        1-based line of the <code>xsl:function</code> element, 0 if
+   *        unknown.
+   * @param column
+   *        1-based column of the <code>xsl:function</code> element, 0 if
+   *        unknown.
+   */
+  public record FunctionFrame (@NonNull XdmQName name, int arity, @Nullable String moduleUri, int line, int column)
+  {}
+
   private final String m_sModuleUri;
   private final int m_nLine;
   private final int m_nColumn;
   private final ICommonsList <XsltMessage> m_aCollectedMessages = new CommonsArrayList <> ();
+  // The innermost xsl:function the error was raised in, set once
+  private FunctionFrame m_aFunctionFrame;
 
   /**
    * Create an error with an explicit location.
@@ -72,7 +96,8 @@ public class XsltException extends XPathException
   /**
    * Wrap an XPath error with the stylesheet location of the instruction it was
    * raised in. Error code (as QName), description and error object are kept,
-   * and so are the collected messages of an {@link XsltException}.
+   * and so are the collected messages and the function frame of an
+   * {@link XsltException}.
    *
    * @param aCause
    *        The original error.
@@ -94,7 +119,10 @@ public class XsltException extends XPathException
     m_nLine = nLine;
     m_nColumn = nColumn;
     if (aCause instanceof final XsltException aXCause)
+    {
       m_aCollectedMessages.addAll (aXCause.m_aCollectedMessages);
+      m_aFunctionFrame = aXCause.m_aFunctionFrame;
+    }
   }
 
   /**
@@ -179,6 +207,40 @@ public class XsltException extends XPathException
   public final ICommonsList <XsltMessage> getCollectedMessages ()
   {
     return m_aCollectedMessages.getClone ();
+  }
+
+  /**
+   * @return The innermost <code>xsl:function</code> whose body raised this
+   *         error (also when the error is reported at the location of the
+   *         calling instruction), or <code>null</code> if it was not raised
+   *         in a stylesheet function.
+   */
+  @Nullable
+  public final FunctionFrame getFunctionFrame ()
+  {
+    return m_aFunctionFrame;
+  }
+
+  /**
+   * Attach the <code>xsl:function</code> whose body raised an error, unless
+   * an inner function is already attached. A plain {@link XPathException} is
+   * wrapped in an unlocated {@link XsltException} (code, description, error
+   * object and cause kept), so that the calling instruction still adds its
+   * location. Called by the engine; not meant to be called by users.
+   *
+   * @param aEx
+   *        The error.
+   * @param aFrame
+   *        The function.
+   * @return The error with the frame (possibly the same object).
+   */
+  @NonNull
+  public static XsltException withFunctionFrame (@NonNull final XPathException aEx, @NonNull final FunctionFrame aFrame)
+  {
+    final XsltException ret = aEx instanceof final XsltException aXEx ? aXEx : new XsltException (aEx, null, 0, 0);
+    if (ret.m_aFunctionFrame == null)
+      ret.m_aFunctionFrame = aFrame;
+    return ret;
   }
 
   /**

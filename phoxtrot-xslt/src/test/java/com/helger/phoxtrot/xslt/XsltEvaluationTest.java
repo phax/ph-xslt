@@ -18,6 +18,7 @@ package com.helger.phoxtrot.xslt;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -102,6 +103,76 @@ public final class XsltEvaluationTest
     catch (final XPathException ex)
     {
       assertEquals ("XPST0017", ex.getCode ());
+    }
+  }
+
+  @Test
+  public void testFunctionsWithGlobalsAndKeys ()
+  {
+    // As a Schematron schema with xsl:function elements compiles them: a module with the functions, the keys and the
+    // global variables they use
+    final XsltExecutable aSheet = _compile ("<xsl:key name='k' match='item' use='@id'/>" +
+                                            "<xsl:variable name='factor' select='10'/>" +
+                                            "<xsl:function name='f:scaled' as='xs:integer'><xsl:param name='id' as='xs:string'/>" +
+                                            "<xsl:sequence select='xs:integer(key(\"k\", $id, $doc)) * $factor'/></xsl:function>" +
+                                            "<xsl:variable name='doc' select='/'/>");
+    final XsltEvaluation aEval = _evaluation (aSheet);
+    assertEquals ("20", _eval (aSheet, "f:scaled('b')", aEval));
+    assertEquals ("10 30", _eval (aSheet, "('a', 'c') ! f:scaled(.)", aEval));
+  }
+
+  @Test
+  public void testFunctionFrameOfError ()
+  {
+    final XsltExecutable aSheet = _compile ("<xsl:function name='f:inner' as='xs:integer'><xsl:param name='n' as='xs:integer'/>" +
+                                            "<xsl:sequence select='1 idiv $n'/></xsl:function>" +
+                                            "<xsl:function name='f:outer' as='xs:integer'><xsl:param name='n' as='xs:integer'/>" +
+                                            "<xsl:sequence select='f:inner($n)'/></xsl:function>");
+    final XsltEvaluation aEval = _evaluation (aSheet);
+    assertEquals ("1", _eval (aSheet, "f:outer(1)", aEval));
+    try
+    {
+      _eval (aSheet, "f:outer(0)", aEval);
+      fail ();
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("FOAR0001", ex.getCode ());
+      final XsltException aXEx = (XsltException) ex;
+      final XsltException.FunctionFrame aFrame = aXEx.getFunctionFrame ();
+      assertNotNull (aFrame);
+      // The innermost function
+      assertEquals (new XdmQName ("urn:f", "inner"), aFrame.name ());
+      assertEquals (1, aFrame.arity ());
+      assertTrue (aFrame.line () > 0);
+    }
+    // An error outside of any function has no frame
+    try
+    {
+      _eval (aSheet, "1 idiv 0", aEval);
+      fail ();
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("FOAR0001", ex.getCode ());
+      assertFalse (ex instanceof final XsltException aXEx && aXEx.getFunctionFrame () != null);
+    }
+  }
+
+  @Test
+  public void testFunctionLibraryIsFrozen ()
+  {
+    final XsltExecutable aSheet = _compile ("<xsl:function name='f:one' as='xs:integer'><xsl:sequence select='1'/></xsl:function>");
+    final StaticContext aSC = aSheet.createStaticContext ();
+    assertTrue (aSC.getFunctionLibrary ().isFrozen ());
+    try
+    {
+      aSC.getFunctionLibrary ().register ("urn:x", "x", "() as xs:integer", (aCtx, aArgs) -> XdmSequence.EMPTY);
+      fail ();
+    }
+    catch (final IllegalStateException ex)
+    {
+      // expected
     }
   }
 

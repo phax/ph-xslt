@@ -89,6 +89,46 @@ read.
 [docs/SCHEMA.md](docs/SCHEMA.md) explains how the provider is selected, what the JDK validator cannot provide, and why
 Xerces-J is only the fallback next to the native validator.
 
+## XPath API
+
+Plain XPath 3.1 without XSLT (e.g. a Schematron binding that evaluates rule by rule) uses `phoxtrot-xpath` directly:
+
+```java
+StaticContext aSC = new StaticContext ();
+aSC.declareNamespace ("cbc", "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2");
+aSC.declareVariable (new XdmQName ("limit"));
+SeqType aDouble = SeqType.of (ItemType.atomic (EAtomicType.DOUBLE), EOccurrence.ONE);
+aSC.setFunctionLibrary (FunctionLibrary.getDefault ().createChild ()
+                                       .register (new XdmQName ("urn:ext", "twice"), List.of (aDouble), aDouble,
+                                                  (aCtx, aArgs) -> ...));
+CompiledXPath aXPath = XPathCompiler.compile ("count(//cbc:ID) le $limit", aSC);  // immutable, thread-safe
+
+DynamicContext aCtx = aXPath.createDynamicContext ().withFocus (aDocNode, 1, 1)
+                            .withVariable (new XdmQName ("limit"), XdmSequence.of (XdmAtomic.integer (10)));
+aCtx.setMaxSteps (1_000_000);                      // optional, XPDY0130 when exceeded
+Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEffectiveBooleanValue (aCtx)),
+                                       "my-xpath", EThreading.THREAD_POOL);
+```
+
+* Source compatible within 0.x (changes only with a note in "News and noteworthy"): in `com.helger.phoxtrot.xpath`
+  `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading` and `LargeStackRunner`; `StaticContext`,
+  `DynamicContext` and `IResourceResolver` (`context`); `FunctionLibrary` and `IXPathFunction` (`fn`); `SeqType`,
+  `ItemType` and `EOccurrence` (`ast`); the value types of `value`, `XPathOperators` (`eval`) and the node model of
+  `phoxtrot-xdm`. Everything else in `ast` (expression nodes), `eval`, `parser`, `ops`, `pattern` and `stream` is
+  internal.
+* Extension functions: `FunctionLibrary.register` with the signature as text (`"(xs:string?) as xs:integer"`) or as
+  `SeqType`s; the arguments are converted by the XPath 3.1 function conversion rules before the call (see
+  `IXPathFunction`). A compiled stylesheet's library is frozen; register into a `createChild ()`.
+* `CompiledXPath.getFreeVariables ()`: the variables of the static context an expression uses, to bind only these.
+* Limits: `DynamicContext.setMaxSteps` (loop iterations and function calls, unlimited by default), the function call
+  depth (10,000) and `LargeStackRunner` for a thread with a large stack.
+* Errors: `XPathException` with code, description and error object; a static error has its position in the
+  expression (`getExpressionOffset`, `getExpressionLine`, `getExpressionColumn`). An error raised in an
+  `xsl:function` is an `XsltException` naming the function (`getFunctionFrame`).
+* Stylesheet functions without Java code: compile a module with the `xsl:function`s (and the keys and global variables
+  they use) and compile the expressions against `XsltExecutable.createStaticContext ()`, evaluated with the dynamic
+  context of `XsltExecutable.createEvaluation (request).createDynamicContext ()`.
+
 ## JAXP (`javax.xml.transform`)
 
 `com.helger.phoxtrot.xslt.jaxp.PhoxtrotTransformerFactory` is a JAXP `TransformerFactory` for XSLT 3.0 (`Templates`
@@ -123,7 +163,7 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
   `PhoxtrotTransformerFactory.ATTR_TRACE_LISTENER`) follows the template rules, named templates, stylesheet functions
   and optionally instructions of each transformation; the same listener as `XsltTransformRequest.setTraceListener`.
 * Threads: compilations and transformations run on the thread the factory attribute
-  `PhoxtrotTransformerFactory.ATTR_THREADING` chooses (an `EXsltThreading` or its name; default `NEW_THREAD`, a new
+  `PhoxtrotTransformerFactory.ATTR_THREADING` chooses (an `EThreading` or its name; default `NEW_THREAD`, a new
   thread with a large stack per call; also `THREAD_POOL` and `CALLING_THREAD`), a transformer can override it with
   `PhoxtrotTransformer.setThreading`.
 * What the `URIResolver` does not resolve is read directly if `XMLConstants.ACCESS_EXTERNAL_STYLESHEET` allows the
@@ -147,7 +187,8 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
 `com.helger.phoxtrot.xdm.bridge` converts between W3C DOM and the phoxtrot tree without serialising:
 `DomToXdm.convertDocument (aNode, sSystemId)` builds the tree of a DOM (namespace fixup for DOMs built with
 `createElementNS`, DOM level 1 names, entity references expanded, ID attributes, unparsed entities, the document URI)
-and `DomToXdm.convert` returns the counterpart of a given DOM node in it; `XdmToDom.toDocument`,
+and `DomToXdm.convert` returns the counterpart of a given DOM node in it; `DomToXdm.convertWithMapping` also keeps
+the way back from every XDM node to its DOM node (`DomNodeMapping.getDomNode`); `XdmToDom.toDocument`,
 `toDocumentFragment` and `appendTo` write a tree, a subtree or a parentless node into a DOM with correct namespace
 declarations; `XdmToSax.emit` writes a tree as SAX events.
 
@@ -159,7 +200,7 @@ basis of this project. See [NOTICE](NOTICE).
 
 # News and noteworthy
 
-v0.1.1 - work in progress
+v0.2.0 - work in progress
 * Added `PhoxtrotVersion` with the version number and build timestamp of phoxtrot
 * Updated to ph-commons 12.6.0 and replaced own helpers with its new ones (code points, XML whitespace and name
   characters, hex output, primitive `int` collections)
@@ -190,6 +231,18 @@ v0.1.1 - work in progress
   `getLoopFocus`
 * XPath: `//name` from the document node and a child step from a node with many children reuse one sequence of the
   name index per run instead of copying it on every step; new `AxisNavigator.getNamedIndexList`
+* API change: `EXsltThreading` is now `com.helger.phoxtrot.xpath.EThreading` and `LargeStackRunner` moved to
+  `com.helger.phoxtrot.xpath` (module `phoxtrot-xpath`), so plain XPath evaluations can use the large-stack threads
+* XPath: added a step limit for plain XPath (`DynamicContext.setMaxSteps`, XPDY0130 when exceeded, unlimited by
+  default)
+* XPath: added `CompiledXPath.getFreeVariables` (the variables of the static context an expression uses)
+* XPath: a static error now has its position in the expression (`XPathException.getExpressionOffset`,
+  `getExpressionLine`, `getExpressionColumn`)
+* XPath: added `FunctionLibrary.register (XdmQName, List, SeqType, IXPathFunction)` for extension functions with typed
+  signatures; the argument conversion is documented in `IXPathFunction`
+* XPath: the public API of `phoxtrot-xpath` is listed in the README and the package documentation
+* XSLT: an error raised in the body of an `xsl:function` names that function (`XsltException.getFunctionFrame`)
+* DOM bridge: added `DomToXdm.convertWithMapping`, which keeps the DOM node of every XDM node (`DomNodeMapping`)
 
 v0.1.0 - 2026-11-10
 * Initial release

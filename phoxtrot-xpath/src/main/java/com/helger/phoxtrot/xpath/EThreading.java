@@ -14,20 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.helger.phoxtrot.xslt;
+package com.helger.phoxtrot.xpath;
 
 /**
- * The thread a compilation or transformation runs on. Template recursion
- * follows the input, and the depth limits (10,000 nested templates or
- * functions) must be reachable without overflowing the Java stack, so by
- * default each call gets a new thread with a stack of
- * {@link com.helger.phoxtrot.xslt.runtime.LargeStackRunner#STACK_SIZE}. In
- * every mode a stack overflow becomes XPDY0130, and a call made on one of the
- * large-stack threads (a nested <code>fn:transform</code>) runs in place.
+ * The thread a compilation, transformation or XPath evaluation runs on (see
+ * {@link LargeStackRunner}). Template and function recursion follows the
+ * input, and the depth limits (10,000 nested templates or functions) must be
+ * reachable without overflowing the Java stack, so by default each call gets a
+ * new thread with a stack of {@link LargeStackRunner#STACK_SIZE}. In every
+ * mode a stack overflow becomes XPDY0130, and a call made on one of the
+ * large-stack threads (e.g. a nested <code>fn:transform</code>) runs in place.
  *
  * @author Philip Helger
  */
-public enum EXsltThreading
+public enum EThreading
 {
   /**
    * A new daemon thread with a large stack per call, which the calling thread
@@ -50,11 +50,12 @@ public enum EXsltThreading
    * KB to 2 MB, <code>-Xss</code>), deep recursion in the stylesheet or the
    * input fails with XPDY0130 long before the depth limits are reached; use a
    * thread with a larger stack for such stylesheets. An interrupt of the
-   * calling thread does not stop the run, use
-   * {@link XsltTransformRequest#setInterrupt(java.util.function.BooleanSupplier)}.
+   * calling thread does not stop the run, use the interrupt hook of the run
+   * (<code>XsltTransformRequest.setInterrupt</code>,
+   * {@link com.helger.phoxtrot.xpath.context.DynamicContext#setInterrupt(java.util.function.BooleanSupplier)}).
    */
   CALLING_THREAD;
 
-  /** The default for compilations and transformations. */
-  public static final EXsltThreading DEFAULT = NEW_THREAD;
+  /** The default for compilations, transformations and XPath evaluations. */
+  public static final EThreading DEFAULT = NEW_THREAD;
 }

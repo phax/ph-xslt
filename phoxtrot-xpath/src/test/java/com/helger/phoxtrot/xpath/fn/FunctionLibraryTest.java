@@ -24,10 +24,23 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.util.List;
+
+import org.jspecify.annotations.NonNull;
 import org.junit.Test;
 
 import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xpath.XPathCompiler;
+import com.helger.phoxtrot.xpath.XPathException;
+import com.helger.phoxtrot.xpath.ast.EOccurrence;
+import com.helger.phoxtrot.xpath.ast.ItemType;
+import com.helger.phoxtrot.xpath.ast.SeqType;
+import com.helger.phoxtrot.xpath.context.DynamicContext;
+import com.helger.phoxtrot.xpath.context.StaticContext;
+import com.helger.phoxtrot.xpath.ops.Atomizer;
+import com.helger.phoxtrot.xpath.value.EAtomicType;
+import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 
 /**
@@ -125,6 +138,51 @@ public final class FunctionLibraryTest
     // A library of createDefault stays writable
     FunctionLibrary.createDefault ().hide (FN_CONCAT, 2);
     assertTrue (aDefault.isFrozen ());
+  }
+
+  @NonNull
+  private static String _evalExt (@NonNull final FunctionLibrary aLib, @NonNull final String sExpr)
+  {
+    final StaticContext aSC = new StaticContext ().setFunctionLibrary (aLib).declareNamespace ("ext", "urn:ext");
+    return Atomizer.getStringValue (XPathCompiler.compile (sExpr, aSC).evaluate (new DynamicContext (aSC)).get (0));
+  }
+
+  @NonNull
+  private static String _evalExtError (@NonNull final FunctionLibrary aLib, @NonNull final String sExpr)
+  {
+    try
+    {
+      _evalExt (aLib, sExpr);
+      fail (sExpr);
+      return null;
+    }
+    catch (final XPathException ex)
+    {
+      return ex.getCode ();
+    }
+  }
+
+  @Test
+  public void testTypedRegistration ()
+  {
+    final SeqType aDouble = SeqType.of (ItemType.atomic (EAtomicType.DOUBLE), EOccurrence.ONE);
+    final FunctionLibrary aLib = FunctionLibrary.getDefault ().createChild ();
+    aLib.register (new XdmQName ("urn:ext", "twice"),
+                   List.of (aDouble),
+                   aDouble,
+                   (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.dbl (((XdmAtomic) aArgs.get (0).get (0)).getAsDouble () * 2)));
+    final FunctionLibrary.FunctionDef aDef = aLib.getFunction (new XdmQName ("urn:ext", "twice"), 1);
+    assertNotNull (aDef);
+    assertFalse (aDef.isFocusDependent ());
+    // Numeric promotion, untyped value cast, atomisation of a node without type
+    assertEquals ("4", _evalExt (aLib, "ext:twice(2)"));
+    assertEquals ("7", _evalExt (aLib, "ext:twice(xs:untypedAtomic('3.5'))"));
+    assertEquals ("10", _evalExt (aLib, "ext:twice(parse-xml('<a>5</a>')/a)"));
+    // Wrong type, wrong cardinality, untyped value that is no number
+    assertEquals ("XPTY0004", _evalExtError (aLib, "ext:twice('3')"));
+    assertEquals ("XPTY0004", _evalExtError (aLib, "ext:twice((1, 2))"));
+    assertEquals ("XPTY0004", _evalExtError (aLib, "ext:twice(())"));
+    assertEquals ("FORG0001", _evalExtError (aLib, "ext:twice(xs:untypedAtomic('x'))"));
   }
 
   @Test

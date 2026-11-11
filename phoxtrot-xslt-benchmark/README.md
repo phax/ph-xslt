@@ -115,7 +115,7 @@ jfr print --events jdk.ExecutionSample --stack-depth 256 target/xslt-keys.jfr > 
 
 `hot-methods` gives the self time (top frame); for inclusive shares aggregate the stacks of `jfr print`. Stylesheets are
 compiled on a thread `phoxtrot-compile` and transformations run on a thread `phoxtrot-transform` (a new one per
-transformation, the default `EXsltThreading.NEW_THREAD`; `phoxtrot-pool-<n>` in the `pool` case of `small`), not on
+transformation, the default `EThreading.NEW_THREAD`; `phoxtrot-pool-<n>` in the `pool` case of `small`), not on
 `main`: include these threads when filtering samples. In the baseline JFR took almost no
 samples of the streamed transformation (71 in 12 seconds); the cause was not analysed.
 

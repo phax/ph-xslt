@@ -30,6 +30,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xpath.EThreading;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 import com.helger.phoxtrot.xslt.runtime.Engine;
@@ -78,7 +79,7 @@ public final class XsltTransformRequest
   private boolean m_bRawDelivery;
   private boolean m_bSourceStreamed;
   private String m_sStreamedSourceUri;
-  private EXsltThreading m_eThreading = EXsltThreading.DEFAULT;
+  private EThreading m_eThreading = EThreading.DEFAULT;
 
   /** @return The global context item (normally the source document node). */
   @Nullable
@@ -534,17 +535,17 @@ public final class XsltTransformRequest
 
   /**
    * @return The thread the transformation runs on. Default
-   *         {@link EXsltThreading#DEFAULT}.
+   *         {@link EThreading#DEFAULT}.
    */
   @NonNull
-  public EXsltThreading getThreading ()
+  public EThreading getThreading ()
   {
     return m_eThreading;
   }
 
   /**
    * Choose the thread the transformation runs on (see
-   * {@link EXsltThreading}): a new thread with a large stack per call (the
+   * {@link EThreading}): a new thread with a large stack per call (the
    * default), a thread of a shared pool, which saves the thread start of
    * many small transformations, or the calling thread, which saves the
    * thread change as well but must have a stack deep enough for the template
@@ -556,7 +557,7 @@ public final class XsltTransformRequest
    * @return this for chaining
    */
   @NonNull
-  public XsltTransformRequest setThreading (@NonNull final EXsltThreading eThreading)
+  public XsltTransformRequest setThreading (@NonNull final EThreading eThreading)
   {
     ValueEnforcer.notNull (eThreading, "Threading");
     m_eThreading = eThreading;

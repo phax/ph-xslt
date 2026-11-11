@@ -17,13 +17,18 @@
 package com.helger.phoxtrot.xpath.ast;
 
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.function.Predicate;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.collection.commons.CommonsHashSet;
+import com.helger.collection.commons.CommonsLinkedHashSet;
+import com.helger.collection.commons.ICommonsOrderedSet;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XdmQName;
@@ -603,6 +608,101 @@ public final class ExprWalker
       if (aCur instanceof final IExpr.VarRefExpr aVar)
         ret.add (aVar.name ());
       _pushChildren (aCur, aStack);
+    }
+    return ret;
+  }
+
+  /**
+   * The local variables in scope of a subexpression, innermost first: a
+   * persistent list shared by the subexpressions of one scope.
+   */
+  private record LocalScope (@NonNull XdmQName name, @Nullable LocalScope next)
+  {
+    static boolean contains (@Nullable final LocalScope aScope, @NonNull final XdmQName aName)
+    {
+      for (LocalScope aCur = aScope; aCur != null; aCur = aCur.next ())
+        if (aCur.name ().equals (aName))
+          return true;
+      return false;
+    }
+  }
+
+  /** A subexpression still to visit, with the local variables in its scope. */
+  private record ScopedExpr (@NonNull IExpr expr, @Nullable LocalScope scope)
+  {}
+
+  /**
+   * Push the binding expressions of a <code>for</code>, <code>let</code> or
+   * quantified expression, each with the variables of the bindings before it
+   * in scope, and its body with all of them, so that the bindings are popped
+   * first and in order.
+   */
+  private static void _pushBindings (@NonNull final List <IExpr.Binding> aBindings,
+                                     @NonNull final IExpr aBody,
+                                     @Nullable final LocalScope aOuter,
+                                     @NonNull final ArrayDeque <ScopedExpr> aStack)
+  {
+    final LocalScope [] aScopes = new LocalScope [aBindings.size () + 1];
+    aScopes[0] = aOuter;
+    for (int i = 0; i < aBindings.size (); ++i)
+      aScopes[i + 1] = new LocalScope (aBindings.get (i).name (), aScopes[i]);
+    aStack.push (new ScopedExpr (aBody, aScopes[aBindings.size ()]));
+    for (int i = aBindings.size () - 1; i >= 0; --i)
+      aStack.push (new ScopedExpr (aBindings.get (i).expr (), aScopes[i]));
+  }
+
+  /**
+   * The free variables of an expression: the names of the variables it
+   * references that it does not bind itself, i.e. that refer to the
+   * variables of the static context. A variable bound by
+   * <code>for</code>, <code>let</code>, <code>some</code>/<code>every</code>
+   * or as parameter of an inline function is local in the expressions in its
+   * scope (the return or satisfies expression and the following bindings,
+   * the function body); a reference outside that scope, or to the same name
+   * before it is bound, is free. Walks the tree iteratively.
+   *
+   * @param aExpr
+   *        The expression.
+   * @return The free variable names in the order of their first reference.
+   *         Never <code>null</code>.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public static ICommonsOrderedSet <XdmQName> getFreeVariables (@NonNull final IExpr aExpr)
+  {
+    final ICommonsOrderedSet <XdmQName> ret = new CommonsLinkedHashSet <> ();
+    final ArrayDeque <ScopedExpr> aStack = new ArrayDeque <> ();
+    final ArrayDeque <IExpr> aChildren = new ArrayDeque <> ();
+    aStack.push (new ScopedExpr (aExpr, null));
+    while (!aStack.isEmpty ())
+    {
+      final ScopedExpr aCur = aStack.pop ();
+      final LocalScope aScope = aCur.scope ();
+      switch (aCur.expr ())
+      {
+        case final IExpr.VarRefExpr e ->
+        {
+          if (!LocalScope.contains (aScope, e.name ()))
+            ret.add (e.name ());
+        }
+        case final IExpr.ForExpr e -> _pushBindings (e.bindings (), e.body (), aScope, aStack);
+        case final IExpr.LetExpr e -> _pushBindings (e.bindings (), e.body (), aScope, aStack);
+        case final IExpr.QuantifiedExpr e -> _pushBindings (e.bindings (), e.satisfies (), aScope, aStack);
+        case final IExpr.InlineFunctionExpr e ->
+        {
+          LocalScope aInner = aScope;
+          for (final IExpr.Param aParam : e.params ())
+            aInner = new LocalScope (aParam.name (), aInner);
+          aStack.push (new ScopedExpr (e.body (), aInner));
+        }
+        default ->
+        {
+          // Moved over from the end, so that they are popped in the same order as from the stack _pushChildren filled
+          _pushChildren (aCur.expr (), aChildren);
+          while (!aChildren.isEmpty ())
+            aStack.push (new ScopedExpr (aChildren.pollLast (), aScope));
+        }
+      }
     }
     return ret;
   }

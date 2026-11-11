@@ -46,9 +46,9 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.ENodeKind;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParser;
+import com.helger.phoxtrot.xpath.EThreading;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.fn.FnUri;
-import com.helger.phoxtrot.xslt.EXsltThreading;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
@@ -175,14 +175,14 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
    */
   public static final String ATTR_MAX_STEPS = ATTR_PREFIX + "max-steps";
   /**
-   * Attribute ({@link EXsltThreading} or the name of one of its constants):
+   * Attribute ({@link EThreading} or the name of one of its constants):
    * the thread that compilations ({@link #newTemplates(Source)}) and the
    * transformations of the transformers run on (default
-   * {@link EXsltThreading#DEFAULT}, see
-   * {@link XsltCompileOptions#setThreading(EXsltThreading)} and
-   * {@link com.helger.phoxtrot.xslt.XsltTransformRequest#setThreading(EXsltThreading)}).
+   * {@link EThreading#DEFAULT}, see
+   * {@link XsltCompileOptions#setThreading(EThreading)} and
+   * {@link com.helger.phoxtrot.xslt.XsltTransformRequest#setThreading(EThreading)}).
    * A transformer can choose its own with
-   * {@link PhoxtrotTransformer#setThreading(EXsltThreading)}.
+   * {@link PhoxtrotTransformer#setThreading(EThreading)}.
    */
   public static final String ATTR_THREADING = ATTR_PREFIX + "threading";
   /** The default of the external access attributes: all schemes. */
@@ -212,7 +212,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   private IXsltMessageListener m_aMessageListener;
   private IXsltTraceListener m_aTraceListener;
   private long m_nMaxSteps = 0;
-  private EXsltThreading m_eThreading = EXsltThreading.DEFAULT;
+  private EThreading m_eThreading = EThreading.DEFAULT;
 
   /** Create a factory with the default settings. */
   public PhoxtrotTransformerFactory ()
@@ -519,21 +519,21 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   }
 
   /**
-   * @return The value as a threading mode: an {@link EXsltThreading}, or the
+   * @return The value as a threading mode: an {@link EThreading}, or the
    *         exact name of one of its constants (e.g. "CALLING_THREAD").
    * @throws IllegalArgumentException
    *         for anything else, <code>null</code> included
    */
   @NonNull
-  private static EXsltThreading _toThreading (@NonNull final String sName, @Nullable final Object aValue)
+  private static EThreading _toThreading (@NonNull final String sName, @Nullable final Object aValue)
   {
-    if (aValue instanceof final EXsltThreading eThreading)
+    if (aValue instanceof final EThreading eThreading)
       return eThreading;
     if (aValue instanceof final String sValue)
-      for (final EXsltThreading eThreading : EXsltThreading.values ())
+      for (final EThreading eThreading : EThreading.values ())
         if (eThreading.name ().equals (sValue))
           return eThreading;
-    throw new IllegalArgumentException ("The attribute '" + sName + "' needs an EXsltThreading value, not " + aValue);
+    throw new IllegalArgumentException ("The attribute '" + sName + "' needs an EThreading value, not " + aValue);
   }
 
   /**

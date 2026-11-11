@@ -65,6 +65,8 @@ public final class DynamicContext
     private BooleanSupplier m_aInterrupt = null;
     private final ICommonsMap <String, Object> m_aCache = new CommonsHashMap <> ();
     private int m_nCallDepth = 0;
+    private long m_nSteps = 0;
+    private long m_nMaxSteps = UNLIMITED_STEPS;
     private Object m_aHost = null;
     private ICommonsOrderedMap <String, String> m_aEnvironmentVariables = new CommonsLinkedHashMap <> ();
     private String m_sDefaultLanguage = DEFAULT_LANGUAGE;
@@ -81,6 +83,9 @@ public final class DynamicContext
 
   /** Maximum depth of nested function calls before XPDY0130 is raised. */
   public static final int MAX_CALL_DEPTH = 10_000;
+
+  /** The value of {@link #setMaxSteps(long)} for "no step limit", the default. */
+  public static final long UNLIMITED_STEPS = Long.MAX_VALUE;
 
   private final StaticContext m_aStatic;
   private final RunState m_aRun;
@@ -494,20 +499,79 @@ public final class DynamicContext
   }
 
   /**
-   * Called by the evaluator in loops and calls.
+   * @return The step limit of the run (see {@link #setMaxSteps(long)}),
+   *         {@link #UNLIMITED_STEPS} by default.
+   */
+  public long getMaxSteps ()
+  {
+    return m_aRun.m_nMaxSteps;
+  }
+
+  /**
+   * Limit the steps of the run, shared by every context derived from this one.
+   * A step is one call of {@link #checkInterrupt()} (an iteration of a loop of
+   * the evaluator or of a higher-order function) or of {@link #enterCall()} (a
+   * function call), so the limit bounds the work of an expression that loops or
+   * recurses without end. The step that exceeds the limit fails with XPDY0130.
+   * An XSLT transformation has its own step limit
+   * (<code>XsltTransformRequest.setMaxSteps</code>) and leaves this one
+   * unlimited.
+   *
+   * @param nMaxSteps
+   *        The maximum number of steps; {@link #UNLIMITED_STEPS} (the
+   *        default) for no limit, a value of 0 or below allows no step at all.
+   */
+  public void setMaxSteps (final long nMaxSteps)
+  {
+    m_aRun.m_nMaxSteps = nMaxSteps;
+  }
+
+  /**
+   * @return The number of steps of the run so far (see
+   *         {@link #setMaxSteps(long)}).
+   */
+  public long getStepCount ()
+  {
+    return m_aRun.m_nSteps;
+  }
+
+  /**
+   * Count one step of the run.
    *
    * @throws XPathException
-   *         FOER0000 if the interrupt hook asked for cancellation.
+   *         XPDY0130 if the step limit is exceeded.
+   */
+  private void _countStep ()
+  {
+    final RunState aRun = m_aRun;
+    if (++aRun.m_nSteps > aRun.m_nMaxSteps)
+      throw new XPathException ("XPDY0130", "The step limit of " + aRun.m_nMaxSteps + " was exceeded");
+  }
+
+  /**
+   * Called by the evaluator in loops and calls. Counts one step (see
+   * {@link #setMaxSteps(long)}).
+   *
+   * @throws XPathException
+   *         FOER0000 if the interrupt hook asked for cancellation, XPDY0130 if
+   *         the step limit is exceeded.
    */
   public void checkInterrupt ()
   {
+    _countStep ();
     if (m_aRun.m_aInterrupt != null && m_aRun.m_aInterrupt.getAsBoolean ())
       throw new XPathException ("FOER0000", "Evaluation was cancelled");
   }
 
-  /** Enter a function call. @throws XPathException XPDY0130 when too deep. */
+  /**
+   * Enter a function call. Counts one step (see {@link #setMaxSteps(long)}).
+   *
+   * @throws XPathException
+   *         XPDY0130 when too deep or when the step limit is exceeded.
+   */
   public void enterCall ()
   {
+    _countStep ();
     if (++m_aRun.m_nCallDepth > MAX_CALL_DEPTH)
       throw new XPathException ("XPDY0130", "Function call nesting is too deep");
   }

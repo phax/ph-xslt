@@ -38,6 +38,7 @@ import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
+import com.helger.phoxtrot.xslt.XsltException.FunctionFrame;
 import com.helger.phoxtrot.xslt.XsltTraceFunction;
 import com.helger.phoxtrot.xslt.instr.SequenceConstructor;
 import com.helger.phoxtrot.xslt.runtime.SequenceOutput;
@@ -209,6 +210,13 @@ public final class UserFunction implements IXPathFunction
     }
   }
 
+  /** @return The frame of this function for its errors (see {@link XsltException#getFunctionFrame()}). */
+  @NonNull
+  private FunctionFrame _getFunctionFrame ()
+  {
+    return new FunctionFrame (m_aName, getArity (), m_aElement.getModule ().getUri (), m_aElement.getLine (), m_aElement.getColumn ());
+  }
+
   /**
    * Run the body: in a context without focus and without local variables
    * (global variables stay visible), with the state reduced for a function
@@ -244,6 +252,10 @@ public final class UserFunction implements IXPathFunction
         m_aBody.execute (aCtx, aOut);
       else
         _executeTraced (aCtx, aOut, aTrace);
+    }
+    catch (final XPathException ex)
+    {
+      throw XsltException.withFunctionFrame (ex, _getFunctionFrame ());
     }
     finally
     {

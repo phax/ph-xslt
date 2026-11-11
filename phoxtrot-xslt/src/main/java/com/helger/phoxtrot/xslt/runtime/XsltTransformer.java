@@ -34,6 +34,7 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParseException;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
+import com.helger.phoxtrot.xpath.LargeStackRunner;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
 import com.helger.phoxtrot.xpath.serialize.SerializationParams;

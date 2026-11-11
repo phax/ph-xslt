@@ -40,9 +40,12 @@ import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.base.wrapper.Wrapper;
 import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
+import com.helger.phoxtrot.xdm.ENodeKind;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmTreeBuilder;
@@ -94,6 +97,60 @@ public final class DomToXdm
     String getQName ()
     {
       return prefix.isEmpty () ? local : prefix + ":" + local;
+    }
+  }
+
+  /**
+   * Records the DOM node of each XDM node the builder creates
+   * ({@link DomToXdm#convertWithMapping(Node, String)}). The builder appends
+   * buffered character data only at the next element, comment, processing
+   * instruction or end event, merged into one text node, so the first DOM text
+   * node of such a run is kept until then.
+   */
+  private static final class NodeRecorder
+  {
+    private final ICommonsMap <IXdmNode, Node> m_aMap = new CommonsHashMap <> ();
+    // The first DOM text node of the character data not appended yet
+    private Node m_aPendingText;
+    // Where the pending text will be appended: the current node and its child count before the event
+    private IXdmNode m_aFlushParent;
+    private int m_nFlushIndex;
+
+    void put (@NonNull final IXdmNode aXdmNode, @NonNull final Node aDomNode)
+    {
+      m_aMap.put (aXdmNode, aDomNode);
+    }
+
+    void text (@NonNull final Node aDomNode, final int nLength)
+    {
+      if (m_aPendingText == null && nLength > 0)
+        m_aPendingText = aDomNode;
+    }
+
+    /** Before a builder event that appends pending character data. */
+    void beforeFlush (@NonNull final XdmTreeBuilder aBuilder)
+    {
+      if (m_aPendingText != null)
+      {
+        m_aFlushParent = aBuilder.getCurrentNode ();
+        m_nFlushIndex = m_aFlushParent.getChildCount ();
+      }
+    }
+
+    /** After that event: the text node it appended, if any, is the child at the remembered index. */
+    void afterFlush ()
+    {
+      if (m_aPendingText != null)
+      {
+        if (m_aFlushParent.getChildCount () > m_nFlushIndex)
+        {
+          final IXdmNode aChild = m_aFlushParent.getChildAtIndex (m_nFlushIndex);
+          if (aChild.getKind () == ENodeKind.TEXT)
+            m_aMap.put (aChild, m_aPendingText);
+        }
+        m_aPendingText = null;
+        m_aFlushParent = null;
+      }
     }
   }
 
@@ -301,6 +358,26 @@ public final class DomToXdm
   }
 
   /**
+   * Record an element just started and its attributes: the builder adds the
+   * attributes in the order of the DOM attributes that are no namespace
+   * declarations (see {@link #_startElement(Element, NamespaceScope, XdmTreeBuilder)}).
+   */
+  private static void _recordElement (@NonNull final Element aElement,
+                                      @NonNull final IXdmNode aXdmElement,
+                                      @NonNull final NodeRecorder aRecorder)
+  {
+    aRecorder.put (aXdmElement, aElement);
+    final NamedNodeMap aAttrs = aElement.getAttributes ();
+    int nIndex = 0;
+    for (int i = 0; i < aAttrs.getLength (); ++i)
+    {
+      final Node aAttr = aAttrs.item (i);
+      if (!_isNamespaceDecl (aAttr) && nIndex < aXdmElement.getAttributeCount ())
+        aRecorder.put (aXdmElement.getAttributeAtIndex (nIndex++), aAttr);
+    }
+  }
+
+  /**
    * Walk the DOM nodes and feed them into the builder, inside a document that is started and ended
    * here. The walk is iterative.
    *
@@ -319,7 +396,8 @@ public final class DomToXdm
   private static IXdmNode _build (@NonNull final ICommonsList <Node> aTopNodes,
                                   @Nullable final String sSystemId,
                                   @Nullable final Node aTarget,
-                                  @NonNull final Wrapper <IXdmNode> aTargetOut)
+                                  @NonNull final Wrapper <IXdmNode> aTargetOut,
+                                  @Nullable final NodeRecorder aRecorder)
   {
     // A DOM has no locations to record
     final XdmTreeBuilder aBuilder = new XdmTreeBuilder (false);
@@ -339,9 +417,13 @@ public final class DomToXdm
       {
         if (aNode.getNodeType () == Node.ELEMENT_NODE)
         {
+          if (aRecorder != null)
+            aRecorder.beforeFlush (aBuilder);
           aBuilder.endElement (_nonNull (aNode.getNamespaceURI ()),
                                _nonNull (aNode.getLocalName ()),
                                aNode.getNodeName ());
+          if (aRecorder != null)
+            aRecorder.afterFlush ();
           aScope.popFrame ();
         }
         else
@@ -352,7 +434,14 @@ public final class DomToXdm
       {
         case Node.ELEMENT_NODE:
         {
+          if (aRecorder != null)
+            aRecorder.beforeFlush (aBuilder);
           _startElement ((Element) aNode, aScope, aBuilder);
+          if (aRecorder != null)
+          {
+            aRecorder.afterFlush ();
+            _recordElement ((Element) aNode, aBuilder.getCurrentNode (), aRecorder);
+          }
           if (aNode == aTarget)
             aTargetOut.set (aBuilder.getCurrentNode ());
           else
@@ -380,13 +469,24 @@ public final class DomToXdm
           if (aNode instanceof final Text aText && aText.isElementContentWhitespace ())
             aBuilder.ignorableWhitespace (aChars, 0, aChars.length);
           else
+          {
             aBuilder.characters (aChars, 0, aChars.length);
+            if (aRecorder != null)
+              aRecorder.text (aNode, aChars.length);
+          }
           break;
         }
         case Node.COMMENT_NODE:
         {
           final char [] aChars = _nonNull (aNode.getNodeValue ()).toCharArray ();
+          if (aRecorder != null)
+            aRecorder.beforeFlush (aBuilder);
           aBuilder.comment (aChars, 0, aChars.length);
+          if (aRecorder != null)
+          {
+            aRecorder.afterFlush ();
+            aRecorder.put (_getLastChild (aBuilder.getCurrentNode ()), aNode);
+          }
           if (aNode == aTarget)
             aTargetOut.set (_getLastChild (aBuilder.getCurrentNode ()));
           break;
@@ -394,7 +494,14 @@ public final class DomToXdm
         case Node.PROCESSING_INSTRUCTION_NODE:
         {
           final ProcessingInstruction aPI = (ProcessingInstruction) aNode;
+          if (aRecorder != null)
+            aRecorder.beforeFlush (aBuilder);
           aBuilder.processingInstruction (aPI.getTarget (), _nonNull (aPI.getData ()));
+          if (aRecorder != null)
+          {
+            aRecorder.afterFlush ();
+            aRecorder.put (_getLastChild (aBuilder.getCurrentNode ()), aNode);
+          }
           if (aNode == aTarget)
             aTargetOut.set (_getLastChild (aBuilder.getCurrentNode ()));
           break;
@@ -417,8 +524,25 @@ public final class DomToXdm
           break;
       }
     }
+    if (aRecorder != null)
+      aRecorder.beforeFlush (aBuilder);
     aBuilder.endDocument ();
+    if (aRecorder != null)
+      aRecorder.afterFlush ();
     return aBuilder.getDocument ();
+  }
+
+  /**
+   * @return The top of the DOM tree a node belongs to: its document or document fragment, or the
+   *         outermost ancestor of a subtree without one (for an attribute, of its owner element).
+   */
+  @NonNull
+  private static Node _getTop (@NonNull final Node aNode)
+  {
+    Node ret = aNode instanceof final Attr aAttr && aAttr.getOwnerElement () != null ? aAttr.getOwnerElement () : aNode;
+    while (ret.getParentNode () != null)
+      ret = ret.getParentNode ();
+    return ret;
   }
 
   /**
@@ -431,10 +555,7 @@ public final class DomToXdm
   @NonNull
   private static ICommonsList <Node> _getTopNodes (@NonNull final Node aNode)
   {
-    Node aTop = aNode instanceof final Attr aAttr && aAttr.getOwnerElement () != null ? aAttr.getOwnerElement ()
-                                                                                      : aNode;
-    while (aTop.getParentNode () != null)
-      aTop = aTop.getParentNode ();
+    final Node aTop = _getTop (aNode);
     final ICommonsList <Node> ret = new CommonsArrayList <> ();
     if (aTop.getNodeType () == Node.DOCUMENT_NODE || aTop.getNodeType () == Node.DOCUMENT_FRAGMENT_NODE)
     {
@@ -477,7 +598,50 @@ public final class DomToXdm
   public static IXdmNode convertDocument (@NonNull final Node aNode, @Nullable final String sSystemId)
   {
     ValueEnforcer.notNull (aNode, "Node");
-    return _build (_getTopNodes (aNode), _getSystemId (aNode, sSystemId), null, new Wrapper <> ());
+    return _build (_getTopNodes (aNode), _getSystemId (aNode, sSystemId), null, new Wrapper <> (), null);
+  }
+
+  /**
+   * The implementation of {@link #convert(Node, String)}, recording the DOM node of each XDM node
+   * if a recorder is given.
+   */
+  @NonNull
+  private static IXdmNode _convert (@NonNull final Node aNode,
+                                    @Nullable final String sSystemId,
+                                    @Nullable final NodeRecorder aRecorder)
+  {
+    final short nType = aNode.getNodeType ();
+    if (nType == Node.ATTRIBUTE_NODE && ((Attr) aNode).getOwnerElement () == null)
+    {
+      final Attr aAttr = (Attr) aNode;
+      final String sLocal = aAttr.getLocalName () != null ? aAttr.getLocalName () : aAttr.getNodeName ();
+      final IXdmNode ret = IXdmNode.createAttribute (new XdmQName (_nonNull (aAttr.getNamespaceURI ()),
+                                                                   sLocal,
+                                                                   _nonNull (aAttr.getPrefix ())), _nonNull (aAttr.getValue ()));
+      if (aRecorder != null)
+        aRecorder.put (ret, aAttr);
+      return ret;
+    }
+    if (nType != Node.DOCUMENT_NODE &&
+        nType != Node.DOCUMENT_FRAGMENT_NODE &&
+        nType != Node.ELEMENT_NODE &&
+        nType != Node.ATTRIBUTE_NODE &&
+        nType != Node.COMMENT_NODE &&
+        nType != Node.PROCESSING_INSTRUCTION_NODE)
+      throw new IllegalArgumentException ("No single XDM node corresponds to the DOM node of type " + nType);
+    final Wrapper <IXdmNode> aTargetOut = new Wrapper <> ();
+    final IXdmNode aDoc = _build (_getTopNodes (aNode), _getSystemId (aNode, sSystemId), aNode, aTargetOut, aRecorder);
+    if (aRecorder != null)
+    {
+      final Node aTop = _getTop (aNode);
+      if (aTop.getNodeType () == Node.DOCUMENT_NODE || aTop.getNodeType () == Node.DOCUMENT_FRAGMENT_NODE)
+        aRecorder.put (aDoc, aTop);
+    }
+    if (nType == Node.DOCUMENT_NODE || nType == Node.DOCUMENT_FRAGMENT_NODE)
+      return aDoc;
+    if (aTargetOut.get () == null)
+      throw new IllegalStateException ("The XDM counterpart of the DOM node was not found");
+    return aTargetOut.get ();
   }
 
   /**
@@ -501,28 +665,31 @@ public final class DomToXdm
   public static IXdmNode convert (@NonNull final Node aNode, @Nullable final String sSystemId)
   {
     ValueEnforcer.notNull (aNode, "Node");
-    final short nType = aNode.getNodeType ();
-    if (nType == Node.ATTRIBUTE_NODE && ((Attr) aNode).getOwnerElement () == null)
-    {
-      final Attr aAttr = (Attr) aNode;
-      final String sLocal = aAttr.getLocalName () != null ? aAttr.getLocalName () : aAttr.getNodeName ();
-      return IXdmNode.createAttribute (new XdmQName (_nonNull (aAttr.getNamespaceURI ()),
-                                                     sLocal,
-                                                     _nonNull (aAttr.getPrefix ())), _nonNull (aAttr.getValue ()));
-    }
-    if (nType != Node.DOCUMENT_NODE &&
-        nType != Node.DOCUMENT_FRAGMENT_NODE &&
-        nType != Node.ELEMENT_NODE &&
-        nType != Node.ATTRIBUTE_NODE &&
-        nType != Node.COMMENT_NODE &&
-        nType != Node.PROCESSING_INSTRUCTION_NODE)
-      throw new IllegalArgumentException ("No single XDM node corresponds to the DOM node of type " + nType);
-    final Wrapper <IXdmNode> aTargetOut = new Wrapper <> ();
-    final IXdmNode aDoc = _build (_getTopNodes (aNode), _getSystemId (aNode, sSystemId), aNode, aTargetOut);
-    if (nType == Node.DOCUMENT_NODE || nType == Node.DOCUMENT_FRAGMENT_NODE)
-      return aDoc;
-    if (aTargetOut.get () == null)
-      throw new IllegalStateException ("The XDM counterpart of the DOM node was not found");
-    return aTargetOut.get ();
+    return _convert (aNode, sSystemId, null);
+  }
+
+  /**
+   * Convert like {@link #convert(Node, String)} and also keep, for every node of the built XDM
+   * tree, the DOM node it was built from (see {@link DomNodeMapping}), e.g. to report the nodes an
+   * XPath expression selects as nodes of the DOM the caller owns. Costs one map entry per node.
+   *
+   * @param aNode
+   *        A document, document fragment, element, attribute, comment or processing instruction.
+   *        May not be <code>null</code>.
+   * @param sSystemId
+   *        The document URI of the result, or <code>null</code> to take the
+   *        <code>documentURI</code> of the DOM document.
+   * @return The XDM counterpart of the node together with the mapping back. Never
+   *         <code>null</code>.
+   * @throws IllegalArgumentException
+   *         as for {@link #convert(Node, String)}
+   */
+  @NonNull
+  public static DomNodeMapping convertWithMapping (@NonNull final Node aNode, @Nullable final String sSystemId)
+  {
+    ValueEnforcer.notNull (aNode, "Node");
+    final NodeRecorder aRecorder = new NodeRecorder ();
+    final IXdmNode aXdmNode = _convert (aNode, sSystemId, aRecorder);
+    return new DomNodeMapping (aXdmNode, aRecorder.m_aMap);
   }
 }

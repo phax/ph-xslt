@@ -25,7 +25,7 @@ import org.jspecify.annotations.NonNull;
  * The methods are called synchronously, in the order the messages are
  * produced, on the thread that runs the transformation: normally the
  * large-stack worker thread of
- * {@link com.helger.phoxtrot.xslt.runtime.LargeStackRunner}, not the thread
+ * {@link com.helger.phoxtrot.xpath.LargeStackRunner}, not the thread
  * that called <code>transform</code>. A listener is used by one
  * transformation at a time unless the implementation is thread-safe. A
  * runtime exception thrown by a method ends the transformation and reaches

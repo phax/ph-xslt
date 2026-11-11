@@ -295,7 +295,7 @@ final class XPathParserImpl
   @NonNull
   private XPathException _error (@NonNull final String sCode, @NonNull final String sMsg, @NonNull final XPathToken aTok)
   {
-    return XPathException.of (sCode, sMsg + _where (aTok));
+    return XPathException.of (sCode, sMsg + _where (aTok)).setExpressionPosition (m_sSrc, aTok.pos ());
   }
 
   /**
@@ -305,7 +305,7 @@ final class XPathParserImpl
   @NonNull
   private XPathException _syntax (@NonNull final String sMsg, @NonNull final XPathToken aTok)
   {
-    return XPathException.syntax (sMsg + _where (aTok));
+    return XPathException.syntax (sMsg + _where (aTok)).setExpressionPosition (m_sSrc, aTok.pos ());
   }
 
   /**

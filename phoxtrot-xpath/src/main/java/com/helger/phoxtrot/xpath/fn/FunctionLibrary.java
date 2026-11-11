@@ -430,6 +430,38 @@ public final class FunctionLibrary
   }
 
   /**
+   * Register an extension function by its name and its signature as types,
+   * the typed counterpart of {@link #register(String, String, String, IXPathFunction)}: the
+   * implementation does not read the focus, and the arguments are converted
+   * as {@link IXPathFunction} describes. Replaces a function with the same name
+   * and arity.
+   * <p>
+   * Example: <code>register (new XdmQName ("urn:ext", "twice"),
+   * List.of (SeqType.of (ItemType.atomic (EAtomicType.DOUBLE), EOccurrence.ONE)),
+   * SeqType.of (ItemType.atomic (EAtomicType.DOUBLE), EOccurrence.ONE),
+   * (aCtx, aArgs) -&gt; ...)</code>.
+   *
+   * @param aName
+   *        Expanded function name.
+   * @param aParamTypes
+   *        The parameter types; their number is the arity.
+   * @param aReturnType
+   *        The return type.
+   * @param aImpl
+   *        Implementation.
+   * @return this for chaining
+   * @see #registerParsed(XdmQName, List, SeqType, IXPathFunction, boolean)
+   */
+  @NonNull
+  public FunctionLibrary register (@NonNull final XdmQName aName,
+                                   @NonNull final List <SeqType> aParamTypes,
+                                   @NonNull final SeqType aReturnType,
+                                   @NonNull final IXPathFunction aImpl)
+  {
+    return registerParsed (aName, aParamTypes, aReturnType, aImpl, false);
+  }
+
+  /**
    * Register a function whose signature is already parsed, e.g. an XSLT stylesheet function whose
    * types use the namespaces of the stylesheet. Replaces a function with the same name and arity.
    *

@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xpath.parser;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -47,6 +48,66 @@ public final class XPathParserErrorTest
         assertEquals (sExpr + " -> " + ex.getMessage (), sCode, ex.getCode ());
       }
     }
+  }
+
+  @NonNull
+  private static XPathException _error (@NonNull final String sExpr)
+  {
+    try
+    {
+      XPathParser.parse (sExpr, ParserTestHelper.createContext ());
+      fail ("Expected an error for: " + sExpr);
+      return null;
+    }
+    catch (final XPathException ex)
+    {
+      return ex;
+    }
+  }
+
+  private static void _expectPosition (@NonNull final String sExpr,
+                                       @NonNull final String sCode,
+                                       final int nOffset,
+                                       final int nLine,
+                                       final int nColumn)
+  {
+    final XPathException ex = _error (sExpr);
+    assertEquals (sExpr, sCode, ex.getCode ());
+    assertTrue (ex.hasExpressionPosition ());
+    assertEquals (sExpr, nOffset, ex.getExpressionOffset ());
+    assertEquals (sExpr, nLine, ex.getExpressionLine ());
+    assertEquals (sExpr, nColumn, ex.getExpressionColumn ());
+  }
+
+  @Test
+  public void testErrorPosition ()
+  {
+    // Parser: unexpected token
+    _expectPosition ("1 + )", "XPST0003", 4, 1, 5);
+    _expectPosition ("1 +\n  )", "XPST0003", 6, 2, 3);
+    _expectPosition ("1 +\r\n\r\n )", "XPST0003", 8, 3, 2);
+    _expectPosition ("1 +\r)", "XPST0003", 4, 2, 1);
+    // Lexer: unterminated string literal
+    final XPathException aLex = _error ("1,\n 'abc");
+    assertEquals ("XPST0003", aLex.getCode ());
+    assertEquals (2, aLex.getExpressionLine ());
+    // Unknown variable (at the name after the '$') and function (at the name)
+    _expectPosition ("1 + $unknown", "XPST0008", 5, 1, 6);
+    _expectPosition ("count(1),\n  no-such-function(2)", "XPST0017", 12, 2, 3);
+  }
+
+  @Test
+  public void testNoPositionByDefault ()
+  {
+    final XPathException ex = new XPathException ("FOAR0001", "Division by zero");
+    assertFalse (ex.hasExpressionPosition ());
+    assertEquals (-1, ex.getExpressionOffset ());
+    assertEquals (-1, ex.getExpressionLine ());
+    assertEquals (-1, ex.getExpressionColumn ());
+    // The first position set is kept
+    ex.setExpressionPosition ("a\nb", 2).setExpressionPosition ("abc", 0);
+    assertEquals (2, ex.getExpressionLine ());
+    assertEquals (1, ex.getExpressionColumn ());
   }
 
   @Test

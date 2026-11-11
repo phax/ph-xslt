@@ -57,7 +57,8 @@ final class XPathLexer
   @NonNull
   private XPathException _error (@NonNull final String sMsg, final int nPos)
   {
-    return XPathException.syntax (sMsg + " at offset " + nPos + " in '" + XPathParserImpl.abbreviate (m_sSrc) + "'");
+    return XPathException.syntax (sMsg + " at offset " + nPos + " in '" + XPathParserImpl.abbreviate (m_sSrc) + "'")
+                         .setExpressionPosition (m_sSrc, nPos);
   }
 
   /**

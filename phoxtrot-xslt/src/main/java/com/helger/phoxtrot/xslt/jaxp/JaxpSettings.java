@@ -21,7 +21,7 @@ import javax.xml.transform.URIResolver;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-import com.helger.phoxtrot.xslt.EXsltThreading;
+import com.helger.phoxtrot.xpath.EThreading;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 
@@ -57,5 +57,5 @@ record JaxpSettings (@Nullable URIResolver uriResolver,
                      @Nullable IXsltMessageListener messageListener,
                      @Nullable IXsltTraceListener traceListener,
                      long maxSteps,
-                     @NonNull EXsltThreading threading)
+                     @NonNull EThreading threading)
 {}

@@ -19,6 +19,10 @@ package com.helger.phoxtrot.xpath;
 import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
+import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.collection.commons.ICommonsOrderedSet;
+import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xpath.ast.ExprWalker;
 import com.helger.phoxtrot.xpath.ast.IExpr;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 import com.helger.phoxtrot.xpath.context.StaticContext;
@@ -37,6 +41,8 @@ public final class CompiledXPath
   private final String m_sSource;
   private final StaticContext m_aStaticCtx;
   private final IExpr m_aExpr;
+  // The free variables, computed on first use
+  private volatile ICommonsOrderedSet <XdmQName> m_aFreeVariables;
 
   CompiledXPath (@NonNull final String sSource, @NonNull final StaticContext aStaticCtx, @NonNull final IExpr aExpr)
   {
@@ -61,6 +67,32 @@ public final class CompiledXPath
   public IExpr getExpression ()
   {
     return m_aExpr;
+  }
+
+  /**
+   * The variables of the static context the expression uses: the names it
+   * references that it does not bind itself (with <code>for</code>,
+   * <code>let</code>, <code>some</code>/<code>every</code> or as parameter of
+   * an inline function). A host that declares many variables on the static
+   * context (e.g. every <code>sch:let</code> of a Schematron schema) can bind
+   * only these on the dynamic context, or report the declared ones no
+   * expression uses. Computed on the first call.
+   *
+   * @return The free variable names in the order of their first reference.
+   *         Never <code>null</code>.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public ICommonsOrderedSet <XdmQName> getFreeVariables ()
+  {
+    ICommonsOrderedSet <XdmQName> ret = m_aFreeVariables;
+    if (ret == null)
+    {
+      // Concurrent first calls may each compute the same set
+      ret = ExprWalker.getFreeVariables (m_aExpr);
+      m_aFreeVariables = ret;
+    }
+    return ret.getClone ();
   }
 
   /** @return A fresh root dynamic context for this expression. */

@@ -39,6 +39,10 @@ public class XPathException extends RuntimeException
   private XdmQName m_aCodeName;
   private final String m_sDescription;
   private final XdmSequence m_aErrorObject;
+  // The position of a static error in the expression text, -1 if unknown
+  private int m_nExpressionOffset = -1;
+  private int m_nExpressionLine = -1;
+  private int m_nExpressionColumn = -1;
 
   /**
    * An error in the standard error namespace {@link #ERR_NAMESPACE}. The
@@ -141,6 +145,78 @@ public class XPathException extends RuntimeException
   public final XdmSequence getErrorObject ()
   {
     return m_aErrorObject;
+  }
+
+  /**
+   * @return The 0-based character offset of a static error in the expression
+   *         text (the token at which the parser raised it), or -1 if unknown,
+   *         e.g. for a dynamic error.
+   */
+  public final int getExpressionOffset ()
+  {
+    return m_nExpressionOffset;
+  }
+
+  /**
+   * @return The 1-based line of {@link #getExpressionOffset()} in the
+   *         expression text (lines end at LF, CR or CR LF), or -1 if unknown.
+   */
+  public final int getExpressionLine ()
+  {
+    return m_nExpressionLine;
+  }
+
+  /**
+   * @return The 1-based column of {@link #getExpressionOffset()} in its line,
+   *         counted in UTF-16 characters, or -1 if unknown.
+   */
+  public final int getExpressionColumn ()
+  {
+    return m_nExpressionColumn;
+  }
+
+  /**
+   * @return <code>true</code> if the position of the error in the expression
+   *         text is known (see {@link #getExpressionOffset()}).
+   */
+  public final boolean hasExpressionPosition ()
+  {
+    return m_nExpressionOffset >= 0;
+  }
+
+  /**
+   * Record where in the expression text a static error was raised, unless a
+   * position is already set. Called by the parser; line and column are
+   * computed from the text.
+   *
+   * @param sExpression
+   *        The expression text.
+   * @param nOffset
+   *        The 0-based character offset in it; clamped to the text.
+   * @return this for chaining
+   */
+  @NonNull
+  public final XPathException setExpressionPosition (@NonNull final String sExpression, final int nOffset)
+  {
+    if (m_nExpressionOffset < 0)
+    {
+      final int nEnd = Math.max (0, Math.min (nOffset, sExpression.length ()));
+      int nLine = 1;
+      int nLineStart = 0;
+      for (int i = 0; i < nEnd; ++i)
+      {
+        final char c = sExpression.charAt (i);
+        if (c == '\n' || (c == '\r' && (i + 1 >= sExpression.length () || sExpression.charAt (i + 1) != '\n')))
+        {
+          nLine++;
+          nLineStart = i + 1;
+        }
+      }
+      m_nExpressionOffset = nEnd;
+      m_nExpressionLine = nLine;
+      m_nExpressionColumn = nEnd - nLineStart + 1;
+    }
+    return this;
   }
 
   /** Static syntax error XPST0003. */

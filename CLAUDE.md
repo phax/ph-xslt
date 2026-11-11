@@ -61,10 +61,25 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   one shared string per document.
 - Use `hasDeclaredNamespaces ()`/`getDeclaredNamespaceUri (prefix)` where only a check or a lookup is needed:
   `getDeclaredNamespaces ()` returns a copy, also for an element without declarations.
-- Threads: `compile` and `transform` run on the thread `EXsltThreading` selects (`XsltCompileOptions.setThreading`,
-  `XsltTransformRequest.setThreading`; JAXP: factory attribute `ATTR_THREADING`, `PhoxtrotTransformer.setThreading`), through `LargeStackRunner`: by default a new thread with a 2 GB stack per call,
+- Threads: `compile` and `transform` run on the thread `EThreading` selects (`XsltCompileOptions.setThreading`,
+  `XsltTransformRequest.setThreading`; JAXP: factory attribute `ATTR_THREADING`, `PhoxtrotTransformer.setThreading`),
+  through `LargeStackRunner` (both in `phoxtrot-xpath`, package `com.helger.phoxtrot.xpath`, so plain XPath callers
+  use them too): by default a new thread with a 2 GB stack per call,
   or a shared pool of such threads, or the calling thread (its stack then limits the nesting). A call on one of the
-  worker threads (nested `fn:transform`) runs in place; a stack overflow is XPDY0130 in every mode.
+  worker threads (nested `fn:transform`) runs in place; a stack overflow is XPDY0130 in every mode. Plain XPath has
+  a run-wide step limit (`DynamicContext.setMaxSteps`, unlimited by default), counted in `checkInterrupt` and
+  `enterCall`; XSLT keeps its own (`ExecutionBudget`, `XsltTransformRequest.setMaxSteps`) and leaves this one
+  unlimited.
+- Public API of `phoxtrot-xpath` (source compatible within 0.x, listed in README "XPath API" and in
+  `com.helger.phoxtrot.xpath/package-info.java`): `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`,
+  `LargeStackRunner`, `StaticContext`, `DynamicContext`, `IResourceResolver`, `FunctionLibrary`, `IXPathFunction`,
+  `SeqType`, `ItemType`, `EOccurrence`, the `value` types and `XPathOperators`. A change to one of them goes into the
+  release notes; keep both lists in sync when the set changes.
+- Error positions: the parser and lexer set `XPathException.setExpressionPosition` (offset, line, column in the
+  expression) on every static error they raise through `_error`/`_syntax`/the lexer's error helper; a new static
+  error must go through them. `UserFunction._invoke` attaches the innermost `xsl:function` to errors of its body
+  (`XsltException.withFunctionFrame`; a plain `XPathException` is wrapped unlocated, so the caller still locates it,
+  and the wrapping constructor copies the frame).
 - Hosts that evaluate their own XPath against a stylesheet's declarations (Schematron) use
   `XsltExecutable.createStaticContext`/`createEvaluation`, never `Engine` directly; the start-up of a run lives in
   `XsltTransformer.initGlobalContextItem` and is shared by both. `CompiledXPath.evaluate` uses its own static context.
@@ -97,7 +112,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   the calling thread's interrupted state (sticky once the call ends interrupted), so a cancelled JAXP run on a worker
   thread stops too; compilation has no interrupt hook.
 - W3C DOM bridge (`phoxtrot-xdm`, package `com.helger.phoxtrot.xdm.bridge`): `DomToXdm` feeds the DOM into
-  `XdmTreeBuilder` as SAX events (numbered while built, shared names), `XdmToDom` and `XdmToSax` write trees with
+  `XdmTreeBuilder` as SAX events (numbered while built, shared names; `convertWithMapping` records the DOM node of
+  every XDM node in a `DomNodeMapping`, around the builder events that flush buffered text), `XdmToDom` and
+  `XdmToSax` write trees with
   namespace fixup (`NamespaceScope`). All three walk iteratively. The JDK DOM leaves entity reference nodes empty
   (`setExpandEntityReferences (false)`); tests that need their content use Xerces-J's DOM.
 - XML name characters (5th edition): only `XmlNames` (`phoxtrot-xdm`), whose checks delegate to ph-commons

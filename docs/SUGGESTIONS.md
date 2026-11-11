@@ -500,7 +500,22 @@ The JAXP adapter has three tests for resolution (`PhoxtrotTransformerFactoryTest
 
 ### S29 - API for a Schematron XPath binding (`ph-schematron-pure-xpath-phoxtrot`)
 
-Status: open.
+Status: done (2026-11-11), item 2 (b) moved to S33.
+1. The public API of `phoxtrot-xpath` is listed in the README ("XPath API") and in the `package-info` of
+   `com.helger.phoxtrot.xpath`, source compatible within 0.x.
+2. (a) `DomToXdm.convertWithMapping` returns a `DomNodeMapping` with the DOM node of every XDM node (a merged text node
+   maps to the first DOM text node of its run).
+3. No new API: a module with the `xsl:function`s is compiled with `XsltCompiler` and the expressions against
+   `XsltExecutable.createStaticContext`, evaluated with `createEvaluation` (functions see their global variables and
+   keys); documented and tested (`XsltEvaluationTest`).
+4. `FunctionLibrary.register (XdmQName, List <SeqType>, SeqType, IXPathFunction)`; the conversion rules are in the
+   Javadoc of `IXPathFunction`.
+5. `DynamicContext.setMaxSteps` (counted in `checkInterrupt` and `enterCall`, unlimited by default);
+   `LargeStackRunner` and `EThreading` (renamed from `EXsltThreading`) moved to `com.helger.phoxtrot.xpath`.
+6. `CompiledXPath.getFreeVariables` (`ExprWalker.getFreeVariables`, scoped).
+7. Static errors: `XPathException.getExpressionOffset`/`Line`/`Column`; errors in an `xsl:function`:
+   `XsltException.getFunctionFrame` (innermost function). Dynamic errors have no position in the expression (the AST
+   keeps none).
 
 ph-schematron 11 splits its pure engine (Schematron evaluated rule by rule with XPath, no XSLT) into a core and one
 XPath binding per processor. The Saxon binding (`ph-schematron-pure-xpath-saxon`) uses s9api: `XPathCompiler`,
@@ -588,3 +603,14 @@ below `AxisNavigator.collectNamedChildren`, but only one element of the invoice 
 called about a thousand times per validation; after S30 and S31 it is 0.1 % of the samples. Taken as an attribution
 artefact of the profile.
 
+## Suggestions deferred from S29 (2026-11-11)
+
+### S33 - Read-only DOM view over an XDM tree
+
+Status: open.
+
+S29 item 2 (b): for input that is parsed with `XdmParser` (or streamed), a pure Schematron engine that reports
+`org.w3c.dom.Node`s would need a DOM without building one: a read-only implementation of `Node`, `Document`,
+`Element`, `Attr`, `Text`, `Comment`, `ProcessingInstruction`, `NodeList` and `NamedNodeMap` over `IXdmNode` (like
+Saxon's `NodeOverNodeInfo`), every mutating method throwing `DOMException.NO_MODIFICATION_ALLOWED_ERR`. Not needed for
+DOM input, which `DomToXdm.convertWithMapping` covers.

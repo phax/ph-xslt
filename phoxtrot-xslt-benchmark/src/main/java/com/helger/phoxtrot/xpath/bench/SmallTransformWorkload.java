@@ -73,7 +73,7 @@ public final class SmallTransformWorkload implements IWorkload
       case "calling" -> "CALLING_THREAD";
       default -> throw new IllegalArgumentException ("Unknown small transformation case '" + sCase + "'");
     };
-    final Class <?> aEnum = _findClass ("com.helger.phoxtrot.xslt.EXsltThreading");
+    final Class <?> aEnum = _findClass ("com.helger.phoxtrot.xpath.EThreading");
     if (aEnum == null)
     {
       m_aSetThreading = null;
