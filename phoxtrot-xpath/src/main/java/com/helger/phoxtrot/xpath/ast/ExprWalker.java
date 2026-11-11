@@ -26,8 +26,11 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.annotation.style.ReturnsMutableCopy;
+import com.helger.base.enforce.ValueEnforcer;
+import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.CommonsLinkedHashSet;
+import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedSet;
 import com.helger.collection.commons.ICommonsSet;
 import com.helger.phoxtrot.xdm.XdmConstants;
@@ -315,6 +318,28 @@ public final class ExprWalker
           aStack.push (e.key ());
       }
     }
+  }
+
+  /**
+   * Get the direct operand expressions of a node: the arguments of calls, the
+   * body of an inline function, the binding expressions and the body of
+   * <code>for</code>/<code>let</code>/quantified expressions, the start,
+   * predicates and postfix expressions of the steps of a path, and so on. The
+   * steps of a path are no expressions of their own and are not returned.
+   *
+   * @param aExpr
+   *        The expression. May not be <code>null</code>.
+   * @return The operands in an order that is stable but not necessarily the
+   *         order of the source text. Never <code>null</code>.
+   */
+  @NonNull
+  @ReturnsMutableCopy
+  public static ICommonsList <IExpr> getAllChildren (@NonNull final IExpr aExpr)
+  {
+    ValueEnforcer.notNull (aExpr, "Expr");
+    final ArrayDeque <IExpr> aChildren = new ArrayDeque <> ();
+    _pushChildren (aExpr, aChildren);
+    return new CommonsArrayList <> (aChildren);
   }
 
   /**

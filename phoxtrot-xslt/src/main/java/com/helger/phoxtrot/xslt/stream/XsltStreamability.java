@@ -257,50 +257,29 @@ public final class XsltStreamability
 
   /**
    * The usage that applies the function conversion rules to a value of the
-   * declared type (the type-adjusted posture and sweep of section 19.8.5): a
-   * type that converts nothing leaves posture and sweep untouched, which is
-   * transmission rather than the navigation of section 19.4.
+   * declared type (the type-adjusted posture and sweep of section 19.8.5).
    */
   @NonNull
   static EStreamUsage getAdjustUsage (@Nullable final SeqType aType)
   {
-    final EStreamUsage eUsage = getTypeUsage (aType);
-    if (eUsage == ABSORPTION || eUsage == INSPECTION)
-      return eUsage;
-    return TRANSMISSION;
+    return XPathStreamability.getTypeAdjustedUsage (aType);
   }
 
   /**
-   * Section 19.8.8.11: the declared type has a non-empty intersection with
-   * U{N}, so a streaming parameter of that type can carry a streamed node. An
-   * absent type (<code>item()*</code>) permits nodes.
+   * Section 19.8.8.11: the declared type can carry a streamed node.
    */
   static boolean isPermittingNodes (@Nullable final SeqType aType)
   {
-    if (aType == null)
-      return true;
-    if (aType.empty ())
-      return false;
-    return !_isKind (aType, ItemType.Kind.ATOMIC, ItemType.Kind.FUNCTION, ItemType.Kind.MAP, ItemType.Kind.ARRAY);
+    return XPathStreamability.isPermittingNodes (aType);
   }
 
   /**
    * Section 19.8.5.5: the declared type can include a document or an element
-   * node. A type this test cannot read answers <code>true</code>.
+   * node.
    */
   static boolean isAdmittingNodes (@Nullable final SeqType aType)
   {
-    if (!isPermittingNodes (aType))
-      return false;
-    if (aType != null && _isKind (aType, ItemType.Kind.NODE) && aType.itemType ().nodeTest () != null)
-      switch (aType.itemType ().nodeTest ().kind ())
-      {
-        case ATTRIBUTE, SCHEMA_ATTRIBUTE, TEXT, COMMENT, PROCESSING_INSTRUCTION, NAMESPACE_NODE:
-          return false;
-        default:
-          break;
-      }
-    return true;
+    return XPathStreamability.isAdmittingNodes (aType);
   }
 
   /**
@@ -572,16 +551,10 @@ public final class XsltStreamability
     final UserFunction aFunc = m_aFunctions.get (aName.getEQName () + "#" + nArity);
     if (aFunc == null)
       return null;
-    final EStreamFunctionCategory eCategory = _getFunctionCategory (aFunc);
-    final ICommonsList <EStreamUsage> aUsages = new CommonsArrayList <> ();
+    final ICommonsList <SeqType> aParamTypes = new CommonsArrayList <> ();
     for (final VariableDef aParam : aFunc.getParams ())
-      aUsages.add (getTypeUsage (aParam.getAs ()));
-    final SeqType aFirst = aFunc.getParams ().isEmpty () ? null : aFunc.getParams ().getFirst ().getAs ();
-    return new StreamFunctionSignature (eCategory,
-                                        aUsages,
-                                        getAdjustUsage (aFirst),
-                                        aFunc.getParams ().isNotEmpty () && isAdmittingNodes (aFirst),
-                                        eCategory != EStreamFunctionCategory.UNCLASSIFIED);
+      aParamTypes.add (aParam.getAs ());
+    return StreamFunctionSignature.createForParameterTypes (_getFunctionCategory (aFunc), aParamTypes);
   }
 
   /**

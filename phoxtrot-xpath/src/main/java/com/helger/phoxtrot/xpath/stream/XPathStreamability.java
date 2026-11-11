@@ -2640,6 +2640,81 @@ public final class XPathStreamability
   }
 
   /**
+   * @return <code>true</code> for a declared type with an item type (neither
+   *         absent nor <code>empty-sequence()</code>) whose kind is one of the
+   *         given kinds. The occurrence indicator is not looked at.
+   */
+  private static boolean _isKind (@Nullable final SeqType aType, final ItemType.@NonNull Kind... aKinds)
+  {
+    if (aType == null || aType.empty () || aType.itemType () == null)
+      return false;
+    for (final ItemType.Kind eKind : aKinds)
+      if (aType.itemType ().kind () == eKind)
+        return true;
+    return false;
+  }
+
+  /**
+   * The usage that applies the function conversion rules to a value of the
+   * declared type (the type-adjusted posture and sweep of section 19.8.5): a
+   * type that converts nothing leaves posture and sweep untouched, which is
+   * transmission rather than the navigation of section 19.4.
+   *
+   * @param aType
+   *        The declared type. <code>null</code> stands for an absent type.
+   * @return The usage. Never <code>null</code>.
+   */
+  @NonNull
+  public static EStreamUsage getTypeAdjustedUsage (@Nullable final SeqType aType)
+  {
+    final EStreamUsage eUsage = getTypeDeterminedUsage (aType);
+    if (eUsage == EStreamUsage.ABSORPTION || eUsage == EStreamUsage.INSPECTION)
+      return eUsage;
+    return EStreamUsage.TRANSMISSION;
+  }
+
+  /**
+   * Section 19.8.8.11: the declared type has a non-empty intersection with
+   * U{N}, so a value of that type can carry a streamed node. An absent type
+   * (<code>item()*</code>) permits nodes.
+   *
+   * @param aType
+   *        The declared type. <code>null</code> stands for an absent type.
+   * @return <code>true</code> if the type permits nodes.
+   */
+  public static boolean isPermittingNodes (@Nullable final SeqType aType)
+  {
+    if (aType == null)
+      return true;
+    if (aType.empty ())
+      return false;
+    return !_isKind (aType, ItemType.Kind.ATOMIC, ItemType.Kind.FUNCTION, ItemType.Kind.MAP, ItemType.Kind.ARRAY);
+  }
+
+  /**
+   * Section 19.8.5.5: the declared type can include a document or an element
+   * node. A type this test cannot read answers <code>true</code>.
+   *
+   * @param aType
+   *        The declared type. <code>null</code> stands for an absent type.
+   * @return <code>true</code> if the type admits document or element nodes.
+   */
+  public static boolean isAdmittingNodes (@Nullable final SeqType aType)
+  {
+    if (!isPermittingNodes (aType))
+      return false;
+    if (aType != null && _isKind (aType, ItemType.Kind.NODE) && aType.itemType ().nodeTest () != null)
+      switch (aType.itemType ().nodeTest ().kind ())
+      {
+        case ATTRIBUTE, SCHEMA_ATTRIBUTE, TEXT, COMMENT, PROCESSING_INSTRUCTION, NAMESPACE_NODE:
+          return false;
+        default:
+          break;
+      }
+    return true;
+  }
+
+  /**
    * @param aExpr
    *        The expression. <code>null</code> is an absent operand.
    * @return <code>true</code> if the expression can be proven to yield only

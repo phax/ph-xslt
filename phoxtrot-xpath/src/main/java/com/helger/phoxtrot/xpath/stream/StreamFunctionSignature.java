@@ -20,6 +20,11 @@ import java.util.List;
 
 import org.jspecify.annotations.NonNull;
 
+import com.helger.base.enforce.ValueEnforcer;
+import com.helger.collection.commons.CommonsArrayList;
+import com.helger.collection.commons.ICommonsList;
+import com.helger.phoxtrot.xpath.ast.SeqType;
+
 /**
  * What XSLT 3.0 section 19.8.5 needs to know about a stylesheet function at a
  * call site: its category and the usages its signature gives each argument.
@@ -76,6 +81,38 @@ public record StreamFunctionSignature (@NonNull EStreamFunctionCategory category
   public StreamFunctionSignature
   {
     paramUsages = List.copyOf (paramUsages);
+  }
+
+  /**
+   * Create the call-site signature of a function from its category and the
+   * declared types of its parameters: each parameter usage is type-determined
+   * (section 19.4), the first parameter adds its type-adjusted usage and
+   * whether it admits document or element nodes (false for a function without
+   * parameters).
+   *
+   * @param eCategory
+   *        The declared streamability category. May not be <code>null</code>.
+   * @param aParamTypes
+   *        The declared type of each parameter in declaration order; a
+   *        <code>null</code> entry stands for an absent type. May not be
+   *        <code>null</code>.
+   * @return The new signature. Never <code>null</code>.
+   */
+  @NonNull
+  public static StreamFunctionSignature createForParameterTypes (@NonNull final EStreamFunctionCategory eCategory,
+                                                                 @NonNull final List <SeqType> aParamTypes)
+  {
+    ValueEnforcer.notNull (eCategory, "Category");
+    ValueEnforcer.notNull (aParamTypes, "ParamTypes");
+    final ICommonsList <EStreamUsage> aUsages = new CommonsArrayList <> ();
+    for (final SeqType aType : aParamTypes)
+      aUsages.add (XPathStreamability.getTypeDeterminedUsage (aType));
+    final SeqType aFirst = aParamTypes.isEmpty () ? null : aParamTypes.get (0);
+    return new StreamFunctionSignature (eCategory,
+                                        aUsages,
+                                        XPathStreamability.getTypeAdjustedUsage (aFirst),
+                                        !aParamTypes.isEmpty () && XPathStreamability.isAdmittingNodes (aFirst),
+                                        eCategory != EStreamFunctionCategory.UNCLASSIFIED);
   }
 
   /**

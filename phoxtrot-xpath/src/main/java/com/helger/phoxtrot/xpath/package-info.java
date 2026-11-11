@@ -24,16 +24,20 @@
  * Public API, kept source compatible within 0.x (a change is listed in the release notes):
  * <ul>
  * <li>this package: <code>XPathCompiler</code>, <code>CompiledXPath</code>, <code>XPathException</code>,
- * <code>EThreading</code>, <code>LargeStackRunner</code></li>
+ * <code>EThreading</code>, <code>LargeStackRunner</code>, <code>XPathStreamabilityAnalyzer</code>,
+ * <code>XPathStreamabilityResult</code>, <code>XPathStreamabilityReason</code>, <code>EStreamabilityVerdict</code>,
+ * <code>EStreamabilityConstruct</code></li>
  * <li><code>context</code>: <code>StaticContext</code>, <code>DynamicContext</code>,
  * <code>IResourceResolver</code></li>
  * <li><code>fn</code>: <code>FunctionLibrary</code>, <code>IXPathFunction</code></li>
  * <li><code>ast</code>: <code>SeqType</code>, <code>ItemType</code>, <code>EOccurrence</code></li>
+ * <li><code>stream</code>: <code>EPosture</code>, <code>ESweep</code>, <code>PostureSweep</code>,
+ * <code>EStreamFunctionCategory</code></li>
  * <li><code>value</code>: the value types (<code>XdmSequence</code>, <code>XdmAtomic</code>, <code>XdmMap</code>,
  * <code>XdmArray</code>, ...)</li>
  * <li><code>eval</code>: <code>XPathOperators</code></li>
  * </ul>
  * Everything else, in particular the expression nodes of <code>ast</code>, <code>eval</code>, <code>parser</code>,
- * <code>ops</code>, <code>pattern</code> and <code>stream</code>, is internal and may change in any release.
+ * <code>ops</code>, <code>pattern</code> and the rest of <code>stream</code>, is internal and may change in any release.
  */
 package com.helger.phoxtrot.xpath;

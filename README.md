@@ -111,10 +111,12 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
 ```
 
 * Source compatible within 0.x (changes only with a note in "News and noteworthy"): in `com.helger.phoxtrot.xpath`
-  `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading` and `LargeStackRunner`; `StaticContext`,
-  `DynamicContext` and `IResourceResolver` (`context`); `FunctionLibrary` and `IXPathFunction` (`fn`); `SeqType`,
-  `ItemType` and `EOccurrence` (`ast`); the value types of `value`, `XPathOperators` (`eval`) and the node model of
-  `phoxtrot-xdm`. Everything else in `ast` (expression nodes), `eval`, `parser`, `ops`, `pattern` and `stream` is
+  `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`, `LargeStackRunner`,
+  `XPathStreamabilityAnalyzer`, `XPathStreamabilityResult`, `XPathStreamabilityReason`, `EStreamabilityVerdict` and
+  `EStreamabilityConstruct`; `StaticContext`, `DynamicContext` and `IResourceResolver` (`context`); `FunctionLibrary`
+  and `IXPathFunction` (`fn`); `SeqType`, `ItemType` and `EOccurrence` (`ast`); `EPosture`, `ESweep`, `PostureSweep`
+  and `EStreamFunctionCategory` (`stream`); the value types of `value`, `XPathOperators` (`eval`) and the node model
+  of `phoxtrot-xdm`. Everything else in `ast` (expression nodes), `eval`, `parser`, `ops`, `pattern` and `stream` is
   internal.
 * Extension functions: `FunctionLibrary.register` with the signature as text (`"(xs:string?) as xs:integer"`) or as
   `SeqType`s; the arguments are converted by the XPath 3.1 function conversion rules before the call (see
@@ -125,6 +127,12 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
 * Errors: `XPathException` with code, description and error object; a static error has its position in the
   expression (`getExpressionOffset`, `getExpressionLine`, `getExpressionColumn`). An error raised in an
   `xsl:function` is an `XsltException` naming the function (`getFunctionFrame`).
+* Streamability: `XPathStreamabilityAnalyzer` tells whether an expression (`analyze`) or a match pattern
+  (`analyzePattern`) can be evaluated while streaming, with the analysis of XSLT 3.0 section 19: posture and sweep, a
+  verdict (motionless, consuming, free-ranging) and for a verdict other than motionless the construct that causes it
+  (an axis step, a function, a variable, without position in the text). Options: the context node streamed or
+  buffered, variables bound to streamed nodes, the streamability category of extension functions (undeclared ones
+  are not streamable).
 * Stylesheet functions without Java code: compile a module with the `xsl:function`s (and the keys and global variables
   they use) and compile the expressions against `XsltExecutable.createStaticContext ()`, evaluated with the dynamic
   context of `XsltExecutable.createEvaluation (request).createDynamicContext ()`.
@@ -246,6 +254,8 @@ v0.2.0 - work in progress
 * XSLT: an error raised in the body of an `xsl:function` names that function (`XsltException.getFunctionFrame`)
 * DOM bridge: added `DomToXdm.convertWithMapping`, which keeps the DOM node of every XDM node (`DomNodeMapping`)
 * DOM bridge: added `XdmDomView`, a read-only W3C DOM view over an XDM tree that copies nothing
+* XPath: added `XPathStreamabilityAnalyzer`, the public streamability analysis of expressions and patterns; `EPosture`,
+  `ESweep`, `PostureSweep` and `EStreamFunctionCategory` of `stream` are now public API
 
 v0.1.0 - 2026-11-10
 * Initial release

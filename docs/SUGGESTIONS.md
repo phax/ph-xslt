@@ -619,3 +619,50 @@ S29 item 2 (b): for input that is parsed with `XdmParser` (or streamed), a pure 
 `Element`, `Attr`, `Text`, `Comment`, `ProcessingInstruction`, `NodeList` and `NamedNodeMap` over `IXdmNode` (like
 Saxon's `NodeOverNodeInfo`), every mutating method throwing `DOMException.NO_MODIFICATION_ALLOWED_ERR`. Not needed for
 DOM input, which `DomToXdm.convertWithMapping` covers.
+
+### S34 - Public streamability analysis for XPath expressions and patterns
+
+Status: done (2026-11-11), option 1. `XPathStreamabilityAnalyzer` in `com.helger.phoxtrot.xpath` (`analyze` for a
+`CompiledXPath` or text, `analyzePattern` for a pattern text; `setContextStreamed`, `addStreamedVariable`,
+`addFunction` with category and parameter types) returns an `XPathStreamabilityResult` (posture, sweep,
+`EStreamabilityVerdict`, `XPathStreamabilityReason`). `EPosture`, `ESweep`, `PostureSweep` and
+`EStreamFunctionCategory` became public API; only `phoxtrot-xpath` is needed. Deviations: the reason names the
+construct (axis step, root, function, variable, positional predicate, expression kind) without offset, as the AST
+keeps no positions; it is found by re-analysing sub-expressions with the context of the whole, so it is a hint, and
+among several offending operands the one found is not necessarily the first in the text. Not done: running the XSLT
+3.0 streamability cases through the facade.
+
+ph-schematron wants to tell upfront whether, and how, a Schematron can be validated while streaming. Per rule the
+question is: can the rule context (an XSLT pattern) be matched on the current node alone, and do the `sch:assert`,
+`sch:report` and `sch:let` expressions need (a) nothing beyond the context node, its attributes and ancestors
+(motionless: one pass, constant memory), (b) only the subtree of the context node (burst: one pass, the matched
+subtree buffered), or (c) anything else (`//` from the root, `preceding`/`following`, keys or `id ()` over the
+instance, document-wide variables): two passes or the whole tree. This is the XSLT 3.0 posture and sweep analysis
+(section 19), which phoxtrot has in `com.helger.phoxtrot.xpath.stream` (`XPathStreamability.getStreamability (IExpr,
+StreamContext)`, `getPatternStreamability`, `PostureSweep`, `EPosture`, `ESweep`, `StreamContext`,
+`IStreamFunctionResolver`). The README lists `stream` as internal, and the entry points take AST nodes (`IExpr`,
+`CompiledXsltPattern`) from internal packages.
+
+Options:
+
+1. **Public wrapper (preferred).** A small, source compatible facade in `com.helger.phoxtrot.xpath` (or
+   `com.helger.phoxtrot.xpath.streamability`), for example `XPathStreamabilityAnalyzer`:
+   - Input: a `CompiledXPath` (or expression text plus `StaticContext`) for tests and variables; a pattern text plus
+     `StaticContext` for rule contexts (no `CompiledXsltPattern` needed by the caller).
+   - Context: whether the context item is a streamed node (striding) or a buffered one (grounded), so a caller can
+     ask both "streamable as is" and "streamable after buffering the context subtree" (burst).
+   - Variables: declare a variable as grounded (an atomic or a value computed in an earlier pass) or as streamed
+     nodes, so schema-level `sch:let`s can be classified as precomputable.
+   - Functions: a stream category per extension function or `xsl:function` (as `IStreamFunctionResolver` does
+     internally), with a documented default for unknown ones.
+   - Result: an immutable value with posture and sweep (public enums, the existing ones or copies), a simplified
+     verdict (motionless, consuming downward, free-ranging), and the reason: the first offending sub-expression with
+     its offset in the expression text and the construct (axis, function, variable).
+   - Only `phoxtrot-xpath` needed (no `phoxtrot-xslt`), so an analysis tool does not pull in the XSLT engine.
+2. **Make the existing API public.** Declare `stream` public and add a way to get the AST of a `CompiledXPath`
+   (`getExpression ()` exists, but `IExpr` is internal) and to compile a pattern publicly. Less work, but exposes the
+   AST and the 2,700 line analyser as API, which then cannot change freely within 0.x.
+
+Tests: the XSLT 3.0 streamability test cases that phoxtrot already passes, run through the facade; Schematron-like
+cases (attribute test, child test, `//` test, `preceding-sibling` test, `count (//x)` against a grounded variable,
+a pattern with a downward predicate `cac:InvoiceLine[cbc:Quantity < 0]`).
