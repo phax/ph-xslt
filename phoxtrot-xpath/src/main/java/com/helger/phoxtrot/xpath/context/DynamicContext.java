@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xpath.context;
 
 import java.time.OffsetDateTime;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -68,7 +69,12 @@ public final class DynamicContext
     private ICommonsOrderedMap <String, String> m_aEnvironmentVariables = new CommonsLinkedHashMap <> ();
     private String m_sDefaultLanguage = DEFAULT_LANGUAGE;
     private BiFunction <DynamicContext, XdmQName, XdmSequence> m_aGlobalVariableResolver = null;
+    private Map <Object, Object> m_aMemo = null;
+    private IXdmItem m_aLoopFocus = null;
   }
+
+  /** The token of a variable that is not bound locally (see {@link #getVariableToken(XdmQName)}). */
+  private static final Object NOT_LOCAL_TOKEN = new Object ();
 
   /** The default language unless set otherwise. */
   public static final String DEFAULT_LANGUAGE = "en";
@@ -563,5 +569,71 @@ public final class DynamicContext
   public ICommonsMap <String, Object> getRunCache ()
   {
     return m_aRun.m_aCache;
+  }
+
+  /**
+   * An identity token for the binding of a variable in this context, for
+   * memoising evaluations that depend on the variable (see
+   * {@link #getRunMemo()}): two contexts of one run give the same token for a
+   * name exactly if they see the same local binding, which always has the same
+   * value. All variables that are not bound locally (global variables of the
+   * run, or unknown ones) share one token.
+   *
+   * @param aName
+   *        The variable name.
+   * @return The token. Never <code>null</code>.
+   */
+  @NonNull
+  public Object getVariableToken (@NonNull final XdmQName aName)
+  {
+    for (VarBinding aCur = m_aVars; aCur != null; aCur = aCur.next ())
+      if (aCur.name ().equals (aName))
+        return aCur;
+    return NOT_LOCAL_TOKEN;
+  }
+
+  /**
+   * @return A per-run memo by identity for the evaluator, e.g. the last value
+   *         of a function call by its expression node. Created on first use.
+   *         Never <code>null</code>.
+   */
+  @NonNull
+  public Map <Object, Object> getRunMemo ()
+  {
+    Map <Object, Object> ret = m_aRun.m_aMemo;
+    if (ret == null)
+    {
+      ret = new IdentityHashMap <> ();
+      m_aRun.m_aMemo = ret;
+    }
+    return ret;
+  }
+
+  /**
+   * @return The context item of the innermost <code>for</code>,
+   *         <code>some</code> or <code>every</code> expression being evaluated
+   *         in this run, for the evaluator. <code>null</code> if there is none or
+   *         it had no context item.
+   */
+  @Nullable
+  public IXdmItem getLoopFocus ()
+  {
+    return m_aRun.m_aLoopFocus;
+  }
+
+  /**
+   * Set the context item of the innermost loop being evaluated, for the
+   * evaluator. The caller restores the previous value when the loop ends.
+   *
+   * @param aItem
+   *        The context item of the loop. May be <code>null</code>.
+   * @return The previous value. May be <code>null</code>.
+   */
+  @Nullable
+  public IXdmItem setLoopFocus (@Nullable final IXdmItem aItem)
+  {
+    final IXdmItem ret = m_aRun.m_aLoopFocus;
+    m_aRun.m_aLoopFocus = aItem;
+    return ret;
   }
 }

@@ -311,6 +311,48 @@ public final class AxisNavigator
   }
 
   /**
+   * The list of a document's name index that is the complete result of a named child or
+   * descendant step from one node, so that a caller can keep a sequence of it instead of copying
+   * the nodes on every step: the kept child elements by name of a node with many children (see
+   * {@link #collectNamedChildren(IXdmNode, XdmQName, List)}), or all elements with the name for a
+   * descendant step from a node whose subtree contains all of them, such as <code>//name</code>
+   * from the document node. The list keeps its identity as long as the index of the document
+   * stays, which a structural change of the tree ends.
+   *
+   * @param eAxis
+   *        {@link EAxis#CHILD}, {@link EAxis#DESCENDANT} or {@link EAxis#DESCENDANT_OR_SELF}.
+   * @param aNode
+   *        The context node.
+   * @param aName
+   *        The element name to select.
+   * @return The read-only list in document order, or <code>null</code> if no list of the index is
+   *         the result (another axis, few children, a tree that is not numbered, or elements with
+   *         the name outside the subtree).
+   */
+  @Nullable
+  public static List <IXdmNode> getNamedIndexList (@NonNull final EAxis eAxis, @NonNull final IXdmNode aNode, @NonNull final XdmQName aName)
+  {
+    if (eAxis == EAxis.CHILD)
+    {
+      if (aNode.getChildCount () <= MIN_CHILDREN_FOR_INDEX || !(aNode.getRoot () instanceof final XdmDocumentNode aDoc))
+        return null;
+      return aDoc.getChildElementsByName (aNode, aName);
+    }
+    if (eAxis != EAxis.DESCENDANT && eAxis != EAxis.DESCENDANT_OR_SELF)
+      return null;
+    if (aNode.getKind () == ENodeKind.NAMESPACE || !(aNode.getRoot () instanceof final XdmDocumentNode aDoc))
+      return null;
+    final List <IXdmNode> aElements = aDoc.getElementsByName (aName);
+    if (aElements == null || aElements.isEmpty ())
+      return aElements;
+    // All of them in the interval of the subtree, as _addInSubtrees would select them
+    final int nStart = eAxis == EAxis.DESCENDANT_OR_SELF ? aNode.getOrder () : aNode.getOrder () + 1;
+    if (aElements.get (0).getOrder () < nStart || aElements.get (aElements.size () - 1).getOrder () > aNode.getEndOrder ())
+      return null;
+    return aElements;
+  }
+
+  /**
    * Collect the attributes with a name of the context nodes and their
    * descendants (the path <code>descendant-or-self::node()/attribute::N</code>,
    * as in <code>//@N</code>) from the attribute index of their document. The

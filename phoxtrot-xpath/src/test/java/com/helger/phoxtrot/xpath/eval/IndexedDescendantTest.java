@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xpath.eval;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -222,6 +223,49 @@ public final class IndexedDescendantTest
       if (nPass == 1)
         aDoc.assignDocumentOrder ();
     }
+  }
+
+  @Test
+  public void testNamedIndexList ()
+  {
+    final StringBuilder aSB = new StringBuilder ("<r>");
+    for (int i = 0; i < 40; ++i)
+      aSB.append ("<a n='").append (i).append ("'><b/></a>");
+    aSB.append ("</r>");
+    final IXdmNode aDoc = _parse (aSB.toString ());
+    final IXdmNode aR = aDoc.getChildAtIndex (0);
+    final IXdmNode aFirstA = aR.getChildAtIndex (0);
+    // The whole result of the step, in document order, as in the index
+    for (final Object [] aCase : new Object [] [] { { EAxis.DESCENDANT, aDoc, "a" },
+                                                    { EAxis.DESCENDANT, aR, "b" },
+                                                    { EAxis.DESCENDANT_OR_SELF, aR, "r" },
+                                                    { EAxis.CHILD, aR, "a" },
+                                                    { EAxis.DESCENDANT, aDoc, "x" } })
+    {
+      final EAxis eAxis = (EAxis) aCase[0];
+      final IXdmNode aNode = (IXdmNode) aCase[1];
+      final XdmQName aName = new XdmQName ((String) aCase[2]);
+      final List <IXdmNode> aExpected = new ArrayList <> ();
+      AxisNavigator.collect (eAxis, aNode, x -> x.isElement () && aName.equals (x.getName ()), aExpected);
+      final List <IXdmNode> aList = AxisNavigator.getNamedIndexList (eAxis, aNode, aName);
+      assertNotNull (eAxis + " " + aName, aList);
+      assertEquals (aExpected, aList);
+      // The same list as long as the index stays
+      assertSame (aList, AxisNavigator.getNamedIndexList (eAxis, aNode, aName));
+    }
+    // Not the whole list, few children, another axis
+    assertNull (AxisNavigator.getNamedIndexList (EAxis.DESCENDANT, aFirstA, new XdmQName ("b")));
+    assertNull (AxisNavigator.getNamedIndexList (EAxis.DESCENDANT, aR, new XdmQName ("r")));
+    assertNull (AxisNavigator.getNamedIndexList (EAxis.CHILD, aFirstA, new XdmQName ("b")));
+    assertNull (AxisNavigator.getNamedIndexList (EAxis.FOLLOWING, aR, new XdmQName ("a")));
+    // After a change: a new list with the new node
+    final List <IXdmNode> aBefore = AxisNavigator.getNamedIndexList (EAxis.DESCENDANT, aDoc, new XdmQName ("a"));
+    aR.appendChild (IXdmNode.createElement (new XdmQName ("a")));
+    aDoc.assignDocumentOrder ();
+    final List <IXdmNode> aAfter = AxisNavigator.getNamedIndexList (EAxis.DESCENDANT, aDoc, new XdmQName ("a"));
+    assertEquals (41, aAfter.size ());
+    assertEquals (40, aBefore.size ());
+    assertEquals ("41", _eval ("count(//a)", aDoc));
   }
 
   private static void _addRandomChildren (@NonNull final IXdmNode aParent,

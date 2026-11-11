@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xpath.fn;
 
 import java.util.List;
+import java.util.function.Function;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -63,6 +64,10 @@ public final class FunctionCallSite
    * lookup.
    */
   private record Entry (@NonNull FunctionLibrary library, boolean frozen, long stamp, @Nullable FunctionDef def)
+  {}
+
+  /** The memo plan of the evaluator for one library state. */
+  private record MemoPlanEntry (@NonNull FunctionLibrary library, boolean frozen, long stamp, @NonNull Object plan)
   {}
 
   /**
@@ -119,6 +124,42 @@ public final class FunctionCallSite
   // yet, 1 = no, 2 = yes
   private volatile int m_nLiteral;
   private volatile ConvertedLiterals m_aConvertedLiterals;
+  // What the evaluator keeps about memoising the call, opaque to the site
+  private volatile MemoPlanEntry m_aMemoPlan;
+
+  /**
+   * What the evaluator keeps about memoising the call of this site (whether
+   * its value is determined by the context item and its variables), for one
+   * library state like the resolution: kept for the same library instance
+   * with an unchanged stamp (for a frozen library without reading the stamp),
+   * otherwise created again. The frozen state and the stamp are read before
+   * the creation.
+   *
+   * @param aLib
+   *        The function library of the static context of the evaluation.
+   * @param aCreator
+   *        Creates the plan for the library; the result must be immutable.
+   * @return The plan. Never <code>null</code>.
+   */
+  @NonNull
+  public Object getMemoPlan (@NonNull final FunctionLibrary aLib, @NonNull final Function <FunctionLibrary, Object> aCreator)
+  {
+    final MemoPlanEntry aEntry = m_aMemoPlan;
+    // As for the resolution: a library frozen before the creation cannot change any more
+    if (aEntry != null && aEntry.library () == aLib && aEntry.frozen ())
+      return aEntry.plan ();
+    final boolean bFrozen = aLib.isFrozen ();
+    final long nStamp = aLib.getModificationStamp ();
+    if (aEntry != null && aEntry.library () == aLib && aEntry.stamp () == nStamp)
+    {
+      if (bFrozen)
+        m_aMemoPlan = new MemoPlanEntry (aLib, true, nStamp, aEntry.plan ());
+      return aEntry.plan ();
+    }
+    final Object ret = aCreator.apply (aLib);
+    m_aMemoPlan = new MemoPlanEntry (aLib, bFrozen, nStamp, ret);
+    return ret;
+  }
 
   /**
    * Is any argument of the call of this site a literal? Computed on the first

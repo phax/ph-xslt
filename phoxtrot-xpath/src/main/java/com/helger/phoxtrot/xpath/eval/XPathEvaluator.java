@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
@@ -398,20 +399,47 @@ public final class XPathEvaluator
   }
 
   /**
+   * @return The sequence of a list of a document's name index, created once per run and list (by
+   *         identity, see {@link AxisNavigator#getNamedIndexList(EAxis, IXdmNode, XdmQName)}).
+   */
+  @NonNull
+  private static XdmSequence _getIndexListSequence (@NonNull final List <IXdmNode> aIndexList, @NonNull final DynamicContext aCtx)
+  {
+    if (aIndexList.isEmpty ())
+      return XdmSequence.EMPTY;
+    final Map <Object, Object> aMemo = aCtx.getRunMemo ();
+    if (aMemo.get (aIndexList) instanceof final XdmSequence aKnown)
+      return aKnown;
+    final XdmSequence ret = XdmSequence.of (aIndexList);
+    aMemo.put (aIndexList, ret);
+    return ret;
+  }
+
+  /**
    * The nodes of the axis of an axis step from one context node that pass its node test.
    *
    * @return The nodes in axis order (reverse document order for a reverse axis).
    */
   @NonNull
-  private static XdmSequence _collectAxisCandidates (final IExpr.@NonNull StepExpr aStep, @NonNull final IXdmNode aNode)
+  private static XdmSequence _collectAxisCandidates (final IExpr.@NonNull StepExpr aStep,
+                                                     @NonNull final IXdmNode aNode,
+                                                     @NonNull final DynamicContext aCtx)
   {
     final EAxis eAxis = aStep.axis ();
     final NodeTest aTest = aStep.test ();
     final ENodeKind ePrincipal = AxisNavigator.getPrincipalNodeKind (eAxis);
-    // Filled in place, without the copy of XdmSequence.of (List)
-    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     final XdmQName aIndexName = _getIndexableName (aStep);
     final XdmQName aChildName = eAxis == EAxis.CHILD ? _getExactName (aTest) : null;
+    if (aChildName != null || aIndexName != null)
+    {
+      // Optimisation: a list of the name index that is the whole result becomes a sequence once
+      // per run instead of being copied on every step (e.g. //name from the document node)
+      final List <IXdmNode> aIndexList = AxisNavigator.getNamedIndexList (eAxis, aNode, aChildName != null ? aChildName : aIndexName);
+      if (aIndexList != null)
+        return _getIndexListSequence (aIndexList, aCtx);
+    }
+    // Filled in place, without the copy of XdmSequence.of (List)
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
     // Optimisation for the common exact name steps: child elements by name, descendants from the
     // document's name index; any other step walks the axis
     if (aChildName != null)
@@ -435,7 +463,7 @@ public final class XPathEvaluator
                                             @NonNull final IXdmNode aNode,
                                             @NonNull final DynamicContext aCtx)
   {
-    XdmSequence ret = _applyPredicates (_collectAxisCandidates (aStep, aNode), aStep.predicates (), aCtx);
+    XdmSequence ret = _applyPredicates (_collectAxisCandidates (aStep, aNode, aCtx), aStep.predicates (), aCtx);
     if (aStep.axis ().isReverse () && ret.size () > 1)
     {
       // Positions were counted in reverse document order; the step result is
@@ -843,7 +871,7 @@ public final class XPathEvaluator
     for (final IXdmItem aItem : aCurrent)
     {
       aCtx.checkInterrupt ();
-      if (_hasPassingItem (_collectAxisCandidates (aStep, (IXdmNode) aItem), aStep.predicates (), aCtx))
+      if (_hasPassingItem (_collectAxisCandidates (aStep, (IXdmNode) aItem, aCtx), aStep.predicates (), aCtx))
         return true;
     }
     return false;
@@ -1138,8 +1166,8 @@ public final class XPathEvaluator
    *         XPTY0004 or another conversion error for an argument that does not match its type
    */
   @NonNull
-  private static XdmSequence _evalFunctionCall (final IExpr.@NonNull FunctionCallExpr aExpr,
-                                                @NonNull final DynamicContext aCtx)
+  private static XdmSequence _evalFunctionCallDirect (final IExpr.@NonNull FunctionCallExpr aExpr,
+                                                      @NonNull final DynamicContext aCtx)
   {
     final List <IExpr> aArgExprs = aExpr.args ();
     final FunctionDef aDef = XPathOperators.getFunctionDef (aCtx, aExpr.site (), aExpr.name (), aArgExprs.size ());
@@ -1169,6 +1197,21 @@ public final class XPathEvaluator
       }
     }
     return XPathOperators.invokeBuiltIn (aDef, aCtx, _getArgumentList (aArgs));
+  }
+
+  /**
+   * A static function call, memoised by {@link CallMemo} where its value is determined by the
+   * context item and its variables (loop-invariant hoisting), otherwise
+   * {@link #_evalFunctionCallDirect(IExpr.FunctionCallExpr, DynamicContext)}.
+   */
+  @NonNull
+  private static XdmSequence _evalFunctionCall (final IExpr.@NonNull FunctionCallExpr aExpr,
+                                                @NonNull final DynamicContext aCtx)
+  {
+    final CallMemo.Plan aPlan = CallMemo.getApplicablePlan (aExpr, aCtx);
+    if (aPlan == null)
+      return _evalFunctionCallDirect (aExpr, aCtx);
+    return CallMemo.evaluate (aPlan, aExpr, aCtx, () -> _evalFunctionCallDirect (aExpr, aCtx));
   }
 
   /**
@@ -1622,6 +1665,23 @@ public final class XPathEvaluator
   }
 
   /**
+   * The quantified expression with the focus of the loop set for the memo of calls that read it
+   * ({@link CallMemo}).
+   */
+  private static boolean _evalQuantifiedExpr (final IExpr.@NonNull QuantifiedExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    final IXdmItem aOuterLoopFocus = aCtx.setLoopFocus (aCtx.getContextItem ());
+    try
+    {
+      return _evalQuantified (aExpr, 0, aCtx);
+    }
+    finally
+    {
+      aCtx.setLoopFocus (aOuterLoopFocus);
+    }
+  }
+
+  /**
    * The <code>let</code> expression (XPath 3.1 section 3.10): the bindings are evaluated eagerly
    * in order, each seeing the variables bound before it, then the return expression is evaluated
    * with all of them.
@@ -1835,7 +1895,16 @@ public final class XPathEvaluator
   private static XdmSequence _evalForExpr (final IExpr.@NonNull ForExpr aExpr, @NonNull final DynamicContext aCtx)
   {
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
-    _evalFor (aExpr.bindings (), 0, aExpr.body (), aCtx, aBuilder);
+    // The focus of the loop for the memo of calls that read it (CallMemo)
+    final IXdmItem aOuterLoopFocus = aCtx.setLoopFocus (aCtx.getContextItem ());
+    try
+    {
+      _evalFor (aExpr.bindings (), 0, aExpr.body (), aCtx, aBuilder);
+    }
+    finally
+    {
+      aCtx.setLoopFocus (aOuterLoopFocus);
+    }
     return aBuilder.build ();
   }
 
@@ -1901,7 +1970,7 @@ public final class XPathEvaluator
                                                                   : evaluateInternal (e.elseExpr (), aCtx);
       case final IExpr.ForExpr e -> _evalForExpr (e, aCtx);
       case final IExpr.LetExpr e -> _evalLet (e, aCtx);
-      case final IExpr.QuantifiedExpr e -> _bool (_evalQuantified (e, 0, aCtx));
+      case final IExpr.QuantifiedExpr e -> _bool (_evalQuantifiedExpr (e, aCtx));
       case final IExpr.SimpleMapExpr e -> _evalSimpleMap (e, aCtx);
       case final IExpr.PathExpr e -> _evalPath (e, aCtx);
       case final IExpr.FilterExpr e -> _applyPredicates (evaluateInternal (e.primary (), aCtx), e.predicates (), aCtx);

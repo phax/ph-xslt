@@ -547,3 +547,44 @@ with `IXPathFunction`. What is missing:
 7. **Error details.** `XPathException` carries the error code. For the SVRL and the error handler the binding also
    needs the position in the expression (column) and, for errors raised in a user function, the function name and
    module location, as `XsltException` gives for XSLT.
+
+## Suggestions from the FACTUR-X EXTENDED profile (2026-11-11)
+
+From ph-sch2java: a FACTUR-X 2.5.2 EXTENDED invoice with 1,788 lines (394 group lines) took 456 s with the
+Schematron interpreter on phoxtrot (Saxon HE on the isosch XSLT: 211 s). Most of it was one rule test that
+ph-sch2java now evaluates once per document; the remaining line rules are quadratic in the number of lines
+(`BR-FXEXT-08`, `-11`, `-12`), with sub-expressions that do not change within a predicate or quantifier but are
+evaluated for every candidate or item.
+
+### S30 - Loop-invariant function calls
+
+Status: done (2026-11-11). `CallMemo` (package `eval`): a static call of a built-in function whose value is
+determined by the context item and the variables it references (`ExprWalker.isDeterminedByContextItem`: no
+`position`/`last`, no function items or lookups, only the focus-free functions and the context functions without
+argument, each resolving to the default implementation) and that has an argument with work (not only literals,
+variables or `.`) is kept per run with the identity tokens of the bindings of its variables
+(`DynamicContext.getVariableToken`, an over-approximation of the free variables by
+`ExprWalker.getAllVariableReferences`) and the static context. A call that reads the focus is only looked up in the
+body of the innermost `for`/`some`/`every` at the focus of that loop (`DynamicContext.getLoopFocus`), where the
+focus stays the same between iterations; in a predicate inside the body it is another item and nothing is looked up.
+One value per call expression and run; errors are not kept. The plan of a call site is kept in its
+`FunctionCallSite` per library state like the resolution. Examples: `normalize-space($item/.../ram:LineID)` in the
+predicate of `//ram:IncludedSupplyChainTradeLineItem[normalize-space(.../ram:ParentLineID) = normalize-space($item/.../ram:LineID)]`,
+`normalize-space(ram:AssociatedDocumentLineDocument/ram:ParentLineID)` in
+`some $p in //.../ram:LineID satisfies normalize-space($p) = normalize-space(ram:AssociatedDocumentLineDocument/ram:ParentLineID)`.
+
+### S31 - No copy of a whole index list per step
+
+Status: done (2026-11-11). A named child or descendant step from one node whose result is a complete list of the
+document's name index (`AxisNavigator.getNamedIndexList`: the kept child elements of a node with many children, or
+all elements with the name for `//name` from a node whose subtree holds all of them) becomes a sequence once per run
+and list (`XPathEvaluator._getIndexListSequence`, run memo by list identity) instead of being copied on every step.
+The generated code of ph-sch2java (`XRt.step`) does not use it yet; it has no dynamic context there.
+
+### S32 - `AbstractXdmNode.getRoot` in `collectNamedChildren`
+
+Status: closed (2026-11-11), not reproduced. A JFR profile of the interpreter showed 18 % self time in `getRoot`
+below `AxisNavigator.collectNamedChildren`, but only one element of the invoice has more than 32 children, so it is
+called about a thousand times per validation; after S30 and S31 it is 0.1 % of the samples. Taken as an attribution
+artefact of the profile.
+

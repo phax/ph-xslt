@@ -198,6 +198,16 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `FunctionLibrary.getDefault ()`) is evaluated once per step or filter application with two or more candidates
   (`XPathEvaluator._applyPredicate`, `_findPassing`): a number selects that position, anything else all or none.
   The list fails closed; add a function to it only if it reads neither the focus nor anything that changes within a run.
+- Loop-invariant calls (`CallMemo`): a static call of a built-in function that `ExprWalker.isDeterminedByContextItem`
+  accepts (all calls inside resolving to the default implementation) and that has an argument with work is kept per
+  run (`DynamicContext.getRunMemo`) with the static context and the identity tokens of the bindings of all variables
+  it references (`DynamicContext.getVariableToken`); one that reads the focus only at the focus of the innermost
+  `for`/`some`/`every` (`DynamicContext.get/setLoopFocus`, set by `_evalForExpr`/`_evalQuantifiedExpr`). Errors are
+  not kept. The plan is kept in the `FunctionCallSite` (`getMemoPlan`) like the resolution. Add a function to the
+  lists of `ExprWalker` only if it reads nothing that changes within a run.
+- A single-node named child or descendant step whose result is a complete list of the name index
+  (`AxisNavigator.getNamedIndexList`) takes the sequence of that list from the run memo
+  (`XPathEvaluator._getIndexListSequence`) instead of copying it.
 - xsl:number (`NumberInstruction`) counts from the document's name index where the count and from patterns name the
   elements they can match (`XsltPattern.getFinalNames`; patterns of single exact `child::` name steps and the default
   count pattern of an element are counted by binary search on the document order without testing): level="any" over

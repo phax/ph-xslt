@@ -514,4 +514,96 @@ public final class ExprWalker
     }
     return true;
   }
+
+  /**
+   * Is the value of an expression determined by the context item, the values
+   * of the variables it references and the static context alone, the same on
+   * every evaluation within one run with these? Like
+   * {@link #isFocusIndependent(IExpr, Predicate)} this fails closed, but the
+   * context item and paths of any shape are allowed: it is <code>true</code>
+   * only if the tree contains no unary or postfix lookup, no function item
+   * (inline function, named function reference, dynamic call, argument
+   * placeholder), no call of <code>fn:position</code> or <code>fn:last</code>
+   * (also not in a nested predicate), and only static calls of the built-in
+   * functions of {@link #_isFocusFreeFunction(XdmQName, int)} or of the
+   * functions that read the context item without an argument (such as
+   * <code>fn:normalize-space()</code>), that the caller also accepts.
+   *
+   * @param aExpr
+   *        The expression.
+   * @param aCallFilter
+   *        Tests each static function call that passes the name check, e.g.
+   *        that it resolves to the built-in implementation.
+   * @return <code>true</code> if the expression is provably determined by the
+   *         context item and its variables.
+   */
+  public static boolean isDeterminedByContextItem (@NonNull final IExpr aExpr,
+                                                   @NonNull final Predicate <IExpr.FunctionCallExpr> aCallFilter)
+  {
+    final ArrayDeque <IExpr> aStack = new ArrayDeque <> ();
+    aStack.push (aExpr);
+    while (!aStack.isEmpty ())
+    {
+      final IExpr aCur = aStack.pop ();
+      switch (aCur)
+      {
+        case final IExpr.PlaceholderExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.NamedFunctionRefExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.InlineFunctionExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.DynamicCallExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.LookupExpr e ->
+        {
+          return false;
+        }
+        case final IExpr.FunctionCallExpr e ->
+        {
+          final int nArity = e.args ().size ();
+          final boolean bKnown = _isFocusFreeFunction (e.name (), nArity) ||
+                                 (nArity == 0 &&
+                                  XdmConstants.NS_FN.equals (e.name ().namespaceUri ()) &&
+                                  FOCUS_FREE_WITH_ARGUMENT.contains (e.name ().localName ()));
+          if (!bKnown || !aCallFilter.test (e))
+            return false;
+          aStack.addAll (e.args ());
+        }
+        default -> _pushChildren (aCur, aStack);
+      }
+    }
+    return true;
+  }
+
+  /**
+   * @param aExpr
+   *        The expression.
+   * @return The names of all variables referenced in the tree, also of those
+   *         bound inside it: a superset of its free variables. Never
+   *         <code>null</code>.
+   */
+  @NonNull
+  public static ICommonsSet <XdmQName> getAllVariableReferences (@NonNull final IExpr aExpr)
+  {
+    final ICommonsSet <XdmQName> ret = new CommonsHashSet <> ();
+    final ArrayDeque <IExpr> aStack = new ArrayDeque <> ();
+    aStack.push (aExpr);
+    while (!aStack.isEmpty ())
+    {
+      final IExpr aCur = aStack.pop ();
+      if (aCur instanceof final IExpr.VarRefExpr aVar)
+        ret.add (aVar.name ());
+      _pushChildren (aCur, aStack);
+    }
+    return ret;
+  }
 }
