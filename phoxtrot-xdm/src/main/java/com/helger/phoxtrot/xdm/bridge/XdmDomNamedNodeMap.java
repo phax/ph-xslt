@@ -57,7 +57,7 @@ final class XdmDomNamedNodeMap implements NamedNodeMap
     final AbstractXdmDomNode [] aAttrs;
     if (aNode.hasDeclaredNamespaces ())
     {
-      final Map <String, String> aDecls = aNode.getDeclaredNamespaces ();
+      final Map <String, String> aDecls = aNode.declaredNamespaces ();
       nDecls = aDecls.size ();
       aAttrs = new AbstractXdmDomNode [nDecls + aNode.getAttributeCount ()];
       int i = 0;

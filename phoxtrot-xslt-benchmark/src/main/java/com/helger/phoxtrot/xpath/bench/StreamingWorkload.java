@@ -31,6 +31,7 @@ import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.bench.BenchData.Line;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
@@ -73,9 +74,9 @@ public final class StreamingWorkload implements IWorkload
     }
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
-      if (!DOC_URI.equals (sAbsoluteUri))
+      if (!DOC_URI.equals (aUri.absoluteUri ()))
         return null;
       try
       {
@@ -88,17 +89,17 @@ public final class StreamingWorkload implements IWorkload
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
       return null;
     }
 
     @Override
     @Nullable
-    public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+    public XdmStreamReader openDocumentStream (@NonNull final ResourceUri aUri,
                                                @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
     {
-      if (!DOC_URI.equals (sAbsoluteUri))
+      if (!DOC_URI.equals (aUri.absoluteUri ()))
         return null;
       return XdmStreamReader.open (_createSource (), false, XdmParser.DEFAULT_MAX_ELEMENT_DEPTH, aStripWhitespace);
     }

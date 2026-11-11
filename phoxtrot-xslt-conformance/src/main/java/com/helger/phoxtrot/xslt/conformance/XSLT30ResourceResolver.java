@@ -45,6 +45,7 @@ import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.conformance.QT3ResourceResolver;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 /**
  * Resolves what a stylesheet reads at run time (<code>document()</code>,
@@ -254,9 +255,9 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    *         well-formed.
    */
   @Nullable
-  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
   {
-    final Path aPath = _getPath (sAbsoluteUri);
+    final Path aPath = _getPath (aUri.absoluteUri ());
     if (aPath == null)
       return null;
     final IXdmNode aPrepared = m_aPrepared.get (aPath);
@@ -267,7 +268,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    * The stylesheet module for <code>xsl:include</code>,
    * <code>xsl:import</code>, a package or <code>fn:transform</code>: the file
    * the URI maps to, parsed with node locations by the test set's cache (a
-   * different node than {@link #resolveDocument(String)} returns for the same
+   * different node than {@link #resolveDocument(ResourceUri)} returns for the same
    * file). Prepared (validated) documents are source documents and not used
    * here.
    *
@@ -276,9 +277,9 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    */
   @Override
   @Nullable
-  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveStylesheetModule (@NonNull final ResourceUri aUri)
   {
-    final Path aPath = _getPath (sAbsoluteUri);
+    final Path aPath = _getPath (aUri.absoluteUri ());
     return aPath == null ? null : m_aDocs.getStylesheetModule (aPath);
   }
 
@@ -290,14 +291,14 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    *
    * @return <code>null</code> if the URI maps to no file or the file has a
    *         prepared document; the engine then uses
-   *         {@link #resolveDocument(String)}.
+   *         {@link #resolveDocument(ResourceUri)}.
    */
   @Override
   @Nullable
-  public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+  public XdmStreamReader openDocumentStream (@NonNull final ResourceUri aUri,
                                              @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
   {
-    final Path aPath = _getPath (sAbsoluteUri);
+    final Path aPath = _getPath (aUri.absoluteUri ());
     // A prepared (validated) document is used as it is
     if (aPath == null || m_aPrepared.containsKey (aPath))
       return null;
@@ -321,9 +322,9 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    *         FOUT1190 if the content cannot be decoded
    */
   @Nullable
-  public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+  public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
   {
-    final Path aPath = _getPath (sAbsoluteUri);
+    final Path aPath = _getPath (aUri.absoluteUri ());
     if (aPath == null)
       return null;
     final byte [] aBytes;
@@ -335,9 +336,9 @@ public final class XSLT30ResourceResolver implements IResourceResolver
     {
       return null;
     }
-    final String ret = QT3ResourceResolver.decodeText (aBytes, m_aEncodingByUri.get (sAbsoluteUri), sEncoding);
+    final String ret = QT3ResourceResolver.decodeText (aBytes, m_aEncodingByUri.get (aUri.absoluteUri ()), sEncoding);
     if (ret == null)
-      throw XPathException.of ("FOUT1190", "The resource '" + sAbsoluteUri + "' cannot be decoded");
+      throw XPathException.of ("FOUT1190", "The resource '" + aUri.absoluteUri () + "' cannot be decoded");
     return ret;
   }
 
@@ -425,14 +426,14 @@ public final class XSLT30ResourceResolver implements IResourceResolver
    */
   @Nullable
   @ReturnsMutableCopy
-  public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sUri)
+  public ICommonsList <IXdmNode> resolveCollection (@NonNull final ResourceUri aUri)
   {
-    final ICommonsList <Path> aPaths = _getCollectionPaths (sUri);
+    final ICommonsList <Path> aPaths = _getCollectionPaths (aUri.absoluteUri ());
     if (aPaths == null)
       return null;
-    ICommonsList <String> aFragments = m_aCollectionFragments.get (sUri);
+    ICommonsList <String> aFragments = m_aCollectionFragments.get (aUri.absoluteUri ());
     if (aFragments == null)
-      aFragments = m_aCollectionFragments.get (sUri.endsWith ("/") ? sUri.substring (0, sUri.length () - 1) : sUri + "/");
+      aFragments = m_aCollectionFragments.get (aUri.absoluteUri ().endsWith ("/") ? aUri.absoluteUri ().substring (0, aUri.absoluteUri ().length () - 1) : aUri.absoluteUri () + "/");
     final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
     for (int i = 0; i < aPaths.size (); ++i)
     {
@@ -444,7 +445,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
       catch (final XdmParseException ex)
       {
         throw new XPathException ("FODC0002",
-                                  "Member '" + aPaths.get (i) + "' of collection '" + sUri + "' cannot be parsed",
+                                  "Member '" + aPaths.get (i) + "' of collection '" + aUri.absoluteUri () + "' cannot be parsed",
                                   ex);
       }
       // A member "file#id" is the element with that ID (collection-004)
@@ -456,7 +457,7 @@ public final class XSLT30ResourceResolver implements IResourceResolver
         final IXdmNode aElement = _findById (aDoc, sFragment);
         if (aElement == null)
           throw new XPathException ("FODC0002",
-                                    "Member '" + aPaths.get (i) + "#" + sFragment + "' of collection '" + sUri + "' not found");
+                                    "Member '" + aPaths.get (i) + "#" + sFragment + "' of collection '" + aUri.absoluteUri () + "' not found");
         ret.add (aElement);
       }
     }
@@ -466,16 +467,16 @@ public final class XSLT30ResourceResolver implements IResourceResolver
   /**
    * The <code>file:</code> URIs of the members of a collection (for
    * <code>fn:uri-collection</code>), in the order of
-   * {@link #resolveCollection(String)}; fragments of members are not part of
+   * {@link #resolveCollection(ResourceUri)}; fragments of members are not part of
    * them.
    *
    * @return <code>null</code> if the collection is unknown.
    */
   @Nullable
   @ReturnsMutableCopy
-  public ICommonsList <String> resolveUriCollection (@NonNull final String sUri)
+  public ICommonsList <String> resolveUriCollection (@NonNull final ResourceUri aUri)
   {
-    final ICommonsList <Path> aPaths = _getCollectionPaths (sUri);
+    final ICommonsList <Path> aPaths = _getCollectionPaths (aUri.absoluteUri ());
     if (aPaths == null)
       return null;
     final ICommonsList <String> ret = new CommonsArrayList <> ();

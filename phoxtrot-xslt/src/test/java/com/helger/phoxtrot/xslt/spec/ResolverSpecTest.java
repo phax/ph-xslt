@@ -38,6 +38,7 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltCompiler;
 import com.helger.phoxtrot.xslt.XsltExecutable;
@@ -67,30 +68,30 @@ public final class ResolverSpecTest
     @NonNull
     private IXdmNode _doc (@NonNull final String sRel)
     {
-      return FileResourceResolver.INSTANCE.resolveDocument (m_aDir.resolve (sRel).toUri ().toString ());
+      return FileResourceResolver.INSTANCE.resolveDocument (ResourceUri.of (m_aDir.resolve (sRel).toUri ().toString ()));
     }
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
-      return FileResourceResolver.INSTANCE.resolveDocument (sAbsoluteUri);
+      return FileResourceResolver.INSTANCE.resolveDocument (aUri);
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
-      return FileResourceResolver.INSTANCE.resolveText (sAbsoluteUri, sEncoding);
+      return FileResourceResolver.INSTANCE.resolveText (aUri, sEncoding);
     }
 
     @Override
     @Nullable
-    public ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final String sAbsoluteUri)
+    public ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final ResourceUri aUri)
     {
-      if (sAbsoluteUri.isEmpty ())
+      if (aUri.absoluteUri ().isEmpty ())
         return new CommonsArrayList <> (_doc ("c/one.xml"), _doc ("c/two.xml"));
-      if (sAbsoluteUri.endsWith ("/mine"))
+      if (aUri.absoluteUri ().endsWith ("/mine"))
         return new CommonsArrayList <> (_doc ("c/one.xml"));
-      if (sAbsoluteUri.endsWith ("/frag"))
+      if (aUri.absoluteUri ().endsWith ("/frag"))
       {
         // ids.xml#x1: the element with that xml:id
         final IXdmNode aRoot = _doc ("ids.xml").getChildAtIndex (0);

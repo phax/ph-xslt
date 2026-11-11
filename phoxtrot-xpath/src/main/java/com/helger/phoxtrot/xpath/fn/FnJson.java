@@ -44,6 +44,7 @@ import com.helger.phoxtrot.xdm.XdmValidationException;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.eval.XPathEvaluator;
 import com.helger.phoxtrot.xpath.serialize.SerializationParams;
 import com.helger.phoxtrot.xpath.serialize.SerializationParamsReader;
@@ -573,7 +574,8 @@ public final class FnJson
     final String sHref = ((XdmAtomic) aArgs.get (0).get (0)).getString ();
     final JsonOptions aOptions = _readOptions (aArgs.size () > 1 ? aArgs.get (1) : null, aCtx, false);
     final String sUri = _resolveUri (sHref, aCtx);
-    final String sText = aCtx.getResourceResolver ().resolveText (sUri, null);
+    final String sText = aCtx.getResourceResolver ()
+                             .resolveText (ResourceUri.of (sUri, sHref, aCtx.getStaticContext ().getBaseUri ()), null);
     if (sText == null)
       throw XPathException.of ("FOUT1170", "Cannot retrieve the resource '" + sUri + "'");
     return _parseJson (sText, aOptions);
@@ -1126,7 +1128,7 @@ public final class FnJson
         {
           case ELEMENT:
             aCopy = IXdmNode.createElement (aChild.getName ());
-            for (final var aEntry : aChild.getDeclaredNamespaces ().entrySet ())
+            for (final var aEntry : aChild.declaredNamespaces ().entrySet ())
               aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());
             for (final IXdmNode aAttr : aChild.getAllAttributes ())
             {

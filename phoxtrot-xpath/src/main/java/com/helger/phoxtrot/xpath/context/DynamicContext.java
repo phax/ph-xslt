@@ -466,12 +466,12 @@ public final class DynamicContext
     final IResourceResolver ret = m_aRun.m_aResolver;
     return ret != null ? ret : new IResourceResolver ()
     {
-      public IXdmNode resolveDocument (final String sAbsoluteUri)
+      public IXdmNode resolveDocument (final ResourceUri aUri)
       {
         return null;
       }
 
-      public String resolveText (final String sAbsoluteUri, final String sEncoding)
+      public String resolveText (final ResourceUri aUri, final String sEncoding)
       {
         return null;
       }

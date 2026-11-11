@@ -36,7 +36,9 @@ import com.helger.phoxtrot.xpath.value.XdmSequence;
  *        atomic values).
  * @param principalSerialized
  *        The principal result serialised with the unnamed xsl:output
- *        declaration.
+ *        declaration; empty if it was not serialised (raw delivery, written
+ *        to a stream or writer, or
+ *        {@link XsltTransformRequest#setPrincipalTreeOnly(boolean)}).
  * @param secondaryResults
  *        Results of xsl:result-document.
  * @param messages

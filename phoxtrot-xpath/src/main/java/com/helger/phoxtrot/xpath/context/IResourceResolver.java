@@ -35,11 +35,14 @@ import com.helger.phoxtrot.xdm.XdmStreamReader;
  * (<code>fn:doc</code>, <code>fn:collection</code>,
  * <code>fn:unparsed-text</code>, <code>fn:json-doc</code>,
  * <code>fn:uri-collection</code>), and the XSLT compiler access to stylesheet
- * modules ({@link #resolveStylesheetModule(String)}). The default resolver in
- * {@link DynamicContext} resolves nothing.
+ * modules ({@link #resolveStylesheetModule(ResourceUri)}). The default resolver
+ * in {@link DynamicContext} resolves nothing. Every resource is named by a
+ * {@link ResourceUri}: the URI the engine resolved, and the reference as
+ * written with its base URI.
  * <p>
  * Node locations: the documents a transformation or query reads
- * ({@link #resolveDocument(String)}, {@link #openDocumentStream(String, Predicate)})
+ * ({@link #resolveDocument(ResourceUri)},
+ * {@link #openDocumentStream(ResourceUri, Predicate)})
  * need none and should be parsed without (the default of {@link XdmParser});
  * only stylesheet modules need them.
  *
@@ -48,14 +51,14 @@ import com.helger.phoxtrot.xdm.XdmStreamReader;
 public interface IResourceResolver
 {
   /**
-   * @param sAbsoluteUri
-   *        Absolute URI.
+   * @param aUri
+   *        The URI of the document, without fragment identifier.
    * @return The parsed document or <code>null</code> if it is unavailable.
-   *         The same URI must yield the same node within one evaluation
-   *         (stability).
+   *         The same absolute URI must yield the same node within one
+   *         evaluation (stability).
    */
   @Nullable
-  IXdmNode resolveDocument (@NonNull String sAbsoluteUri);
+  IXdmNode resolveDocument (@NonNull ResourceUri aUri);
 
   /**
    * Resolve a stylesheet module to compile: the target of
@@ -66,10 +69,10 @@ public interface IResourceResolver
    * reports ({@link XdmParser#setRecordLocations(boolean)}): the errors of the
    * stylesheet report the line and column of its elements, and
    * <code>xsl:try</code> tells the errors of global variables apart by them.
-   * Unlike for {@link #resolveDocument(String)}, the same URI need not yield
+   * Unlike for {@link #resolveDocument(ResourceUri)}, the same URI need not yield
    * the same node.
    * <p>
-   * The default implementation calls {@link #resolveDocument(String)} inside
+   * The default implementation calls {@link #resolveDocument(ResourceUri)} inside
    * {@link XdmParser#getWithRecordLocations(java.util.function.Supplier)}:
    * every {@link XdmParser} and {@link com.helger.phoxtrot.xdm.XdmTreeBuilder}
    * created on the calling thread meanwhile records locations unless it is
@@ -82,25 +85,25 @@ public interface IResourceResolver
    * <code>xsl:try</code> may take an error of a template for one of a global
    * variable.
    *
-   * @param sAbsoluteUri
-   *        Absolute URI without fragment identifier.
+   * @param aUri
+   *        The URI of the module, without fragment identifier.
    * @return The parsed document or <code>null</code> if it is unavailable.
    */
   @Nullable
-  default IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  default IXdmNode resolveStylesheetModule (@NonNull final ResourceUri aUri)
   {
-    return XdmParser.getWithRecordLocations ( () -> resolveDocument (sAbsoluteUri));
+    return XdmParser.getWithRecordLocations ( () -> resolveDocument (aUri));
   }
 
   /**
    * Open a document for streamed processing (XSLT 3.0 section 19), with the
-   * parser settings {@link #resolveDocument(String)} would use, and without
-   * node locations (no streamed path reads them). The default implementation
-   * streams nothing, and the document is then read in full by
-   * {@link #resolveDocument(String)}.
+   * parser settings {@link #resolveDocument(ResourceUri)} would use, and
+   * without node locations (no streamed path reads them). The default
+   * implementation streams nothing, and the document is then read in full by
+   * {@link #resolveDocument(ResourceUri)}.
    *
-   * @param sAbsoluteUri
-   *        Absolute URI without fragment identifier.
+   * @param aUri
+   *        The URI of the document, without fragment identifier.
    * @param aStripWhitespace
    *        The element names whose whitespace-only text children are to be
    *        removed while reading (xsl:strip-space), or <code>null</code>. Pass
@@ -114,34 +117,34 @@ public interface IResourceResolver
    *         it is to be read in full instead
    */
   @Nullable
-  default XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+  default XdmStreamReader openDocumentStream (@NonNull final ResourceUri aUri,
                                               @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
   {
     return null;
   }
 
   /**
-   * @param sAbsoluteUri
-   *        Absolute URI.
+   * @param aUri
+   *        The URI of the text resource.
    * @param sEncoding
    *        Requested encoding or <code>null</code>.
    * @return The decoded text or <code>null</code> if unavailable.
    */
   @Nullable
-  String resolveText (@NonNull String sAbsoluteUri, @Nullable String sEncoding);
+  String resolveText (@NonNull ResourceUri aUri, @Nullable String sEncoding);
 
   /**
    * Resolve a collection for <code>fn:collection</code>. The default
    * implementation knows no collection.
    *
-   * @param sAbsoluteUri
-   *        Absolute collection URI; the empty string for the default
-   *        collection.
+   * @param aUri
+   *        The collection URI; its absolute URI is the empty string for the
+   *        default collection.
    * @return The items of the collection or <code>null</code> if the collection
    *         is unknown.
    */
   @Nullable
-  default ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final String sAbsoluteUri)
+  default ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final ResourceUri aUri)
   {
     return null;
   }
@@ -149,18 +152,18 @@ public interface IResourceResolver
   /**
    * Resolve a URI collection for <code>fn:uri-collection</code>. The default
    * implementation returns the document URIs of the document nodes of
-   * {@link #resolveCollection(String)}.
+   * {@link #resolveCollection(ResourceUri)}.
    *
-   * @param sAbsoluteUri
-   *        Absolute collection URI; the empty string for the default
-   *        collection.
+   * @param aUri
+   *        The collection URI; its absolute URI is the empty string for the
+   *        default collection.
    * @return The URIs of the resources in the collection or <code>null</code>
    *         if the collection is unknown.
    */
   @Nullable
-  default ICommonsList <String> resolveUriCollection (@NonNull final String sAbsoluteUri)
+  default ICommonsList <String> resolveUriCollection (@NonNull final ResourceUri aUri)
   {
-    final ICommonsList <? extends IXdmItem> aItems = resolveCollection (sAbsoluteUri);
+    final ICommonsList <? extends IXdmItem> aItems = resolveCollection (aUri);
     if (aItems == null)
       return null;
     final ICommonsList <String> ret = new CommonsArrayList <> ();

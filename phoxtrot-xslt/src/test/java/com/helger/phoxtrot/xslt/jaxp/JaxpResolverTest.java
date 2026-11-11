@@ -428,7 +428,8 @@ public final class JaxpResolverTest
         assertEquals ("http://example.org/xsl/main.xsl", ex.getLocator ().getSystemId ());
         assertTrue (ex.getLocator ().getLineNumber () > 0);
       }
-      assertEquals ("[http://example.org/xsl/mod.xsl]", aCalls.toString ());
+      // The URI resolver gets the href as written
+      assertEquals ("[mod.xsl]", aCalls.toString ());
     }
   }
 
@@ -450,7 +451,7 @@ public final class JaxpResolverTest
       assertNotNull (ex.getLocator ());
       assertTrue (ex.getLocator ().getLineNumber () > 0);
     }
-    assertEquals ("[http://example.org/xsl/params.xml]", aCalls.toString ());
+    assertEquals ("[params.xml]", aCalls.toString ());
   }
 
   @Test

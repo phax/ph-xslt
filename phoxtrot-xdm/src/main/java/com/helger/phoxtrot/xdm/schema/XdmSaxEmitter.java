@@ -162,10 +162,9 @@ public final class XdmSaxEmitter
       {
         case ELEMENT:
         {
-          // Most elements declare nothing: no copy of an empty map for them
+          // Below the start element only the own declarations, as a view without copying
           final Map <String, String> aNamespaces = aNode == aElement ? aNode.getInScopeNamespaces ()
-                                                                     : aNode.hasDeclaredNamespaces () ? aNode.getDeclaredNamespaces ()
-                                                                                                      : Map.of ();
+                                                                     : aNode.declaredNamespaces ();
           _startElement (aNode, aNamespaces, aHandler);
           aStack.push (new Entry (aNode, true, aNamespaces));
           for (int i = aNode.getChildCount () - 1; i >= 0; --i)

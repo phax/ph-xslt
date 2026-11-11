@@ -38,6 +38,7 @@ import com.helger.phoxtrot.xpath.CompiledXPath;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.fn.FnAccessor;
 import com.helger.phoxtrot.xpath.ops.Atomizer;
 import com.helger.phoxtrot.xpath.value.EAtomicType;
@@ -70,29 +71,29 @@ final class XsdAssertions
   private static final IResourceResolver RESOLVER = new IResourceResolver ()
   {
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
       return null;
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
       return null;
     }
 
     @Override
     @Nullable
-    public ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final String sAbsoluteUri)
+    public ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final ResourceUri aUri)
     {
-      return sAbsoluteUri.isEmpty () ? new CommonsArrayList <> () : null;
+      return aUri.absoluteUri ().isEmpty () ? new CommonsArrayList <> () : null;
     }
 
     @Override
     @Nullable
-    public ICommonsList <String> resolveUriCollection (@NonNull final String sAbsoluteUri)
+    public ICommonsList <String> resolveUriCollection (@NonNull final ResourceUri aUri)
     {
-      return sAbsoluteUri.isEmpty () ? new CommonsArrayList <> () : null;
+      return aUri.absoluteUri ().isEmpty () ? new CommonsArrayList <> () : null;
     }
   };
 

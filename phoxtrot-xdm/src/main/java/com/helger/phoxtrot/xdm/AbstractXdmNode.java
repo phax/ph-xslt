@@ -17,6 +17,8 @@
 package com.helger.phoxtrot.xdm;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.jspecify.annotations.NonNull;
@@ -554,6 +556,13 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   {
     final ICommonsOrderedMap <String, String> aNamespaces = _getNamespaces ();
     return aNamespaces == null ? new CommonsLinkedHashMap <> () : aNamespaces.getClone ();
+  }
+
+  @NonNull
+  public final Map <String, String> declaredNamespaces ()
+  {
+    final ICommonsOrderedMap <String, String> aNamespaces = _getNamespaces ();
+    return aNamespaces == null ? Collections.emptyMap () : Collections.unmodifiableMap (aNamespaces);
   }
 
   public final boolean hasDeclaredNamespaces ()

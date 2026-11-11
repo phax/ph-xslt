@@ -26,6 +26,7 @@ import org.junit.Test;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltCompiler;
 import com.helger.phoxtrot.xslt.XsltExecutable;
@@ -134,17 +135,17 @@ public final class PackagesTest
     final IResourceResolver aResolver = new IResourceResolver ()
     {
       @Nullable
-      public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+      public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
       {
-        if (!"http://example.org/inc.xsl".equals (sAbsoluteUri))
+        if (!"http://example.org/inc.xsl".equals (aUri.absoluteUri ()))
           return null;
         final IXdmNode ret = XsltTestHelper.parse (sInc);
-        ret.setDocumentUri (sAbsoluteUri);
+        ret.setDocumentUri (aUri.absoluteUri ());
         return ret;
       }
 
       @Nullable
-      public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+      public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
       {
         return null;
       }

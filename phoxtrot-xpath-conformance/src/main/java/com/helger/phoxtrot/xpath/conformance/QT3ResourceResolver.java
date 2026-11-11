@@ -46,6 +46,7 @@ import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 /**
  * Resolves the URIs an environment declares (sources with a <code>uri</code>,
@@ -404,18 +405,18 @@ public final class QT3ResourceResolver implements IResourceResolver
    * URI. A source this resolver validated or re-parsed is returned as that
    * node, anything else through the document cache.
    *
-   * @param sAbsoluteUri
-   *        The absolute URI.
+   * @param aUri
+   *        The URI; its absolute URI is read.
    * @return The document node, or <code>null</code> if the URI is not
    *         declared and not a <code>file:</code> URI, or the file does not
    *         exist or is not well-formed.
    */
   @Nullable
-  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
   {
-    Path aFile = m_aByUri.get (sAbsoluteUri);
+    Path aFile = m_aByUri.get (aUri.absoluteUri ());
     if (aFile == null)
-      aFile = _fileUriToPath (sAbsoluteUri);
+      aFile = _fileUriToPath (aUri.absoluteUri ());
     if (aFile == null)
       return null;
     // fn:doc on the URI of a validated source returns that same document
@@ -430,19 +431,19 @@ public final class QT3ResourceResolver implements IResourceResolver
    * <code>file:</code> URI, parsed with node locations each time (no cache:
    * a module need not be the same node per call).
    *
-   * @param sAbsoluteUri
-   *        The absolute URI.
+   * @param aUri
+   *        The URI; its absolute URI is read.
    * @return The document node, or <code>null</code> if the URI is not
    *         declared and not a <code>file:</code> URI, or the file does not
    *         exist or is not well-formed.
    */
   @Override
   @Nullable
-  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveStylesheetModule (@NonNull final ResourceUri aUri)
   {
-    Path aFile = m_aByUri.get (sAbsoluteUri);
+    Path aFile = m_aByUri.get (aUri.absoluteUri ());
     if (aFile == null)
-      aFile = _fileUriToPath (sAbsoluteUri);
+      aFile = _fileUriToPath (aUri.absoluteUri ());
     if (aFile == null || !Files.isRegularFile (aFile))
       return null;
     try
@@ -459,8 +460,8 @@ public final class QT3ResourceResolver implements IResourceResolver
    * Resolve unparsed text (see <code>_getTextPath</code>) and decode it with
    * {@link #decodeText}, using the encoding declared for exactly this URI.
    *
-   * @param sAbsoluteUri
-   *        The absolute URI.
+   * @param aUri
+   *        The URI; its absolute URI is read.
    * @param sEncoding
    *        The requested encoding, may be <code>null</code>.
    * @return The text, or <code>null</code> if the resource is unavailable or
@@ -469,9 +470,9 @@ public final class QT3ResourceResolver implements IResourceResolver
    *         FOUT1190 if the bytes cannot be decoded.
    */
   @Nullable
-  public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+  public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
   {
-    final Path aPath = _getTextPath (sAbsoluteUri);
+    final Path aPath = _getTextPath (aUri.absoluteUri ());
     if (aPath == null)
       return null;
     final byte [] aBytes;
@@ -483,9 +484,9 @@ public final class QT3ResourceResolver implements IResourceResolver
     {
       return null;
     }
-    final String ret = decodeText (aBytes, m_aEncodingByUri.get (sAbsoluteUri), sEncoding);
+    final String ret = decodeText (aBytes, m_aEncodingByUri.get (aUri.absoluteUri ()), sEncoding);
     if (ret == null)
-      throw XPathException.of ("FOUT1190", "The resource '" + sAbsoluteUri + "' cannot be decoded");
+      throw XPathException.of ("FOUT1190", "The resource '" + aUri.absoluteUri () + "' cannot be decoded");
     return ret;
   }
 
@@ -498,9 +499,9 @@ public final class QT3ResourceResolver implements IResourceResolver
    */
   @Nullable
   @ReturnsMutableCopy
-  public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sUri)
+  public ICommonsList <IXdmNode> resolveCollection (@NonNull final ResourceUri aUri)
   {
-    final ICommonsList <Path> aPaths = m_aCollections.get (sUri);
+    final ICommonsList <Path> aPaths = m_aCollections.get (aUri.absoluteUri ());
     if (aPaths == null)
       return null;
     final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
@@ -521,9 +522,9 @@ public final class QT3ResourceResolver implements IResourceResolver
    */
   @Nullable
   @ReturnsMutableCopy
-  public ICommonsList <String> resolveUriCollection (@NonNull final String sUri)
+  public ICommonsList <String> resolveUriCollection (@NonNull final ResourceUri aUri)
   {
-    final ICommonsList <Path> aPaths = m_aCollections.get (sUri);
+    final ICommonsList <Path> aPaths = m_aCollections.get (aUri.absoluteUri ());
     if (aPaths == null)
       return null;
     final ICommonsList <String> ret = new CommonsArrayList <> ();

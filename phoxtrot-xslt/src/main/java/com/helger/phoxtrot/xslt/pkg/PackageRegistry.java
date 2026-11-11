@@ -29,6 +29,7 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParseException;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.compile.FileResourceResolver;
@@ -171,7 +172,7 @@ public final class PackageRegistry
                                                                          : new FileResourceResolver (m_aOptions.isLoadExternalEntities ());
     try
     {
-      final IXdmNode aDoc = aResolver.resolveStylesheetModule (aSource.baseUri ());
+      final IXdmNode aDoc = aResolver.resolveStylesheetModule (ResourceUri.of (aSource.baseUri ()));
       if (aDoc != null && aDoc.isDocument () && aDoc.getDocumentUri () == null)
         aDoc.setDocumentUri (aSource.baseUri ());
       if (aDoc == null)

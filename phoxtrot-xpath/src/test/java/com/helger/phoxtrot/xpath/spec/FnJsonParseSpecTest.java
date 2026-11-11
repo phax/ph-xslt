@@ -29,6 +29,7 @@ import com.helger.collection.commons.CommonsHashMap;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.spec.SpecTestHelper.Env;
 
 /**
@@ -54,15 +55,15 @@ public final class FnJsonParseSpecTest
     }
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
       return null;
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
-      return m_aTexts.get (sAbsoluteUri);
+      return m_aTexts.get (aUri.absoluteUri ());
     }
   }
 

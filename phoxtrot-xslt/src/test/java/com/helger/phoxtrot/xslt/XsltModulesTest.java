@@ -25,6 +25,7 @@ import org.junit.Test;
 import com.helger.collection.commons.CommonsHashMap;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -48,20 +49,20 @@ public final class XsltModulesTest
     }
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
-      final String s = m_aDocs.get (sAbsoluteUri);
+      final String s = m_aDocs.get (aUri.absoluteUri ());
       if (s == null)
         return null;
       final IXdmNode ret = XsltTestHelper.parse (s);
-      ret.setDocumentUri (sAbsoluteUri);
+      ret.setDocumentUri (aUri.absoluteUri ());
       return ret;
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
-      return m_aDocs.get (sAbsoluteUri);
+      return m_aDocs.get (aUri.absoluteUri ());
     }
   }
 
@@ -221,8 +222,8 @@ public final class XsltModulesTest
     final Map <String, String> aModules = Map.of ("http://example.org/inc.xsl", sIncluded);
     final MapResolver aResolver = new MapResolver (aModules);
     // As a document: without locations; as a stylesheet module: with
-    assertEquals (0, aResolver.resolveDocument ("http://example.org/inc.xsl").getChildAtIndex (0).getLine ());
-    assertEquals (1, aResolver.resolveStylesheetModule ("http://example.org/inc.xsl").getChildAtIndex (0).getLine ());
+    assertEquals (0, aResolver.resolveDocument (ResourceUri.of ("http://example.org/inc.xsl")).getChildAtIndex (0).getLine ());
+    assertEquals (1, aResolver.resolveStylesheetModule (ResourceUri.of ("http://example.org/inc.xsl")).getChildAtIndex (0).getLine ());
 
     // An error in the included module reports its line there
     final String sMain = XsltTestHelper.SHEET +

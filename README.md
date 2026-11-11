@@ -113,9 +113,9 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
 * Source compatible within 0.x (changes only with a note in "News and noteworthy"): in `com.helger.phoxtrot.xpath`
   `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`, `LargeStackRunner`,
   `XPathStreamabilityAnalyzer`, `XPathStreamabilityResult`, `XPathStreamabilityReason`, `EStreamabilityVerdict` and
-  `EStreamabilityConstruct`; `StaticContext`, `DynamicContext` and `IResourceResolver` (`context`); `FunctionLibrary`
-  and `IXPathFunction` (`fn`); `SeqType`, `ItemType` and `EOccurrence` (`ast`); `EPosture`, `ESweep`, `PostureSweep`
-  and `EStreamFunctionCategory` (`stream`); the value types of `value`, `XPathOperators` (`eval`) and the node model
+  `EStreamabilityConstruct`; `StaticContext`, `DynamicContext`, `IResourceResolver` and `ResourceUri` (`context`);
+  `FunctionLibrary` and `IXPathFunction` (`fn`); `SeqType`, `ItemType` and `EOccurrence` (`ast`); `EPosture`, `ESweep`,
+  `PostureSweep` and `EStreamFunctionCategory` (`stream`); the value types of `value`, `XPathOperators` (`eval`) and the node model
   of `phoxtrot-xdm`. Everything else in `ast` (expression nodes), `eval`, `parser`, `ops`, `pattern` and `stream` is
   internal.
 * Extension functions: `FunctionLibrary.register` with the signature as text (`"(xs:string?) as xs:integer"`) or as
@@ -174,6 +174,8 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
   `PhoxtrotTransformerFactory.ATTR_THREADING` chooses (an `EThreading` or its name; default `NEW_THREAD`, a new
   thread with a large stack per call; also `THREAD_POOL` and `CALLING_THREAD`), a transformer can override it with
   `PhoxtrotTransformer.setThreading`.
+* The `URIResolver` is called as JAXP specifies: with the `href` as written and the base URI it is resolved against
+  (the empty string if there is none, e.g. a stylesheet without system ID).
 * What the `URIResolver` does not resolve is read directly if `XMLConstants.ACCESS_EXTERNAL_STYLESHEET` allows the
   scheme (default `all`; `FEATURE_SECURE_PROCESSING` set to `true` allows nothing; a `jar:` URI needs its nested URI
   allowed too). A `URIResolver` that throws refuses the URI: `xsl:include`/`xsl:import` fail with XTSE0165,
@@ -221,6 +223,16 @@ basis of this project. See [NOTICE](NOTICE).
 # News and noteworthy
 
 v0.2.0 - work in progress
+* API change: every `IResourceResolver` method now takes a `ResourceUri` (the resolved URI, the reference as written
+  and its base URI) instead of the absolute URI as string; implementations use `ResourceUri.absoluteUri ()`
+* JAXP: the `URIResolver` is now called as JAXP specifies, with the `href` as written and the base URI (the empty
+  string without one), so a resolver can apply its own default base for a stylesheet without system ID
+* JAXP: a transformation into a `DOMResult` or `SAXResult` no longer serialises the result it never uses; added
+  `XsltTransformRequest.setPrincipalTreeOnly`
+* Added `IXdmNode.declaredNamespaces ()`, a read-only view of the own namespace declarations without copying, used by
+  the serialiser and the DOM and SAX bridges
+* `DomToXdm` allocates less than half as much per conversion (no per-node walk records, attribute and namespace
+  objects only where needed, DOM text used without copying); added `XdmTreeBuilder.characters (String)`
 * JAXP: added the factory attribute `ATTR_MAX_DEPTH` and `PhoxtrotTransformer.setMaxDepth` for the nesting depth
   limit of templates and functions
 * Behaviour change: `XsltTransformRequest.setMaxDepth` can now raise the limit above the default of 10,000; added

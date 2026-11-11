@@ -32,6 +32,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 /**
  * Test class for class {@link QT3ResourceResolver}.
@@ -95,26 +96,26 @@ public final class QT3ResourceResolverTest
     final String sFileUri = QT3ResourceResolver.getFileUri (aDir.resolve ("sub/doc.xml"));
     assertEquals (sFileUri, aDoc.getDocumentUri ());
     // Stable: the source, its declared URI and its file URI are the same node
-    assertSame (aDoc, aResolver.resolveDocument ("http://x/doc.xml"));
-    assertSame (aDoc, aResolver.resolveDocument (sFileUri));
+    assertSame (aDoc, aResolver.resolveDocument (ResourceUri.of ("http://x/doc.xml")));
+    assertSame (aDoc, aResolver.resolveDocument (ResourceUri.of (sFileUri)));
     // A malformed source is unavailable
     assertNull (aResolver.getSourceDocument (aEnv.getAllSources ().get (1)));
     // Undeclared URIs are unavailable, except existing file URIs
-    assertNull (aResolver.resolveDocument ("http://x/other.xml"));
-    assertNotNull (aResolver.resolveDocument (QT3ResourceResolver.getFileUri (aDir.resolve ("sub/other.xml"))));
-    assertNull (aResolver.resolveDocument (QT3ResourceResolver.getFileUri (aDir.resolve ("sub/missing.xml"))));
+    assertNull (aResolver.resolveDocument (ResourceUri.of ("http://x/other.xml")));
+    assertNotNull (aResolver.resolveDocument (ResourceUri.of (QT3ResourceResolver.getFileUri (aDir.resolve ("sub/other.xml")))));
+    assertNull (aResolver.resolveDocument (ResourceUri.of (QT3ResourceResolver.getFileUri (aDir.resolve ("sub/missing.xml")))));
 
-    assertEquals ("text", aResolver.resolveText ("http://x/t.txt", null));
+    assertEquals ("text", aResolver.resolveText (ResourceUri.of ("http://x/t.txt"), null));
     // Relative references and file URIs for unparsed text
-    assertEquals ("text", aResolver.resolveText ("sub/t.txt", null));
-    assertEquals ("text", aResolver.resolveText (QT3ResourceResolver.getFileUri (aDir.resolve ("sub/t.txt")), null));
-    assertNull (aResolver.resolveText ("http://x/none.txt", null));
-    assertNull (aResolver.resolveText ("sub/none.txt", null));
+    assertEquals ("text", aResolver.resolveText (ResourceUri.of ("sub/t.txt"), null));
+    assertEquals ("text", aResolver.resolveText (ResourceUri.of (QT3ResourceResolver.getFileUri (aDir.resolve ("sub/t.txt"))), null));
+    assertNull (aResolver.resolveText (ResourceUri.of ("http://x/none.txt"), null));
+    assertNull (aResolver.resolveText (ResourceUri.of ("sub/none.txt"), null));
 
-    final ICommonsList <IXdmNode> aColl = aResolver.resolveCollection ("http://x/coll");
+    final ICommonsList <IXdmNode> aColl = aResolver.resolveCollection (ResourceUri.of ("http://x/coll"));
     assertNotNull (aColl);
     assertEquals (2, aColl.size ());
     assertSame (aDoc, aColl.getFirstOrNull ());
-    assertNull (aResolver.resolveCollection (""));
+    assertNull (aResolver.resolveCollection (ResourceUri.of ("")));
   }
 }

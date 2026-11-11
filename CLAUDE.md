@@ -74,8 +74,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `com.helger.phoxtrot.xpath/package-info.java`): `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`,
   `LargeStackRunner`, `XPathStreamabilityAnalyzer` (with `XPathStreamabilityResult`, `XPathStreamabilityReason`,
   `EStreamabilityVerdict`, `EStreamabilityConstruct`), `StaticContext`, `DynamicContext`, `IResourceResolver`,
-  `FunctionLibrary`, `IXPathFunction`, `SeqType`, `ItemType`, `EOccurrence`, `EPosture`, `ESweep`, `PostureSweep`,
-  `EStreamFunctionCategory`, the `value` types and `XPathOperators`. A change to one of them goes into the
+  `ResourceUri`, `FunctionLibrary`, `IXPathFunction`, `SeqType`, `ItemType`, `EOccurrence`, `EPosture`, `ESweep`,
+  `PostureSweep`, `EStreamFunctionCategory`, the `value` types and `XPathOperators`. A change to one of them goes into the
   release notes; keep both lists in sync when the set changes.
 - Error positions: the parser and lexer set `XPathException.setExpressionPosition` (offset, line, column in the
   expression) on every static error they raise through `_error`/`_syntax`/the lexer's error helper; a new static
@@ -101,8 +101,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `PhoxtrotTemplates` (wraps an `XsltExecutable`, thread-safe), `PhoxtrotTransformer`. Never register it in
   `META-INF/services/javax.xml.transform.TransformerFactory` (it would replace the JDK transformer of every
   application on the class path). Sources and DOM conversion go through `JaxpSources`, resources (include, import,
-  `document()`, `unparsed-text()`) through `JaxpResourceResolver` (URIResolver first, called with the absolute URI as
-  href and base, then direct access as `ACCESS_EXTERNAL_STYLESHEET` allows, a `jar:` URI only if its nested URI is
+  `document()`, `unparsed-text()`) through `JaxpResourceResolver` (URIResolver first, called as JAXP specifies with the
+  href as written and the base URI, `""` without one, from the `ResourceUri` every `IResourceResolver` method gets;
+  then direct access to the absolute URI as `ACCESS_EXTERNAL_STYLESHEET` allows, a `jar:` URI only if its nested URI is
   allowed too; a refusing URIResolver gives XTSE0165 for modules (`StylesheetLoader`), FODC0002 for documents and
   FOUT1170 for text). Every `XdmParser` of the adapter is created from `JaxpParserSettings` (external entities,
   `ACCESS_EXTERNAL_DTD` through `XdmParser.setAccessExternalDtd`, the entity resolver of the factory or transformer),

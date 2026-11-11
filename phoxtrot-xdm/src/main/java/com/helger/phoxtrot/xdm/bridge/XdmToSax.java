@@ -104,7 +104,7 @@ public final class XdmToSax
       if (aElement.hasDeclaredNamespaces ())
       {
         // Declarations that repeat the binding in scope are not reported
-        for (final Map.Entry <String, String> aEntry : aElement.getDeclaredNamespaces ().entrySet ())
+        for (final Map.Entry <String, String> aEntry : aElement.declaredNamespaces ().entrySet ())
           if (!aScope.isBoundTo (aEntry.getKey (), aEntry.getValue ()))
             aDecls.put (aEntry.getKey (), aEntry.getValue ());
       }

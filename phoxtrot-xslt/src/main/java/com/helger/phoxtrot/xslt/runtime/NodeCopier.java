@@ -119,7 +119,7 @@ public final class NodeCopier
     if (!bAllInScope && !aSource.hasDeclaredNamespaces ())
       return;
     final Map <String, String> aNamespaces = bAllInScope ? aSource.getInScopeNamespaces ()
-                                                         : aSource.getDeclaredNamespaces ();
+                                                         : aSource.declaredNamespaces ();
     for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
       if (!"xml".equals (aEntry.getKey ()) && !(bAllInScope && aEntry.getValue ().isEmpty ()))
         aCopy.declareNamespace (aEntry.getKey (), aEntry.getValue ());

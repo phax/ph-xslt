@@ -757,10 +757,8 @@ final class MarkupWriter
     final StringBuilder aDecls = new StringBuilder ();
     boolean bUndeclaresDefault = false;
 
-    // Most elements declare nothing: no copy of an empty map for them
-    final Map <String, String> aNamespaces = bTop ? aElement.getInScopeNamespaces ()
-                                                  : aElement.hasDeclaredNamespaces () ? aElement.getDeclaredNamespaces ()
-                                                                                      : Map.of ();
+    // Below the top only the own declarations, as a view without copying
+    final Map <String, String> aNamespaces = bTop ? aElement.getInScopeNamespaces () : aElement.declaredNamespaces ();
     for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
     {
       final String sPrefix = aEntry.getKey ();

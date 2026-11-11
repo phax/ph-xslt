@@ -26,17 +26,18 @@ import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.collection.commons.ICommonsSet;
+import com.helger.phoxtrot.xdm.IXdmItem;
+import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xdm.XdmConstants;
+import com.helger.phoxtrot.xdm.XdmParseException;
+import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.collation.CollationRegistry;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.fn.FnUri;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
-import com.helger.phoxtrot.xdm.IXdmItem;
-import com.helger.phoxtrot.xdm.IXdmNode;
-import com.helger.phoxtrot.xdm.XdmParseException;
-import com.helger.phoxtrot.xdm.XdmStreamReader;
-import com.helger.phoxtrot.xdm.XdmConstants;
-import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.compile.CompileContext;
 import com.helger.phoxtrot.xslt.compile.XPathExpr;
@@ -190,9 +191,9 @@ public final class MergeInstruction
 
   /** @return The absolute URIs of the documents for-each-source selects. */
   @NonNull
-  private static ICommonsList <String> _getSourceUris (@NonNull final Source aSource, @NonNull final XsltContext aCtx)
+  private static ICommonsList <ResourceUri> _getSourceUris (@NonNull final Source aSource, @NonNull final XsltContext aCtx)
   {
-    final ICommonsList <String> ret = new CommonsArrayList <> ();
+    final ICommonsList <ResourceUri> ret = new CommonsArrayList <> ();
     final String sBase = aSource.element ().getStaticBaseUri ();
     for (final IXdmItem aItem : aSource.forEachSource ().evaluate (aCtx))
     {
@@ -207,7 +208,9 @@ public final class MergeInstruction
       final String sTrimmed = FnUri.iriToUri (sRef.trim ());
       try
       {
-        ret.add (sBase != null && FnUri.isAbsoluteUri (sBase) ? FnUri.resolveUri (sTrimmed, sBase) : sTrimmed);
+        ret.add (ResourceUri.of (sBase != null && FnUri.isAbsoluteUri (sBase) ? FnUri.resolveUri (sTrimmed, sBase) : sTrimmed,
+                                 sTrimmed,
+                                 sBase));
       }
       catch (final XPathException ex)
       {
@@ -235,12 +238,12 @@ public final class MergeInstruction
     else
       if (aSource.forEachSource () != null)
       {
-        final ICommonsList <String> aUris = _getSourceUris (aSource, aCtx);
+        final ICommonsList <ResourceUri> aUris = _getSourceUris (aSource, aCtx);
         final int nSize = aUris.size ();
         for (int i = 0; i < nSize; ++i)
         {
-          final String sUri = aUris.get (i);
-          IXdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, sUri);
+          final String sUri = aUris.get (i).absoluteUri ();
+          IXdmNode aDoc = aCtx.getEngine ().getDocument (aCtx, aUris.get (i));
           if (aDoc == null)
             throw new XPathException ("FODC0002", "Cannot retrieve the document '" + sUri + "'");
           // Validate a copy, the document itself is shared by all retrievals
@@ -472,7 +475,7 @@ public final class MergeInstruction
     {
       // Open every stream first: one that cannot be streamed makes the whole
       // merge run buffered
-      final ICommonsList <ICommonsList <String>> aUris = new CommonsArrayList <> ();
+      final ICommonsList <ICommonsList <ResourceUri>> aUris = new CommonsArrayList <> ();
       for (final Source aSource : m_aSources)
       {
         if (!_isStreamed (aSource, aCtx))
@@ -480,10 +483,10 @@ public final class MergeInstruction
           aUris.add (null);
           continue;
         }
-        final ICommonsList <String> aSourceUris = _getSourceUris (aSource, aCtx);
-        for (final String sUri : aSourceUris)
+        final ICommonsList <ResourceUri> aSourceUris = _getSourceUris (aSource, aCtx);
+        for (final ResourceUri aUri : aSourceUris)
         {
-          final XdmStreamReader aReader = aEngine.openStreamedDocument (sUri);
+          final XdmStreamReader aReader = aEngine.openStreamedDocument (aUri);
           if (aReader == null)
             return false;
           aReaders.add (aReader);

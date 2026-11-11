@@ -28,7 +28,7 @@
  * <code>XPathStreamabilityResult</code>, <code>XPathStreamabilityReason</code>, <code>EStreamabilityVerdict</code>,
  * <code>EStreamabilityConstruct</code></li>
  * <li><code>context</code>: <code>StaticContext</code>, <code>DynamicContext</code>,
- * <code>IResourceResolver</code></li>
+ * <code>IResourceResolver</code>, <code>ResourceUri</code></li>
  * <li><code>fn</code>: <code>FunctionLibrary</code>, <code>IXPathFunction</code></li>
  * <li><code>ast</code>: <code>SeqType</code>, <code>ItemType</code>, <code>EOccurrence</code></li>
  * <li><code>stream</code>: <code>EPosture</code>, <code>ESweep</code>, <code>PostureSweep</code>,

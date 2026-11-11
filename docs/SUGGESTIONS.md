@@ -787,7 +787,13 @@ a document number and a character that IDs rarely contain, like Saxon's `d<doc>e
 
 ### S39 - `URIResolver.resolve` with the original `href` and the base URI
 
-Status: open.
+Status: done (2026-11-11). API change: every `IResourceResolver` method takes a `ResourceUri` (`absoluteUri`, `href`
+as written, `baseUri`), filled at every call site (include/import, `document()`, `fn:doc`, `unparsed-text`, `json-doc`,
+collections, `xsl:source-document`, `xsl:merge-source`, `fn:transform`, `parameter-document`, `schema-location`;
+a package location and the streamed principal source have no reference and pass the URI as both).
+`JaxpResourceResolver` calls `URIResolver.resolve (href, base)` with `""` for no base and reads the absolute URI
+itself when it returns `null`. Tests: `PhoxtrotTransformerFactoryTest.testUriResolverForInclude` (with and without
+system ID) and `testUriResolverForDocument`.
 
 The JAXP adapter calls `URIResolver.resolve (href, base)` with the URI it resolved itself as both arguments (README:
 "with the absolute URI the engine resolved as href and as base"). JAXP specifies `href` as the attribute value as
@@ -807,3 +813,72 @@ when the `URIResolver` returns `null`.
 Test: a stylesheet without system ID with `<xsl:include href="inc.xsl"/>` and a `URIResolver` that records its
 arguments: it must receive (`inc.xsl`, `""` or `null`); with a system ID `file:/a/main.xsl` it must receive
 (`inc.xsl`, `file:/a/main.xsl`).
+
+### S40 - JAXP `DOMResult`: no serialisation, no namespace map copies
+
+Status: items 1 and 2 done (2026-11-11), items 3 and 4 see the measurement below. Item 1:
+`XsltTransformRequest.setPrincipalTreeOnly`, set by `PhoxtrotTransformer` for `DOMResult` and `SAXResult`
+(`principalSerialized ()` is then empty). Item 2: `IXdmNode.declaredNamespaces ()`, a read-only view without copying,
+used by `MarkupWriter`, `XdmToDom`, `XdmToSax`, `XdmSaxEmitter`, `XdmDomNamedNodeMap`, `NodeCopier` and `FnJson`.
+
+Profile of ph-schematron's `BenchmarkProcessorSize.validateDom` (ISO Schematron, 20,000 items, compiled once; JFR,
+2026-11-11, phoxtrot `7fab8a1`): 56.9 ms per validation on phoxtrot against 42.3 ms on Saxon-HE 13.1. Split by phase
+(share of the CPU samples, converted to ms per validation):
+
+| Phase | Saxon | phoxtrot |
+| ----- | ----: | -------: |
+| Input: DOM navigation (Saxon wraps the DOM) / `DomToXdm` (phoxtrot) plus the XSLT execution | 32.3 | 42.5 |
+| ... of which serialising the result (`XsltTransformer._run` → `XdmSerializer.serialize`) | - | 9.3 |
+| ... of which `DomToXdm` | - | 6.1 |
+| Result tree to the `DOMResult` (Saxon `DOMWriter`, phoxtrot `XdmToDom`) | 8.0 | 10.4 |
+| Reading the SVRL DOM with JAXB (same code on both) | 1.9 | 4.0 |
+
+Without the serialisation and the input conversion, phoxtrot's XSLT execution itself (about 27 ms) is not slower than
+Saxon's execution on the wrapped DOM (32.3 ms). The overhead is around it:
+
+1. **Unused serialisation for a `DOMResult`.** `PhoxtrotTransformer._transformToDom` calls
+   `XsltExecutable.transform (aRequest)` without raw delivery, so `XsltTransformer._run` builds the result tree *and*
+   serialises it into `XsltTransformResult`'s string, which `_transformToDom` never reads. 139 of 846 samples (16 %).
+   Proposal: request the tree only (like `isRawDelivery`, but with the tree) for `DOMResult` and `SAXResult`, or build
+   the DOM directly from the result events.
+2. **`AbstractXdmNode.getDeclaredNamespaces ()` copies a `CommonsLinkedHashMap` on every call**
+   (`CommonsLinkedHashMap.getClone`), and it is called per element by `MarkupWriter._writeStartTag` (74 samples) and
+   `XdmToDom._createElement` (61 samples), together 135 samples (16 %, overlapping with item 1). Proposal: a read-only
+   view or an iteration method (`forEachDeclaredNamespace`) for internal callers; most elements declare none, so an
+   empty-check before the copy already avoids most of it.
+3. **Input conversion.** `DomToXdm` takes about 6 ms for 20,000 elements (`XdmTreeBuilder.startElement`,
+   `ArrayDeque.addFirst`, `XdmTreeBuilder.<init>` per document); `XdmDocumentNode._buildNameIndex` adds 4 % of the
+   execution samples. Saxon avoids the conversion by navigating the DOM through a wrapper.
+4. **Not explained:** reading the same SVRL DOM with JAXB takes 4.0 ms after phoxtrot and 1.9 ms after Saxon; the DOM
+   built by `XdmToDom` has the same elements, attributes, namespace declarations and text nodes as the one of Saxon's
+   `DOMWriter` (checked on a small SVRL). Possibly a JIT or measurement effect; to be checked once items 1 and 2 are done.
+
+Allocation per validation is about twice Saxon's (148 MB against 71 MB for 20,000 items). Items 1 and 2 cause
+14 % of the sampled allocated bytes (serialisation 11 %, map copies 9 %, overlapping); most of the rest is allocated
+by the XSLT execution itself (68 % of the samples including the serialisation).
+
+**Measured after items 1 and 2** (2026-11-11; JMH `BenchmarkProcessorSize.validateDom`, 20,000 items, the
+benchmark jar built once against phoxtrot `7fab8a1` and once against the change, same machine, one after the other):
+
+| | `7fab8a1` | with items 1 and 2 | Saxon-HE 13.1 |
+| --- | ---: | ---: | ---: |
+| ms per validation | 56.3 ± 1.5 | 46.7 ± 1.6 | 42.2 ± 0.4 |
+| MB allocated per validation | 148 | 124 | 72 |
+
+Split of the new profile (JFR execution samples, all threads): XSLT execution 62.5 %, result tree to DOM 18.6 %,
+`DomToXdm` 13.1 %, JAXB 5.7 % (Saxon: execution 73.3 %, DOM writing 24.2 %, JAXB 2.0 %). The remaining gap of about
+4.5 ms is about the input conversion (13.1 % of 46.7 ms = 6.1 ms).
+
+Item 4: the DOMs are the same. For 20,000 items both processors' SVRL DOMs are `DocumentImpl` with 20,003
+`ElementNSImpl`, 20,004 attributes, 5 namespace attributes, one comment, no text nodes, and reading them with
+`SVRLMarshaller.read` in one JVM takes the same time (about 21 ms each, also for a deep copy of phoxtrot's DOM made by
+`importNode`). The JAXB difference in the benchmark (2.7 against 0.9 ms, all in `DOMScanner.visit` self time) is
+therefore not caused by the DOM phoxtrot builds but by the state of the run around it (JIT, memory).
+
+Item 3: no DOM wrapper (decided 2026-11-11). `IXdmNode` is sealed (`permits AbstractXdmNode`) and the engine relies on
+its own node model (document order numbers, name indexes, numbered tree builders), so a wrapper would be a second node
+model, which `CLAUDE.md` rules out. `DomToXdm` was tuned instead: the walk follows the sibling and parent links instead
+of pushing two records per node, the SAX attributes object is reused, the namespace map is only created for an
+element with declarations, and DOM text goes to the new `XdmTreeBuilder.characters (String)` without a `char []`
+copy. For the 20,000 items of the benchmark (about 100,000 DOM nodes) one conversion went from 2.62 ms and 18.3 MB
+allocated to 2.29 ms and 8.1 MB (best of 200 runs after 100 warm-up runs, one JVM).

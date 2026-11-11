@@ -36,6 +36,7 @@ import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.LargeStackRunner;
 import com.helger.phoxtrot.xpath.XPathException;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
 import com.helger.phoxtrot.xpath.serialize.SerializationParams;
 import com.helger.phoxtrot.xpath.serialize.XdmIncrementalSerializer;
@@ -431,7 +432,7 @@ public final class XsltTransformer
   @NonNull
   private static IXdmNode _readSource (@NonNull final Engine aEngine, @NonNull final String sUri)
   {
-    final IXdmNode ret = aEngine.getDocument (aEngine.createRootContext (), sUri);
+    final IXdmNode ret = aEngine.getDocument (aEngine.createRootContext (), ResourceUri.of (sUri));
     if (ret == null)
       throw new XPathException ("FODC0002", "The source '" + sUri + "' identifies no node");
     return ret;
@@ -732,7 +733,7 @@ public final class XsltTransformer
     StreamedRun aStreamedRun = null;
     if (aStreamableMode != null)
     {
-      final XdmStreamReader aReader = aEngine.openStreamedDocument (sStreamedUri);
+      final XdmStreamReader aReader = aEngine.openStreamedDocument (ResourceUri.of (sStreamedUri));
       if (aReader == null)
         aStreamedSource = _readSource (aEngine, sStreamedUri);
       else
@@ -898,6 +899,16 @@ public final class XsltTransformer
     if (bRawOnly)
       return new XsltTransformResult (aRaw,
                                       null,
+                                      "",
+                                      aEngine.getSecondaryResults ().getClone (),
+                                      aEngine.getMessageTexts (),
+                                      sMethod,
+                                      false);
+    // Shortcut: a caller that only uses the tree (a DOM or SAX result) gets no
+    // serialization it would never read
+    if (aTarget == null && m_aRequest.isPrincipalTreeOnly ())
+      return new XsltTransformResult (aRaw,
+                                      aTree,
                                       "",
                                       aEngine.getSecondaryResults ().getClone (),
                                       aEngine.getMessageTexts (),

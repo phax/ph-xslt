@@ -43,6 +43,7 @@ import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.ast.SeqType;
 import com.helger.phoxtrot.xpath.collation.CollationRegistry;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
 import com.helger.phoxtrot.xpath.fn.FnUri;
 import com.helger.phoxtrot.xpath.fn.FormatDecimalFormat;
@@ -1567,7 +1568,7 @@ public final class StylesheetCompiler
     final IXdmNode aDoc;
     try
     {
-      aDoc = aResolver.resolveDocument (sUri);
+      aDoc = aResolver.resolveDocument (ResourceUri.of (sUri, sHref.trim (), sBase));
     }
     catch (final XPathException ex)
     {

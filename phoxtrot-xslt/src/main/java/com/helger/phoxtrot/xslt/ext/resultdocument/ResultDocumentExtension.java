@@ -33,6 +33,7 @@ import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.XPathException;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.fn.FnUri;
 import com.helger.phoxtrot.xpath.serialize.SerializationParams;
 import com.helger.phoxtrot.xpath.serialize.XdmSerializer;
@@ -209,7 +210,7 @@ public final class ResultDocumentExtension implements IXsltExtension
       final String sBase = aEl.getStaticBaseUri ();
       if (sBase != null && FnUri.isAbsoluteUri (sBase))
         sUri = FnUri.resolveUri (sHref, sBase);
-      final IXdmNode aDoc = aCtx.getDynamicContext ().getResourceResolver ().resolveDocument (sUri);
+      final IXdmNode aDoc = aCtx.getDynamicContext ().getResourceResolver ().resolveDocument (ResourceUri.of (sUri, sHref, sBase));
       if (aDoc == null)
         throw new XPathException ("SEPM0017", "The serialization parameter document '" + sUri + "' cannot be retrieved");
       IXdmNode aRoot = null;

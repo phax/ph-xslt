@@ -40,6 +40,7 @@ import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltCompiler;
@@ -70,15 +71,15 @@ public final class StreamedExecutionTest
     }
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
-      final String sXml = m_aDocs.get (sAbsoluteUri);
+      final String sXml = m_aDocs.get (aUri.absoluteUri ());
       if (sXml == null)
         return null;
       try
       {
         final InputSource aIS = new InputSource (new NonBlockingStringReader (sXml));
-        aIS.setSystemId (sAbsoluteUri);
+        aIS.setSystemId (aUri.absoluteUri ());
         return new XdmParser ().parse (aIS);
       }
       catch (final XdmParseException ex)
@@ -88,21 +89,21 @@ public final class StreamedExecutionTest
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
-      return m_aDocs.get (sAbsoluteUri);
+      return m_aDocs.get (aUri.absoluteUri ());
     }
 
     @Override
     @Nullable
-    public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+    public XdmStreamReader openDocumentStream (@NonNull final ResourceUri aUri,
                                                @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
     {
-      final String sXml = m_aDocs.get (sAbsoluteUri);
+      final String sXml = m_aDocs.get (aUri.absoluteUri ());
       if (sXml == null)
         return null;
       final InputSource aIS = new InputSource (new NonBlockingStringReader (sXml));
-      aIS.setSystemId (sAbsoluteUri);
+      aIS.setSystemId (aUri.absoluteUri ());
       return XdmStreamReader.open (aIS, false, XdmParser.DEFAULT_MAX_ELEMENT_DEPTH, aStripWhitespace);
     }
   }

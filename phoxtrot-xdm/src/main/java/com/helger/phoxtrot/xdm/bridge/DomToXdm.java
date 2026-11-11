@@ -16,7 +16,6 @@
  */
 package com.helger.phoxtrot.xdm.bridge;
 
-import java.util.ArrayDeque;
 import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
@@ -84,10 +83,6 @@ public final class DomToXdm
   private static final DomToXdm INSTANCE = new DomToXdm ();
 
   private DomToXdm ()
-  {}
-
-  /** One step of the walk: a node to open, or an element or entity reference to close. */
-  private record Step (@NonNull Node node, boolean close, @Nullable String restoreSystemId)
   {}
 
   /** The resolved name of a DOM element or attribute. */
@@ -252,38 +247,52 @@ public final class DomToXdm
    * the bindings its names need (namespace fixup; a namespaced attribute without a usable prefix
    * gets a new one), report the declarations and the start tag to the builder and open a scope
    * frame with the declarations.
+   *
+   * @param aSaxAttrs
+   *        The attributes object of the walk, reused for every element (the builder copies what it
+   *        needs during the event).
    */
   private static void _startElement (@NonNull final Element aElement,
                                      @NonNull final NamespaceScope aScope,
-                                     @NonNull final XdmTreeBuilder aBuilder)
+                                     @NonNull final XdmTreeBuilder aBuilder,
+                                     @NonNull final AttributesImpl aSaxAttrs)
   {
     final NamedNodeMap aAttrs = aElement.getAttributes ();
     final int nAttrs = aAttrs.getLength ();
-    final ICommonsOrderedMap <String, String> aOwnDecls = new CommonsLinkedHashMap <> ();
+    // Most elements declare nothing: the map is only created for a declaration
+    ICommonsOrderedMap <String, String> aOwnDecls = null;
     for (int i = 0; i < nAttrs; ++i)
     {
       final Node aAttr = aAttrs.item (i);
       if (_isNamespaceDecl (aAttr))
       {
+        if (aOwnDecls == null)
+          aOwnDecls = new CommonsLinkedHashMap <> ();
         final String sName = aAttr.getNodeName ();
         aOwnDecls.put (sName.length () == 5 ? "" : sName.substring (6), _nonNull (aAttr.getNodeValue ()));
       }
     }
-    final Name aName = _getName (aElement, false, aOwnDecls, aScope);
-    if (!"xml".equals (aName.prefix ()) && !_isBound (aName, aOwnDecls, aScope))
+    final Name aName = _getName (aElement, false, aOwnDecls != null ? aOwnDecls : Map.of (), aScope);
+    if (!"xml".equals (aName.prefix ()) && !_isBound (aName, aOwnDecls != null ? aOwnDecls : Map.of (), aScope))
+    {
+      if (aOwnDecls == null)
+        aOwnDecls = new CommonsLinkedHashMap <> ();
       aOwnDecls.put (aName.prefix (), aName.uri ());
+    }
 
-    final AttributesImpl aSaxAttrs = new AttributesImpl ();
+    aSaxAttrs.clear ();
     for (int i = 0; i < nAttrs; ++i)
     {
       final Attr aAttr = (Attr) aAttrs.item (i);
       if (_isNamespaceDecl (aAttr))
         continue;
-      Name aAttrName = _getName (aAttr, true, aOwnDecls, aScope);
+      Name aAttrName = _getName (aAttr, true, aOwnDecls != null ? aOwnDecls : Map.of (), aScope);
       if (!aAttrName.uri ().isEmpty () && !"xml".equals (aAttrName.prefix ()))
       {
-        if (aAttrName.prefix ().isEmpty () || !_isBound (aAttrName, aOwnDecls, aScope))
+        if (aAttrName.prefix ().isEmpty () || !_isBound (aAttrName, aOwnDecls != null ? aOwnDecls : Map.of (), aScope))
         {
+          if (aOwnDecls == null)
+            aOwnDecls = new CommonsLinkedHashMap <> ();
           // The own prefix if it is still free, otherwise a new one
           String sPrefix = aAttrName.prefix ();
           if (sPrefix.isEmpty () || aOwnDecls.containsKey (sPrefix) || aScope.lookup (sPrefix) != null)
@@ -300,11 +309,12 @@ public final class DomToXdm
     }
 
     aScope.pushFrame ();
-    for (final Map.Entry <String, String> aEntry : aOwnDecls.entrySet ())
-    {
-      aScope.bind (aEntry.getKey (), aEntry.getValue ());
-      aBuilder.startPrefixMapping (aEntry.getKey (), aEntry.getValue ());
-    }
+    if (aOwnDecls != null)
+      for (final Map.Entry <String, String> aEntry : aOwnDecls.entrySet ())
+      {
+        aScope.bind (aEntry.getKey (), aEntry.getValue ());
+        aBuilder.startPrefixMapping (aEntry.getKey (), aEntry.getValue ());
+      }
     aBuilder.startElement (aName.uri (), aName.local (), aName.getQName (), aSaxAttrs);
   }
 
@@ -360,7 +370,7 @@ public final class DomToXdm
   /**
    * Record an element just started and its attributes: the builder adds the
    * attributes in the order of the DOM attributes that are no namespace
-   * declarations (see {@link #_startElement(Element, NamespaceScope, XdmTreeBuilder)}).
+   * declarations (see {@link #_startElement(Element, NamespaceScope, XdmTreeBuilder, AttributesImpl)}).
    */
   private static void _recordElement (@NonNull final Element aElement,
                                       @NonNull final IXdmNode aXdmElement,
@@ -378,8 +388,58 @@ public final class DomToXdm
   }
 
   /**
+   * Close an element or entity reference after its children: end the element and its scope frame,
+   * or restore the system ID that was in effect before the entity reference.
+   */
+  private static void _close (@NonNull final Node aNode,
+                              @NonNull final XdmTreeBuilder aBuilder,
+                              @NonNull final NamespaceScope aScope,
+                              @NonNull final LocatorImpl aLocator,
+                              @NonNull final ICommonsList <String> aEntitySystemIds,
+                              @Nullable final NodeRecorder aRecorder)
+  {
+    if (aNode.getNodeType () == Node.ELEMENT_NODE)
+    {
+      if (aRecorder != null)
+        aRecorder.beforeFlush (aBuilder);
+      aBuilder.endElement (_nonNull (aNode.getNamespaceURI ()), _nonNull (aNode.getLocalName ()), aNode.getNodeName ());
+      if (aRecorder != null)
+        aRecorder.afterFlush ();
+      aScope.popFrame ();
+    }
+    else
+      aLocator.setSystemId (aEntitySystemIds.removeLast ());
+  }
+
+  /**
+   * Set the XDM counterpart of the target if it is the element just started or one of its
+   * attributes.
+   */
+  private static void _findTarget (@NonNull final Node aElement,
+                                   @NonNull final Node aTarget,
+                                   @NonNull final IXdmNode aCurrent,
+                                   @NonNull final Wrapper <IXdmNode> aTargetOut)
+  {
+    if (aElement == aTarget)
+      aTargetOut.set (aCurrent);
+    else
+      if (aTarget instanceof final Attr aTargetAttr && aTargetAttr.getOwnerElement () == aElement)
+      {
+        for (int i = 0; i < aCurrent.getAttributeCount (); ++i)
+        {
+          final IXdmNode aAttr = aCurrent.getAttributeAtIndex (i);
+          if (aAttr.getName ().getLexicalName ().equals (aTargetAttr.getNodeName ()) ||
+              (aTargetAttr.getLocalName () != null &&
+               aAttr.getName ().isSameName (aTargetAttr.getNamespaceURI (), aTargetAttr.getLocalName ())))
+            aTargetOut.set (aAttr);
+        }
+      }
+  }
+
+  /**
    * Walk the DOM nodes and feed them into the builder, inside a document that is started and ended
-   * here. The walk is iterative.
+   * here. The walk is iterative and follows the sibling and parent links of the DOM, so it
+   * allocates nothing per node.
    *
    * @param aTopNodes
    *        The nodes that become the children of the document node.
@@ -406,73 +466,45 @@ public final class DomToXdm
     aBuilder.setDocumentLocator (aLocator);
     aBuilder.startDocument ();
     final NamespaceScope aScope = new NamespaceScope (null);
-    final ArrayDeque <Step> aStack = new ArrayDeque <> ();
-    for (int i = aTopNodes.size () - 1; i >= 0; --i)
-      aStack.push (new Step (aTopNodes.get (i), false, null));
-    while (!aStack.isEmpty ())
+    final AttributesImpl aSaxAttrs = new AttributesImpl ();
+    // The system IDs to restore when the walk leaves an entity reference
+    final ICommonsList <String> aEntitySystemIds = new CommonsArrayList <> ();
+    // Iterative walk over first child, next sibling and parent, which allocates nothing per node;
+    // the top nodes are taken from the list, nDepth counts the open elements and entity references
+    int nTop = 0;
+    int nDepth = 0;
+    Node aNode = aTopNodes.getFirstOrNull ();
+    while (aNode != null)
     {
-      final Step aStep = aStack.pop ();
-      final Node aNode = aStep.node ();
-      if (aStep.close ())
-      {
-        if (aNode.getNodeType () == Node.ELEMENT_NODE)
-        {
-          if (aRecorder != null)
-            aRecorder.beforeFlush (aBuilder);
-          aBuilder.endElement (_nonNull (aNode.getNamespaceURI ()),
-                               _nonNull (aNode.getLocalName ()),
-                               aNode.getNodeName ());
-          if (aRecorder != null)
-            aRecorder.afterFlush ();
-          aScope.popFrame ();
-        }
-        else
-          aLocator.setSystemId (aStep.restoreSystemId ());
-        continue;
-      }
+      // Open the node; elements and entity references are closed after their children
+      boolean bContainer = false;
       switch (aNode.getNodeType ())
       {
         case Node.ELEMENT_NODE:
         {
           if (aRecorder != null)
             aRecorder.beforeFlush (aBuilder);
-          _startElement ((Element) aNode, aScope, aBuilder);
+          _startElement ((Element) aNode, aScope, aBuilder, aSaxAttrs);
           if (aRecorder != null)
           {
             aRecorder.afterFlush ();
             _recordElement ((Element) aNode, aBuilder.getCurrentNode (), aRecorder);
           }
-          if (aNode == aTarget)
-            aTargetOut.set (aBuilder.getCurrentNode ());
-          else
-            if (aTarget instanceof final Attr aTargetAttr && aTargetAttr.getOwnerElement () == aNode)
-            {
-              final IXdmNode aCurrent = aBuilder.getCurrentNode ();
-              for (int i = 0; i < aCurrent.getAttributeCount (); ++i)
-              {
-                final IXdmNode aAttr = aCurrent.getAttributeAtIndex (i);
-                if (aAttr.getName ().getLexicalName ().equals (aTargetAttr.getNodeName ()) ||
-                    (aTargetAttr.getLocalName () != null &&
-                     aAttr.getName ().isSameName (aTargetAttr.getNamespaceURI (), aTargetAttr.getLocalName ())))
-                  aTargetOut.set (aAttr);
-              }
-            }
-          aStack.push (new Step (aNode, true, null));
-          for (Node aChild = aNode.getLastChild (); aChild != null; aChild = aChild.getPreviousSibling ())
-            aStack.push (new Step (aChild, false, null));
+          if (aTarget != null)
+            _findTarget (aNode, aTarget, aBuilder.getCurrentNode (), aTargetOut);
+          bContainer = true;
           break;
         }
         case Node.TEXT_NODE:
         case Node.CDATA_SECTION_NODE:
         {
-          final char [] aChars = _nonNull (((CharacterData) aNode).getData ()).toCharArray ();
-          if (aNode instanceof final Text aText && aText.isElementContentWhitespace ())
-            aBuilder.ignorableWhitespace (aChars, 0, aChars.length);
-          else
+          // Element content whitespace is dropped, like ignorable whitespace of a parser
+          if (!(aNode instanceof final Text aText && aText.isElementContentWhitespace ()))
           {
-            aBuilder.characters (aChars, 0, aChars.length);
+            final String sData = _nonNull (((CharacterData) aNode).getData ());
+            aBuilder.characters (sData);
             if (aRecorder != null)
-              aRecorder.text (aNode, aChars.length);
+              aRecorder.text (aNode, sData.length ());
           }
           break;
         }
@@ -509,11 +541,10 @@ public final class DomToXdm
         case Node.ENTITY_REFERENCE_NODE:
         {
           final String sEntityBase = _getExternalEntityBase (aNode);
-          aStack.push (new Step (aNode, true, aLocator.getSystemId ()));
+          aEntitySystemIds.add (aLocator.getSystemId ());
           if (sEntityBase != null)
             aLocator.setSystemId (sEntityBase);
-          for (Node aChild = aNode.getLastChild (); aChild != null; aChild = aChild.getPreviousSibling ())
-            aStack.push (new Step (aChild, false, null));
+          bContainer = true;
           break;
         }
         case Node.DOCUMENT_TYPE_NODE:
@@ -522,6 +553,37 @@ public final class DomToXdm
         default:
           // Notations, entities and anything else carry no XDM content
           break;
+      }
+      if (bContainer)
+      {
+        final Node aFirstChild = aNode.getFirstChild ();
+        if (aFirstChild != null)
+        {
+          nDepth++;
+          aNode = aFirstChild;
+          continue;
+        }
+        _close (aNode, aBuilder, aScope, aLocator, aEntitySystemIds, aRecorder);
+      }
+      // Go to the next node: the next sibling, or up to the next sibling of an ancestor, closing
+      // the ancestors that are left
+      while (true)
+      {
+        if (nDepth == 0)
+        {
+          nTop++;
+          aNode = nTop < aTopNodes.size () ? aTopNodes.get (nTop) : null;
+          break;
+        }
+        final Node aNext = aNode.getNextSibling ();
+        if (aNext != null)
+        {
+          aNode = aNext;
+          break;
+        }
+        aNode = aNode.getParentNode ();
+        nDepth--;
+        _close (aNode, aBuilder, aScope, aLocator, aEntitySystemIds, aRecorder);
       }
     }
     if (aRecorder != null)

@@ -44,15 +44,17 @@ import com.helger.phoxtrot.xdm.XdmParseException;
 import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xslt.compile.FileResourceResolver;
 
 /**
  * The resource resolver of the JAXP adapter, for <code>xsl:include</code>,
  * <code>xsl:import</code>, <code>document()</code>, <code>fn:doc</code> and
  * <code>fn:unparsed-text</code>. A JAXP {@link URIResolver}, if set, is asked
- * first, with the absolute URI the engine resolved as <code>href</code> and
- * as <code>base</code> (an absolute URI resolves to itself against any
- * base). If it returns <code>null</code> (or there is none), the URI is read
+ * first, as JAXP specifies: with the reference as written as
+ * <code>href</code> and the base URI it is resolved against as
+ * <code>base</code> (the empty string if there is none). If it returns
+ * <code>null</code> (or there is none), the URI the engine resolved is read
  * directly, but only if its scheme is allowed by the value of
  * {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} (<code>all</code>, or a
  * comma-separated list of schemes such as <code>file,jar</code>; the empty
@@ -61,7 +63,7 @@ import com.helger.phoxtrot.xslt.compile.FileResourceResolver;
  * the JDK URL handlers. Every document is parsed with the parser settings of
  * the adapter (external DTDs and entities, the schemes allowed for them and
  * the entity resolver). Collections are not supported. Stylesheet modules
- * ({@link #resolveStylesheetModule(String)}) are parsed with node locations,
+ * ({@link #resolveStylesheetModule(ResourceUri)}) are parsed with node locations,
  * documents without.
  *
  * @author Philip Helger
@@ -139,6 +141,9 @@ final class JaxpResourceResolver implements IResourceResolver
   }
 
   /**
+   * @param aUri
+   *        The resource; the URI resolver gets its reference as written and
+   *        its base URI.
    * @param sErrorCode
    *        The error code if the resolver throws: FODC0002 for documents,
    *        FOUT1170 for text.
@@ -149,17 +154,19 @@ final class JaxpResourceResolver implements IResourceResolver
    *         resolver throws
    */
   @Nullable
-  private Source _resolveWithURIResolver (@NonNull final String sAbsoluteUri, @NonNull final String sErrorCode)
+  private Source _resolveWithURIResolver (@NonNull final ResourceUri aUri, @NonNull final String sErrorCode)
   {
     if (m_aURIResolver == null)
       return null;
     try
     {
-      return m_aURIResolver.resolve (sAbsoluteUri, sAbsoluteUri);
+      return m_aURIResolver.resolve (aUri.href (), aUri.baseUri () != null ? aUri.baseUri () : "");
     }
     catch (final TransformerException ex)
     {
-      throw new XPathException (sErrorCode, "The URIResolver failed for '" + sAbsoluteUri + "': " + ex.getMessage (), ex);
+      throw new XPathException (sErrorCode,
+                                "The URIResolver failed for '" + aUri.absoluteUri () + "': " + ex.getMessage (),
+                                ex);
     }
   }
 
@@ -195,9 +202,10 @@ final class JaxpResourceResolver implements IResourceResolver
    *         FODC0002 if the URI resolver fails or its source cannot be read
    */
   @Nullable
-  private IXdmNode _resolve (@NonNull final String sAbsoluteUri, final boolean bRecordLocations)
+  private IXdmNode _resolve (@NonNull final ResourceUri aUri, final boolean bRecordLocations)
   {
-    final Source aSource = _resolveWithURIResolver (sAbsoluteUri, "FODC0002");
+    final String sAbsoluteUri = aUri.absoluteUri ();
+    final Source aSource = _resolveWithURIResolver (aUri, "FODC0002");
     if (aSource != null)
     {
       final IXdmNode ret;
@@ -243,7 +251,7 @@ final class JaxpResourceResolver implements IResourceResolver
   }
 
   /**
-   * Resolve a document (see {@link #_resolve(String, boolean)}) with the
+   * Resolve a document (see {@link #_resolve(ResourceUri, boolean)}) with the
    * location default of {@link XdmParser} on the calling thread
    * ({@link XdmParser#isRecordLocationsByDefault()}, without locations
    * unless a stylesheet module is resolved through a delegating resolver).
@@ -253,13 +261,13 @@ final class JaxpResourceResolver implements IResourceResolver
    *         FODC0002 if the URI resolver fails or its source cannot be read
    */
   @Nullable
-  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
   {
-    return _resolve (sAbsoluteUri, XdmParser.isRecordLocationsByDefault ());
+    return _resolve (aUri, XdmParser.isRecordLocationsByDefault ());
   }
 
   /**
-   * Resolve a stylesheet module (see {@link #_resolve(String, boolean)}),
+   * Resolve a stylesheet module (see {@link #_resolve(ResourceUri, boolean)}),
    * parsed with node locations. A DOM source or an {@link XdmSource} from the
    * URI resolver is used as it is, with the locations it has (none for DOM).
    *
@@ -269,9 +277,9 @@ final class JaxpResourceResolver implements IResourceResolver
    */
   @Override
   @Nullable
-  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveStylesheetModule (@NonNull final ResourceUri aUri)
   {
-    return _resolve (sAbsoluteUri, true);
+    return _resolve (aUri, true);
   }
 
   /**
@@ -313,9 +321,10 @@ final class JaxpResourceResolver implements IResourceResolver
    *         that the reason of a refusal reaches the caller
    */
   @Nullable
-  public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+  public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
   {
-    final Source aSource = _resolveWithURIResolver (sAbsoluteUri, "FOUT1170");
+    final String sAbsoluteUri = aUri.absoluteUri ();
+    final Source aSource = _resolveWithURIResolver (aUri, "FOUT1170");
     try
     {
       if (aSource != null)
@@ -334,7 +343,7 @@ final class JaxpResourceResolver implements IResourceResolver
       if (!_checkAccess (sAbsoluteUri))
         return null;
       if (sAbsoluteUri.startsWith ("file:"))
-        return new FileResourceResolver (false).resolveText (sAbsoluteUri, sEncoding);
+        return new FileResourceResolver (false).resolveText (aUri, sEncoding);
       return _readAll (URI.create (sAbsoluteUri).toURL ().openStream (), sEncoding);
     }
     catch (final IOException | RuntimeException ex)

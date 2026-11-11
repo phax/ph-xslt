@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.helger.phoxtrot.xpath.XPathException;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 /**
  * Test class for class {@link XSLT30ResourceResolver}.
@@ -47,14 +48,14 @@ public final class XSLT30ResourceResolverTest
     Files.writeString (aDir.resolve ("b.xml"), "<b/>", StandardCharsets.UTF_8);
     final XSLT30ResourceResolver aResolver = new XSLT30ResourceResolver (null, aDir, new XSLT30DocumentCache ());
     final String sUri = aDir.toUri () + "?select=*.xml";
-    assertEquals (2, aResolver.resolveCollection (sUri).size ());
+    assertEquals (2, aResolver.resolveCollection (ResourceUri.of (sUri)).size ());
 
     // A member that does not parse is an error, never left out silently
     Files.writeString (aDir.resolve ("c.xml"), "<c>", StandardCharsets.UTF_8);
     final XSLT30ResourceResolver aResolver2 = new XSLT30ResourceResolver (null, aDir, new XSLT30DocumentCache ());
     try
     {
-      aResolver2.resolveCollection (sUri);
+      aResolver2.resolveCollection (ResourceUri.of (sUri));
       fail ();
     }
     catch (final XPathException ex)

@@ -33,6 +33,7 @@ import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.context.StaticContext;
 import com.helger.phoxtrot.xpath.eval.NodeSorter;
 import com.helger.phoxtrot.xpath.fn.FnAccessor;
@@ -529,7 +530,7 @@ public final class XsltFunctions
         {
           throw new XPathException ("FODC0005", "Invalid URI '" + sTrimmed + "' in document()");
         }
-        final IXdmNode aDoc = aEngine.getDocument (aXCtx, sUri);
+        final IXdmNode aDoc = aEngine.getDocument (aXCtx, ResourceUri.of (sUri, sTrimmed, sBase));
         if (aDoc != null)
           aResult.add (aDoc);
       }
@@ -894,7 +895,8 @@ public final class XsltFunctions
     String sText;
     try
     {
-      sText = aCtx.getResourceResolver ().resolveText (sUri, null);
+      sText = aCtx.getResourceResolver ()
+                  .resolveText (ResourceUri.of (sUri, sHref, aCtx.getStaticContext ().getBaseUri ()), null);
     }
     catch (final XPathException ex)
     {

@@ -31,6 +31,7 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.value.XdmAtomic;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 
@@ -122,7 +123,8 @@ public final class FnResource
     final String sKey = RUN_CACHE_DOC + sUri;
     if (aCache.get (sKey) instanceof final IXdmNode aCached)
       return aCached;
-    final IXdmNode aDoc = aCtx.getResourceResolver ().resolveDocument (sUri);
+    final IXdmNode aDoc = aCtx.getResourceResolver ()
+                              .resolveDocument (ResourceUri.of (sUri, sHref, aCtx.getStaticContext ().getBaseUri ()));
     if (aDoc == null)
       throw XPathException.of ("FODC0002", "The document '" + sUri + "' cannot be retrieved");
     aCache.put (sKey, aDoc);
@@ -241,7 +243,8 @@ public final class FnResource
     final String sKey = RUN_CACHE_TEXT + (sEncoding == null ? "" : sEncoding) + "#" + sUri;
     if (aCache.get (sKey) instanceof final String sCached)
       return sCached;
-    final String sText = aCtx.getResourceResolver ().resolveText (sUri, sEncoding);
+    final String sText = aCtx.getResourceResolver ()
+                             .resolveText (ResourceUri.of (sUri, sHref, aCtx.getStaticContext ().getBaseUri ()), sEncoding);
     if (sText == null)
       throw XPathException.of ("FOUT1170", "The resource '" + sUri + "' cannot be retrieved");
     if (!_hasOnlyXmlChars (sText))
@@ -302,17 +305,17 @@ public final class FnResource
   }
 
   /**
-   * @return The absolute collection URI; the empty string for the default
-   *         collection.
+   * @return The collection URI with the argument as written; the empty
+   *         string as absolute URI for the default collection.
    */
   @NonNull
-  private static String _getCollectionUri (@NonNull final DynamicContext aCtx,
-                                           @NonNull final List <XdmSequence> aArgs)
+  private static ResourceUri _getCollectionUri (@NonNull final DynamicContext aCtx,
+                                                @NonNull final List <XdmSequence> aArgs)
   {
     final String sHref = aArgs.isEmpty () ? null : _getOptionalString (aArgs.get (0));
     if (sHref == null)
-      return "";
-    return _resolve (aCtx, sHref, "FODC0004", "FODC0002");
+      return ResourceUri.of ("");
+    return ResourceUri.of (_resolve (aCtx, sHref, "FODC0004", "FODC0002"), sHref, aCtx.getStaticContext ().getBaseUri ());
   }
 
   /**
@@ -334,12 +337,13 @@ public final class FnResource
   @NonNull
   private static XdmSequence _collection (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
   {
-    final String sUri = _getCollectionUri (aCtx, aArgs);
+    final ResourceUri aUri = _getCollectionUri (aCtx, aArgs);
+    final String sUri = aUri.absoluteUri ();
     final Map <String, Object> aCache = aCtx.getRunCache ();
     final String sKey = RUN_CACHE_COLLECTION + sUri;
     if (aCache.get (sKey) instanceof final XdmSequence aCached)
       return aCached;
-    final ICommonsList <? extends IXdmItem> aItems = aCtx.getResourceResolver ().resolveCollection (sUri);
+    final ICommonsList <? extends IXdmItem> aItems = aCtx.getResourceResolver ().resolveCollection (aUri);
     if (aItems == null)
       throw XPathException.of ("FODC0002",
                                sUri.isEmpty () ? "There is no default collection"
@@ -369,12 +373,13 @@ public final class FnResource
   private static XdmSequence _uriCollection (@NonNull final DynamicContext aCtx,
                                              @NonNull final List <XdmSequence> aArgs)
   {
-    final String sUri = _getCollectionUri (aCtx, aArgs);
+    final ResourceUri aUri = _getCollectionUri (aCtx, aArgs);
+    final String sUri = aUri.absoluteUri ();
     final Map <String, Object> aCache = aCtx.getRunCache ();
     final String sKey = RUN_CACHE_URI_COLLECTION + sUri;
     if (aCache.get (sKey) instanceof final XdmSequence aCached)
       return aCached;
-    final ICommonsList <String> aUris = aCtx.getResourceResolver ().resolveUriCollection (sUri);
+    final ICommonsList <String> aUris = aCtx.getResourceResolver ().resolveUriCollection (aUri);
     if (aUris == null)
       throw XPathException.of ("FODC0002",
                                sUri.isEmpty () ? "There is no default URI collection"

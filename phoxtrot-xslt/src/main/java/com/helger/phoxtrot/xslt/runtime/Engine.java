@@ -48,6 +48,7 @@ import com.helger.phoxtrot.xpath.collation.CollationRegistry;
 import com.helger.phoxtrot.xpath.collation.ICollation;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.context.StaticContext;
 import com.helger.phoxtrot.xpath.eval.NodeSorter;
 import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
@@ -213,9 +214,9 @@ public final class Engine
     }
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
-      final IXdmNode aDoc = m_aDelegate == null ? null : m_aDelegate.resolveDocument (sAbsoluteUri);
+      final IXdmNode aDoc = m_aDelegate == null ? null : m_aDelegate.resolveDocument (aUri);
       return aDoc == null ? null : stripWhitespace (aDoc);
     }
 
@@ -225,29 +226,29 @@ public final class Engine
      */
     @Override
     @Nullable
-    public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveStylesheetModule (@NonNull final ResourceUri aUri)
     {
-      return m_aDelegate == null ? null : m_aDelegate.resolveStylesheetModule (sAbsoluteUri);
+      return m_aDelegate == null ? null : m_aDelegate.resolveStylesheetModule (aUri);
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
-      return m_aDelegate == null ? null : m_aDelegate.resolveText (sAbsoluteUri, sEncoding);
-    }
-
-    @Override
-    @Nullable
-    public ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final String sAbsoluteUri)
-    {
-      return m_aDelegate == null ? null : m_aDelegate.resolveCollection (sAbsoluteUri);
+      return m_aDelegate == null ? null : m_aDelegate.resolveText (aUri, sEncoding);
     }
 
     @Override
     @Nullable
-    public ICommonsList <String> resolveUriCollection (@NonNull final String sAbsoluteUri)
+    public ICommonsList <? extends IXdmItem> resolveCollection (@NonNull final ResourceUri aUri)
     {
-      return m_aDelegate == null ? null : m_aDelegate.resolveUriCollection (sAbsoluteUri);
+      return m_aDelegate == null ? null : m_aDelegate.resolveCollection (aUri);
+    }
+
+    @Override
+    @Nullable
+    public ICommonsList <String> resolveUriCollection (@NonNull final ResourceUri aUri)
+    {
+      return m_aDelegate == null ? null : m_aDelegate.resolveUriCollection (aUri);
     }
   }
 
@@ -1812,16 +1813,18 @@ public final class Engine
    *
    * @param aCtx
    *        Context.
-   * @param sUri
-   *        Absolute URI, possibly with a fragment identifier.
+   * @param aUri
+   *        The URI, possibly with a fragment identifier, with the reference as
+   *        written and its base URI.
    * @return The document (or the element identified by the fragment), or
    *         <code>null</code> if the fragment identifies nothing.
    * @throws XPathException
    *         FODC0002 if the document cannot be retrieved
    */
   @Nullable
-  public IXdmNode getDocument (@NonNull final XsltContext aCtx, @NonNull final String sUri)
+  public IXdmNode getDocument (@NonNull final XsltContext aCtx, @NonNull final ResourceUri aUri)
   {
+    final String sUri = aUri.absoluteUri ();
     String sDocUri = sUri;
     String sFragment = null;
     final int nHash = sUri.indexOf ('#');
@@ -1849,7 +1852,9 @@ public final class Engine
         aDoc = stripWhitespace (aDoc);
       else
       {
-        aDoc = m_aRootDyn.getResourceResolver ().resolveDocument (sDocUri);
+        final int nHrefHash = aUri.href ().indexOf ('#');
+        final String sHref = nHrefHash >= 0 ? aUri.href ().substring (0, nHrefHash) : aUri.href ();
+        aDoc = m_aRootDyn.getResourceResolver ().resolveDocument (ResourceUri.of (sDocUri, sHref, aUri.baseUri ()));
         if (aDoc == null)
           throw new XPathException ("FODC0002", "The document '" + sDocUri + "' cannot be retrieved");
       }
@@ -1884,8 +1889,8 @@ public final class Engine
    * Open a document for streamed processing with the resolver of the request,
    * applying xsl:strip-space while it is read.
    *
-   * @param sAbsoluteUri
-   *        Absolute URI.
+   * @param aUri
+   *        The URI of the document.
    * @return The open reader, or <code>null</code> if the document is to be
    *         read in full (no resolver that streams it, a fragment identifier,
    *         or a document the reader does not stream).
@@ -1893,15 +1898,16 @@ public final class Engine
    *         FODC0002 if the document cannot be read
    */
   @Nullable
-  public XdmStreamReader openStreamedDocument (@NonNull final String sAbsoluteUri)
+  public XdmStreamReader openStreamedDocument (@NonNull final ResourceUri aUri)
   {
+    final String sAbsoluteUri = aUri.absoluteUri ();
     final IResourceResolver aResolver = m_aRequest.getResolver ();
     if (aResolver == null || sAbsoluteUri.indexOf ('#') >= 0)
       return null;
     final SpaceRules aRules = m_aSheet.getSpaceRules ();
     try
     {
-      return aResolver.openDocumentStream (sAbsoluteUri, aRules.isNoStripping () ? null : aRules::isStripped);
+      return aResolver.openDocumentStream (aUri, aRules.isNoStripping () ? null : aRules::isStripped);
     }
     catch (final XdmStreamUnsupportedException ex)
     {

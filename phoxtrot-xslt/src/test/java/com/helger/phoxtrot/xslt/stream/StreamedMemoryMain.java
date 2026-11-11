@@ -34,6 +34,7 @@ import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
 import com.helger.phoxtrot.xslt.XsltCompiler;
 import com.helger.phoxtrot.xslt.XsltTestHelper;
@@ -156,9 +157,9 @@ public final class StreamedMemoryMain
     }
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
-      if (!DOC_URI.equals (sAbsoluteUri) && !DOC2_URI.equals (sAbsoluteUri))
+      if (!DOC_URI.equals (aUri.absoluteUri ()) && !DOC2_URI.equals (aUri.absoluteUri ()))
         return null;
       try
       {
@@ -171,17 +172,17 @@ public final class StreamedMemoryMain
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
       return null;
     }
 
     @Override
     @Nullable
-    public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+    public XdmStreamReader openDocumentStream (@NonNull final ResourceUri aUri,
                                                @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
     {
-      if (!DOC_URI.equals (sAbsoluteUri) && !DOC2_URI.equals (sAbsoluteUri))
+      if (!DOC_URI.equals (aUri.absoluteUri ()) && !DOC2_URI.equals (aUri.absoluteUri ()))
         return null;
       return XdmStreamReader.open (_source (), false, XdmParser.DEFAULT_MAX_ELEMENT_DEPTH, aStripWhitespace);
     }

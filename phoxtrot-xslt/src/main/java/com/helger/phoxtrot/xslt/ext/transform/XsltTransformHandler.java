@@ -36,6 +36,7 @@ import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.ast.SeqType;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.context.StaticContext;
 import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
 import com.helger.phoxtrot.xpath.fn.FnAccessor;
@@ -491,10 +492,11 @@ public final class XsltTransformHandler implements ITransformHandler
       throw _invalid ("the location '" + sLocation + "' cannot be resolved");
     try
     {
-      IXdmNode aDoc = aHost.compileResolver ().resolveStylesheetModule (sUri);
+      final ResourceUri aUri = ResourceUri.of (sUri, sLocation, aHost.staticBaseUri ());
+      IXdmNode aDoc = aHost.compileResolver ().resolveStylesheetModule (aUri);
       if (aDoc == null)
       {
-        final String sText = aHost.compileResolver ().resolveText (sUri, null);
+        final String sText = aHost.compileResolver ().resolveText (aUri, null);
         if (sText == null)
           throw _invalid ("the stylesheet '" + sLocation + "' cannot be retrieved");
         aDoc = _parse (sText, sUri, false);

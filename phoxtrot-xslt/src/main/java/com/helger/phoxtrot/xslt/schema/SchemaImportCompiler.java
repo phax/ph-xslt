@@ -46,6 +46,7 @@ import com.helger.phoxtrot.xdm.schema.XdmSchemaSource;
 import com.helger.phoxtrot.xdm.schema.XdmSchemaSupport;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.serialize.SerializationParams;
 import com.helger.phoxtrot.xpath.serialize.XdmSerializer;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
@@ -211,22 +212,23 @@ public final class SchemaImportCompiler
    * if {@link XsltCompileOptions#isReadLocalSchemaFiles()} allows it. The
    * network is only used if the resolver does.
    *
-   * @param sUri
-   *        The absolute location.
+   * @param aUri
+   *        The location: resolved, as written, and its base URI.
    * @param aOptions
    *        The compile options.
    * @return The source, or <code>null</code> if the document cannot be read
    *         (a resolver that refuses included).
    */
   @Nullable
-  private static XdmSchemaSource _readLocation (@NonNull final String sUri, @NonNull final XsltCompileOptions aOptions)
+  private static XdmSchemaSource _readLocation (@NonNull final ResourceUri aUri, @NonNull final XsltCompileOptions aOptions)
   {
+    final String sUri = aUri.absoluteUri ();
     final IResourceResolver aResolver = aOptions.getResolver ();
     if (aResolver != null)
     {
       try
       {
-        final IXdmNode aDoc = aResolver.resolveDocument (sUri);
+        final IXdmNode aDoc = aResolver.resolveDocument (aUri);
         if (aDoc == null)
           return null;
         final SerializationParams aParams = new SerializationParams ();
@@ -322,9 +324,9 @@ public final class SchemaImportCompiler
       return null;
     }
     String sUri = sLocation.trim ();
+    final String sBase = aEl.getStaticBaseUri ();
     try
     {
-      final String sBase = aEl.getStaticBaseUri ();
       if (sBase != null)
         sUri = new URI (sBase).resolve (new URI (sUri)).toString ();
     }
@@ -332,7 +334,7 @@ public final class SchemaImportCompiler
     {
       // keep it as written
     }
-    final XdmSchemaSource aSource = _readLocation (sUri, aOptions);
+    final XdmSchemaSource aSource = _readLocation (ResourceUri.of (sUri, sLocation.trim (), sBase), aOptions);
     final String sTns = aSource != null ? _getTargetNamespace (aSource) : null;
     if (sTns == null)
     {

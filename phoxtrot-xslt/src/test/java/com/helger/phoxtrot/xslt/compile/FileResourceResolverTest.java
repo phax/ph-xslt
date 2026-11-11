@@ -32,6 +32,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmParser;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 /**
  * Test class for class {@link FileResourceResolver}: documents are read
@@ -51,25 +52,25 @@ public final class FileResourceResolverTest
     Files.writeString (aFile.toPath (), "<a>\n  <b/>\n</a>", StandardCharsets.UTF_8);
     final String sUri = aFile.toPath ().toUri ().toString ();
 
-    final IXdmNode aDoc = FileResourceResolver.INSTANCE.resolveDocument (sUri);
+    final IXdmNode aDoc = FileResourceResolver.INSTANCE.resolveDocument (ResourceUri.of (sUri));
     final IXdmNode aB = aDoc.getChildAtIndex (0).getChildAtIndex (1);
     assertTrue (aB.isElement ());
     assertEquals (0, aB.getLine ());
     assertEquals (0, aB.getColumn ());
     assertEquals (sUri, aDoc.getDocumentUri ());
 
-    final IXdmNode aModule = FileResourceResolver.INSTANCE.resolveStylesheetModule (sUri);
+    final IXdmNode aModule = FileResourceResolver.INSTANCE.resolveStylesheetModule (ResourceUri.of (sUri));
     assertEquals (2, aModule.getChildAtIndex (0).getChildAtIndex (1).getLine ());
     assertEquals (sUri, aModule.getDocumentUri ());
 
     // A resolver that delegates resolveDocument here gets a located module
     // through the default resolveStylesheetModule
     assertFalse (XdmParser.isRecordLocationsByDefault ());
-    final IXdmNode aDelegated = XdmParser.getWithRecordLocations ( () -> FileResourceResolver.INSTANCE.resolveDocument (sUri));
+    final IXdmNode aDelegated = XdmParser.getWithRecordLocations ( () -> FileResourceResolver.INSTANCE.resolveDocument (ResourceUri.of (sUri)));
     assertEquals (2, aDelegated.getChildAtIndex (0).getChildAtIndex (1).getLine ());
     assertFalse (XdmParser.isRecordLocationsByDefault ());
 
-    assertNull (FileResourceResolver.INSTANCE.resolveDocument ("http://example.org/doc.xml"));
-    assertNull (FileResourceResolver.INSTANCE.resolveStylesheetModule (sUri + ".missing"));
+    assertNull (FileResourceResolver.INSTANCE.resolveDocument (ResourceUri.of ("http://example.org/doc.xml")));
+    assertNull (FileResourceResolver.INSTANCE.resolveStylesheetModule (ResourceUri.of (sUri + ".missing")));
   }
 }

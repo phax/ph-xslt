@@ -62,6 +62,7 @@ import com.helger.phoxtrot.xdm.schema.IXdmSchemaSet;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.conformance.QT3EngineEvaluator;
 import com.helger.phoxtrot.xpath.conformance.QT3Outcome;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 import com.helger.phoxtrot.xslt.IXsltMessageListener;
 import com.helger.phoxtrot.xslt.XsltCompileOptions;
@@ -480,10 +481,10 @@ public final class XSLT30CaseRunner
   {
     JAXP_COMPARED.incrementAndGet ();
     final URIResolver aURIResolver = (sHref, sBase) -> {
-      final IXdmNode aDoc = aResolver.resolveDocument (sHref);
+      final IXdmNode aDoc = aResolver.resolveDocument (ResourceUri.of (sHref));
       if (aDoc != null)
         return new XdmSource (aDoc);
-      final String sText = aResolver.resolveText (sHref, null);
+      final String sText = aResolver.resolveText (ResourceUri.of (sHref), null);
       return sText == null ? null : new StreamSource (new NonBlockingStringReader (sText), sHref);
     };
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();

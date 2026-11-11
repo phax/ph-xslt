@@ -591,6 +591,36 @@ public final class XdmTreeBuilder extends DefaultHandler2
   }
 
   /**
+   * Collect character data for the next text node, like {@link #characters(char[], int, int)} but
+   * from a string, which a single event keeps without copying (indentation is still shared). For
+   * callers that have the text as string already, such as the DOM bridge.
+   *
+   * @param sText
+   *        The characters. May not be <code>null</code>; an empty string is ignored.
+   */
+  public void characters (@NonNull final String sText)
+  {
+    final int nLength = sText.length ();
+    if (nLength == 0)
+      return;
+    if (m_sText == null && m_aText.isEmpty ())
+    {
+      // Shortcut: the string itself, unless it is shared indentation
+      m_sText = nLength <= MAX_SHARED_INDENT && sText.charAt (0) == '\n' ? _getText (sText.toCharArray (), 0, nLength)
+                                                                          : sText;
+    }
+    else
+    {
+      if (m_sText != null)
+      {
+        m_aText.append (m_sText);
+        m_sText = null;
+      }
+      m_aText.append (sText);
+    }
+  }
+
+  /**
    * Dropped: this is whitespace in element-only content, and XDM 3.1 section 6.7.3 discards such
    * text.
    */

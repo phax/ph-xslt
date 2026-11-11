@@ -110,7 +110,7 @@ public final class QT3XmlSerializer
   private static void _startTag (@NonNull final StringBuilder aSB, @NonNull final IXdmNode aElement)
   {
     aSB.append ('<').append (_name (aElement.getName ()));
-    for (final Map.Entry <String, String> aEntry : aElement.getDeclaredNamespaces ().entrySet ())
+    for (final Map.Entry <String, String> aEntry : aElement.declaredNamespaces ().entrySet ())
     {
       aSB.append (aEntry.getKey ().isEmpty () ? " xmlns" : " xmlns:" + aEntry.getKey ()).append ("=\"");
       _escape (aSB, aEntry.getValue (), true);

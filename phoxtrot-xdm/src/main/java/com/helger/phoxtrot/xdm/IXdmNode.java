@@ -16,6 +16,8 @@
  */
 package com.helger.phoxtrot.xdm;
 
+import java.util.Map;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -517,6 +519,15 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
   @NonNull
   @ReturnsMutableCopy
   ICommonsOrderedMap <String, String> getDeclaredNamespaces ();
+
+  /**
+   * @return A read-only view of the namespace declarations of this element only, prefix to URI, in
+   *         declaration order, without copying (an empty map for an element without declarations).
+   *         It reflects later changes of the declarations, so a caller that changes them while
+   *         iterating uses {@link #getDeclaredNamespaces()} instead.
+   */
+  @NonNull
+  Map <String, String> declaredNamespaces ();
 
   /**
    * @return <code>true</code> if this element declares (or undeclares) at least one namespace

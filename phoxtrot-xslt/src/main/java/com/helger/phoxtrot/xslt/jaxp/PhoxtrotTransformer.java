@@ -212,8 +212,10 @@ public class PhoxtrotTransformer extends Transformer
    * @return The phoxtrot result of the last successful transformation: its
    *         secondary results (<code>xsl:result-document</code>) and message
    *         texts; for a {@link DOMResult} or {@link SAXResult} also the
-   *         principal result. <code>null</code> before the first one and
-   *         after {@link #reset()}.
+   *         principal result as tree and raw sequence (it is not serialised,
+   *         so {@link XsltTransformResult#principalSerialized()} is empty).
+   *         <code>null</code> before the first one and after
+   *         {@link #reset()}.
    */
   @Nullable
   public final XsltTransformResult getLastResult ()
@@ -481,6 +483,8 @@ public class PhoxtrotTransformer extends Transformer
   @NonNull
   private XsltTransformResult _transformToDom (@NonNull final XsltTransformRequest aRequest, @NonNull final DOMResult aResult) throws TransformerException
   {
+    // Only the tree is written: no serialization
+    aRequest.setPrincipalTreeOnly (true);
     final XsltTransformResult ret = m_aTemplates.getExecutable ().transform (aRequest);
     final IXdmNode aTree = _getTree (ret);
     try
@@ -511,6 +515,8 @@ public class PhoxtrotTransformer extends Transformer
   {
     if (aResult.getHandler () == null)
       throw new TransformerException ("The SAXResult has no content handler");
+    // Only the tree is emitted: no serialization
+    aRequest.setPrincipalTreeOnly (true);
     final XsltTransformResult ret = m_aTemplates.getExecutable ().transform (aRequest);
     final IXdmNode aTree = _getTree (ret);
     LexicalHandler aLexical = aResult.getLexicalHandler ();

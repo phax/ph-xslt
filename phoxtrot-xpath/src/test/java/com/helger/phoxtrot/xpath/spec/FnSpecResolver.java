@@ -25,6 +25,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 /**
  * Port of go-xslt's <code>rsResolver</code> (fn_resource_test.go): an
@@ -95,21 +96,21 @@ final class FnSpecResolver implements IResourceResolver
   }
 
   @Nullable
-  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
   {
-    return m_aDocs.get (sAbsoluteUri);
+    return m_aDocs.get (aUri.absoluteUri ());
   }
 
   @Nullable
-  public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+  public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
   {
-    return m_aTexts.get (sAbsoluteUri);
+    return m_aTexts.get (aUri.absoluteUri ());
   }
 
   @Override
   @Nullable
-  public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sAbsoluteUri)
+  public ICommonsList <IXdmNode> resolveCollection (@NonNull final ResourceUri aUri)
   {
-    return m_bCollections ? m_aColls.get (sAbsoluteUri) : null;
+    return m_bCollections ? m_aColls.get (aUri.absoluteUri ()) : null;
   }
 }

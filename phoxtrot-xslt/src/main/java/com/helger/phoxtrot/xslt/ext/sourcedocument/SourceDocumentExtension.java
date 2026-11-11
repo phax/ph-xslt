@@ -24,6 +24,7 @@ import com.helger.phoxtrot.xdm.XdmParseException;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.XPathException;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.fn.FnUri;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.compile.Avt;
@@ -64,7 +65,7 @@ public final class SourceDocumentExtension implements IXsltExtension
    */
   private static boolean _runStreamed (@NonNull final XsltContext aCtx,
                                        @NonNull final IXsltOutput aOut,
-                                       @NonNull final String sUri,
+                                       @NonNull final ResourceUri aUri,
                                        @NonNull final XslElement aConsumer,
                                        @NonNull final SequenceConstructor aBody,
                                        @NonNull final ICommonsList <XdmQName> aAccumulators)
@@ -72,7 +73,7 @@ public final class SourceDocumentExtension implements IXsltExtension
     final Engine aEngine = aCtx.getEngine ();
 
     @SuppressWarnings ("resource")
-    final XdmStreamReader aReader = aEngine.openStreamedDocument (sUri);
+    final XdmStreamReader aReader = aEngine.openStreamedDocument (aUri);
     if (aReader == null)
       return false;
 
@@ -173,6 +174,7 @@ public final class SourceDocumentExtension implements IXsltExtension
       {
         throw new XPathException ("FODC0005", "Invalid URI '" + sHref + "' in xsl:source-document");
       }
+      final ResourceUri aUri = ResourceUri.of (sUri, sHref, sBase);
       final Engine aEngine = aRtCtx.getEngine ();
       final XslElement aConsumer = bStreamCandidate &&
                                    aSheet.getStreamVerdicts () != null &&
@@ -183,9 +185,9 @@ public final class SourceDocumentExtension implements IXsltExtension
       if (aConsumer != null &&
           StreamConsumer.isConsumer (aSheet, aConsumer) &&
           AccumulatorExtension.isStreamable (aSheet, aAccumulators) &&
-          _runStreamed (aRtCtx, aRtOut, sUri, aConsumer, aBody, aAccumulators))
+          _runStreamed (aRtCtx, aRtOut, aUri, aConsumer, aBody, aAccumulators))
         return;
-      IXdmNode aNode = aEngine.getDocument (aRtCtx, sUri);
+      IXdmNode aNode = aEngine.getDocument (aRtCtx, aUri);
       if (aNode == null)
         throw new XPathException ("FODC0002", "The document '" + sUri + "' has no element with the given ID");
       if (aValidation != null && !aValidation.isPreserve ())

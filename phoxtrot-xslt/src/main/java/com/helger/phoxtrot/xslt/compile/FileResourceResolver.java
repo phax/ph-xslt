@@ -36,13 +36,14 @@ import com.helger.phoxtrot.xdm.XdmParser;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xdm.XdmStreamReader;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 
 /**
  * A resolver that reads <code>file:</code> URIs and nothing else. Used for
  * stylesheet modules when the compile options give no resolver. Stylesheet
- * modules ({@link #resolveStylesheetModule(String)}) are parsed with node
- * locations, documents ({@link #resolveDocument(String)},
- * {@link #openDocumentStream(String, Predicate)}) without.
+ * modules ({@link #resolveStylesheetModule(ResourceUri)}) are parsed with node
+ * locations, documents ({@link #resolveDocument(ResourceUri)},
+ * {@link #openDocumentStream(ResourceUri, Predicate)}) without.
  *
  * @author Philip Helger
  */
@@ -130,18 +131,18 @@ public final class FileResourceResolver implements IResourceResolver
    * ({@link XdmParser#isRecordLocationsByDefault()}): without node locations,
    * unless a resolver that delegates here is asked for a stylesheet module
    * through the default implementation of
-   * {@link IResourceResolver#resolveStylesheetModule(String)}. The document
+   * {@link IResourceResolver#resolveStylesheetModule(ResourceUri)}. The document
    * URI is set to the requested URI unless the parser already set one.
    *
-   * @param sAbsoluteUri
-   *        The absolute URI.
+   * @param aUri
+   *        The URI; its absolute URI is read.
    * @return The document node, or <code>null</code> if the URI names no
    *         readable local file or the file is not well-formed.
    */
   @Nullable
-  public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
   {
-    return _parse (sAbsoluteUri, XdmParser.isRecordLocationsByDefault ());
+    return _parse (aUri.absoluteUri (), XdmParser.isRecordLocationsByDefault ());
   }
 
   /**
@@ -149,25 +150,25 @@ public final class FileResourceResolver implements IResourceResolver
    * document URI is set to the requested URI unless the parser already set
    * one.
    *
-   * @param sAbsoluteUri
-   *        The absolute URI.
+   * @param aUri
+   *        The URI; its absolute URI is read.
    * @return The document node, or <code>null</code> if the URI names no
    *         readable local file or the file is not well-formed.
    */
   @Override
   @Nullable
-  public IXdmNode resolveStylesheetModule (@NonNull final String sAbsoluteUri)
+  public IXdmNode resolveStylesheetModule (@NonNull final ResourceUri aUri)
   {
-    return _parse (sAbsoluteUri, true);
+    return _parse (aUri.absoluteUri (), true);
   }
 
   /**
    * Open the local file for streamed reading with the default element depth
-   * limit and without node locations. Unlike {@link #resolveDocument(String)}, errors while opening the
+   * limit and without node locations. Unlike {@link #resolveDocument(ResourceUri)}, errors while opening the
    * stream are thrown, not turned into <code>null</code>.
    *
-   * @param sAbsoluteUri
-   *        The absolute URI.
+   * @param aUri
+   *        The URI; its absolute URI is read.
    * @param aStripWhitespace
    *        Decides by element name whether whitespace-only text is stripped,
    *        or <code>null</code> to keep all text.
@@ -177,10 +178,10 @@ public final class FileResourceResolver implements IResourceResolver
    */
   @Override
   @Nullable
-  public XdmStreamReader openDocumentStream (@NonNull final String sAbsoluteUri,
+  public XdmStreamReader openDocumentStream (@NonNull final ResourceUri aUri,
                                              @Nullable final Predicate <XdmQName> aStripWhitespace) throws XdmParseException
   {
-    final Path aPath = getLocalPath (sAbsoluteUri);
+    final Path aPath = getLocalPath (aUri.absoluteUri ());
     if (aPath == null)
       return null;
     final InputSource aSource = new InputSource (aPath.toUri ().toString ());
@@ -189,15 +190,15 @@ public final class FileResourceResolver implements IResourceResolver
                                                       XdmParser.DEFAULT_MAX_ELEMENT_DEPTH,
                                                       aStripWhitespace);
     if (ret.getDocument ().getDocumentUri () == null)
-      ret.getDocument ().setDocumentUri (sAbsoluteUri);
+      ret.getDocument ().setDocumentUri (aUri.absoluteUri ());
     return ret;
   }
 
   /**
    * Read the local file as text.
    *
-   * @param sAbsoluteUri
-   *        The absolute URI.
+   * @param aUri
+   *        The URI; its absolute URI is read.
    * @param sEncoding
    *        The encoding name, <code>null</code> for UTF-8.
    * @return The text, or <code>null</code> if the URI names no local file,
@@ -205,9 +206,9 @@ public final class FileResourceResolver implements IResourceResolver
    *         with it.
    */
   @Nullable
-  public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+  public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
   {
-    final Path aPath = getLocalPath (sAbsoluteUri);
+    final Path aPath = getLocalPath (aUri.absoluteUri ());
     if (aPath == null)
       return null;
     try

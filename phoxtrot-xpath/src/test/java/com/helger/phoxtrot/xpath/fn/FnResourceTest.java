@@ -33,6 +33,7 @@ import com.helger.collection.commons.ICommonsMap;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.value.XdmSequence;
 
 /**
@@ -51,24 +52,24 @@ public final class FnResourceTest
     private int m_nDocCalls = 0;
 
     @Nullable
-    public IXdmNode resolveDocument (@NonNull final String sAbsoluteUri)
+    public IXdmNode resolveDocument (@NonNull final ResourceUri aUri)
     {
       m_nDocCalls++;
-      final IXdmNode ret = m_aDocs.get (sAbsoluteUri);
+      final IXdmNode ret = m_aDocs.get (aUri.absoluteUri ());
       // A fresh tree per call: stability must come from the run cache
       return ret == null ? null : parse ("<copy/>");
     }
 
     @Nullable
-    public String resolveText (@NonNull final String sAbsoluteUri, @Nullable final String sEncoding)
+    public String resolveText (@NonNull final ResourceUri aUri, @Nullable final String sEncoding)
     {
-      return m_aTexts.get (sAbsoluteUri);
+      return m_aTexts.get (aUri.absoluteUri ());
     }
 
     @Nullable
-    public ICommonsList <IXdmNode> resolveCollection (@NonNull final String sAbsoluteUri)
+    public ICommonsList <IXdmNode> resolveCollection (@NonNull final ResourceUri aUri)
     {
-      if (sAbsoluteUri.isEmpty () || sAbsoluteUri.equals (BASE + "col"))
+      if (aUri.absoluteUri ().isEmpty () || aUri.absoluteUri ().equals (BASE + "col"))
       {
         final IXdmNode aDoc = parse ("<c/>");
         aDoc.setDocumentUri (BASE + "c.xml");

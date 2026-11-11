@@ -83,6 +83,7 @@ public final class XsltTransformRequest
   private int m_nMaxDepth;
   private ExecutionBudget m_aSharedBudget;
   private boolean m_bRawDelivery;
+  private boolean m_bPrincipalTreeOnly;
   private boolean m_bSourceStreamed;
   private String m_sStreamedSourceUri;
   private EThreading m_eThreading = EThreading.DEFAULT;
@@ -489,6 +490,31 @@ public final class XsltTransformRequest
   }
 
   /**
+   * @return <code>true</code> if the principal result is wanted as tree only:
+   *         it is built but not serialized. Default <code>false</code>.
+   */
+  public boolean isPrincipalTreeOnly ()
+  {
+    return m_bPrincipalTreeOnly;
+  }
+
+  /**
+   * @param bPrincipalTreeOnly
+   *        <code>true</code> if the caller only uses the principal result tree
+   *        and the raw sequence (e.g. to write a DOM or SAX events): the tree
+   *        is built as usual, but not serialized, so the serialized result is
+   *        empty and serialization errors cannot occur. It has no effect when
+   *        the result is written to a stream or writer, or with raw delivery.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltTransformRequest setPrincipalTreeOnly (final boolean bPrincipalTreeOnly)
+  {
+    m_bPrincipalTreeOnly = bPrincipalTreeOnly;
+    return this;
+  }
+
+  /**
    * @return <code>true</code> if the host declared the principal source a
    *         streamed document. Default <code>false</code>.
    */
@@ -533,7 +559,7 @@ public final class XsltTransformRequest
    * Supply the principal source as a document to be read as a stream: it is
    * the initial match selection of the initial mode. The document is opened
    * with the resolver of this request
-   * ({@link com.helger.phoxtrot.xpath.context.IResourceResolver#openDocumentStream(String, java.util.function.Predicate)}).
+   * ({@link com.helger.phoxtrot.xpath.context.IResourceResolver#openDocumentStream(com.helger.phoxtrot.xpath.context.ResourceUri, java.util.function.Predicate)}).
    * <p>
    * When the stylesheet claims streaming, the initial mode is declared
    * streamable and proven guaranteed streamable, and the template rule for the
@@ -542,7 +568,7 @@ public final class XsltTransformRequest
    * {@link #setGlobalContextItem(IXdmItem)} supplies (XSLT 3.0 section 2.3:
    * the two are independent; a streamed document cannot be the context of
    * global variables). Otherwise the document is read in full
-   * ({@link com.helger.phoxtrot.xpath.context.IResourceResolver#resolveDocument(String)});
+   * ({@link com.helger.phoxtrot.xpath.context.IResourceResolver#resolveDocument(com.helger.phoxtrot.xpath.context.ResourceUri)});
    * when the initial mode is not streamable it is then also the global context
    * item if none is supplied, as for a document passed to
    * {@link #setGlobalContextItem(IXdmItem)}.

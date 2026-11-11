@@ -447,17 +447,23 @@ public final class PhoxtrotTransformerFactoryTest
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
     aTF.setURIResolver ((sHref, sBase) -> {
       aCalls.add (sHref + "|" + sBase);
-      if ("http://example.org/xsl/inc.xsl".equals (sHref))
+      if ("inc.xsl".equals (sHref))
         return _source (XSL_START + "<xsl:template match='/'><included/></xsl:template>" + XSL_END);
       return null;
     });
-    final StreamSource aMain = _source (XSL_START +
-                                        "<xsl:output omit-xml-declaration='yes'/><xsl:include href='inc.xsl'/>" +
-                                        XSL_END);
+    final String sMain = XSL_START + "<xsl:output omit-xml-declaration='yes'/><xsl:include href='inc.xsl'/>" + XSL_END;
+    final StreamSource aMain = _source (sMain);
     aMain.setSystemId ("http://example.org/xsl/main.xsl");
     final Templates aTemplates = aTF.newTemplates (aMain);
-    assertEquals ("[http://example.org/xsl/inc.xsl|http://example.org/xsl/inc.xsl]", aCalls.toString ());
+    // As JAXP specifies: the href as written and the base URI
+    assertEquals ("[inc.xsl|http://example.org/xsl/main.xsl]", aCalls.toString ());
     assertEquals ("<included/>", _transform (aTemplates.newTransformer (), _source (SOURCE)));
+
+    // Without a system ID the base is the empty string, so that the resolver
+    // can use its own default base
+    aCalls.clear ();
+    aTF.newTemplates (_source (sMain));
+    assertEquals ("[inc.xsl|]", aCalls.toString ());
   }
 
   @Test
@@ -476,11 +482,12 @@ public final class PhoxtrotTransformerFactoryTest
     assertNotNull (aT.getURIResolver ());
     final Document aTransformerDoc = _parseDom ("<from-transformer/>");
     aT.setURIResolver ((sHref, sBase) -> {
-      if (sHref.equals ("http://example.org/xsl/factory.xml"))
+      assertEquals ("http://example.org/xsl/main.xsl", sBase);
+      if (sHref.equals ("factory.xml"))
         return _source ("<from-factory/>");
-      if (sHref.equals ("http://example.org/xsl/transformer.xml"))
+      if (sHref.equals ("transformer.xml"))
         return new DOMSource (aTransformerDoc);
-      if (sHref.equals ("http://example.org/xsl/text.txt"))
+      if (sHref.equals ("text.txt"))
         return new StreamSource (new StringReader ("some text"));
       return null;
     });
@@ -1211,6 +1218,10 @@ public final class PhoxtrotTransformerFactoryTest
     assertNotNull (aLast);
     assertEquals (1, aLast.secondaryResults ().size ());
     assertEquals ("second.xml", aLast.secondaryResults ().getFirstOrNull ().href ());
+    // A DOM result is written from the tree, the principal result is not serialised
+    assertNotNull (aLast.principalTree ());
+    assertEquals ("", aLast.principalSerialized ());
+    assertEquals ("main", ((Document) aResult.getNode ()).getDocumentElement ().getLocalName ());
 
     aT.setParameter ("x", "y");
     aT.setOutputProperty (OutputKeys.INDENT, "yes");

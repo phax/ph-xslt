@@ -39,6 +39,7 @@ import com.helger.phoxtrot.xpath.ast.IExpr;
 import com.helger.phoxtrot.xpath.ast.SeqType;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
 import com.helger.phoxtrot.xpath.context.IResourceResolver;
+import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.context.StaticContext;
 import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
 import com.helger.phoxtrot.xpath.eval.XPathEvaluator;
@@ -549,7 +550,7 @@ public final class StylesheetLoader
     {
       try
       {
-        aDoc = _getResolver ().resolveStylesheetModule (sUri);
+        aDoc = _getResolver ().resolveStylesheetModule (ResourceUri.of (sUri, _stripFragment (sHref.trim ()), sBase));
       }
       catch (final XPathException ex)
       {

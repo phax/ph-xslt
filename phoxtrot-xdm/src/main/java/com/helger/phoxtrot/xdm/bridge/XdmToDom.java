@@ -138,7 +138,7 @@ public final class XdmToDom
       if (aNode.hasDeclaredNamespaces ())
       {
         // Declarations that repeat the binding in scope are not written
-        for (final Map.Entry <String, String> aEntry : aNode.getDeclaredNamespaces ().entrySet ())
+        for (final Map.Entry <String, String> aEntry : aNode.declaredNamespaces ().entrySet ())
           if (!aScope.isBoundTo (aEntry.getKey (), aEntry.getValue ()))
             aDecls.put (aEntry.getKey (), aEntry.getValue ());
       }
