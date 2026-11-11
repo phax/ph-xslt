@@ -666,3 +666,144 @@ Options:
 Tests: the XSLT 3.0 streamability test cases that phoxtrot already passes, run through the facade; Schematron-like
 cases (attribute test, child test, `//` test, `preceding-sibling` test, `count (//x)` against a grounded variable,
 a pattern with a downward predicate `cac:InvoiceLine[cbc:Quantity < 0]`).
+
+## Suggestions from the ph-schematron v11 implementation (2026-11-11)
+
+### S35 - Nesting limit settable through the JAXP adapter
+
+Status: done (2026-11-11), point 1; point 2 not taken (the default stays 10,000 in every threading mode). The cap
+at the default in `Engine` is gone, so `XsltTransformRequest.setMaxDepth` can raise the limit;
+`XsltTransformRequest.UNLIMITED_DEPTH` (`Integer.MAX_VALUE`) means no limit but the stack (an overflow is still
+XPDY0130). JAXP: factory attribute `PhoxtrotTransformerFactory.ATTR_MAX_DEPTH` (initial value of the transformers,
+there is no depth limit at compile time) and `PhoxtrotTransformer.setMaxDepth`; test
+`PhoxtrotTransformerFactoryTest.testDepthLimit` (50,000 levels on `THREAD_POOL`).
+
+The ISO Schematron include step (`iso_dsdl_include.xsl`) checks expressions with named templates that recurse about
+once per character. For the EUGEN UBL T14 and T15 rules of the ph-schematron test files (a code list test of 23,537
+characters in `include/EUGEN-T14-codes.sch`) the step fails on phoxtrot with
+`XPDY0130: Templates and functions are nested more than 10000 levels deep`; Saxon (no nesting counter, only the Java
+stack) converts them. The limit is `XsltTransformRequest.setMaxDepth` (default 10,000), which the JAXP adapter does
+not expose: the factory has `ATTR_MAX_STEPS`, but no attribute for the depth, so ph-schematron cannot raise it.
+
+Proposal:
+
+1. A factory attribute `ATTR_MAX_DEPTH` (a `Number` or a decimal string, 0 for the engine default, a value for no
+   limit, like `ATTR_MAX_STEPS`), also applied to compilations, and `PhoxtrotTransformer.setMaxDepth`.
+2. Consider a higher default (or no depth limit) when the transformation runs on a thread with the large stack
+   (`NEW_THREAD`, `THREAD_POOL`), where a `StackOverflowError` is turned into XPDY0130 anyway; the depth counter then
+   only cuts off legitimate deep recursion earlier than the stack would.
+
+ph-schematron would set it like the step limit: no limit by default (as Saxon), configurable.
+
+Test: a stylesheet with a named template recursing 50,000 times, run through `PhoxtrotTransformerFactory` with the
+attribute set, on `THREAD_POOL`.
+
+### S36 - Reject `xsl:result-document` under secure processing
+
+Status: open, new proposal below (2026-11-11), after a comparison with Saxon.
+
+With `XMLConstants.FEATURE_SECURE_PROCESSING` Saxon refuses to compile a stylesheet that contains
+`xsl:result-document` (the secondary output destinations are disabled), so ph-schematron reports such a Schematron
+XSLT as invalid (`SchematronSecureProcessingTest.testResultDocumentIsRejected`). phoxtrot compiles it and keeps the
+secondary results in memory (`PhoxtrotTransformer.getLastResult ()`); nothing is written, but the stylesheet is
+accepted. For the same behaviour on both processors, the JAXP adapter should reject an `xsl:result-document` with an
+`href` at compile time when secure processing is on (a static error such as XTSE0010-style "not allowed", or a
+phoxtrot specific code), and accept it as before otherwise.
+
+Test: the `result-document.xslt` of ph-schematron (`xsl:result-document href="secondary.xml"`): `newTemplates` fails
+with secure processing, succeeds without.
+
+**Comparison with Saxon-HE 13.1** (black box through its JAXP factory, 2026-11-11). With
+`FEATURE_SECURE_PROCESSING` Saxon fails `newTemplates` with XTSE0010 "xsl:result-document is disabled when extension
+functions are disabled", located at the element, for every `xsl:result-document` that has an `href` attribute:
+
+| Stylesheet | Saxon, secure processing | Saxon, default |
+|---|---|---|
+| `href="secondary.xml"` | XTSE0010 at compile time | runs, writes `secondary.xml` next to the result |
+| `href=""` | XTSE0010 | runs, the content goes to the principal result |
+| `href="{'x' \|\| '.xml'}"` (AVT) | XTSE0010 | runs, writes `x.xml` |
+| in a named template that is never called | XTSE0010 | runs |
+| under `xsl:if test="false()"` | XTSE0010 | runs |
+| with `use-when="false()"` | compiles and runs | compiles and runs |
+| without `href` | compiles and runs (principal result) | compiles and runs |
+| only `format` | compiles and runs | compiles and runs |
+
+So the check is static and depends only on the presence of the attribute, not on its value or on whether the
+instruction is reached; `use-when` removes the element before it.
+
+**Proposal:**
+
+1. `XsltCompileOptions.setSecondaryResultsAllowed (boolean)` (default `true`). With `false`, compiling an
+   `xsl:result-document` that has an `href` attribute (any value, an AVT included) is the static error XTSE0010
+   located at the element, as in Saxon; one without `href` stays allowed. The check goes into
+   `ResultDocumentExtension._compile`, so elements removed by `use-when` are not affected, and it covers included and
+   imported modules and packages. A nested `fn:transform` inherits the setting (like the backwards compatible claim),
+   so a stylesheet cannot get around it.
+2. `PhoxtrotTransformerFactory` sets it to `false` while `FEATURE_SECURE_PROCESSING` is on (no separate attribute), and
+   to `true` again when the feature is switched off.
+3. Error code: XTSE0010 as Saxon does. The specification has no code for a disabled instruction; XTSE0010 is the code
+   for an XSLT element that is not allowed in its place, which fits closest, and a phoxtrot specific code would make
+   ph-schematron tell the two processors apart for no gain.
+
+Note: the difference is about behaviour, not risk. phoxtrot's JAXP adapter never writes secondary results (they stay
+in `PhoxtrotTransformer.getLastResult ()`), so secure processing loses nothing there that it needs to protect.
+
+Tests: the eight stylesheets of the table through `PhoxtrotTransformerFactory`, with and without secure processing;
+an `href` in an included module; `fn:transform` of such a stylesheet from a secure run.
+
+### S37 - `generate-id()` values like Saxon
+
+Status: closed (2026-11-11), not implemented: phoxtrot keeps its own scheme (following Saxon's would need its
+sources, which phoxtrot does not use, and differs by tree model anyway). The form changed with S38; documented in
+README "Implementation-dependent values".
+
+ph-schematron treats Saxon as the reference: every difference of phoxtrot is recorded here. The ISO Schematron step
+`iso_abstract_expand.xsl` builds the IDs of patterns instantiated from abstract patterns as
+`concat(generate-id(.), $is-a)`, so these IDs end up in the created XSLT and in the SVRL (`active-pattern/@id`).
+Saxon 13.1 gives e.g. `w141aac11spacesAtStartEnd` (for a node of a wrapped W3C DOM), phoxtrot `id1spacesAtStartEnd`
+(ph-schematron test files `CellarBook.sch` and `schematron-svrl.sch`; ph-schematron normalises them in its comparison
+tests for now). The values are implementation-dependent by the specification, so this is about compatibility, not
+conformance.
+
+To decide in phoxtrot: produce the same values as Saxon for the same input (which would mean following Saxon's
+scheme, also for its different tree models: TinyTree, DOM wrapper), or keep the own scheme and document the
+difference. If the scheme is kept, ph-schematron keeps the normalisation and documents the difference for users who
+compare SVRL across processors.
+
+### S38 - `generate-id()` values collide with IDs of the input
+
+Status: done (2026-11-11). Addendum to S37. `fn:generate-id` gives `d<tree>n<node>` (e.g. `d1n5`): the number of
+the tree (root) in the run and the number of the node in it, both in the order of the first request
+(`FnAccessor._generateId`). F&O allows only ASCII letters and digits, so the form cannot use a separator that IDs
+rarely contain; it is still unlike `id1`-style author IDs.
+
+SchXslt 1 and 2 use `generate-id()` for pattern IDs, template names, modes and map keys. phoxtrot's values (`id1`,
+`id2`, ...) have the same form as IDs that authors write themselves: for `example-assert.sch` of the ph-schematron
+test files (an `assert` with `id="id1"`) the XSLT created on phoxtrot has the generated pattern ID `id1` next to the
+assert ID `id1`; Saxon's values (`w84148aab7` on a wrapped DOM, `d84976e9` on its own tree) do not collide there.
+The SVRL is still the same in that case, but a stylesheet that mixes generated and author IDs in one key space can
+behave differently. If S37 keeps an own scheme, it should at least use a form that is unlikely in documents (e.g. with
+a document number and a character that IDs rarely contain, like Saxon's `d<doc>e<node>`).
+
+### S39 - `URIResolver.resolve` with the original `href` and the base URI
+
+Status: open.
+
+The JAXP adapter calls `URIResolver.resolve (href, base)` with the URI it resolved itself as both arguments (README:
+"with the absolute URI the engine resolved as href and as base"). JAXP specifies `href` as the attribute value as
+written (relative or absolute) and `base` as the base URI in effect, and Saxon calls it that way. The difference
+breaks resolvers that resolve relative references against their own default base when the stylesheet has no base
+URI: ph-schematron compiles the XSLT created from a Schematron from a DOM without system ID and uses a
+`DefaultTransformURIResolver` with the Schematron's directory as default base. For
+`<xsl:include href="include.xsl"/>` (ph-schematron `Issue077Test`, Schematron with `allow-foreign`) Saxon calls
+`resolve ("include.xsl", "")`, the resolver uses its default base and finds the file; phoxtrot calls
+`resolve ("include.xsl", "include.xsl")`, the resolver treats `include.xsl` as the base, the include is not found
+(XTSE0165) and the Schematron is reported as invalid.
+
+Proposal: call `resolve` with the `href` as written and the base URI of the module (or of the instruction for
+`document()`/`doc()`/`unparsed-text()`), `null` or `""` if there is none, as Saxon does; resolve against the base only
+when the `URIResolver` returns `null`.
+
+Test: a stylesheet without system ID with `<xsl:include href="inc.xsl"/>` and a `URIResolver` that records its
+arguments: it must receive (`inc.xsl`, `""` or `null`); with a system ID `file:/a/main.xsl` it must receive
+(`inc.xsl`, `file:/a/main.xsl`).

@@ -110,7 +110,7 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * {@link #ATTR_LOAD_EXTERNAL_ENTITIES}, {@link #ATTR_ENTITY_RESOLVER},
  * {@link #ATTR_SCHEMA_AWARE}, {@link #ATTR_BACKWARDS_COMPATIBLE},
  * {@link #ATTR_MESSAGE_LISTENER}, {@link #ATTR_TRACE_LISTENER},
- * {@link #ATTR_MAX_STEPS} and {@link #ATTR_THREADING}. Other names are
+ * {@link #ATTR_MAX_STEPS}, {@link #ATTR_MAX_DEPTH} and {@link #ATTR_THREADING}. Other names are
  * rejected.</li>
  * </ul>
  *
@@ -175,6 +175,16 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
    */
   public static final String ATTR_MAX_STEPS = ATTR_PREFIX + "max-steps";
   /**
+   * Attribute ({@link Number} or a decimal string): the nesting depth limit of
+   * templates and functions of a transformation, see
+   * {@link com.helger.phoxtrot.xslt.XsltTransformRequest#setMaxDepth(int)} (0,
+   * the default, for the engine default;
+   * {@link com.helger.phoxtrot.xslt.XsltTransformRequest#UNLIMITED_DEPTH}
+   * for no limit). The initial limit of the transformers, which can choose
+   * their own with {@link PhoxtrotTransformer#setMaxDepth(int)}.
+   */
+  public static final String ATTR_MAX_DEPTH = ATTR_PREFIX + "max-depth";
+  /**
    * Attribute ({@link EThreading} or the name of one of its constants):
    * the thread that compilations ({@link #newTemplates(Source)}) and the
    * transformations of the transformers run on (default
@@ -212,6 +222,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
   private IXsltMessageListener m_aMessageListener;
   private IXsltTraceListener m_aTraceListener;
   private long m_nMaxSteps = 0;
+  private int m_nMaxDepth = 0;
   private EThreading m_eThreading = EThreading.DEFAULT;
 
   /** Create a factory with the default settings. */
@@ -233,6 +244,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
                              m_aMessageListener,
                              m_aTraceListener,
                              m_nMaxSteps,
+                             m_nMaxDepth,
                              m_eThreading);
   }
 
@@ -610,6 +622,32 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
           throw new IllegalArgumentException ("The attribute '" + sName + "' may not be negative");
         break;
       }
+      case ATTR_MAX_DEPTH:
+      {
+        final long nMaxDepth;
+        if (aValue instanceof final Number aNumber)
+          nMaxDepth = aNumber.longValue ();
+        else
+          if (aValue instanceof final String sValue)
+          {
+            try
+            {
+              nMaxDepth = Long.parseLong (sValue.trim ());
+            }
+            catch (final NumberFormatException ex)
+            {
+              throw new IllegalArgumentException ("The attribute '" + sName + "' needs a number, not '" + sValue + "'", ex);
+            }
+          }
+          else
+            throw new IllegalArgumentException ("The attribute '" + sName + "' needs a number");
+        if (nMaxDepth < 0)
+          throw new IllegalArgumentException ("The attribute '" + sName + "' may not be negative");
+        if (nMaxDepth > Integer.MAX_VALUE)
+          throw new IllegalArgumentException ("The attribute '" + sName + "' may not be larger than " + Integer.MAX_VALUE);
+        m_nMaxDepth = (int) nMaxDepth;
+        break;
+      }
       case ATTR_THREADING:
         m_eThreading = _toThreading (sName, aValue);
         break;
@@ -639,6 +677,7 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
       case ATTR_MESSAGE_LISTENER -> m_aMessageListener;
       case ATTR_TRACE_LISTENER -> m_aTraceListener;
       case ATTR_MAX_STEPS -> Long.valueOf (m_nMaxSteps);
+      case ATTR_MAX_DEPTH -> Integer.valueOf (m_nMaxDepth);
       case ATTR_THREADING -> m_eThreading;
       default -> throw new IllegalArgumentException ("The attribute '" + sName + "' is not supported");
     };

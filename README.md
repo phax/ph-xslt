@@ -185,7 +185,9 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
   `XMLConstants.ACCESS_EXTERNAL_DTD` (default `all`, empty with `FEATURE_SECURE_PROCESSING`). Further attributes:
   `ATTR_SCHEMA_AWARE` (the `schema-location` of `xsl:import-schema` goes through the `URIResolver` and
   `ACCESS_EXTERNAL_STYLESHEET` like a module; the documents it references are read only if `file` is allowed),
-  `ATTR_MAX_STEPS`.
+  `ATTR_MAX_STEPS` and `ATTR_MAX_DEPTH` (the nesting depth of templates and functions, default 10,000,
+  `XsltTransformRequest.UNLIMITED_DEPTH` for no limit but the stack; `PhoxtrotTransformer.setMaxDepth` per
+  transformer).
 * Not supported: `SAXTransformerFactory` (`TransformerHandler`, `TemplatesHandler`), StAX sources and results, and
   writing secondary results (`xsl:result-document`); these are available from `PhoxtrotTransformer.getLastResult ()`.
   Initial templates, modes and functions need the phoxtrot API (`PhoxtrotTemplates.getExecutable ()`).
@@ -202,6 +204,14 @@ declarations; `XdmToSax.emit` writes a tree as SAX events. `XdmDomView` shows a 
 copying it (`new XdmDomView (aDoc).getNode (aXdmNode)`, one DOM node per XDM node, `XdmDomView.getXdmNode` back), e.g.
 to report a node an XPath expression matched to code that expects `org.w3c.dom` nodes.
 
+## Implementation-dependent values
+
+* `fn:generate-id` returns `d`, the number of the node's tree in the run, `n` and the number of the node in that tree,
+  both counted in the order the identifiers are first requested (`d1n1`, `d1n2`, `d2n1`, ...). The values differ from
+  Saxon's (which also differ between Saxon's tree models), so output that contains them, such as the
+  `active-pattern/@id` of an SVRL created by the ISO Schematron skeleton from abstract patterns, differs between
+  processors; compare such output with the generated IDs normalised.
+
 ## Origin and acknowledgements
 
 This library is a port of [go-xslt](https://github.com/tim-riep/go-xslt) by Tim Riep (Apache 2.0), a from-scratch Go
@@ -211,6 +221,12 @@ basis of this project. See [NOTICE](NOTICE).
 # News and noteworthy
 
 v0.2.0 - work in progress
+* JAXP: added the factory attribute `ATTR_MAX_DEPTH` and `PhoxtrotTransformer.setMaxDepth` for the nesting depth
+  limit of templates and functions
+* Behaviour change: `XsltTransformRequest.setMaxDepth` can now raise the limit above the default of 10,000; added
+  `XsltTransformRequest.UNLIMITED_DEPTH` for no limit but the stack
+* Behaviour change: `fn:generate-id` now returns values of the form `d1n5` (tree number and node number) instead of
+  `id5`, so they no longer collide with IDs like `id1` written by authors
 * Added `PhoxtrotVersion` with the version number and build timestamp of phoxtrot
 * Updated to ph-commons 12.6.0 and replaced own helpers with its new ones (code points, XML whitespace and name
   characters, hex output, primitive `int` collections)

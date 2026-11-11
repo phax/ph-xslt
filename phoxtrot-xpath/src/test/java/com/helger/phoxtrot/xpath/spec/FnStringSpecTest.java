@@ -184,6 +184,10 @@ public final class FnStringSpecTest
                               ok ("generate-id(/r) ne generate-id(/)", "true"),
                               ok ("/r/a[1]/generate-id() eq generate-id(/r/a[1])", "true"),
                               ok ("matches(generate-id(/r/a[2]), '^[A-Za-z][A-Za-z0-9]*$')", "true"),
+                              // Own form: tree number and node number in the order of the first request
+                              ok ("generate-id(/r/a[2]) || ' ' || generate-id(/r) || ' ' || generate-id(/r/a[2])", "d1n1 d1n2 d1n1"),
+                              ok ("generate-id(/r) || ' ' || generate-id(parse-xml('<x/>')/x) || ' ' || generate-id(/r/a[1])",
+                                  "d1n1 d2n1 d1n2"),
                               ok ("count(distinct-values(/r/a/namespace::*!generate-id(.)))", "4"),
                               ok ("generate-id(())", ""),
                               err ("generate-id(1)", "XPTY0004"),

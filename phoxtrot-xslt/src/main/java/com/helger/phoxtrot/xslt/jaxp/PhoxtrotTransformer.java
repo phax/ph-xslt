@@ -187,6 +187,7 @@ public class PhoxtrotTransformer extends Transformer
   private IXsltMessageListener m_aMessageListener;
   private IXsltTraceListener m_aTraceListener;
   private EThreading m_eThreading;
+  private int m_nMaxDepth;
   private XsltTransformResult m_aLastResult;
 
   /**
@@ -291,6 +292,32 @@ public class PhoxtrotTransformer extends Transformer
   }
 
   /**
+   * @return The nesting depth limit of the transformations: 0 for the engine
+   *         default, {@link XsltTransformRequest#UNLIMITED_DEPTH} for none.
+   */
+  public final int getMaxDepth ()
+  {
+    return m_nMaxDepth;
+  }
+
+  /**
+   * Set the nesting depth limit of templates and functions of the
+   * transformations of this transformer (see
+   * {@link XsltTransformRequest#setMaxDepth(int)}).
+   *
+   * @param nMaxDepth
+   *        The limit: 0 for the engine default,
+   *        {@link XsltTransformRequest#UNLIMITED_DEPTH} for none. May not be
+   *        negative. The initial one is the factory's
+   *        ({@link PhoxtrotTransformerFactory#ATTR_MAX_DEPTH}).
+   */
+  public final void setMaxDepth (final int nMaxDepth)
+  {
+    ValueEnforcer.isGE0 (nMaxDepth, "MaxDepth");
+    m_nMaxDepth = nMaxDepth;
+  }
+
+  /**
    * @return The SAX entity resolver for external DTDs and entities of the
    *         source and the documents of the run, <code>null</code> for none.
    */
@@ -334,7 +361,7 @@ public class PhoxtrotTransformer extends Transformer
   /**
    * Build the request for one transformation: the source as global context
    * item, the parameters, the resolver, the message and trace listeners, the
-   * interrupt hook, the step limit, the threading mode and the base output
+   * interrupt hook, the step and depth limits, the threading mode and the base output
    * URI.
    */
   @NonNull
@@ -355,6 +382,8 @@ public class PhoxtrotTransformer extends Transformer
     ret.setThreading (m_eThreading);
     if (aSettings.maxSteps () != 0)
       ret.setMaxSteps (aSettings.maxSteps ());
+    if (m_nMaxDepth != 0)
+      ret.setMaxDepth (m_nMaxDepth);
     if (sBaseOutputUri != null)
       ret.setBaseOutputUri (sBaseOutputUri);
     return ret;
@@ -736,9 +765,9 @@ public class PhoxtrotTransformer extends Transformer
   /**
    * Return to the state after {@link PhoxtrotTemplates#newTransformer()}: no
    * parameters and output properties, the URI resolver, entity resolver,
-   * message listener, trace listener and threading mode of the factory, the
-   * default error listener (which logs warnings and throws fatal errors), no
-   * last result.
+   * message listener, trace listener, threading mode and depth limit of the
+   * factory, the default error listener (which logs warnings and throws fatal
+   * errors), no last result.
    */
   @Override
   public void reset ()
@@ -751,6 +780,7 @@ public class PhoxtrotTransformer extends Transformer
     m_aMessageListener = m_aTemplates.getSettings ().messageListener ();
     m_aTraceListener = m_aTemplates.getSettings ().traceListener ();
     m_eThreading = m_aTemplates.getSettings ().threading ();
+    m_nMaxDepth = m_aTemplates.getSettings ().maxDepth ();
     m_aLastResult = null;
   }
 }

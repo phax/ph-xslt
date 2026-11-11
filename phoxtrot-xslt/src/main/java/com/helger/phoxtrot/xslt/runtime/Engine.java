@@ -148,10 +148,10 @@ public final class Engine
   /**
    * Set up the run-wide state of one transformation. The execution budget is
    * the shared one of the request (a nested <code>fn:transform</code>) or a new
-   * one with the requested limits; a requested maximum depth is capped at
-   * {@link #DEFAULT_MAX_DEPTH}, a non-positive limit means the default, and
-   * a maximum number of steps of
-   * {@link XsltTransformRequest#UNLIMITED_STEPS} means no step limit. The
+   * one with the requested limits; a non-positive limit means the default, a
+   * maximum number of steps of {@link XsltTransformRequest#UNLIMITED_STEPS}
+   * means no step limit and a maximum depth of
+   * {@link XsltTransformRequest#UNLIMITED_DEPTH} no depth limit. The
    * dynamic context gets the function library of the stylesheet, the static
    * base URI of the principal module, the current date/time and interrupt of
    * the request, a resolver that applies xsl:strip-space to every document it
@@ -175,8 +175,7 @@ public final class Engine
       m_aBudget = aRequest.getSharedBudget ();
     else
       m_aBudget = new ExecutionBudget (aRequest.getMaxSteps () > 0 ? aRequest.getMaxSteps () : DEFAULT_MAX_STEPS,
-                                       aRequest.getMaxDepth () > 0 ? Math.min (aRequest.getMaxDepth (), DEFAULT_MAX_DEPTH)
-                                                                   : DEFAULT_MAX_DEPTH);
+                                       aRequest.getMaxDepth () > 0 ? aRequest.getMaxDepth () : DEFAULT_MAX_DEPTH);
     m_aTraceListener = aRequest.getTraceListener ();
     m_aInstructionTraceListener = m_aTraceListener != null && m_aTraceListener.isTraceInstructions () ? m_aTraceListener
                                                                                                        : null;

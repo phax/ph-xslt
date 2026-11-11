@@ -81,6 +81,7 @@ import com.helger.phoxtrot.xslt.IXsltTraceListener;
 import com.helger.phoxtrot.xslt.XsltException;
 import com.helger.phoxtrot.xslt.XsltMessage;
 import com.helger.phoxtrot.xslt.XsltTraceTemplate;
+import com.helger.phoxtrot.xslt.XsltTransformRequest;
 import com.helger.phoxtrot.xslt.XsltTransformResult;
 
 /**
@@ -945,6 +946,18 @@ public final class PhoxtrotTransformerFactoryTest
 
     aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MAX_STEPS, "1000");
     assertEquals (Long.valueOf (1000), aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_MAX_STEPS));
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MAX_DEPTH, "50000");
+    assertEquals (Integer.valueOf (50_000), aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_MAX_DEPTH));
+    for (final Object aBad : new Object [] { "-1", "x", Long.valueOf (1L + Integer.MAX_VALUE), Boolean.TRUE })
+      try
+      {
+        aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MAX_DEPTH, aBad);
+        fail ();
+      }
+      catch (final IllegalArgumentException ex)
+      {
+        // expected
+      }
     aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_LOAD_EXTERNAL_ENTITIES, Boolean.TRUE);
     assertEquals (Boolean.TRUE, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_LOAD_EXTERNAL_ENTITIES));
     aTF.setAttribute (XMLConstants.ACCESS_EXTERNAL_DTD, "file");
@@ -1048,6 +1061,61 @@ public final class PhoxtrotTransformerFactoryTest
     {
       assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XPDY0130"));
     }
+  }
+
+  @Test
+  public void testDepthLimit () throws Exception
+  {
+    // A named template that recurses 50,000 times, as the ISO Schematron
+    // include step does once per character of a long expression
+    final String sXsl = XSL_START +
+                        "<xsl:template name='rec'><xsl:param name='n'/>" +
+                        "<xsl:choose><xsl:when test='$n = 0'><r/></xsl:when>" +
+                        "<xsl:otherwise><xsl:call-template name='rec'><xsl:with-param name='n' select='$n - 1'/></xsl:call-template></xsl:otherwise>" +
+                        "</xsl:choose></xsl:template>" +
+                        "<xsl:template match='/'><xsl:call-template name='rec'><xsl:with-param name='n' select='50000'/></xsl:call-template></xsl:template>" +
+                        XSL_END;
+
+    // The default of 10,000 levels stops it
+    final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
+    aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, EThreading.THREAD_POOL);
+    PhoxtrotTransformer aT = (PhoxtrotTransformer) aTF.newTemplates (_source (sXsl)).newTransformer ();
+    assertEquals (0, aT.getMaxDepth ());
+    aT.setErrorListener (new RecordingErrorListener ());
+    try
+    {
+      _transform (aT, _source (SOURCE));
+      fail ();
+    }
+    catch (final TransformerException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XPDY0130"));
+    }
+
+    // Raised above the default, and without a limit
+    for (final Integer aMaxDepth : new Integer [] { Integer.valueOf (60_000),
+                                                    Integer.valueOf (XsltTransformRequest.UNLIMITED_DEPTH) })
+    {
+      aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MAX_DEPTH, aMaxDepth);
+      aT = (PhoxtrotTransformer) aTF.newTemplates (_source (sXsl)).newTransformer ();
+      assertEquals (aMaxDepth.intValue (), aT.getMaxDepth ());
+      assertTrue (_transform (aT, _source (SOURCE)).contains ("<r"));
+    }
+
+    // The transformer lowers the limit of the factory, reset restores it
+    aT.setMaxDepth (1_000);
+    aT.setErrorListener (new RecordingErrorListener ());
+    try
+    {
+      _transform (aT, _source (SOURCE));
+      fail ();
+    }
+    catch (final TransformerException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XPDY0130"));
+    }
+    aT.reset ();
+    assertEquals (XsltTransformRequest.UNLIMITED_DEPTH, aT.getMaxDepth ());
   }
 
   @Test

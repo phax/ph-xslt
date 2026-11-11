@@ -244,25 +244,41 @@ public final class FnAccessor
     };
   }
 
+  /** The document number of one tree and the last node number given out in it. */
+  private static final class GeneratedTreeIDs
+  {
+    private final int m_nDocument;
+    private int m_nLastNode;
+
+    private GeneratedTreeIDs (final int nDocument)
+    {
+      m_nDocument = nDocument;
+    }
+  }
+
   /**
-   * The identifiers fn:generate-id gave out in one run. Nodes are compared by
-   * identity, and a node no longer referenced anywhere is forgotten, so that a
-   * streamed document does not make the run keep every node it saw. The
-   * counter never goes back: an identifier is not given out twice, even after
-   * its node was forgotten.
+   * The identifiers fn:generate-id gave out in one run. Nodes and the roots of
+   * their trees are compared by identity, and a node or root no longer
+   * referenced anywhere is forgotten, so that a streamed document does not
+   * make the run keep every node it saw. The counters never go back: an
+   * identifier is not given out twice, even after its node was forgotten.
    */
   private static final class GeneratedIDs
   {
     // IXdmNode does not override equals and hashCode: identity semantics
     private final Map <IXdmNode, String> m_aIDs = new WeakHashMap <> ();
-    private int m_nLast;
+    private final Map <IXdmNode, GeneratedTreeIDs> m_aTrees = new WeakHashMap <> ();
+    private int m_nLastDocument;
   }
 
   /**
    * <code>fn:generate-id</code> (F&amp;O 3.1 section 14.5.4): give every node
-   * a stable identifier of the form <code>id</code> followed by a counter,
-   * kept in the run cache in a {@link GeneratedIDs}; the same node gets the
-   * same identifier for the whole run.
+   * a stable identifier of the form <code>d</code>, the number of its tree
+   * (root) in the run, <code>n</code> and the number of the node in that tree
+   * (e.g. <code>d1n5</code>), both counted in the order of the first request
+   * and kept in the run cache in a {@link GeneratedIDs}; the same node gets
+   * the same identifier for the whole run. The form keeps the values apart
+   * from IDs like <code>id1</code> that authors write themselves.
    *
    * @param aCtx
    *        The dynamic context of the call.
@@ -276,7 +292,11 @@ public final class FnAccessor
     if (aNode == null)
       return "";
     final GeneratedIDs aIDs = (GeneratedIDs) aCtx.getRunCache ().computeIfAbsent (RUN_CACHE_GENERATE_ID, k -> new GeneratedIDs ());
-    return aIDs.m_aIDs.computeIfAbsent (aNode, k -> "id" + Integer.toString (++aIDs.m_nLast));
+    return aIDs.m_aIDs.computeIfAbsent (aNode, k -> {
+      final GeneratedTreeIDs aTree = aIDs.m_aTrees.computeIfAbsent (aNode.getRoot (),
+                                                                    r -> new GeneratedTreeIDs (++aIDs.m_nLastDocument));
+      return "d" + Integer.toString (aTree.m_nDocument) + "n" + Integer.toString (++aTree.m_nLastNode);
+    });
   }
 
   /**

@@ -46,6 +46,9 @@ import com.helger.phoxtrot.xslt.IXsltTraceListener;
  *        The trace listener, <code>null</code> for none.
  * @param maxSteps
  *        The step limit of a transformation, 0 for the engine default.
+ * @param maxDepth
+ *        The nesting depth limit of a transformation, 0 for the engine
+ *        default; the initial choice of each transformer.
  * @param threading
  *        The thread the transformations run on, the initial choice of each
  *        transformer.
@@ -57,5 +60,6 @@ record JaxpSettings (@Nullable URIResolver uriResolver,
                      @Nullable IXsltMessageListener messageListener,
                      @Nullable IXsltTraceListener traceListener,
                      long maxSteps,
+                     int maxDepth,
                      @NonNull EThreading threading)
 {}

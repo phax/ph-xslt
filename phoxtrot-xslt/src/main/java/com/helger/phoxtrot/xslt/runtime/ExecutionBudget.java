@@ -44,7 +44,10 @@ public final class ExecutionBudget
    *        ({@link com.helger.phoxtrot.xslt.XsltTransformRequest#UNLIMITED_STEPS})
    *        is never exceeded, so it means no step limit.
    * @param nMaxDepth
-   *        The maximum nesting depth.
+   *        The maximum nesting depth; {@link Integer#MAX_VALUE}
+   *        ({@link com.helger.phoxtrot.xslt.XsltTransformRequest#UNLIMITED_DEPTH})
+   *        is never reached before the stack overflows, so it means no depth
+   *        limit.
    */
   public ExecutionBudget (final long nMaxSteps, final int nMaxDepth)
   {

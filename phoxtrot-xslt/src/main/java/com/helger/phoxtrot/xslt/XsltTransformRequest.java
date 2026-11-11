@@ -53,6 +53,12 @@ public final class XsltTransformRequest
    * limit ({@link #setMaxDepth(int)}) and the interrupt hook still apply.
    */
   public static final long UNLIMITED_STEPS = Long.MAX_VALUE;
+  /**
+   * The value of {@link #setMaxDepth(int)} for "no depth limit": templates and
+   * functions may nest as deep as the stack of the thread allows; a stack
+   * overflow still ends the transformation with XPDY0130.
+   */
+  public static final int UNLIMITED_DEPTH = Integer.MAX_VALUE;
 
   /** A template parameter of the initial template or initial mode. */
   public record TemplateParam (@NonNull XdmQName name, @NonNull XdmSequence value, boolean tunnel)
@@ -393,16 +399,35 @@ public final class XsltTransformRequest
     return this;
   }
 
-  /** @return The maximum nesting depth of templates and functions, 0 for the default (10,000). */
+  /**
+   * @return The maximum nesting depth of templates and functions as set by
+   *         {@link #setMaxDepth(int)}: 0 (the initial value) or a negative
+   *         value for the default of {@link Engine#DEFAULT_MAX_DEPTH}
+   *         (10,000), {@link #UNLIMITED_DEPTH} for no limit, any other value
+   *         for that limit.
+   */
   public int getMaxDepth ()
   {
     return m_nMaxDepth;
   }
 
   /**
+   * Set the maximum nesting depth of templates and functions; the invocation
+   * that exceeds it fails the transformation with XPDY0130.
+   * <ul>
+   * <li>0 (the initial value) or a negative value: the default of
+   * {@link Engine#DEFAULT_MAX_DEPTH} (10,000) levels.</li>
+   * <li>{@link #UNLIMITED_DEPTH} ({@link Integer#MAX_VALUE}): no depth limit,
+   * only the stack of the thread (see {@link #setThreading(EThreading)}); a
+   * stack overflow is XPDY0130 as well.</li>
+   * <li>Any other positive value: that number of levels, also above the
+   * default.</li>
+   * </ul>
+   * The limit is ignored when a shared budget is set
+   * ({@link #setSharedBudget(ExecutionBudget)}).
+   *
    * @param nMaxDepth
-   *        The maximum nesting depth of templates and functions; it can only
-   *        lower the default of 10,000. 0 for the default.
+   *        The maximum nesting depth, see above.
    * @return this for chaining
    */
   @NonNull
