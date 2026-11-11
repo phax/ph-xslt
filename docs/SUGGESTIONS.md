@@ -500,7 +500,7 @@ The JAXP adapter has three tests for resolution (`PhoxtrotTransformerFactoryTest
 
 ### S29 - API for a Schematron XPath binding (`ph-schematron-pure-xpath-phoxtrot`)
 
-Status: done (2026-11-11), item 2 (b) moved to S33.
+Status: done (2026-11-11), item 2 (b) moved to S33 (done).
 1. The public API of `phoxtrot-xpath` is listed in the README ("XPath API") and in the `package-info` of
    `com.helger.phoxtrot.xpath`, source compatible within 0.x.
 2. (a) `DomToXdm.convertWithMapping` returns a `DomNodeMapping` with the DOM node of every XDM node (a merged text node
@@ -607,7 +607,12 @@ artefact of the profile.
 
 ### S33 - Read-only DOM view over an XDM tree
 
-Status: open.
+Status: done (2026-11-11). `XdmDomView` (`com.helger.phoxtrot.xdm.bridge`): `new XdmDomView (aNode).getNode (aXdmNode)`
+gives the DOM node of any node of the tree, `getDocument ()` the document, `XdmDomView.getXdmNode (aDomNode)` the way
+back. One DOM node per XDM node and view (kept on first access, so DOM nodes compare by identity); namespace
+declarations are `xmlns` attributes before the attributes; no document type node; mutating methods throw
+`NO_MODIFICATION_ALLOWED_ERR`, node creation, `cloneNode`, `importNode` and user data `NOT_SUPPORTED_ERR`. Tested by
+reading the view back with `DomToXdm` and the JDK serialiser (`XdmDomViewTest`).
 
 S29 item 2 (b): for input that is parsed with `XdmParser` (or streamed), a pure Schematron engine that reports
 `org.w3c.dom.Node`s would need a DOM without building one: a read-only implementation of `Node`, `Document`,

@@ -190,7 +190,9 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
 and `DomToXdm.convert` returns the counterpart of a given DOM node in it; `DomToXdm.convertWithMapping` also keeps
 the way back from every XDM node to its DOM node (`DomNodeMapping.getDomNode`); `XdmToDom.toDocument`,
 `toDocumentFragment` and `appendTo` write a tree, a subtree or a parentless node into a DOM with correct namespace
-declarations; `XdmToSax.emit` writes a tree as SAX events.
+declarations; `XdmToSax.emit` writes a tree as SAX events. `XdmDomView` shows a tree as a read-only DOM without
+copying it (`new XdmDomView (aDoc).getNode (aXdmNode)`, one DOM node per XDM node, `XdmDomView.getXdmNode` back), e.g.
+to report a node an XPath expression matched to code that expects `org.w3c.dom` nodes.
 
 ## Origin and acknowledgements
 
@@ -243,6 +245,7 @@ v0.2.0 - work in progress
 * XPath: the public API of `phoxtrot-xpath` is listed in the README and the package documentation
 * XSLT: an error raised in the body of an `xsl:function` names that function (`XsltException.getFunctionFrame`)
 * DOM bridge: added `DomToXdm.convertWithMapping`, which keeps the DOM node of every XDM node (`DomNodeMapping`)
+* DOM bridge: added `XdmDomView`, a read-only W3C DOM view over an XDM tree that copies nothing
 
 v0.1.0 - 2026-11-10
 * Initial release

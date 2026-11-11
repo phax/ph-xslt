@@ -114,9 +114,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - W3C DOM bridge (`phoxtrot-xdm`, package `com.helger.phoxtrot.xdm.bridge`): `DomToXdm` feeds the DOM into
   `XdmTreeBuilder` as SAX events (numbered while built, shared names; `convertWithMapping` records the DOM node of
   every XDM node in a `DomNodeMapping`, around the builder events that flush buffered text), `XdmToDom` and
-  `XdmToSax` write trees with
-  namespace fixup (`NamespaceScope`). All three walk iteratively. The JDK DOM leaves entity reference nodes empty
-  (`setExpandEntityReferences (false)`); tests that need their content use Xerces-J's DOM.
+  `XdmToSax` write trees with namespace fixup (`NamespaceScope`). All three walk iteratively. `XdmDomView` is a
+  read-only DOM over an XDM tree (`AbstractXdmDomNode` and one class per kind, `XdmDom*`): one DOM node per XDM node,
+  kept per view in a map so DOM identity holds (`DomToXdm` relies on `==`); namespace declarations are `xmlns`
+  attributes (over parentless namespace nodes); changes throw `NO_MODIFICATION_ALLOWED_ERR`; its walks are iterative
+  too. The JDK DOM leaves entity reference nodes empty (`setExpandEntityReferences (false)`); tests that need their
+  content use Xerces-J's DOM.
 - XML name characters (5th edition): only `XmlNames` (`phoxtrot-xdm`), whose checks delegate to ph-commons
   `XmlNameChars` and which keeps the code point ranges for the regex classes; do not add another copy of the tables.
   XML whitespace (space, tab, CR, LF) checks, trimming and the XSD replace/collapse go through ph-commons
