@@ -25,6 +25,7 @@ import org.jspecify.annotations.NonNull;
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.annotation.style.ReturnsMutableCopy;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.rt.NonBlockingProperties;
 import com.helger.phoxtrot.xslt.XsltExecutable;
 import com.helger.phoxtrot.xslt.model.CompiledStylesheet;
 import com.helger.phoxtrot.xslt.model.OutputDefinition;
@@ -44,9 +45,10 @@ public final class PhoxtrotTemplates implements Templates
 {
   private final XsltExecutable m_aExecutable;
   private final JaxpSettings m_aSettings;
-  // Never handed out, only copies
-  private final Properties m_aDeclaredOutputProperties;
-  private final Properties m_aDefaultOutputProperties;
+  // Never handed out, only copies; only read after the constructor, so the
+  // unsynchronized NonBlockingProperties is safe for concurrent use
+  private final NonBlockingProperties m_aDeclaredOutputProperties;
+  private final NonBlockingProperties m_aDefaultOutputProperties;
 
   /**
    * @param aExecutable
@@ -101,6 +103,8 @@ public final class PhoxtrotTemplates implements Templates
   @ReturnsMutableCopy
   public Properties getOutputProperties ()
   {
+    // java.util.Properties and not NonBlockingProperties, because
+    // Templates.getOutputProperties defines the return type
     final Properties aDefaults = new Properties ();
     aDefaults.putAll (m_aDefaultOutputProperties);
     final Properties ret = new Properties (aDefaults);

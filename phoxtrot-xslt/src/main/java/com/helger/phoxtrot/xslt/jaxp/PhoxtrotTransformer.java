@@ -48,6 +48,7 @@ import org.xml.sax.ext.LexicalHandler;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.enforce.ValueEnforcer;
+import com.helger.base.rt.NonBlockingProperties;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.phoxtrot.xdm.IXdmNode;
@@ -180,7 +181,7 @@ public class PhoxtrotTransformer extends Transformer
 
   private final PhoxtrotTemplates m_aTemplates;
   private final ICommonsOrderedMap <String, Param> m_aParams = new CommonsLinkedHashMap <> ();
-  private final Properties m_aOutputProperties = new Properties ();
+  private final NonBlockingProperties m_aOutputProperties = new NonBlockingProperties ();
   private URIResolver m_aURIResolver;
   private EntityResolver m_aEntityResolver;
   private ErrorListener m_aErrorListener;
@@ -683,6 +684,8 @@ public class PhoxtrotTransformer extends Transformer
   @Override
   public void setOutputProperties (@Nullable final Properties aProperties)
   {
+    // java.util.Properties and not NonBlockingProperties, because
+    // Transformer.setOutputProperties defines the parameter type
     if (aProperties == null)
     {
       m_aOutputProperties.clear ();
@@ -704,6 +707,8 @@ public class PhoxtrotTransformer extends Transformer
   @NonNull
   public Properties getOutputProperties ()
   {
+    // java.util.Properties and not NonBlockingProperties, because
+    // Transformer.getOutputProperties defines the return type
     final Properties ret = new Properties (m_aTemplates.getOutputProperties ());
     ret.putAll (m_aOutputProperties);
     return ret;

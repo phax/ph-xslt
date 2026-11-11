@@ -18,7 +18,6 @@ package com.helger.phoxtrot.xslt.jaxp;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 import javax.xml.transform.OutputKeys;
 
@@ -28,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.array.ArrayHelper;
+import com.helger.base.rt.NonBlockingProperties;
 import com.helger.collection.commons.CommonsLinkedHashMap;
 import com.helger.collection.commons.ICommonsOrderedMap;
 import com.helger.phoxtrot.xdm.XdmQName;
@@ -118,12 +118,12 @@ final class JaxpOutputProperties
    *         and xhtml, 5.0 for html).
    */
   @NonNull
-  static Properties createDefaults (@Nullable final String sMethod)
+  static NonBlockingProperties createDefaults (@Nullable final String sMethod)
   {
     final String sEffective = sMethod != null ? sMethod : SerializationParams.METHOD_XML;
     final boolean bHtml = SerializationParams.METHOD_HTML.equals (sEffective);
     final boolean bXhtml = SerializationParams.METHOD_XHTML.equals (sEffective);
-    final Properties ret = new Properties ();
+    final NonBlockingProperties ret = new NonBlockingProperties ();
     ret.setProperty (OutputKeys.METHOD, sEffective);
     ret.setProperty (OutputKeys.ENCODING, "UTF-8");
     ret.setProperty (OutputKeys.INDENT, bHtml || bXhtml ? "yes" : "no");
@@ -146,9 +146,9 @@ final class JaxpOutputProperties
    * @return New properties without defaults. Never <code>null</code>.
    */
   @NonNull
-  static Properties fromDefinition (@Nullable final OutputDefinition aOutputDef)
+  static NonBlockingProperties fromDefinition (@Nullable final OutputDefinition aOutputDef)
   {
-    final Properties ret = new Properties ();
+    final NonBlockingProperties ret = new NonBlockingProperties ();
     if (aOutputDef != null)
     {
       for (final Map.Entry <String, String> aEntry : aOutputDef.getAllValues ().entrySet ())
@@ -173,12 +173,12 @@ final class JaxpOutputProperties
    *         them except the names in a namespace.
    */
   @NonNull
-  static ICommonsOrderedMap <String, String> toOverrides (@NonNull final Properties aProperties)
+  static ICommonsOrderedMap <String, String> toOverrides (@NonNull final NonBlockingProperties aProperties)
   {
     final ICommonsOrderedMap <String, String> ret = new CommonsLinkedHashMap <> ();
-    for (final String sName : aProperties.stringPropertyNames ())
-      if (!isNamespaced (sName))
-        ret.put (sName, aProperties.getProperty (sName));
+    for (final Map.Entry <String, String> aEntry : aProperties.entrySet ())
+      if (!isNamespaced (aEntry.getKey ()))
+        ret.put (aEntry.getKey (), aEntry.getValue ());
     return ret;
   }
 }

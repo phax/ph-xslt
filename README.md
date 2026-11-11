@@ -248,6 +248,8 @@ v0.2.0 - work in progress
   objects only where needed, DOM text used without copying); added `XdmTreeBuilder.characters (String)`
 * JAXP: added the factory attribute `ATTR_MAX_DEPTH` and `PhoxtrotTransformer.setMaxDepth` for the nesting depth
   limit of templates and functions
+* JAXP: the output properties are kept in the unsynchronised `NonBlockingProperties` of ph-commons; the JAXP methods
+  still take and return `java.util.Properties`
 * Behaviour change: `XsltTransformRequest.setMaxDepth` can now raise the limit above the default of 10,000; added
   `XsltTransformRequest.UNLIMITED_DEPTH` for no limit but the stack
 * Behaviour change: `fn:generate-id` now returns values of the form `d1n5` (tree number and node number) instead of
