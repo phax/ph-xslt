@@ -21,6 +21,8 @@ import java.util.List;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.helger.annotation.concurrent.ELockType;
+import com.helger.annotation.concurrent.MustBeLocked;
 import com.helger.annotation.concurrent.ThreadSafe;
 import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.enforce.ValueEnforcer;
@@ -37,13 +39,11 @@ import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
 import com.helger.phoxtrot.xpath.parser.XPathParser;
 
 /**
- * A set of functions, looked up by expanded name and arity. A function is
- * registered once per arity with its signature in the notation of the F&amp;O
- * 3.1 specification, e.g.
- * <code>"(xs:string?, xs:double, xs:double) as xs:string"</code> (parameter
- * names are left out). The signature is parsed lazily with the standard
- * prefixes (xs, fn, map, array, math), and the evaluator applies the function
- * conversion rules from it.
+ * A set of functions, looked up by expanded name and arity. A function is registered once per arity
+ * with its signature in the notation of the F&amp;O 3.1 specification, e.g.
+ * <code>"(xs:string?, xs:double, xs:double) as xs:string"</code> (parameter names are left out).
+ * The signature is parsed lazily with the standard prefixes (xs, fn, map, array, math), and the
+ * evaluator applies the function conversion rules from it.
  *
  * @author Philip Helger
  */
@@ -90,8 +90,8 @@ public final class FunctionLibrary
     }
 
     /**
-     * Create a definition from a signature text, which is parsed only when the
-     * types are first needed.
+     * Create a definition from a signature text, which is parsed only when the types are first
+     * needed.
      *
      * @param aName
      *        Expanded function name.
@@ -114,8 +114,8 @@ public final class FunctionLibrary
     }
 
     /**
-     * Create a definition from already parsed types. The signature text is built
-     * from them for {@link #getSignature()}; it is never parsed again.
+     * Create a definition from already parsed types. The signature text is built from them for
+     * {@link #getSignature()}; it is never parsed again.
      *
      * @param aName
      *        Expanded function name.
@@ -140,9 +140,9 @@ public final class FunctionLibrary
     }
 
     /**
-     * Parse the signature text into the parameter and return types on first use,
-     * with a fresh {@link StaticContext} (so only the standard prefixes are
-     * known). Concurrent first calls may parse twice, with the same result.
+     * Parse the signature text into the parameter and return types on first use, with a fresh
+     * {@link StaticContext} (so only the standard prefixes are known). Concurrent first calls may
+     * parse twice, with the same result.
      */
     private void _parse ()
     {
@@ -196,10 +196,9 @@ public final class FunctionLibrary
     }
 
     /**
-     * @return The implementation used when the function is called through a
-     *         function item (dynamic function call). Normally the same as
-     *         {@link #getImpl()}; XSLT functions such as current-group() whose
-     *         context is not available in a dynamic call register their own.
+     * @return The implementation used when the function is called through a function item (dynamic
+     *         function call). Normally the same as {@link #getImpl()}; XSLT functions such as
+     *         current-group() whose context is not available in a dynamic call register their own.
      */
     @NonNull
     public IXPathFunction getDynamicCallImpl ()
@@ -209,10 +208,9 @@ public final class FunctionLibrary
     }
 
     /**
-     * @return <code>true</code> if the function reads the focus (e.g.
-     *         <code>position()</code>, <code>name()</code> without argument).
-     *         A named function reference to such a function captures the
-     *         focus at the time the reference is evaluated.
+     * @return <code>true</code> if the function reads the focus (e.g. <code>position()</code>,
+     *         <code>name()</code> without argument). A named function reference to such a function
+     *         captures the focus at the time the reference is evaluated.
      */
     public boolean isFocusDependent ()
     {
@@ -244,13 +242,14 @@ public final class FunctionLibrary
   // this library (not by the on-demand functions of a variadic registration,
   // which do not change any lookup result)
   private volatile long m_nModCount;
-  // Set by freeze (and for the shared default library): every registration, hiding or lookup change is refused.
+  // Set by freeze (and for the shared default library): every registration, hiding or lookup change
+  // is refused.
   // Only set under the write lock, after the parent was frozen
   private volatile boolean m_bFrozen;
 
   /**
-   * Create an empty library without parent. Use {@link #createDefault()} for
-   * one with the built-in functions.
+   * Create an empty library without parent. Use {@link #createDefault()} for one with the built-in
+   * functions.
    */
   public FunctionLibrary ()
   {
@@ -259,8 +258,8 @@ public final class FunctionLibrary
 
   /**
    * @param aParent
-   *        The library whose functions this one sees, or <code>null</code> for
-   *        a root library. See {@link #createChild()}.
+   *        The library whose functions this one sees, or <code>null</code> for a root library. See
+   *        {@link #createChild()}.
    */
   private FunctionLibrary (@Nullable final FunctionLibrary aParent)
   {
@@ -268,12 +267,14 @@ public final class FunctionLibrary
   }
 
   /**
-   * Refuse a change of the registrations of a frozen library (see {@link #freeze()}), such as the shared default
-   * library (see {@link #getDefault()}) or the library of a compiled stylesheet. Called under the write lock.
+   * Refuse a change of the registrations of a frozen library (see {@link #freeze()}), such as the
+   * shared default library (see {@link #getDefault()}) or the library of a compiled stylesheet.
+   * Called under the write lock.
    *
    * @throws IllegalStateException
    *         if this library is frozen.
    */
+  @MustBeLocked (ELockType.READ)
   private void _checkWritable ()
   {
     if (m_bFrozen)
@@ -296,10 +297,10 @@ public final class FunctionLibrary
   }
 
   /**
-   * Count the parameters of a signature text: the commas at nesting depth zero
-   * inside the outer parentheses, plus one if the parentheses contain anything
-   * other than whitespace. Nested parentheses such as in <code>map(*)</code>
-   * or <code>function(item()) as item()</code> are skipped.
+   * Count the parameters of a signature text: the commas at nesting depth zero inside the outer
+   * parentheses, plus one if the parentheses contain anything other than whitespace. Nested
+   * parentheses such as in <code>map(*)</code> or <code>function(item()) as item()</code> are
+   * skipped.
    *
    * @param sSignature
    *        Signature as in the F&amp;O spec, starting with the parameter list.
@@ -385,7 +386,7 @@ public final class FunctionLibrary
     final int nArity = _countParams (sSignature);
     final XdmQName aName = new XdmQName (sNamespaceUri, sLocalName);
     final FunctionDef aDef = new FunctionDef (aName, sSignature, aImpl, bFocusDependent);
-    m_aRWLock.writeLocked ( () -> {
+    m_aRWLock.writeLocked (() -> {
       _checkWritable ();
       m_aMap.put (_key (sNamespaceUri, sLocalName, nArity), aDef);
       m_nModCount++;
@@ -394,8 +395,8 @@ public final class FunctionLibrary
   }
 
   /**
-   * Register a function with a separate implementation for dynamic function
-   * calls (calls through a function item, e.g. <code>current-group#0</code>).
+   * Register a function with a separate implementation for dynamic function calls (calls through a
+   * function item, e.g. <code>current-group#0</code>).
    *
    * @param sNamespaceUri
    *        Function namespace.
@@ -422,14 +423,15 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aDynamicCallImpl, "DynamicCallImpl");
     register (sNamespaceUri, sLocalName, sSignature, aImpl, bFocusDependent);
     final int nArity = _countParams (sSignature);
-    m_aRWLock.readLockedGet ( () -> m_aMap.get (_key (sNamespaceUri, sLocalName, nArity))).m_aDynamicCallImpl = aDynamicCallImpl;
+    m_aRWLock.readLockedGet (() -> m_aMap.get (_key (sNamespaceUri,
+                                                     sLocalName,
+                                                     nArity))).m_aDynamicCallImpl = aDynamicCallImpl;
     return this;
   }
 
   /**
-   * Register a function whose signature is already parsed, e.g. an XSLT
-   * stylesheet function whose types use the namespaces of the stylesheet.
-   * Replaces a function with the same name and arity.
+   * Register a function whose signature is already parsed, e.g. an XSLT stylesheet function whose
+   * types use the namespaces of the stylesheet. Replaces a function with the same name and arity.
    *
    * @param aName
    *        Expanded function name.
@@ -438,8 +440,8 @@ public final class FunctionLibrary
    * @param aReturnType
    *        The return type.
    * @param aImpl
-   *        Implementation. The evaluator converts the arguments to the
-   *        parameter types before calling it.
+   *        Implementation. The evaluator converts the arguments to the parameter types before
+   *        calling it.
    * @param bFocusDependent
    *        <code>true</code> if the implementation reads the focus.
    * @return this for chaining
@@ -456,7 +458,7 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
-    m_aRWLock.writeLocked ( () -> {
+    m_aRWLock.writeLocked (() -> {
       _checkWritable ();
       m_aMap.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
       m_nModCount++;
@@ -465,9 +467,9 @@ public final class FunctionLibrary
   }
 
   /**
-   * Register a function that accepts any number of arguments from a minimum
-   * on, all of the same type (only <code>fn:concat</code> in F&amp;O 3.1). A
-   * {@link FunctionDef} per requested arity is created on demand.
+   * Register a function that accepts any number of arguments from a minimum on, all of the same
+   * type (only <code>fn:concat</code> in F&amp;O 3.1). A {@link FunctionDef} per requested arity is
+   * created on demand.
    *
    * @param sNamespaceUri
    *        Function namespace.
@@ -476,8 +478,7 @@ public final class FunctionLibrary
    * @param nMinArity
    *        Minimum number of arguments.
    * @param sParamType
-   *        The SequenceType of every parameter, e.g.
-   *        <code>xs:anyAtomicType?</code>.
+   *        The SequenceType of every parameter, e.g. <code>xs:anyAtomicType?</code>.
    * @param sReturnType
    *        The return SequenceType.
    * @param aImpl
@@ -498,8 +499,8 @@ public final class FunctionLibrary
     ValueEnforcer.notEmpty (sParamType, "ParamType");
     ValueEnforcer.notEmpty (sReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
-    final Object [] aData = new Object [] { Integer.valueOf (nMinArity), sParamType, sReturnType, aImpl };
-    m_aRWLock.writeLocked ( () -> {
+    final Object [] aData = { Integer.valueOf (nMinArity), sParamType, sReturnType, aImpl };
+    m_aRWLock.writeLocked (() -> {
       _checkWritable ();
       m_aVariadic.put ("{" + sNamespaceUri + "}" + sLocalName, aData);
       m_nModCount++;
@@ -510,18 +511,17 @@ public final class FunctionLibrary
   /**
    * @param sVariadicKey
    *        The name key of a variadic registration.
-   * @return <code>true</code> if this library itself (not a parent) has a
-   *         variadic registration of that name.
+   * @return <code>true</code> if this library itself (not a parent) has a variadic registration of
+   *         that name.
    */
   private boolean _hasOwnVariadic (@NonNull final String sVariadicKey)
   {
-    return m_aRWLock.readLockedBoolean ( () -> m_aVariadic.containsKey (sVariadicKey));
+    return m_aRWLock.readLockedBoolean (() -> m_aVariadic.containsKey (sVariadicKey));
   }
 
   /**
-   * The function of a variadic registration of this library itself (not of a
-   * parent) for one arity. It is created on the first request and kept with
-   * the other functions of this library.
+   * The function of a variadic registration of this library itself (not of a parent) for one arity.
+   * It is created on the first request and kept with the other functions of this library.
    *
    * @param aName
    *        Expanded function name.
@@ -529,16 +529,15 @@ public final class FunctionLibrary
    *        Number of arguments.
    * @param sKey
    *        The key of name and arity.
-   * @return <code>null</code> if there is no such registration or the arity
-   *         is below its minimum.
+   * @return <code>null</code> if there is no such registration or the arity is below its minimum.
    */
   @Nullable
   private FunctionDef _getOwnVariadic (@NonNull final XdmQName aName, final int nArity, @NonNull final String sKey)
   {
-    final Object [] aVar = m_aRWLock.readLockedGet ( () -> m_aVariadic.get ("{" +
-                                                                            aName.namespaceUri () +
-                                                                            "}" +
-                                                                            aName.localName ()));
+    final Object [] aVar = m_aRWLock.readLockedGet (() -> m_aVariadic.get ("{" +
+                                                                           aName.namespaceUri () +
+                                                                           "}" +
+                                                                           aName.localName ()));
     if (aVar == null || nArity < ((Integer) aVar[0]).intValue ())
       return null;
     final StringBuilder aSB = new StringBuilder ("(");
@@ -550,7 +549,7 @@ public final class FunctionLibrary
     }
     aSB.append (") as ").append ((String) aVar[2]);
     final FunctionDef aNew = new FunctionDef (aName, aSB.toString (), (IXPathFunction) aVar[3], false);
-    return m_aRWLock.writeLockedGet ( () -> {
+    return m_aRWLock.writeLockedGet (() -> {
       // Another thread may have created it in the meantime
       final FunctionDef aExisting = m_aMap.get (sKey);
       if (aExisting != null)
@@ -561,16 +560,13 @@ public final class FunctionLibrary
   }
 
   /**
-   * A stamp of the registrations this library and its parent chain see: the
-   * sum of the change counters of the libraries in the chain. Every
-   * registration, hiding or lookup change in this library or a parent
-   * increases it; the on-demand creation of a function of a variadic
-   * registration does not, since it changes no lookup result. Two equal stamps
-   * of the same library therefore mean that
-   * {@link #getFunction(XdmQName, int)} gives the same result for every name
-   * and arity. Read the stamp before a lookup whose result is cached with it,
-   * so that a change in between makes the cached entry stale instead of
-   * hiding the change.
+   * A stamp of the registrations this library and its parent chain see: the sum of the change
+   * counters of the libraries in the chain. Every registration, hiding or lookup change in this
+   * library or a parent increases it; the on-demand creation of a function of a variadic
+   * registration does not, since it changes no lookup result. Two equal stamps of the same library
+   * therefore mean that {@link #getFunction(XdmQName, int)} gives the same result for every name
+   * and arity. Read the stamp before a lookup whose result is cached with it, so that a change in
+   * between makes the cached entry stale instead of hiding the change.
    *
    * @return The stamp.
    */
@@ -583,9 +579,8 @@ public final class FunctionLibrary
   }
 
   /**
-   * Find a function: one registered in this library; otherwise, unless name
-   * and arity are hidden here, one of a variadic registration of this library
-   * or else the one of the parent library.
+   * Find a function: one registered in this library; otherwise, unless name and arity are hidden
+   * here, one of a variadic registration of this library or else the one of the parent library.
    *
    * @param aName
    *        Expanded function name.
@@ -597,10 +592,10 @@ public final class FunctionLibrary
   public FunctionDef getFunction (@NonNull final XdmQName aName, final int nArity)
   {
     final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
-    final FunctionDef aOwn = m_aRWLock.readLockedGet ( () -> m_aMap.get (sKey));
+    final FunctionDef aOwn = m_aRWLock.readLockedGet (() -> m_aMap.get (sKey));
     if (aOwn != null)
       return aOwn;
-    if (m_aRWLock.readLockedBoolean ( () -> m_aHidden.contains (sKey)))
+    if (m_aRWLock.readLockedBoolean (() -> m_aHidden.contains (sKey)))
       return null;
     final FunctionDef aVariadic = _getOwnVariadic (aName, nArity, sKey);
     if (aVariadic != null)
@@ -611,9 +606,9 @@ public final class FunctionLibrary
 
   /**
    * The function that <code>fn:function-lookup</code> finds. It is the one of
-   * {@link #getFunction(XdmQName, int)}, unless this library or a parent
-   * changed it with {@link #registerForLookup(XdmQName, List, SeqType, IXPathFunction, boolean)}
-   * or {@link #hideFromLookup(XdmQName, int)}.
+   * {@link #getFunction(XdmQName, int)}, unless this library or a parent changed it with
+   * {@link #registerForLookup(XdmQName, List, SeqType, IXPathFunction, boolean)} or
+   * {@link #hideFromLookup(XdmQName, int)}.
    *
    * @param aName
    *        Expanded function name.
@@ -625,7 +620,7 @@ public final class FunctionLibrary
   public FunctionDef getFunctionForLookup (@NonNull final XdmQName aName, final int nArity)
   {
     final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
-    final Object [] aOwn = m_aRWLock.readLockedGet ( () -> {
+    final Object [] aOwn = m_aRWLock.readLockedGet (() -> {
       if (m_aLookup.containsKey (sKey))
         return new Object [] { m_aLookup.get (sKey) };
       if (m_aMap.containsKey (sKey))
@@ -644,16 +639,15 @@ public final class FunctionLibrary
   /**
    * @param aName
    *        Expanded function name.
-   * @return <code>true</code> if a function of that name exists with any arity:
-   *         registered in this library, from a variadic registration of this
-   *         library or any parent (which covers more arities than can be
-   *         hidden), or a function of the parent chain that is not hidden here.
+   * @return <code>true</code> if a function of that name exists with any arity: registered in this
+   *         library, from a variadic registration of this library or any parent (which covers more
+   *         arities than can be hidden), or a function of the parent chain that is not hidden here.
    */
   public boolean containsName (@NonNull final XdmQName aName)
   {
     final String sPrefix = "{" + aName.namespaceUri () + "}" + aName.localName () + "#";
     final String sVariadicKey = "{" + aName.namespaceUri () + "}" + aName.localName ();
-    if (m_aRWLock.readLockedBoolean ( () -> {
+    if (m_aRWLock.readLockedBoolean (() -> {
       if (m_aVariadic.containsKey (sVariadicKey))
         return true;
       for (final String sKey : m_aMap.keySet ())
@@ -671,29 +665,28 @@ public final class FunctionLibrary
         if (aDef.getName ().equals (aName))
         {
           final String sKey = _key (aName.namespaceUri (), aName.localName (), aDef.getArity ());
-          if (!m_aRWLock.readLockedBoolean ( () -> m_aHidden.contains (sKey)))
+          if (!m_aRWLock.readLockedBoolean (() -> m_aHidden.contains (sKey)))
             return true;
         }
     return false;
   }
 
   /**
-   * @return All functions registered in this library and, for a child library,
-   *         those of the parent chain that are neither redefined (same name
-   *         and arity) nor hidden here. The functions of a variadic
-   *         registration are only included for the arities that
-   *         {@link #getFunction(XdmQName, int)} has already created. Never
-   *         <code>null</code>; a new list.
+   * @return All functions registered in this library and, for a child library, those of the parent
+   *         chain that are neither redefined (same name and arity) nor hidden here. The functions
+   *         of a variadic registration are only included for the arities that
+   *         {@link #getFunction(XdmQName, int)} has already created. Never <code>null</code>; a new
+   *         list.
    */
   @NonNull
   public ICommonsList <FunctionDef> getAllFunctions ()
   {
-    final ICommonsList <FunctionDef> ret = m_aRWLock.readLockedGet ( () -> new CommonsArrayList <> (m_aMap.values ()));
+    final ICommonsList <FunctionDef> ret = m_aRWLock.readLockedGet (() -> new CommonsArrayList <> (m_aMap.values ()));
     if (m_aParent != null)
     {
       // The parent is called without holding this library's lock
       final ICommonsList <FunctionDef> aParentDefs = m_aParent.getAllFunctions ();
-      m_aRWLock.readLocked ( () -> {
+      m_aRWLock.readLocked (() -> {
         for (final FunctionDef aDef : aParentDefs)
         {
           final String sKey = _key (aDef.getName ().namespaceUri (), aDef.getName ().localName (), aDef.getArity ());
@@ -707,12 +700,13 @@ public final class FunctionLibrary
 
   /**
    * Freeze this library: from now on every registration, hiding or lookup change throws an
-   * {@link IllegalStateException}, so that {@link #getFunction(XdmQName, int)} gives the same result forever (only the
-   * functions of a variadic registration are still created on demand, which changes no lookup result). A call site
-   * can then keep a resolved function without reading the modification stamp on each call (see
-   * {@link FunctionCallSite}). The parent must be frozen first, so that a frozen library always has a frozen parent
-   * chain. Freezing a frozen library does nothing. A frozen library can still get child libraries
-   * ({@link #createChild()}), which are writable.
+   * {@link IllegalStateException}, so that {@link #getFunction(XdmQName, int)} gives the same
+   * result forever (only the functions of a variadic registration are still created on demand,
+   * which changes no lookup result). A call site can then keep a resolved function without reading
+   * the modification stamp on each call (see {@link FunctionCallSite}). The parent must be frozen
+   * first, so that a frozen library always has a frozen parent chain. Freezing a frozen library
+   * does nothing. A frozen library can still get child libraries ({@link #createChild()}), which
+   * are writable.
    *
    * @return this for chaining
    * @throws IllegalStateException
@@ -723,14 +717,13 @@ public final class FunctionLibrary
   {
     if (m_aParent != null && !m_aParent.isFrozen ())
       throw new IllegalStateException ("The parent function library must be frozen first");
-    m_aRWLock.writeLocked ( () -> {
-      m_bFrozen = true;
-    });
+    m_aRWLock.writeLocked (() -> { m_bFrozen = true; });
     return this;
   }
 
   /**
-   * @return <code>true</code> if this library is frozen (see {@link #freeze()}); its parent chain is then frozen too.
+   * @return <code>true</code> if this library is frozen (see {@link #freeze()}); its parent chain
+   *         is then frozen too.
    */
   public boolean isFrozen ()
   {
@@ -738,9 +731,9 @@ public final class FunctionLibrary
   }
 
   /**
-   * Create a library that sees all functions of this one, except those hidden
-   * in it with {@link #hide(XdmQName, int)}; functions registered in it take
-   * precedence. Used for the function scope of an XSLT package.
+   * Create a library that sees all functions of this one, except those hidden in it with
+   * {@link #hide(XdmQName, int)}; functions registered in it take precedence. Used for the function
+   * scope of an XSLT package.
    *
    * @return A new child library.
    */
@@ -764,7 +757,7 @@ public final class FunctionLibrary
   {
     ValueEnforcer.notNull (aName, "Name");
     final String sKey = _key (aName.namespaceUri (), aName.localName (), nArity);
-    m_aRWLock.writeLocked ( () -> {
+    m_aRWLock.writeLocked (() -> {
       _checkWritable ();
       m_aHidden.add (sKey);
       m_aMap.remove (sKey);
@@ -774,9 +767,9 @@ public final class FunctionLibrary
   }
 
   /**
-   * Let <code>fn:function-lookup</code> find another function than a static
-   * call does, in this library and its children. In XSLT, a used package looks
-   * up its own function where a static call reaches the override.
+   * Let <code>fn:function-lookup</code> find another function than a static call does, in this
+   * library and its children. In XSLT, a used package looks up its own function where a static call
+   * reaches the override.
    *
    * @param aName
    *        Expanded function name.
@@ -802,7 +795,7 @@ public final class FunctionLibrary
     ValueEnforcer.notNull (aReturnType, "ReturnType");
     ValueEnforcer.notNull (aImpl, "Impl");
     final FunctionDef aDef = new FunctionDef (aName, aParamTypes, aReturnType, aImpl, bFocusDependent);
-    m_aRWLock.writeLocked ( () -> {
+    m_aRWLock.writeLocked (() -> {
       _checkWritable ();
       m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), aParamTypes.size ()), aDef);
       m_nModCount++;
@@ -811,8 +804,8 @@ public final class FunctionLibrary
   }
 
   /**
-   * Make a function invisible to <code>fn:function-lookup</code> in this
-   * library and its children; static calls still reach it.
+   * Make a function invisible to <code>fn:function-lookup</code> in this library and its children;
+   * static calls still reach it.
    *
    * @param aName
    *        Expanded function name.
@@ -824,7 +817,7 @@ public final class FunctionLibrary
   public FunctionLibrary hideFromLookup (@NonNull final XdmQName aName, final int nArity)
   {
     ValueEnforcer.notNull (aName, "Name");
-    m_aRWLock.writeLocked ( () -> {
+    m_aRWLock.writeLocked (() -> {
       _checkWritable ();
       m_aLookup.put (_key (aName.namespaceUri (), aName.localName (), nArity), null);
       m_nModCount++;
@@ -833,8 +826,9 @@ public final class FunctionLibrary
   }
 
   /**
-   * Build a new library with all built-in functions of F&amp;O 3.1. This registers several hundred functions and
-   * parses no signature yet; to see the built-in functions, prefer a child of the shared {@link #getDefault()}.
+   * Build a new library with all built-in functions of F&amp;O 3.1. This registers several hundred
+   * functions and parses no signature yet; to see the built-in functions, prefer a child of the
+   * shared {@link #getDefault()}.
    *
    * @return A new library with all built-in functions of F&amp;O 3.1, writable.
    */
@@ -867,11 +861,12 @@ public final class FunctionLibrary
   }
 
   /**
-   * The library of the built-in functions shared by all static contexts and compiled stylesheets, built once with
-   * {@link #createDefault()} on the first call. It is frozen (see {@link #freeze()}): every registration, hiding or
-   * lookup change throws an {@link IllegalStateException}, so its modification stamp never changes; register into a {@link #createChild()}
-   * instead. Only the functions of a variadic registration (<code>fn:concat</code>) are still created on demand,
-   * under its lock.
+   * The library of the built-in functions shared by all static contexts and compiled stylesheets,
+   * built once with {@link #createDefault()} on the first call. It is frozen (see
+   * {@link #freeze()}): every registration, hiding or lookup change throws an
+   * {@link IllegalStateException}, so its modification stamp never changes; register into a
+   * {@link #createChild()} instead. Only the functions of a variadic registration
+   * (<code>fn:concat</code>) are still created on demand, under its lock.
    *
    * @return The shared default library.
    */
@@ -881,7 +876,7 @@ public final class FunctionLibrary
     final FunctionLibrary ret = s_aDefault;
     if (ret != null)
       return ret;
-    return DEFAULT_LOCK.writeLockedGet ( () -> {
+    return DEFAULT_LOCK.writeLockedGet (() -> {
       FunctionLibrary aLib = s_aDefault;
       if (aLib == null)
       {
