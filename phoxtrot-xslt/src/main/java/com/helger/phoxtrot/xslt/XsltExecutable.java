@@ -116,7 +116,10 @@ public interface XsltExecutable
    * (xsl:function) together with the XSLT functions such as
    * <code>current()</code> and <code>key()</code>, the global variables and
    * parameters, and the decimal formats. The host may declare further
-   * namespaces and variables on the returned object.
+   * namespaces and variables on the returned object. Its function library is
+   * the frozen one of the stylesheet (see
+   * {@link com.helger.phoxtrot.xpath.fn.FunctionLibrary#freeze()}), so
+   * registering into it throws.
    *
    * @return A new static context. Never <code>null</code>.
    * @throws UnsupportedOperationException

@@ -211,11 +211,15 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   operators there, never in a copy (it is the public API for generated code such as ph-sch2java's).
 - Static calls resolve through the `FunctionCallSite` of their `IExpr.FunctionCallExpr` (cached per library instance
   and `FunctionLibrary.getModificationStamp`, the sum of the change counters of the parent chain). Every new
-  `FunctionLibrary` method that changes what `getFunction` returns must increment `m_nModCount` under the write lock
-  and call `_checkWritable` first.
-- `FunctionLibrary.getDefault ()` is shared by every static context and compiled stylesheet and is read-only (changes
+  `FunctionLibrary` method that changes what `getFunction` returns must call `_checkWritable` and increment
+  `m_nModCount` inside the write lock (so a change cannot race with `freeze`). A call site reuses an entry for a
+  library that was frozen before the lookup without reading the stamp (`FunctionLibrary.freeze`, only after the
+  parent).
+- `FunctionLibrary.getDefault ()` is shared by every static context and compiled stylesheet and is frozen (changes
   throw); stylesheets, static expressions and `xsl:evaluate` register into a `createChild ()` of it, never call
-  `createDefault ()` per compilation.
+  `createDefault ()` per compilation. `StylesheetCompiler._freezeFunctionLibraries` freezes the stylesheet, package
+  and xsl:original libraries at the end of `compile`, and `EvaluateExtension` freezes its library: anything that
+  registers functions must do so before (a registration afterwards throws).
 - Patterns: `XsltPattern.canMatch` rejects a node that the last step of no union path can select (it must stay a pure
   pre-test of what the path search rejects first); `getFinalNames` gives the exact element/attribute names when every
   alternative ends in one, and `Engine._buildKeyIndex` then tests only those nodes from the document's name index

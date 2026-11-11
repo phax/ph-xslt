@@ -38,7 +38,10 @@ import com.helger.phoxtrot.xpath.value.XdmSequence;
  * building the lookup key; any other call (another library, e.g. the function
  * scope of another package, or a registration in the library or a parent since
  * the last lookup) looks the function up again and replaces the entry. The
- * result is therefore always the one of a direct lookup.
+ * result is therefore always the one of a direct lookup. An entry for a library
+ * that was frozen before its lookup (see {@link FunctionLibrary#freeze()}) is
+ * reused for that library without reading the stamp, as a frozen library and
+ * its parents can no longer change.
  * <p>
  * The site also keeps the arguments that are literals, converted to the
  * parameter types of one resolved definition (see
@@ -54,8 +57,12 @@ import com.helger.phoxtrot.xpath.value.XdmSequence;
 @ThreadSafe
 public final class FunctionCallSite
 {
-  /** One cached resolution; a <code>null</code> definition is cached as well. */
-  private record Entry (@NonNull FunctionLibrary library, long stamp, @Nullable FunctionDef def)
+  /**
+   * One cached resolution; a <code>null</code> definition is cached as well.
+   * <code>frozen</code> tells whether the library was frozen before the
+   * lookup.
+   */
+  private record Entry (@NonNull FunctionLibrary library, boolean frozen, long stamp, @Nullable FunctionDef def)
   {}
 
   /**
@@ -196,9 +203,10 @@ public final class FunctionCallSite
 
   /**
    * Resolve the function of this call site: the cached definition if the
-   * entry is for the same library instance with the same modification stamp,
-   * otherwise the result of {@link FunctionLibrary#getFunction(XdmQName, int)},
-   * which is then cached. The stamp is read before the lookup.
+   * entry is for the same library instance and that library was frozen before
+   * the lookup or still has the same modification stamp, otherwise the result
+   * of {@link FunctionLibrary#getFunction(XdmQName, int)}, which is then
+   * cached. The frozen state and the stamp are read before the lookup.
    *
    * @param aLib
    *        The function library of the static context of the evaluation.
@@ -211,12 +219,24 @@ public final class FunctionCallSite
   @Nullable
   public FunctionDef getFunction (@NonNull final FunctionLibrary aLib, @NonNull final XdmQName aName, final int nArity)
   {
-    final long nStamp = aLib.getModificationStamp ();
     final Entry aEntry = m_aEntry;
-    if (aEntry != null && aEntry.library () == aLib && aEntry.stamp () == nStamp)
+    // Fast path: a library frozen before the lookup cannot change any more, so the stamp (a walk over the parent
+    // chain) need not be read
+    if (aEntry != null && aEntry.library () == aLib && aEntry.frozen ())
       return aEntry.def ();
+    final boolean bFrozen = aLib.isFrozen ();
+    final long nStamp = aLib.getModificationStamp ();
+    if (aEntry != null && aEntry.library () == aLib && aEntry.stamp () == nStamp)
+    {
+      if (bFrozen)
+      {
+        // Frozen since the entry was made, without a change in between: keep the definition, skip the stamp from now on
+        m_aEntry = new Entry (aLib, true, nStamp, aEntry.def ());
+      }
+      return aEntry.def ();
+    }
     final FunctionDef ret = aLib.getFunction (aName, nArity);
-    m_aEntry = new Entry (aLib, nStamp, ret);
+    m_aEntry = new Entry (aLib, bFrozen, nStamp, ret);
     return ret;
   }
 

@@ -163,6 +163,39 @@ public final class FunctionCallSiteTest
   }
 
   @Test
+  public void testFrozenLibrary ()
+  {
+    final FunctionLibrary aRoot = new FunctionLibrary ();
+    aRoot.registerParsed (F, List.of (), STRING, _const ("a"), false);
+    final FunctionLibrary aChild = aRoot.createChild ();
+    final FunctionCallSite aSite = new FunctionCallSite ();
+    final FunctionDef aA = aSite.getFunction (aChild, F, 0);
+    assertSame (aRoot.getFunction (F, 0), aA);
+    // Changed after the entry was made, then frozen: the entry of the unfrozen library is not kept
+    aChild.registerParsed (F, List.of (), STRING, _const ("b"), false);
+    aRoot.freeze ();
+    aChild.freeze ();
+    final FunctionDef aB = aSite.getFunction (aChild, F, 0);
+    assertSame (aChild.getFunction (F, 0), aB);
+    assertNotEquals (aA, aB);
+    for (int i = 0; i < 3; ++i)
+      assertSame (aB, aSite.getFunction (aChild, F, 0));
+    // Another library at the same site still gets its own result
+    assertSame (aA, aSite.getFunction (aRoot, F, 0));
+    assertSame (aB, aSite.getFunction (aChild, F, 0));
+
+    // Frozen without a change after the entry was made: the definition is kept
+    final FunctionLibrary aOther = FunctionLibrary.getDefault ().createChild ();
+    aOther.registerParsed (F, List.of (), STRING, _const ("c"), false);
+    final FunctionCallSite aSite2 = new FunctionCallSite ();
+    final FunctionDef aC = aSite2.getFunction (aOther, F, 0);
+    aOther.freeze ();
+    assertSame (aC, aSite2.getFunction (aOther, F, 0));
+    assertSame (aC, aSite2.getFunction (aOther, F, 0));
+    assertEquals ("c", _eval (_parse ("t:f()", aOther), aOther));
+  }
+
+  @Test
   public void testChildLibraries ()
   {
     final FunctionLibrary aRoot = new FunctionLibrary ();

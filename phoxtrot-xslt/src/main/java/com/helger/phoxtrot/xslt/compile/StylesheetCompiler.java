@@ -629,6 +629,22 @@ public final class StylesheetCompiler
     }
   }
 
+  /**
+   * Freeze the function libraries of the stylesheet at the end of the
+   * compilation (see {@link FunctionLibrary#freeze()}): the stylesheet-wide
+   * one, then the package scopes (its children), then the xsl:original scopes
+   * (children of either). Nothing registers into them at run time, and their
+   * static calls then resolve without reading the modification stamp.
+   */
+  private void _freezeFunctionLibraries ()
+  {
+    m_aStylesheet.getFunctionLibrary ().freeze ();
+    for (final FunctionLibrary aLib : m_aUnitLibraries.values ())
+      aLib.freeze ();
+    for (final FunctionLibrary aLib : m_aDeclLibraries.values ())
+      aLib.freeze ();
+  }
+
   /** @return A compile context with only global variables in scope. */
   @NonNull
   public CompileContext createGlobalContext ()
@@ -2333,6 +2349,7 @@ public final class StylesheetCompiler
     // Optimisation: computed once per stylesheet instead of per run; decides per run whether the
     // principal result can be drained
     m_aStylesheet.setHasResultDocument (_hasResultDocument (m_aStylesheet.modules ()));
+    _freezeFunctionLibraries ();
     // For host expressions (XsltExecutable.createStaticContext): the scope of
     // the principal stylesheet element
     final XslElement aRoot = aPrincipal.getRoot ();

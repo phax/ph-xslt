@@ -79,7 +79,7 @@ public final class FunctionLibraryTest
     try
     {
       aChange.run ();
-      fail ("The shared default library must refuse the change");
+      fail ("A frozen library must refuse the change");
     }
     catch (final IllegalStateException ex)
     {
@@ -124,5 +124,44 @@ public final class FunctionLibraryTest
     assertSame (aConcat2, aDefault.getFunction (FN_CONCAT, 2));
     // A library of createDefault stays writable
     FunctionLibrary.createDefault ().hide (FN_CONCAT, 2);
+    assertTrue (aDefault.isFrozen ());
+  }
+
+  @Test
+  public void testFreeze ()
+  {
+    final XdmQName aName = new XdmQName ("urn:test", "f");
+    final IXPathFunction aImpl = (aCtx, aArgs) -> XdmSequence.EMPTY;
+    final FunctionLibrary aRoot = new FunctionLibrary ();
+    aRoot.register ("urn:test", "f", "() as item()*", aImpl);
+    final FunctionLibrary aChild = aRoot.createChild ();
+    assertFalse (aRoot.isFrozen ());
+    assertFalse (aChild.isFrozen ());
+    // The parent must be frozen first
+    _assertReadOnly (aChild::freeze);
+    assertFalse (aChild.isFrozen ());
+
+    assertSame (aRoot, aRoot.freeze ());
+    assertTrue (aRoot.isFrozen ());
+    // Freezing again does nothing
+    aRoot.freeze ();
+    final long nStamp = aRoot.getModificationStamp ();
+    _assertReadOnly ( () -> aRoot.register ("urn:test", "g", "() as item()*", aImpl));
+    _assertReadOnly ( () -> aRoot.hide (aName, 0));
+    _assertReadOnly ( () -> aRoot.hideFromLookup (aName, 0));
+    assertEquals (nStamp, aRoot.getModificationStamp ());
+    assertNotNull (aRoot.getFunction (aName, 0));
+
+    // The child is still writable until it is frozen itself
+    aChild.hide (aName, 0);
+    assertNull (aChild.getFunction (aName, 0));
+    aChild.freeze ();
+    assertTrue (aChild.isFrozen ());
+    _assertReadOnly ( () -> aChild.register ("urn:test", "g", "() as item()*", aImpl));
+    // A new child of a frozen library is writable
+    final FunctionLibrary aGrandChild = aChild.createChild ();
+    assertFalse (aGrandChild.isFrozen ());
+    aGrandChild.register ("urn:test", "g", "() as item()*", aImpl);
+    assertNotNull (aGrandChild.getFunction (new XdmQName ("urn:test", "g"), 0));
   }
 }

@@ -5,7 +5,7 @@ Proposals only; the numbering continues the earlier suggestions S1 to S6 and S8 
 
 ## S7 - Simple xsl:function bodies as XPath conditional (key indexes and calls)
 
-Status: measured, not implemented (2026-11-06, `PLAN.md` "Function calls, conversions and key patterns"). A working
+Status: closed (2026-11-11), not implemented. Measured 2026-11-06 (`PLAN.md` "Function calls, conversions and key patterns"). A working
 implementation (compiled bodies with lazy variables and exact error locations) gave no measurable gain: 100,000 key
 `use` calls 94 ms before and 97 ms after, against 79 ms for the same `use` written inline. The instruction
 interpreter is a few percent of a call; the 36.6 % was inclusive of the XPath work below the call. The costs are the
@@ -115,7 +115,7 @@ module in a Maven profile that is active from JDK 21, so its CI matrix stays 17,
 
 ### S18 - Size of the XDM tree
 
-Status: done (2026-11-09) except item 5 for text values (too slow); input documents can be parsed with `XdmParser.setRecordLocations (false)`; see `PLAN.md` batch 4.
+Status: done (2026-11-09) except item 5 for text values (too slow; closed 2026-11-11, not implemented); input documents can be parsed with `XdmParser.setRecordLocations (false)`; see `PLAN.md` batch 4.
 
 Decided (2026-11-08): to be tackled.
 
@@ -325,8 +325,10 @@ Status: items 1, 2 and 4 done (2026-11-10): string `eq`/`ne`/`=`/`!=` through `_
 `AtomicComparator._compareAtomics` and `_generalPair10`; a node without schema type to `xs:string` straight from its
 string value in `SequenceTypeMatcher._convertSingleAtomic` (after the XPath 1.0 compatibility conversions, so every
 rule of the function conversion still applies); `AtomicCaster.castStringToDouble` for the untyped values of the
-aggregate functions (only the type dispatch is saved, the parse stays). Item 3 is open: it needs the function
-libraries of a stylesheet frozen after compilation.
+aggregate functions (only the type dispatch is saved, the parse stays). Item 3 done (2026-11-11):
+`FunctionLibrary.freeze` (only after the parent; the shared default library is frozen), `StylesheetCompiler` freezes
+the stylesheet, package and xsl:original libraries at the end of the compilation and `EvaluateExtension` its library;
+`FunctionCallSite` reuses an entry whose library was frozen before the lookup without reading the stamp.
 
 Measured 2026-11-10: the same pipeline with Peppol Transaction Statistics Reporting 1.0.5 (TSR) and End User
 Statistics Reporting 1.1.5 (EUSR), on generated valid reports with N unique entries (TSR: N subtotals each of

@@ -119,7 +119,7 @@ public final class EvaluateExtension implements IXsltExtension
    *
    * @param aSheetLib
    *        The function library of the stylesheet.
-   * @return A new child library of the shared default library. Never <code>null</code>.
+   * @return A new child library of the shared default library, frozen. Never <code>null</code>.
    */
   @NonNull
   private static FunctionLibrary _createLibrary (@NonNull final FunctionLibrary aSheetLib)
@@ -136,7 +136,7 @@ public final class EvaluateExtension implements IXsltExtension
         continue;
       ret.registerParsed (aName, aDef.getParamTypes (), aDef.getReturnType (), aDef.getImpl (), aDef.isFocusDependent ());
     }
-    return ret;
+    return ret.freeze ();
   }
 
   /**
