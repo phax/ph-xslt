@@ -159,6 +159,38 @@ basis of this project. See [NOTICE](NOTICE).
 
 # News and noteworthy
 
+v0.1.1 - work in progress
+* Added `PhoxtrotVersion` with the version number and build timestamp of phoxtrot
+* Updated to ph-commons 12.6.0 and replaced own helpers with its new ones (code points, XML whitespace and name
+  characters, hex output, primitive `int` collections)
+* The caches of compiled regular expressions and UCA collations are now readable without locking
+* JAXP: added the factory attribute `ATTR_ENTITY_RESOLVER` and `PhoxtrotTransformer.setEntityResolver`, used for the
+  external DTDs and entities of stylesheets, modules, sources and documents read at run time
+* JAXP: `XMLConstants.ACCESS_EXTERNAL_DTD` is now applied (new `XdmParser.setAccessExternalDtd`), so secure processing
+  also stops external DTDs and entities that only the entity resolver may then provide
+* JAXP: a `jar:` URI is only read directly if `ACCESS_EXTERNAL_STYLESHEET` allows `jar` and its nested URI
+* A `URIResolver` that refuses a URI now gives a located error with its reason: XTSE0165 for `xsl:include` and
+  `xsl:import`, XTSE0020 for `xsl:output parameter-document`, XTSE3000 for `xsl:use-package`, FOXT0002 for
+  `fn:transform`, FODC0002 for `document()` and `doc()`, FOUT1170 for `unparsed-text()` and `json-doc()`
+* A document read directly that is not well-formed is now logged as a warning
+* The `schema-location` of `xsl:import-schema` is now read through the resolver of the compile options (in JAXP the
+  `URIResolver` and `ACCESS_EXTERNAL_STYLESHEET`); added `XsltCompileOptions.setReadLocalSchemaFiles`
+* Schema processors never read referenced schema documents from the network; added
+  `IXdmSchemaProvider.compile (List, boolean)` to forbid local reads as well, and the Xerces-J provider now uses secure
+  processing
+* Behaviour change: `XsdSchema.validate` no longer follows the `xsi:schemaLocation` hints of an instance unless
+  `XsdValidationOptions.setFollowSchemaLocationHints (true)` is set
+* Added `FunctionLibrary.freeze`: the function libraries of a compiled stylesheet are now frozen, so a static function
+  call no longer reads the modification stamp of the library chain on every call
+* Behaviour change: registering into the function library of a compiled stylesheet (e.g. the one of
+  `XsltExecutable.createStaticContext`) now throws an `IllegalStateException`; register into a `createChild ()` instead
+* XPath: a call of a built-in function whose value only depends on the context item and its variables is evaluated
+  once while they stay the same, e.g. `normalize-space($item/a)` in a predicate or `normalize-space(a)` in the body
+  of a `some`/`every`/`for` (loop-invariant hoisting); new `DynamicContext.getVariableToken`, `getRunMemo` and
+  `getLoopFocus`
+* XPath: `//name` from the document node and a child step from a node with many children reuse one sequence of the
+  name index per run instead of copying it on every step; new `AxisNavigator.getNamedIndexList`
+
 v0.1.0 - 2026-11-10
 * Initial release
 * XSD 1.0 and XSD 1.1 support
