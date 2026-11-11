@@ -110,7 +110,10 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   href as written and the base URI, `""` without one, from the `ResourceUri` every `IResourceResolver` method gets;
   then direct access to the absolute URI as `ACCESS_EXTERNAL_STYLESHEET` allows, a `jar:` URI only if its nested URI is
   allowed too; a refusing URIResolver gives XTSE0165 for modules (`StylesheetLoader`), FODC0002 for documents and
-  FOUT1170 for text). Every `XdmParser` of the adapter is created from `JaxpParserSettings` (external entities,
+  FOUT1170 for text). Secure processing also sets `XsltCompileOptions.setSecondaryResultsAllowed (false)`: an
+  `xsl:result-document` with `href` is XTSE0010 in `ResultDocumentExtension._compile` (static, as Saxon); a nested
+  `fn:transform` inherits it, also from a static expression (`StylesheetLoader._evaluateStatic` sets the options as
+  the host of its dynamic context, which `XsltTransformHandler._getHost` reads). Every `XdmParser` of the adapter is created from `JaxpParserSettings` (external entities,
   `ACCESS_EXTERNAL_DTD` through `XdmParser.setAccessExternalDtd`, the entity resolver of the factory or transformer),
   also for stylesheets and sources; a new parse site in the adapter uses it. JAXP output properties become
   `XsltTransformRequest.outputOverrides ()`, applied by `XsltTransformer._withOverrides` through

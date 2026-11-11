@@ -495,6 +495,41 @@ public final class PhoxtrotTransformerFactoryTest
   }
 
   @Test
+  public void testSecureProcessingRejectsResultDocumentHref () throws Exception
+  {
+    final String sWithHref = XSL_START +
+                             "<xsl:template match='/'><xsl:result-document href='secondary.xml'><a/></xsl:result-document><main/></xsl:template>" +
+                             XSL_END;
+    final String sWithoutHref = XSL_START +
+                                "<xsl:template match='/'><xsl:result-document><main/></xsl:result-document></xsl:template>" +
+                                XSL_END;
+    final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
+    assertNotNull (aTF.newTemplates (_source (sWithHref)));
+
+    aTF.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    final RecordingErrorListener aEL = new RecordingErrorListener ();
+    aTF.setErrorListener (aEL);
+    try
+    {
+      aTF.newTemplates (_source (sWithHref));
+      fail ();
+    }
+    catch (final TransformerConfigurationException ex)
+    {
+      assertTrue (ex.getMessage (), ex.getMessage ().startsWith ("XTSE0010"));
+      assertEquals (1, aEL.m_aFatals.size ());
+      assertNotNull (ex.getLocator ());
+      assertTrue (ex.getLocator ().getLineNumber () > 0);
+    }
+    // Without href the content goes to the principal result
+    assertEquals ("<main/>", _transform (aTF.newTemplates (_source (sWithoutHref)).newTransformer (), _source ("<x/>")).replaceFirst ("^<\\?xml[^>]*>", ""));
+
+    // Switched off again
+    aTF.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, false);
+    assertNotNull (aTF.newTemplates (_source (sWithHref)));
+  }
+
+  @Test
   public void testSecureProcessingBlocksDirectAccess () throws Exception
   {
     final Path aDir = m_aTempDir.getRoot ().toPath ();

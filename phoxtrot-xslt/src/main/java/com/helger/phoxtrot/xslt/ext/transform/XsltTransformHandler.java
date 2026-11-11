@@ -328,9 +328,14 @@ public final class XsltTransformHandler implements ITransformHandler
       return new Host (sBaseUri, aCompileResolver, aEngine.getRequest ().getResolver (), aOptions, aEngine);
     }
     // A plain XPath expression, or a static expression of a stylesheet being
-    // compiled: its resolver is the one of the compilation
+    // compiled: its resolver is the one of the compilation, and the options of
+    // that compilation are the host
     final IResourceResolver aResolver = aCtx.getResourceResolver ();
-    return new Host (sBaseUri, aResolver, aResolver, null, null);
+    return new Host (sBaseUri,
+                     aResolver,
+                     aResolver,
+                     aCtx.getHost () instanceof final XsltCompileOptions aCompileOptions ? aCompileOptions : null,
+                     null);
   }
 
   /**
@@ -559,6 +564,7 @@ public final class XsltTransformHandler implements ITransformHandler
       ret.setLoadExternalEntities (aHost.callerOptions ().isLoadExternalEntities ());
       ret.setReadLocalSchemaFiles (aHost.callerOptions ().isReadLocalSchemaFiles ());
       ret.setBackwardsCompatibleClaim (aHost.callerOptions ().isBackwardsCompatibleClaim ());
+      ret.setSecondaryResultsAllowed (aHost.callerOptions ().isSecondaryResultsAllowed ());
       ret.packages ().addAll (aHost.callerOptions ().packages ());
     }
     // A requested xsl:supports-backwards-compatibility configures the claim

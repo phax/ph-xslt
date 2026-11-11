@@ -194,6 +194,8 @@ public final class StylesheetLoader
       final IExpr aExpr = XPathParser.parse (sExpr, aSC);
       DynamicContext aDC = new DynamicContext (aSC);
       aDC.setResourceResolver (_getResolver ());
+      // fn:transform in a static expression inherits the options (see XsltTransformHandler)
+      aDC.setHost (m_aOptions);
       for (final Map.Entry <XdmQName, XdmSequence> aEntry : m_aStaticValues.entrySet ())
         aDC = aDC.withVariable (aEntry.getKey (), aEntry.getValue ());
       return XPathEvaluator.evaluate (aExpr, aDC);

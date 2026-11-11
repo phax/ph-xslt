@@ -553,7 +553,9 @@ public final class ResultDocumentExtension implements IXsltExtension
    * name in use-character-maps (not an AVT) must be a valid QName with a
    * bound prefix (XTSE0280); whether the maps exist is checked by the
    * character map family. href, format and parameter-document are AVTs
-   * evaluated at run time.
+   * evaluated at run time. An href attribute is the static error XTSE0010 if
+   * the compile options forbid secondary results
+   * ({@link com.helger.phoxtrot.xslt.XsltCompileOptions#isSecondaryResultsAllowed()}).
    *
    * @param aCtx
    *        Compile context.
@@ -564,6 +566,9 @@ public final class ResultDocumentExtension implements IXsltExtension
   @NonNull
   private static IInstruction _compile (@NonNull final CompileContext aCtx, @NonNull final XslElement aEl)
   {
+    // Static, whatever the value and whether it is ever evaluated, as Saxon does under secure processing
+    if (aEl.getAttr ("href") != null && !aCtx.getCompiler ().getOptions ().isSecondaryResultsAllowed ())
+      throw XsltException.at (aEl, "XTSE0010", "xsl:result-document with an href attribute is disabled by the compile options");
     final ICommonsOrderedMap <String, Avt> aOutputAttrs = new CommonsLinkedHashMap <> ();
     for (final String sAttr : OutputDefinition.ATTRIBUTES)
     {

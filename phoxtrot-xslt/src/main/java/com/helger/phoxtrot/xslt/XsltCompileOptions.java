@@ -123,6 +123,12 @@ public final class XsltCompileOptions
    */
   public static final boolean DEFAULT_BACKWARDS_COMPATIBLE_CLAIM = true;
 
+  /**
+   * <code>xsl:result-document</code> with an <code>href</code> attribute is
+   * allowed by default.
+   */
+  public static final boolean DEFAULT_SECONDARY_RESULTS_ALLOWED = true;
+
   private String m_sBaseUri;
   private IResourceResolver m_aResolver;
   private final ICommonsOrderedMap <XdmQName, XdmSequence> m_aStaticParams = new CommonsLinkedHashMap <> ();
@@ -133,6 +139,7 @@ public final class XsltCompileOptions
   private boolean m_bEnforceStreamability = DEFAULT_ENFORCE_STREAMABILITY;
   private boolean m_bStreamingClaim = DEFAULT_STREAMING_CLAIM;
   private boolean m_bBackwardsCompatibleClaim = DEFAULT_BACKWARDS_COMPATIBLE_CLAIM;
+  private boolean m_bSecondaryResultsAllowed = DEFAULT_SECONDARY_RESULTS_ALLOWED;
   private final ICommonsList <HostSchema> m_aHostSchemas = new CommonsArrayList <> ();
   private EThreading m_eThreading = EThreading.DEFAULT;
 
@@ -413,6 +420,39 @@ public final class XsltCompileOptions
   public XsltCompileOptions setBackwardsCompatibleClaim (final boolean bBackwardsCompatibleClaim)
   {
     m_bBackwardsCompatibleClaim = bBackwardsCompatibleClaim;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if <code>xsl:result-document</code> may have an
+   *         <code>href</code> attribute. Default
+   *         {@link #DEFAULT_SECONDARY_RESULTS_ALLOWED}.
+   */
+  public boolean isSecondaryResultsAllowed ()
+  {
+    return m_bSecondaryResultsAllowed;
+  }
+
+  /**
+   * Allow or forbid secondary results. With <code>false</code>, an
+   * <code>xsl:result-document</code> that has an <code>href</code> attribute
+   * (any value, an attribute value template included) is the static error
+   * XTSE0010 when it is compiled, whether or not it is ever evaluated; one
+   * without <code>href</code>, which writes to the principal result, and one
+   * excluded by <code>use-when</code> stay allowed. This applies to every
+   * module and package of the stylesheet, and a stylesheet compiled by
+   * <code>fn:transform</code> from it inherits the setting. The JAXP factory
+   * sets it to <code>false</code> under secure processing, as Saxon does.
+   *
+   * @param bSecondaryResultsAllowed
+   *        <code>false</code> to reject <code>xsl:result-document</code> with
+   *        an <code>href</code>.
+   * @return this for chaining
+   */
+  @NonNull
+  public XsltCompileOptions setSecondaryResultsAllowed (final boolean bSecondaryResultsAllowed)
+  {
+    m_bSecondaryResultsAllowed = bSecondaryResultsAllowed;
     return this;
   }
 }

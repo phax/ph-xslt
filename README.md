@@ -192,6 +192,8 @@ aTransformer.transform (new DOMSource (aDoc), new DOMResult ());
   transformer).
 * Not supported: `SAXTransformerFactory` (`TransformerHandler`, `TemplatesHandler`), StAX sources and results, and
   writing secondary results (`xsl:result-document`); these are available from `PhoxtrotTransformer.getLastResult ()`.
+  With `FEATURE_SECURE_PROCESSING` a stylesheet with an `xsl:result-document` that has an `href` attribute does not
+  compile (XTSE0010), as in Saxon (`XsltCompileOptions.setSecondaryResultsAllowed`).
   Initial templates, modes and functions need the phoxtrot API (`PhoxtrotTemplates.getExecutable ()`).
 
 ## W3C DOM bridge
@@ -231,6 +233,9 @@ v0.2.0 - work in progress
   `XsltTransformRequest.setPrincipalTreeOnly`
 * Added `IXdmNode.declaredNamespaces ()`, a read-only view of the own namespace declarations without copying, used by
   the serialiser and the DOM and SAX bridges
+* JAXP: with `FEATURE_SECURE_PROCESSING` a stylesheet with an `xsl:result-document` that has an `href` attribute now
+  fails to compile with XTSE0010, as in Saxon; added `XsltCompileOptions.setSecondaryResultsAllowed`, inherited by
+  `fn:transform`
 * XPath: a union of single attribute and child steps without predicates, such as `*|comment()|processing-instruction()`
   or `@*|*`, is evaluated in one pass over each axis without sorting (as in the ISO Schematron skeleton)
 * XSLT: pattern matching creates no new dynamic context for a path pattern without predicates such as `/root/item`

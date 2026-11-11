@@ -98,7 +98,10 @@ import com.helger.phoxtrot.xslt.XsltExecutable;
  * {@link XMLConstants#ACCESS_EXTERNAL_STYLESHEET} and
  * {@link XMLConstants#ACCESS_EXTERNAL_DTD} to the empty string, as JAXP
  * specifies, so that only the URI resolver, and for external DTDs and
- * entities the entity resolver, gives access to other resources),
+ * entities the entity resolver, gives access to other resources; while it is
+ * set, a stylesheet with an <code>xsl:result-document</code> that has an
+ * <code>href</code> attribute fails to compile with XTSE0010, as in Saxon, see
+ * {@link XsltCompileOptions#setSecondaryResultsAllowed(boolean)}),
  * and the source and result features of the supported kinds (fixed to
  * <code>true</code>). Not supported: {@link javax.xml.transform.sax.SAXTransformerFactory},
  * StAX sources and results.</li>
@@ -297,6 +300,8 @@ public class PhoxtrotTransformerFactory extends TransformerFactory
                                                                                                                                  m_sAccessExternalStylesheet))
                                                                  .setSchemaAware (m_bSchemaAware)
                                                                  .setBackwardsCompatibleClaim (m_bBackwardsCompatible)
+                                                                 // As Saxon: no xsl:result-document with href
+                                                                 .setSecondaryResultsAllowed (!m_bSecureProcessing)
                                                                  .setThreading (m_eThreading);
     final XsltExecutable aExecutable;
     try

@@ -700,7 +700,14 @@ attribute set, on `THREAD_POOL`.
 
 ### S36 - Reject `xsl:result-document` under secure processing
 
-Status: open, new proposal below (2026-11-11), after a comparison with Saxon.
+Status: done (2026-11-11), as proposed below. `XsltCompileOptions.setSecondaryResultsAllowed` (default `true`,
+`DEFAULT_SECONDARY_RESULTS_ALLOWED`), checked in `ResultDocumentExtension._compile`; `PhoxtrotTransformerFactory` sets
+it to `!FEATURE_SECURE_PROCESSING` for each compilation. A nested `fn:transform` inherits it, at run time from the
+caller's compile options and in a static expression (`use-when`, static parameters) from the options of the
+compilation, which `StylesheetLoader` now passes as the host of the static dynamic context (so such a call also
+inherits the other options, e.g. external entities and the backwards compatible claim). Tests:
+`SecondaryResultsAllowedTest` (the cases of the table, an included module, `fn:transform` at run time and in a static
+parameter) and `PhoxtrotTransformerFactoryTest.testSecureProcessingRejectsResultDocumentHref`.
 
 With `XMLConstants.FEATURE_SECURE_PROCESSING` Saxon refuses to compile a stylesheet that contains
 `xsl:result-document` (the secondary output destinations are disabled), so ph-schematron reports such a Schematron
