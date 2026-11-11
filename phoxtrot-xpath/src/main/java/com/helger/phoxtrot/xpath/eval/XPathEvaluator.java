@@ -1498,19 +1498,73 @@ public final class XPathEvaluator
   }
 
   /**
-   * @param sOp
-   *        The operator name for the message.
+   * @param eOp
+   *        The operator, for the message.
    * @return The sequence itself if all items are nodes.
    * @throws XPathException
    *         XPTY0004 for any item that is not a node
    */
   @NonNull
-  private static XdmSequence _checkNodes (@NonNull final XdmSequence aSeq, @NonNull final String sOp)
+  private static XdmSequence _checkNodes (@NonNull final XdmSequence aSeq, final IExpr.SetExpr.@NonNull ESetOp eOp)
   {
     for (final IXdmItem aItem : aSeq)
       if (!(aItem instanceof IXdmNode))
-        throw XPathException.type ("The operands of '" + sOp + "' must be nodes");
+        throw XPathException.type ("The operands of '" + eOp.name ().toLowerCase (Locale.ROOT) + "' must be nodes");
     return aSeq;
+  }
+
+  /**
+   * @return <code>true</code> if the node passes one of the tests.
+   */
+  private static boolean _matchesAny (@NonNull final List <NodeTest> aTests,
+                                      @NonNull final IXdmNode aNode,
+                                      @NonNull final ENodeKind ePrincipal)
+  {
+    for (final NodeTest aTest : aTests)
+      if (NodeTestMatcher.matches (aTest, aNode, ePrincipal))
+        return true;
+    return false;
+  }
+
+  /**
+   * A union of attribute and child steps without predicates (see {@link IExpr.StepUnion}) from the
+   * context node: the attributes that pass one of the attribute tests, then the children that pass
+   * one of the child tests. Same result and errors as evaluating the operands.
+   *
+   * @return The selected nodes in document order without duplicates.
+   * @throws XPathException
+   *         XPDY0002 if the context item is absent, XPTY0020 if it is not a node
+   */
+  @NonNull
+  private static XdmSequence _evalStepUnion (final IExpr.@NonNull StepUnion aUnion, @NonNull final DynamicContext aCtx)
+  {
+    final IXdmItem aItem = _getContextItem (aCtx);
+    if (!(aItem instanceof final IXdmNode aNode))
+      throw XPathException.of ("XPTY0020", "The context item for an axis step is not a node");
+    final XdmSequence.ListBuilder <IXdmNode> aNodes = new XdmSequence.ListBuilder <> ();
+    final List <NodeTest> aAttributeTests = aUnion.attributeTests ();
+    if (!aAttributeTests.isEmpty ())
+    {
+      final int nCount = aNode.getAttributeCount ();
+      for (int i = 0; i < nCount; ++i)
+      {
+        final IXdmNode aAttr = aNode.getAttributeAtIndex (i);
+        if (_matchesAny (aAttributeTests, aAttr, ENodeKind.ATTRIBUTE))
+          aNodes.add (aAttr);
+      }
+    }
+    final List <NodeTest> aChildTests = aUnion.childTests ();
+    if (!aChildTests.isEmpty ())
+    {
+      final int nCount = aNode.getChildCount ();
+      for (int i = 0; i < nCount; ++i)
+      {
+        final IXdmNode aChild = aNode.getChildAtIndex (i);
+        if (_matchesAny (aChildTests, aChild, ENodeKind.ELEMENT))
+          aNodes.add (aChild);
+      }
+    }
+    return aNodes.build ();
   }
 
   /**
@@ -1524,16 +1578,19 @@ public final class XPathEvaluator
   @NonNull
   private static XdmSequence _evalSet (final IExpr.@NonNull SetExpr aExpr, @NonNull final DynamicContext aCtx)
   {
-    final String sOp = aExpr.op ().name ().toLowerCase (Locale.ROOT);
-    final XdmSequence aLeft = _checkNodes (evaluateInternal (aExpr.left (), aCtx), sOp);
-    final XdmSequence aRight = _checkNodes (evaluateInternal (aExpr.right (), aCtx), sOp);
-    if (aExpr.op () == IExpr.SetExpr.ESetOp.UNION)
+    // Optimisation for unions of single steps such as "@*|*|comment()": one scan per axis, no sort
+    if (aExpr.stepUnion () != null)
+      return _evalStepUnion (aExpr.stepUnion (), aCtx);
+    final IExpr.SetExpr.ESetOp eOp = aExpr.op ();
+    final XdmSequence aLeft = _checkNodes (evaluateInternal (aExpr.left (), aCtx), eOp);
+    final XdmSequence aRight = _checkNodes (evaluateInternal (aExpr.right (), aCtx), eOp);
+    if (eOp == IExpr.SetExpr.ESetOp.UNION)
       return NodeSorter.sortAndDeduplicate (XdmSequence.concat (aLeft, aRight));
 
     final Set <IXdmItem> aRightSet = Collections.newSetFromMap (new IdentityHashMap <> ());
     for (final IXdmItem aItem : aRight)
       aRightSet.add (aItem);
-    final boolean bIntersect = aExpr.op () == IExpr.SetExpr.ESetOp.INTERSECT;
+    final boolean bIntersect = eOp == IExpr.SetExpr.ESetOp.INTERSECT;
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
     for (final IXdmItem aItem : aLeft)
       if (aRightSet.contains (aItem) == bIntersect)

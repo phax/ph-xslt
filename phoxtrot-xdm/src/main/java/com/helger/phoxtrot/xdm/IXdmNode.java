@@ -481,6 +481,18 @@ public sealed interface IXdmNode extends IXdmItem permits AbstractXdmNode
    */
   void declareNamespace (@NonNull String sPrefix, @NonNull String sNamespaceUri);
 
+  /**
+   * Declare several namespaces on this element, as {@link #declareNamespace(String, String)} does
+   * for each entry in order. An element without declarations of its own may keep the map itself
+   * instead of a copy (it copies it before its first own change), so that many elements can share
+   * one map.
+   *
+   * @param aNamespaces
+   *        The declarations, prefix to namespace URI. The caller must never change the map after
+   *        the call.
+   */
+  void declareSharedNamespaces (@NonNull ICommonsOrderedMap <String, String> aNamespaces);
+
   @Nonnegative
   int getChildCount ();
 

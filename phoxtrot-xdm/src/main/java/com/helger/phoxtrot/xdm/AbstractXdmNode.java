@@ -74,6 +74,8 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   {
     // Namespace declarations of an element
     private ICommonsOrderedMap <String, String> m_aNamespaces;
+    // m_aNamespaces is shared with other elements and is copied before the first change
+    private boolean m_bNamespacesShared;
     // Built-in type annotation of a node without schema type
     private XdmQName m_aTypeAnnotation;
     private boolean m_bNilled;
@@ -236,7 +238,29 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
     final Details aDetails = _details ();
     if (aDetails.m_aNamespaces == null)
       aDetails.m_aNamespaces = new CommonsLinkedHashMap <> ();
+    else
+      if (aDetails.m_bNamespacesShared)
+      {
+        aDetails.m_aNamespaces = aDetails.m_aNamespaces.getClone ();
+        aDetails.m_bNamespacesShared = false;
+      }
     aDetails.m_aNamespaces.put (sPrefix, sNamespaceUri);
+  }
+
+  /**
+   * Take a map as the namespace declarations of this node without copying it, for a node without
+   * declarations of its own. The map is never changed through this node: the first
+   * {@link #internalDeclareNamespace(String, String)} copies it.
+   *
+   * @param aNamespaces
+   *        The declarations (prefix to URI), not empty. The caller must not change the map
+   *        afterwards.
+   */
+  final void internalShareNamespaces (@NonNull final ICommonsOrderedMap <String, String> aNamespaces)
+  {
+    final Details aDetails = _details ();
+    aDetails.m_aNamespaces = aNamespaces;
+    aDetails.m_bNamespacesShared = true;
   }
 
   @Nullable
@@ -503,6 +527,18 @@ public abstract sealed class AbstractXdmNode implements IXdmNode permits Abstrac
   {
     ValueEnforcer.notNull (sPrefix, "Prefix");
     ValueEnforcer.notNull (sNamespaceUri, "NamespaceUri");
+    throw new IllegalStateException ("Only an element can declare namespaces");
+  }
+
+  /**
+   * Default for all kinds but the element: always fails.
+   *
+   * @throws IllegalStateException
+   *         always, after the <code>null</code> check
+   */
+  public void declareSharedNamespaces (@NonNull final ICommonsOrderedMap <String, String> aNamespaces)
+  {
+    ValueEnforcer.notNull (aNamespaces, "Namespaces");
     throw new IllegalStateException ("Only an element can declare namespaces");
   }
 

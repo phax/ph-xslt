@@ -16,6 +16,7 @@
  */
 package com.helger.phoxtrot.xpath.ast;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.jspecify.annotations.NonNull;
@@ -154,8 +155,98 @@ public sealed interface IExpr
   record ComparisonExpr (@NonNull EComparisonOp op, @NonNull IExpr left, @NonNull IExpr right) implements IExpr
   {}
 
-  /** <code>union</code>/<code>|</code>, <code>intersect</code> and <code>except</code>. */
-  record SetExpr (@NonNull ESetOp op, @NonNull IExpr left, @NonNull IExpr right) implements IExpr
+  /**
+   * The node tests of a union whose operands are all relative paths of one
+   * <code>attribute::</code> or <code>child::</code> step without predicates,
+   * such as <code>@*|*|comment()</code>. From one context node it selects the
+   * attributes that pass one of the attribute tests, followed by the children
+   * that pass one of the child tests: that is document order without
+   * duplicates, so the union can be evaluated in one scan of each axis.
+   *
+   * @param attributeTests
+   *        The tests of the <code>attribute::</code> steps, possibly empty.
+   * @param childTests
+   *        The tests of the <code>child::</code> steps, possibly empty.
+   */
+  record StepUnion (@NonNull List <NodeTest> attributeTests, @NonNull List <NodeTest> childTests)
+  {
+    /**
+     * @return The step if the expression is a relative path of a single
+     *         attribute or child step without predicates, otherwise
+     *         <code>null</code>.
+     */
+    @Nullable
+    private static StepExpr _getSingleStep (@NonNull final IExpr aExpr)
+    {
+      if (!(aExpr instanceof final PathExpr aPath) ||
+          aPath.start () != null ||
+          aPath.absolute () ||
+          aPath.steps ().size () != 1)
+        return null;
+      final StepExpr aStep = aPath.steps ().get (0);
+      if (aStep.postfix () != null ||
+          aStep.test () == null ||
+          !aStep.predicates ().isEmpty () ||
+          (aStep.axis () != EAxis.ATTRIBUTE && aStep.axis () != EAxis.CHILD))
+        return null;
+      return aStep;
+    }
+
+    /**
+     * Add the tests of one union operand.
+     *
+     * @return <code>false</code> if the operand is neither such a step nor a
+     *         union of them.
+     */
+    private static boolean _addOperand (@NonNull final IExpr aExpr,
+                                        @NonNull final List <NodeTest> aAttributeTests,
+                                        @NonNull final List <NodeTest> aChildTests)
+    {
+      if (aExpr instanceof final SetExpr aSet)
+      {
+        // The operand was built first, so its own plan is known
+        if (aSet.stepUnion () == null)
+          return false;
+        aAttributeTests.addAll (aSet.stepUnion ().attributeTests ());
+        aChildTests.addAll (aSet.stepUnion ().childTests ());
+        return true;
+      }
+      final StepExpr aStep = _getSingleStep (aExpr);
+      if (aStep == null)
+        return false;
+      if (aStep.axis () == EAxis.ATTRIBUTE)
+        aAttributeTests.add (aStep.test ());
+      else
+        aChildTests.add (aStep.test ());
+      return true;
+    }
+
+    /**
+     * @return The node tests of the union of the two operands, or
+     *         <code>null</code> if the operator is not the union or an operand
+     *         is not such a step or a union of them.
+     */
+    @Nullable
+    static StepUnion of (final SetExpr.@NonNull ESetOp eOp, @NonNull final IExpr aLeft, @NonNull final IExpr aRight)
+    {
+      if (eOp != SetExpr.ESetOp.UNION)
+        return null;
+      final List <NodeTest> aAttributeTests = new ArrayList <> ();
+      final List <NodeTest> aChildTests = new ArrayList <> ();
+      if (!_addOperand (aLeft, aAttributeTests, aChildTests) || !_addOperand (aRight, aAttributeTests, aChildTests))
+        return null;
+      return new StepUnion (List.copyOf (aAttributeTests), List.copyOf (aChildTests));
+    }
+  }
+
+  /**
+   * <code>union</code>/<code>|</code>, <code>intersect</code> and
+   * <code>except</code>. <code>stepUnion</code> is derived from the operator
+   * and the operands (see {@link StepUnion}); an evaluator may use it in place
+   * of evaluating the operands.
+   */
+  record SetExpr (@NonNull ESetOp op, @NonNull IExpr left, @NonNull IExpr right, @Nullable StepUnion stepUnion) implements
+                 IExpr
   {
     /** The set operators. */
     public enum ESetOp
@@ -163,6 +254,21 @@ public sealed interface IExpr
       UNION,
       INTERSECT,
       EXCEPT
+    }
+
+    /**
+     * A set expression with the step union derived from its operands.
+     *
+     * @param op
+     *        The operator.
+     * @param left
+     *        The left operand.
+     * @param right
+     *        The right operand.
+     */
+    public SetExpr (@NonNull final ESetOp op, @NonNull final IExpr left, @NonNull final IExpr right)
+    {
+      this (op, left, right, StepUnion.of (op, left, right));
     }
   }
 

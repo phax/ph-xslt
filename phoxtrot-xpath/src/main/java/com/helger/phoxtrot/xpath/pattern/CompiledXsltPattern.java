@@ -389,8 +389,8 @@ public final class CompiledXsltPattern implements XsltPattern
    * Match a node against a pattern that is a union of paths, as <code>PatternMatcher.matchesNode</code> does: the
    * paths from left to right until one matches, each rejected by the pre-test of its precomputed last step before a
    * search is allocated. A path with a direct matcher is decided by it without a search, unless a predicate returns
-   * a number. The context with the node as current item is only created for the first path that passes the
-   * pre-test.
+   * a number. The context with the node as current item is only created for the first path that needs it: one that
+   * passes the pre-test and has predicates or needs the search.
    *
    * @param aNode
    *        The candidate node.
@@ -410,20 +410,24 @@ public final class CompiledXsltPattern implements XsltPattern
         aCtx.checkInterrupt ();
         continue;
       }
-      if (aNodeCtx == null)
-        aNodeCtx = aCtx.withCurrentItem (aNode);
       // Optimisation for the common simple paths (a/b[@c = 'x'], /a/b): matched along the parents
       // without allocating a search
       final PatternMatcher.DirectPath aDirect = m_aDirectPaths[i];
       if (aDirect != null)
       {
-        final PatternMatcher.EDirectMatch eMatch = aDirect.match (aNode, aNodeCtx);
+        // Optimisation: a path without predicates evaluates nothing, so it needs no context with
+        // the node as current item
+        if (aNodeCtx == null && aDirect.hasPredicates ())
+          aNodeCtx = aCtx.withCurrentItem (aNode);
+        final PatternMatcher.EDirectMatch eMatch = aDirect.match (aNode, aDirect.hasPredicates () ? aNodeCtx : aCtx);
         if (eMatch == PatternMatcher.EDirectMatch.MATCH)
           return true;
         if (eMatch == PatternMatcher.EDirectMatch.NO_MATCH)
           continue;
         // UNDECIDED: a numeric predicate, the general search decides
       }
+      if (aNodeCtx == null)
+        aNodeCtx = aCtx.withCurrentItem (aNode);
       if (aMatcher == null)
         aMatcher = new PatternMatcher (aNodeCtx, aNode, m_aPositionalPredicates);
       if (aMatcher.searchPath (m_aUnionPaths.get (i), aNode))

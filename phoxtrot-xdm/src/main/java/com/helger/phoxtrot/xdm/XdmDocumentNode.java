@@ -54,13 +54,26 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     // The numbering the index was built for
     private final TreeStamp m_aTree;
     private final Map <XdmQName, List <IXdmNode>> m_aNodes;
-    // The child elements by name of the parents asked for, filled on demand
-    private final Map <ChildKey, List <IXdmNode>> m_aChildren = new ConcurrentHashMap <> ();
 
     private NameIndex (@NonNull final TreeStamp aTree, @NonNull final Map <XdmQName, List <IXdmNode>> aNodes)
     {
       m_aTree = aTree;
       m_aNodes = aNodes;
+    }
+  }
+
+  /**
+   * The child elements by name of the parents asked for in a numbered tree, filled on demand.
+   */
+  private static final class ChildLists
+  {
+    // The numbering the lists belong to
+    private final TreeStamp m_aTree;
+    private final Map <ChildKey, List <IXdmNode>> m_aChildren = new ConcurrentHashMap <> ();
+
+    private ChildLists (@NonNull final TreeStamp aTree)
+    {
+      m_aTree = aTree;
     }
   }
 
@@ -72,6 +85,8 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   private volatile NameIndex m_aNameIndex;
   // The attributes by name, built on first use like the element index
   private volatile NameIndex m_aAttributeIndex;
+  // The child elements by name of single parents, like the element index
+  private volatile ChildLists m_aChildLists;
   // Built by XdmStreamReader: only a part of the document is attached
   private boolean m_bStreamed;
   // The maximum element depth recorded by XdmTreeBuilder, and the numbering it
@@ -93,6 +108,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     m_bStreamed = bStreamed;
     m_aNameIndex = null;
     m_aAttributeIndex = null;
+    m_aChildLists = null;
   }
 
   /**
@@ -205,17 +221,21 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   /**
    * The child elements of aParent with a name: the indexed elements of its subtree whose parent it
    * is, or its children with that name, whichever list is shorter to go through.
+   *
+   * @param aElements
+   *        The elements of the document with the name from the element index, or <code>null</code>
+   *        if the index is not built: then the children are gone through.
    */
   @NonNull
-  private static List <IXdmNode> _collectChildElements (@NonNull final List <IXdmNode> aElements,
+  private static List <IXdmNode> _collectChildElements (@Nullable final List <IXdmNode> aElements,
                                                         @NonNull final IXdmNode aParent,
                                                         @NonNull final XdmQName aName)
   {
     final ICommonsList <IXdmNode> ret = new CommonsArrayList <> ();
-    final int nFrom = getLowerBound (aElements, 0, aParent.getOrder () + 1);
-    final int nTo = getLowerBound (aElements, nFrom, aParent.getEndOrder () + 1);
     final int nCount = aParent.getChildCount ();
-    if (nTo - nFrom < nCount)
+    final int nFrom = aElements == null ? 0 : getLowerBound (aElements, 0, aParent.getOrder () + 1);
+    final int nTo = aElements == null ? 0 : getLowerBound (aElements, nFrom, aParent.getEndOrder () + 1);
+    if (aElements != null && nTo - nFrom < nCount)
     {
       for (int i = nFrom; i < nTo; ++i)
       {
@@ -241,6 +261,7 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   {
     m_aNameIndex = null;
     m_aAttributeIndex = null;
+    m_aChildLists = null;
     m_aMaxElementDepthTree = null;
   }
 
@@ -299,10 +320,12 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
   }
 
   /**
-   * The child elements with a name of a node of this document, kept with the element index once
-   * asked for, so that a repeated child step from a node with many children does not go through
-   * them again. Meant for such nodes: every pair of parent and name asked for stays in memory as
-   * long as the index.
+   * The child elements with a name of a node of this document, kept once asked for (until the next
+   * structural change), so that a repeated child step from a node with many children does not go
+   * through them again. Meant for such nodes: every pair of parent and name asked for stays in
+   * memory as long as the numbering. The first call for a pair goes through the children, or
+   * through the element index if that is built already; it does not build the index of the whole
+   * document.
    *
    * @param aParent
    *        The parent node. Must belong to this document.
@@ -317,15 +340,29 @@ public final class XdmDocumentNode extends AbstractXdmParentNode
     ValueEnforcer.notNull (aParent, "Parent");
     ValueEnforcer.notNull (aName, "Name");
 
-    final NameIndex aIndex = _getIndex (false);
-    if (aIndex == null)
+    final TreeStamp aTree = internalGetTree ();
+    if (aTree == null || m_bStreamed)
       return null;
 
-    final List <IXdmNode> aElements = aIndex.m_aNodes.get (aName);
-    if (aElements == null)
-      return List.of ();
-
-    return aIndex.m_aChildren.computeIfAbsent (new ChildKey (aParent, aName),
+    ChildLists aLists = m_aChildLists;
+    if (aLists == null || aLists.m_aTree != aTree)
+    {
+      aLists = new ChildLists (aTree);
+      m_aChildLists = aLists;
+    }
+    // Optimisation: the element index only if it is there anyway; a single pass over a parent
+    // with many children must not pay for indexing the whole document
+    final NameIndex aIndex = m_aNameIndex;
+    final List <IXdmNode> aElements;
+    if (aIndex != null && aIndex.m_aTree == aTree)
+    {
+      aElements = aIndex.m_aNodes.get (aName);
+      if (aElements == null)
+        return List.of ();
+    }
+    else
+      aElements = null;
+    return aLists.m_aChildren.computeIfAbsent (new ChildKey (aParent, aName),
                                                k -> _collectChildElements (aElements, aParent, aName));
   }
 

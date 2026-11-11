@@ -507,14 +507,31 @@ final class PatternMatcher
     private final boolean m_bAbsolute;
     private final List <StepExpr> m_aSteps;
     private final ENodeKind [] m_aPrincipalKinds;
+    private final boolean m_bHasPredicates;
 
     DirectPath (final boolean bAbsolute, @NonNull final List <StepExpr> aSteps)
     {
       m_bAbsolute = bAbsolute;
       m_aSteps = aSteps;
       m_aPrincipalKinds = new ENodeKind [aSteps.size ()];
+      boolean bHasPredicates = false;
       for (int i = 0; i < m_aPrincipalKinds.length; ++i)
+      {
         m_aPrincipalKinds[i] = AxisNavigator.getPrincipalNodeKind (aSteps.get (i).axis ());
+        if (!aSteps.get (i).predicates ().isEmpty ())
+          bHasPredicates = true;
+      }
+      m_bHasPredicates = bHasPredicates;
+    }
+
+    /**
+     * @return <code>true</code> if a step has a predicate. Without one,
+     *         {@link #match(IXdmNode, DynamicContext)} evaluates nothing and
+     *         needs no context with the candidate as current item.
+     */
+    boolean hasPredicates ()
+    {
+      return m_bHasPredicates;
     }
 
     /**
@@ -527,7 +544,7 @@ final class PatternMatcher
      * @param aNode
      *        The candidate node.
      * @param aCtx
-     *        The context, with the current item set to the candidate.
+     *        The context, with the current item set to the candidate if the path has predicates.
      * @return {@link EDirectMatch#UNDECIDED} if a predicate returned a single number (its value then depends on the
      *         position), else whether the path matches.
      */

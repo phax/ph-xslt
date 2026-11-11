@@ -382,11 +382,15 @@ public final class CoreInstructions
     final String sInherit = aEl.getAttribute (XsltNames.NS_XSL, "inherit-namespaces");
     final boolean bNoInherit = sInherit != null && !XsltNames.isXsltTrue (sInherit);
     final ValidationRequest aValidation = ValidationRequest.compile (aCtx, aEl, ValidationRequest.EKind.ELEMENT);
+    // The declarations of every element built by this instruction: one map, shared by all of them
+    final ICommonsOrderedMap <String, String> aDeclared = new CommonsLinkedHashMap <> ();
+    for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
+      if (!aEntry.getKey ().equals (aName.prefix ()) || aEntry.getValue ().equals (aName.namespaceUri ()))
+        aDeclared.put (aEntry.getKey (), aEntry.getValue ());
     return new CompiledInstruction (aEl, (aRtCtx, aRtOut) -> {
       final IXdmNode aElement = IXdmNode.createElement (aName);
-      for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
-        if (!aEntry.getKey ().equals (aName.prefix ()) || aEntry.getValue ().equals (aName.namespaceUri ()))
-          aElement.declareNamespace (aEntry.getKey (), aEntry.getValue ());
+      if (aDeclared.isNotEmpty ())
+        aElement.declareSharedNamespaces (aDeclared);
       if (sBase != null)
         aElement.setBaseUri (sBase);
       final ContentOutput aContent = ContentOutput.createFor (aElement, aRtOut, !bNoInherit && aValidation == null);

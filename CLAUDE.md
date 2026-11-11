@@ -49,8 +49,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   resolver that implements only `resolveDocument` still yields located modules unless it caches or switches them
   off. A wrapping resolver forwards `resolveStylesheetModule`. A new parse site states its setting explicitly.
 - Document order: `getOrder ()`/`getEndOrder ()` (end = last node of the subtree, attributes included); a document node
-  has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children)
-  used by `AxisNavigator.collectNamedDescendants`/`collectNamedSubtreeAttributes`/`collectNamedChildren`. Every
+  has lazily built name indexes (elements, attributes, and the kept child elements by name of nodes with many children,
+  which come from one pass over the children and never build the element index themselves) used by `AxisNavigator.collectNamedDescendants`/`collectNamedSubtreeAttributes`/`collectNamedChildren`. Every
   structural change to a numbered tree must go through `appendChild`/`removeChild`/`addAttribute`, which drop numbering
   and indexes. `XdmTreeBuilder` and `XdmStreamReader` number nodes as they create them (`internalAppendNumbered`,
   `internalStamp`), with the numbers `assignDocumentOrder` would give; a change from a wrapping handler while building
@@ -60,7 +60,12 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `AbstractXdmParentNode` (trimmed by the builder at `endElement`); indentation text (a line end and spaces or tabs) is
   one shared string per document.
 - Use `hasDeclaredNamespaces ()`/`getDeclaredNamespaceUri (prefix)` where only a check or a lookup is needed:
-  `getDeclaredNamespaces ()` returns a copy, also for an element without declarations.
+  `getDeclaredNamespaces ()` returns a copy, also for an element without declarations. `declareSharedNamespaces`
+  lets an element without declarations keep the given map (literal result elements share one per instruction);
+  every change goes through `AbstractXdmNode.internalDeclareNamespace`, which copies a shared map first.
+- A union of predicate-free single `attribute::`/`child::` steps (`*|comment()`, `@*|node()`) carries its node tests in
+  `IExpr.SetExpr.stepUnion ()` (derived by the 3-argument constructor) and is evaluated by
+  `XPathEvaluator._evalStepUnion` in one pass per axis; any other set expression evaluates its operands.
 - Threads: `compile` and `transform` run on the thread `EThreading` selects (`XsltCompileOptions.setThreading`,
   `XsltTransformRequest.setThreading`; JAXP: factory attribute `ATTR_THREADING`, `PhoxtrotTransformer.setThreading`),
   through `LargeStackRunner` (both in `phoxtrot-xpath`, package `com.helger.phoxtrot.xpath`, so plain XPath callers
@@ -261,7 +266,8 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   (`(P1 | P2)[q]` is matched as `P1[q] | P2[q]`, the source, priority and alternatives unchanged), so it has union
   paths and final names. A union path of only `child`/`attribute` steps without `position`/`last`/`function-lookup`
   in its predicates is matched bottom-up by `PatternMatcher.DirectPath` (one candidate per step, no `PathSearch`); a
-  predicate that returns a number hands the path back to the search.
+  predicate that returns a number hands the path back to the search. One without predicates evaluates nothing and
+  gets the caller's context; the context with the candidate as current item is only created for a path that needs it.
 - Template rules: `Mode.sortRules` also builds a rule index (modes with at least `Mode.MIN_INDEXED_RULES` rules, 2
   by measurement): the rule positions by the final element/attribute names of their patterns (`getFinalNames`) and
   the positions of all other rules. `Engine._findRule` merges the named candidates of the item with the other rules

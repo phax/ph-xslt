@@ -216,6 +216,14 @@ public final class XdmDocumentOrderTest
     assertNull (aDoc.getChildElementsByName (aR, X));
     aDoc.assignDocumentOrder ();
     assertEquals (3, aDoc.getChildElementsByName (aR, X).size ());
+
+    // The same lists from the element index once it is built
+    final XdmDocumentNode aDoc2 = _parse ("<r><x n='1'><x n='1.1'/></x><y><x n='2.1'/></y><x n='3'/></r>");
+    assertEquals (4, aDoc2.getElementsByName (X).size ());
+    final IXdmNode aR2 = aDoc2.getChildAtIndex (0);
+    assertEquals (2, aDoc2.getChildElementsByName (aR2, X).size ());
+    assertEquals (1, aDoc2.getChildElementsByName (aR2.getChildAtIndex (1), X).size ());
+    assertEquals (0, aDoc2.getChildElementsByName (aR2, new XdmQName ("none")).size ());
   }
 
   @Test

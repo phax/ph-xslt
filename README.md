@@ -231,6 +231,14 @@ v0.2.0 - work in progress
   `XsltTransformRequest.setPrincipalTreeOnly`
 * Added `IXdmNode.declaredNamespaces ()`, a read-only view of the own namespace declarations without copying, used by
   the serialiser and the DOM and SAX bridges
+* XPath: a union of single attribute and child steps without predicates, such as `*|comment()|processing-instruction()`
+  or `@*|*`, is evaluated in one pass over each axis without sorting (as in the ISO Schematron skeleton)
+* XSLT: pattern matching creates no new dynamic context for a path pattern without predicates such as `/root/item`
+  or `node()`
+* XSLT: the elements built by one literal result element share one map of namespace declarations until one of them
+  changes; added `IXdmNode.declareSharedNamespaces`
+* `XdmDocumentNode.getChildElementsByName` no longer builds the name index of the whole document; it goes through the
+  children of the parent once and keeps the result
 * `DomToXdm` allocates less than half as much per conversion (no per-node walk records, attribute and namespace
   objects only where needed, DOM text used without copying); added `XdmTreeBuilder.characters (String)`
 * JAXP: added the factory attribute `ATTR_MAX_DEPTH` and `PhoxtrotTransformer.setMaxDepth` for the nesting depth

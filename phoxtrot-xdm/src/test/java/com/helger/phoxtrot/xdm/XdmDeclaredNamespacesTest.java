@@ -23,6 +23,9 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import com.helger.collection.commons.CommonsLinkedHashMap;
+import com.helger.collection.commons.ICommonsOrderedMap;
+
 /**
  * Test class for {@link IXdmNode#hasDeclaredNamespaces()} and
  * {@link IXdmNode#getDeclaredNamespaceUri(String)}, which must agree with
@@ -78,5 +81,37 @@ public final class XdmDeclaredNamespacesTest
     assertTrue (aElement.hasDeclaredNamespaces ());
     assertEquals ("urn:a", aElement.getDeclaredNamespaceUri ("a"));
     _assertConsistent (aElement, "a", "b", "");
+  }
+
+  @Test
+  public void testShared ()
+  {
+    final ICommonsOrderedMap <String, String> aShared = new CommonsLinkedHashMap <> ();
+    aShared.put ("a", "urn:a");
+    aShared.put ("b", "urn:b");
+    final IXdmNode aE1 = IXdmNode.createElement (new XdmQName ("e"));
+    final IXdmNode aE2 = IXdmNode.createElement (new XdmQName ("e"));
+    aE1.declareSharedNamespaces (aShared);
+    aE2.declareSharedNamespaces (aShared);
+    assertEquals (aShared, aE1.getDeclaredNamespaces ());
+    _assertConsistent (aE1, "a", "b", "c");
+    // A change of one element copies the map first
+    aE1.declareNamespace ("c", "urn:c");
+    aE1.declareNamespace ("a", "urn:a2");
+    assertEquals ("urn:a2", aE1.getDeclaredNamespaceUri ("a"));
+    assertEquals ("urn:c", aE1.getDeclaredNamespaceUri ("c"));
+    assertEquals (2, aShared.size ());
+    assertEquals ("urn:a", aShared.get ("a"));
+    assertEquals (aShared, aE2.getDeclaredNamespaces ());
+    // The namespace axis follows the declarations
+    assertEquals (4, aE1.getNamespaceNodes ().size ());
+    // An element with own declarations adds the entries
+    final IXdmNode aE3 = IXdmNode.createElement (new XdmQName ("e"));
+    aE3.declareNamespace ("b", "urn:b0");
+    aE3.declareNamespace ("d", "urn:d");
+    aE3.declareSharedNamespaces (aShared);
+    assertEquals ("[b, d, a]", aE3.getDeclaredNamespaces ().keySet ().toString ());
+    assertEquals ("urn:b", aE3.getDeclaredNamespaceUri ("b"));
+    assertEquals (2, aShared.size ());
   }
 }

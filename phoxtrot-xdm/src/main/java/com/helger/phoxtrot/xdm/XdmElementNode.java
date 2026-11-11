@@ -17,6 +17,7 @@
 package com.helger.phoxtrot.xdm;
 
 import java.util.Arrays;
+import java.util.Map;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -28,6 +29,7 @@ import com.helger.base.concurrent.SimpleReadWriteLock;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.collection.commons.ICommonsOrderedMap;
 
 /**
  * An element node.
@@ -159,6 +161,29 @@ public sealed class XdmElementNode extends AbstractXdmParentNode
     ValueEnforcer.notNull (sPrefix, "Prefix");
     ValueEnforcer.notNull (sNamespaceUri, "NamespaceUri");
     internalDeclareNamespace (sPrefix, sNamespaceUri);
+    internalSetNamespaceNodes (null);
+  }
+
+  /**
+   * Like {@link #declareNamespace(String, String)} for each entry. An element without declarations
+   * of its own takes the map itself instead of a copy.
+   */
+  @Override
+  public void declareSharedNamespaces (@NonNull final ICommonsOrderedMap <String, String> aNamespaces)
+  {
+    ValueEnforcer.notNull (aNamespaces, "Namespaces");
+    if (aNamespaces.isEmpty ())
+      return;
+    if (hasDeclaredNamespaces ())
+    {
+      for (final Map.Entry <String, String> aEntry : aNamespaces.entrySet ())
+        internalDeclareNamespace (aEntry.getKey (), aEntry.getValue ());
+    }
+    else
+    {
+      // Optimisation (memory): many elements built by one instruction share one map
+      internalShareNamespaces (aNamespaces);
+    }
     internalSetNamespaceNodes (null);
   }
 

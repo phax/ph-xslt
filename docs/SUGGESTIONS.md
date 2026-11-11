@@ -882,3 +882,129 @@ of pushing two records per node, the SAX attributes object is reused, the namesp
 element with declarations, and DOM text goes to the new `XdmTreeBuilder.characters (String)` without a `char []`
 copy. For the 20,000 items of the benchmark (about 100,000 DOM nodes) one conversion went from 2.62 ms and 18.3 MB
 allocated to 2.29 ms and 8.1 MB (best of 200 runs after 100 warm-up runs, one JVM).
+
+### S41 - XSLT execution hotspots of a Schematron validation
+
+Status: items 1 (see S42), 2, 3 (in part) and 4 done (2026-11-11).
+
+* Item 2: `CompiledXsltPattern._matchesUnionPaths` creates the context with the node as current item only for a path
+  that needs it (`PatternMatcher.DirectPath.hasPredicates`, or the general search); `/root/item`, `text()` and
+  `node()` are matched with the caller's context. No node-kind index for the other rules (`canMatch` already
+  rejects `text()` for an element cheaply).
+* Item 3: the elements of one literal result element share one map of namespace declarations, built at compile time
+  (`IXdmNode.declareSharedNamespaces`; `AbstractXdmNode.internalDeclareNamespace` copies it before the first change of
+  an element). The declarations themselves are unchanged (no namespace reducer). The fixup walk was not changed:
+  measured alone on an SVRL-shaped tree of 20,001 elements (best of 300 runs, one JVM), `fixNamespaces` takes
+  0.15 ms with shared maps (0.23 ms with one map per element) and `assignDocumentOrder` 0.13 ms, so carrying the
+  scope down the walk or merging it with the numbering could save a fraction of 0.3 ms at most.
+* Item 4: the premise did not hold. A child lookup only uses the index for a parent with more than 32 children
+  (`AxisNavigator.MIN_CHILDREN_FOR_INDEX`), here the root with its 20,000 `item` children; that lookup built the
+  index of all 40,001 elements. `XdmDocumentNode.getChildElementsByName` now keeps the child lists on their own
+  (per numbering) and fills a list from one pass over the children of the parent, or from the element index if that
+  is built already; it never builds the index itself.
+
+Measured with S42 (2026-11-11; JMH `BenchmarkProcessorSize.validateDom`, 20,000 items, the benchmark jar built once
+against phoxtrot `a996fee` and once against the change, same machine, one after the other):
+
+| | `a996fee` | with S41 and S42 | Saxon-HE 13.1 |
+| --- | ---: | ---: | ---: |
+| ms per validation | 45.9 ± 0.7 | 37.5 ± 0.8 | 41.8 ± 1.0 |
+| MB allocated per validation | 111 | 79 | 72 |
+
+Profile of ph-schematron's `BenchmarkProcessorSize.validateDom` after S40 (ISO Schematron, 20,000 items, compiled once;
+JFR, 2026-11-11, phoxtrot `a996fee`, Saxon-HE 13.1): 46.1 ms per validation on phoxtrot against 43.8 ms on Saxon,
+111 MB allocated against 72 MB. Split by phase (share of the CPU samples, converted to ms per validation):
+
+| Phase | Saxon | phoxtrot |
+| ----- | ----: | -------: |
+| Input: DOM navigation through the wrapper (Saxon) / `DomToXdm` (phoxtrot) | 16.5 | 5.3 |
+| XSLT execution | 16.9 | 28.7 |
+| Result tree to the `DOMResult` | 8.7 | 7.9 |
+| Reading the SVRL DOM with JAXB (same code on both) | 1.7 | 4.2 |
+
+Input plus execution is now on par (33.4 against 34.0 ms). The JAXB difference of S40 item 4 is not a property of the
+DOM: in one JVM, reading the two SVRL DOMs alternately (also directly after each transformation) takes the same time.
+No action proposed for it.
+
+phoxtrot's execution (404 samples, about 28.7 ms) has these hotspots:
+
+1. **Union of child steps in every `xsl:apply-templates`.** `XPathEvaluator._evalSet` takes 92 samples (23 %, about
+   6.5 ms, including the child steps themselves). Details and measurement in S42.
+2. **Template rule search.** `Engine._findRule` takes 63 samples (16 %, about 4.5 ms), 37 of them in
+   `CompiledXsltPattern.matches` (`_matchesUnionPaths`, `PatternMatcher$DirectPath.match`,
+   `DynamicContext.withCurrentItem`, `PatternMatcher._canAxisSelect`). The patterns of the mode are tested one after
+   the other for every node. Proposal: check whether `Mode.getNamedRuleIndexes` pre-filters path patterns like
+   `/root/item` and the fallbacks (`text()`, `@*|node()`) by node kind and name, and avoid a new dynamic context per
+   pattern test.
+3. **Namespace declarations of literal result elements.** Each `svrl:fired-rule` declares all five in-scope namespaces
+   of the stylesheet (`CoreInstructions` line 389 → `XdmElementNode.declareNamespace`: a new `CommonsLinkedHashMap` per
+   element, and the namespace node cache is dropped per declaration): 23 samples (about 1.6 ms), 2.6 % of the sampled
+   allocation. Afterwards `NamespaceFixup.finish` walks the finished tree twice: `fixNamespaces` (`_isBound` →
+   `lookupNamespaceUri` through the ancestors for every element, 28 samples) and `assignDocumentOrder` (15 samples),
+   together 43 samples (11 %, about 3 ms). The resulting DOM has the declarations on the root only. Proposal: do not
+   declare on a literal result element a namespace that its parent in the result tree already binds to the same URI
+   (like Saxon's namespace reducer), or share one immutable map per instruction; and fix and number in one walk.
+4. **Name index of the input document.** The first child lookup by name (`AxisNavigator.getNamedIndexList` →
+   `XdmDocumentNode._buildNameIndex`) indexes all elements of the document: 13 samples (about 0.9 ms); measured alone
+   0.6 ms and 1.8 MB for the 40,001 elements. In a single validation pass every lookup is on a parent with one or two
+   children. Proposal (low priority): use the index only for descendant searches or parents with many children.
+
+The interrupt check (`PhoxtrotTransformer` line 562, `aCaller.isInterrupted ()`) shows up with 7 samples (2 %).
+
+Note on JFR allocation samples: their weights overrate large arrays. The name index appeared with 8.7 % of the sampled
+bytes (about 9.7 MB per validation), but one build allocates 1.8 MB.
+
+### S42 - Union of steps on the same axis as one step
+
+Status: done (2026-11-11), items 1 to 3. The parser's `IExpr.SetExpr` derives `stepUnion ()` (`IExpr.StepUnion`, the
+node tests of the `attribute::` and of the `child::` operands) for a union whose operands are all relative paths of
+one such step without predicates, or unions of them (the 3-argument constructor keeps every call site).
+`XPathEvaluator._evalStepUnion` then scans the attributes and the children of the context node once each and keeps
+a node that passes any test of its axis: attributes before children is document order, and one scan gives no
+duplicates, so nothing is sorted. The errors stay those of the steps (XPDY0002, XPTY0020). Other axes and steps with
+predicates keep the general evaluation. The operator name is only built for the XPTY0004 message. Measurement: see
+S41.
+
+The ISO Schematron skeleton (`iso_schematron_skeleton_for_saxon.xsl`, variable `context-xpath`, used in the
+`xsl:apply-templates` of the fallback template `match="@*|node()"`, i.e. for every node of the input) selects
+
+* `*|comment()|processing-instruction()` by default,
+* `@*|*|comment()|processing-instruction()` if a rule context contains `@` or `attribute`,
+* `*` if a rule context contains `(`.
+
+Its comment says that `node()[not(self::text())]` is slower in Saxon than the union, so Saxon optimises the union.
+phoxtrot evaluates it literally (`XPathEvaluator._evalSet`): a left-deep binary `SetExpr` tree, where every level
+evaluates both operands (one scan of the child axis per step), checks them with `_checkNodes`, concatenates them and
+sorts and deduplicates them with `NodeSorter.sortAndDeduplicate`. In addition, `_evalSet` computes
+`aExpr.op ().name ().toLowerCase (Locale.ROOT)` on every evaluation, although the name is only used in the error
+message of `_checkNodes` (8 samples and 3 % of the sampled allocation in the S41 profile).
+
+Measurement (2026-11-11, phoxtrot `a996fee`, Saxon-HE 13.1, JDK 21; a stylesheet with the skeleton's template
+structure in mode `M0`: `match="/root/item"` with priority 1000, `match="text()"` priority -1, `match="@*|node()"`
+priority -2, each applying templates to the select below; input 20,000 `item` elements with a `value` child and
+whitespace text, passed as `DOMSource`, so the input conversion is included; best of 15 runs after warm-up, one JVM):
+
+| `select` | Saxon [ms] | phoxtrot [ms] |
+| -------- | ---------: | ------------: |
+| `*` | 5.0 | 6.3 |
+| `*\|comment()\|processing-instruction()` | 5.9 | 9.1 |
+| `node()[not(self::text())]` | 6.1 | 9.1 |
+| `node()` | 6.2 | 8.7 |
+| `@*\|*\|comment()\|processing-instruction()` | 18.7 | 14.0 |
+
+The union costs phoxtrot 2.8 ms over `*` (Saxon 0.9 ms); the predicate form is no faster on phoxtrot. With attributes
+phoxtrot is faster than Saxon.
+
+Proposal:
+
+1. At compile time, rewrite a union (`|`/`union`) whose operands are all single-step relative paths on the same axis
+   without predicates into one step with a union node test (e.g. `child::(element() | comment() |
+   processing-instruction())` as an internal node test that matches if any of the tests matches). One scan of the
+   axis gives the nodes in document order without duplicates, so no sorting is needed.
+2. For operands on different axes from the same context where the order is known statically, concatenate without
+   sorting: `@*|child::...` is "attributes, then children", which is document order (attributes of an element precede
+   its children).
+3. Compute the operator name in `_evalSet` only when `_checkNodes` raises the error (or use a constant per `ESetOp`).
+
+Saxon is the reference for the result, which must not change: the same nodes in document order without duplicates.
+

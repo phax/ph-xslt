@@ -18,6 +18,7 @@ package com.helger.phoxtrot.xpath.eval;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -324,6 +325,48 @@ public final class XPathEvaluatorTest
                                                   aAs),
                                aCtx)));
     assertEvalError ("XPTY0004", new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, lit (1), aAs), aCtx);
+  }
+
+  @Test
+  public void testStepUnion ()
+  {
+    final IXdmNode aR = parse ("<r a='1' b='2'>t<x/><!--c--><?p d?><y/>u</r>").getChildAtIndex (0);
+    final String sNames = "! (if (. instance of attribute()) then '@' || name() else if (. instance of comment()) then 'c' else name())";
+    // One scan per axis: attributes first, then the children, in document order
+    assertEquals ("@a @b x c p y", _adaptive ("(@*|*|comment()|processing-instruction())" + sNames, false, aR));
+    assertEquals (_adaptive ("(@*, node()[not(self::text())])" + sNames, false, aR),
+                  _adaptive ("(processing-instruction()|comment()|*|@*)" + sNames, false, aR));
+    // A node that passes several tests is selected once
+    assertEquals ("x y", _adaptive ("(*|*|x|node()[self::y])" + sNames, false, aR));
+    assertEquals ("@b x", _adaptive ("(x|attribute::b)" + sNames, false, aR));
+    // From an attribute or text node both axes are empty
+    assertEquals ("", _adaptive ("@a ! (@*|*)", false, aR));
+    // The errors of the axis steps
+    _assertCode ("XPTY0020", "1 ! (*|comment())", false, aR);
+    _assertCode ("XPDY0002", "*|comment()", false, null);
+
+    final IExpr aChildren = path (step (EAxis.CHILD, anyName ()));
+    final IExpr aAttributes = path (step (EAxis.ATTRIBUTE, anyName ()));
+    final IExpr.SetExpr aUnion = new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, aChildren, aAttributes);
+    assertEquals (1, aUnion.stepUnion ().attributeTests ().size ());
+    assertEquals (1, aUnion.stepUnion ().childTests ().size ());
+    assertEquals (2,
+                  new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, aUnion, aChildren).stepUnion ()
+                                                                                    .childTests ()
+                                                                                    .size ());
+    // Not for other operators, axes, predicates or longer paths
+    assertNull (new IExpr.SetExpr (IExpr.SetExpr.ESetOp.INTERSECT, aChildren, aAttributes).stepUnion ());
+    assertNull (new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION,
+                                   aChildren,
+                                   path (step (EAxis.DESCENDANT, anyName ()))).stepUnion ());
+    assertNull (new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION,
+                                   aChildren,
+                                   path (step (EAxis.CHILD, anyName (), lit (1)))).stepUnion ());
+    assertNull (new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, aChildren, path (child ("a"), child ("b"))).stepUnion ());
+    assertNull (new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, aChildren, absPath (child ("a"))).stepUnion ());
+    assertNull (new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION,
+                                   new IExpr.SetExpr (IExpr.SetExpr.ESetOp.UNION, aChildren, dot ()),
+                                   aChildren).stepUnion ());
   }
 
   @Test
