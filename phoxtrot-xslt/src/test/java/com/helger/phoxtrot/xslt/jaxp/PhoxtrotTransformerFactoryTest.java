@@ -522,7 +522,10 @@ public final class PhoxtrotTransformerFactoryTest
       assertTrue (ex.getLocator ().getLineNumber () > 0);
     }
     // Without href the content goes to the principal result
-    assertEquals ("<main/>", _transform (aTF.newTemplates (_source (sWithoutHref)).newTransformer (), _source ("<x/>")).replaceFirst ("^<\\?xml[^>]*>", ""));
+    assertEquals ("<main/>",
+                  _transform (aTF.newTemplates (_source (sWithoutHref)).newTransformer (), _source ("<x/>"))
+                                                                                                            .replaceFirst ("^<\\?xml[^>]*>",
+                                                                                                                           ""));
 
     // Switched off again
     aTF.setFeature (XMLConstants.FEATURE_SECURE_PROCESSING, false);
@@ -1042,7 +1045,7 @@ public final class PhoxtrotTransformerFactoryTest
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
     assertSame (EThreading.DEFAULT, aTF.getAttribute (PhoxtrotTransformerFactory.ATTR_THREADING));
     // The include is resolved on the compiling thread
-    aTF.setURIResolver ( (sHref, sBase) -> {
+    aTF.setURIResolver ((sHref, sBase) -> {
       aCompileThreads.add (Thread.currentThread ());
       return _source (XSL_START + "<xsl:template match='/'><xsl:message>m</xsl:message><r/></xsl:template>" + XSL_END);
     });
@@ -1121,7 +1124,7 @@ public final class PhoxtrotTransformerFactoryTest
     // The default of 10,000 levels stops it
     final PhoxtrotTransformerFactory aTF = new PhoxtrotTransformerFactory ();
     aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_THREADING, EThreading.THREAD_POOL);
-    PhoxtrotTransformer aT = (PhoxtrotTransformer) aTF.newTemplates (_source (sXsl)).newTransformer ();
+    PhoxtrotTransformer aT = aTF.newTemplates (_source (sXsl)).newTransformer ();
     assertEquals (0, aT.getMaxDepth ());
     aT.setErrorListener (new RecordingErrorListener ());
     try
@@ -1139,7 +1142,7 @@ public final class PhoxtrotTransformerFactoryTest
                                                     Integer.valueOf (XsltTransformRequest.UNLIMITED_DEPTH) })
     {
       aTF.setAttribute (PhoxtrotTransformerFactory.ATTR_MAX_DEPTH, aMaxDepth);
-      aT = (PhoxtrotTransformer) aTF.newTemplates (_source (sXsl)).newTransformer ();
+      aT = aTF.newTemplates (_source (sXsl)).newTransformer ();
       assertEquals (aMaxDepth.intValue (), aT.getMaxDepth ());
       assertTrue (_transform (aT, _source (SOURCE)).contains ("<r"));
     }

@@ -38,14 +38,18 @@ import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmConstants;
 
 /**
- * The base of every DOM node of an {@link XdmDomView}: one XDM node, read-only. See {@link XdmDomView} for what the
- * view shows and what it refuses.
+ * The base of every DOM node of an {@link XdmDomView}: one XDM node, read-only. See
+ * {@link XdmDomView} for what the view shows and what it refuses.
  *
  * @author Philip Helger
  */
-public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDocument, XdmDomElement, XdmDomAttr,
-                                                    XdmDomNamespaceAttr, AbstractXdmDomCharacterData,
-                                                    XdmDomProcessingInstruction
+public abstract sealed class AbstractXdmDomNode implements Node permits
+                                                XdmDomDocument,
+                                                XdmDomElement,
+                                                XdmDomAttr,
+                                                XdmDomNamespaceAttr,
+                                                AbstractXdmDomCharacterData,
+                                                XdmDomProcessingInstruction
 {
   /** One pair of nodes compared by {@link #isEqualNode(Node)}. */
   private record Pair (@NonNull Node left, @NonNull Node right)
@@ -53,7 +57,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
 
   private final XdmDomView m_aView;
   private final IXdmNode m_aNode;
-  // The position among the children of the parent, -1 if not known yet. Every writer stores the same value.
+  // The position among the children of the parent, -1 if not known yet. Every writer stores the
+  // same value.
   private int m_nIndex = -1;
 
   AbstractXdmDomNode (@NonNull final XdmDomView aView, @NonNull final IXdmNode aNode)
@@ -79,7 +84,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   @NonNull
   static DOMException createNotSupported (@NonNull final String sWhat)
   {
-    return new DOMException (DOMException.NOT_SUPPORTED_ERR, sWhat + " is not supported by the DOM view of an XDM tree");
+    return new DOMException (DOMException.NOT_SUPPORTED_ERR,
+                             sWhat + " is not supported by the DOM view of an XDM tree");
   }
 
   @Nullable
@@ -126,10 +132,10 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * The base URI of an XDM node (XDM 3.1 section 5.2, XML Base): the <code>xml:base</code> attributes of the
-   * ancestor-or-self elements, innermost resolved against outermost, all resolved against the explicit base URI of
-   * the nearest node that has one, or the document URI. A reference that cannot be resolved keeps the base of the
-   * parent.
+   * The base URI of an XDM node (XDM 3.1 section 5.2, XML Base): the <code>xml:base</code>
+   * attributes of the ancestor-or-self elements, innermost resolved against outermost, all resolved
+   * against the explicit base URI of the nearest node that has one, or the document URI. A
+   * reference that cannot be resolved keeps the base of the parent.
    */
   @Nullable
   static String getBaseUri (@NonNull final IXdmNode aNode)
@@ -187,8 +193,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
 
   /**
    * @return <code>true</code> if the names, values and attributes of the two nodes are equal as
-   *         {@link Node#isEqualNode(Node)} defines it, without looking at the children. Attribute pairs to compare in
-   *         depth are pushed.
+   *         {@link Node#isEqualNode(Node)} defines it, without looking at the children. Attribute
+   *         pairs to compare in depth are pushed.
    */
   private static boolean _isShallowEqual (@NonNull final Node aLeft,
                                           @NonNull final Node aRight,
@@ -211,7 +217,7 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
     {
       final Node aAttr = aLeftAttrs.item (i);
       final Node aOther = aAttr.getLocalName () != null ? aRightAttrs.getNamedItemNS (aAttr.getNamespaceURI (),
-                                                                                     aAttr.getLocalName ())
+                                                                                      aAttr.getLocalName ())
                                                         : aRightAttrs.getNamedItem (aAttr.getNodeName ());
       if (aOther == null)
         return false;
@@ -245,8 +251,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return A filter for {@link #collectDescendantElements(Predicate)} that matches the DOM tag name, where
-   *         <code>*</code> matches every element.
+   * @return A filter for {@link #collectDescendantElements(Predicate)} that matches the DOM tag
+   *         name, where <code>*</code> matches every element.
    */
   @NonNull
   static Predicate <IXdmNode> createTagNameFilter (@Nullable final String sName)
@@ -257,11 +263,12 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return A filter for {@link #collectDescendantElements(Predicate)} that matches the namespace URI and local name,
-   *         where <code>*</code> matches every value.
+   * @return A filter for {@link #collectDescendantElements(Predicate)} that matches the namespace
+   *         URI and local name, where <code>*</code> matches every value.
    */
   @NonNull
-  static Predicate <IXdmNode> createNameNSFilter (@Nullable final String sNamespaceUri, @Nullable final String sLocalName)
+  static Predicate <IXdmNode> createNameNSFilter (@Nullable final String sNamespaceUri,
+                                                  @Nullable final String sLocalName)
   {
     final boolean bAnyNamespace = "*".equals (sNamespaceUri);
     final boolean bAnyLocalName = "*".equals (sLocalName);
@@ -280,8 +287,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return The XDM node this DOM node reads. For the <code>xmlns</code> attribute of a namespace declaration it is a
-   *         parentless namespace node. Never <code>null</code>.
+   * @return The XDM node this DOM node reads. For the <code>xmlns</code> attribute of a namespace
+   *         declaration it is a parentless namespace node. Never <code>null</code>.
    */
   @NonNull
   public final IXdmNode getXdmNode ()
@@ -301,9 +308,9 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return The position of this node among the children of its XDM parent, -1 for a node without parent and for
-   *         attribute-like nodes. Found once by a scan of the parent's children if the node was not reached from its
-   *         parent or a sibling.
+   * @return The position of this node among the children of its XDM parent, -1 for a node without
+   *         parent and for attribute-like nodes. Found once by a scan of the parent's children if
+   *         the node was not reached from its parent or a sibling.
    */
   private int _getIndexInParent ()
   {
@@ -333,12 +340,12 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
     final int nIndex = _getIndexInParent () + nOffset;
     if (nIndex < 0 || nIndex >= aParent.getChildCount ())
       return null;
-    return ((AbstractXdmDomNode) m_aView.internalWrap (aParent)).getChildAt (nIndex);
+    return m_aView.internalWrap (aParent).getChildAt (nIndex);
   }
 
   /**
-   * @return <code>true</code> for attributes and namespace declarations, which have no parent and no siblings in
-   *         DOM.
+   * @return <code>true</code> for attributes and namespace declarations, which have no parent and
+   *         no siblings in DOM.
    */
   boolean isAttributeLike ()
   {
@@ -346,8 +353,9 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return The XDM element whose namespaces are in scope for this node: the element itself, the owner element of an
-   *         attribute, the parent element of other nodes, the document element of a document.
+   * @return The XDM element whose namespaces are in scope for this node: the element itself, the
+   *         owner element of an attribute, the parent element of other nodes, the document element
+   *         of a document.
    */
   @Nullable
   IXdmNode getNamespaceContextElement ()
@@ -357,8 +365,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return The XDM node that stands for this node in document order and containment: the node itself, the owner
-   *         element of a namespace declaration.
+   * @return The XDM node that stands for this node in document order and containment: the node
+   *         itself, the owner element of a namespace declaration.
    */
   @NonNull
   IXdmNode getOrderNode ()
@@ -367,8 +375,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return The XDM element an attribute-like node belongs to, <code>null</code> for other nodes and for a parentless
-   *         attribute.
+   * @return The XDM element an attribute-like node belongs to, <code>null</code> for other nodes
+   *         and for a parentless attribute.
    */
   @Nullable
   IXdmNode getOwnerXdmElement ()
@@ -377,7 +385,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * @return <code>true</code> if the XDM node is the order node of this node or one of its ancestors.
+   * @return <code>true</code> if the XDM node is the order node of this node or one of its
+   *         ancestors.
    */
   private boolean _hasAncestorOrSelf (@NonNull final IXdmNode aNode)
   {
@@ -548,7 +557,7 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
                       (nCmp < 0 ? DOCUMENT_POSITION_PRECEDING : DOCUMENT_POSITION_FOLLOWING));
     }
     return IXdmNode.compareDocumentOrder (aOtherNode.getOrderNode (), getOrderNode ()) < 0 ? DOCUMENT_POSITION_PRECEDING
-                                                                                          : DOCUMENT_POSITION_FOLLOWING;
+                                                                                           : DOCUMENT_POSITION_FOLLOWING;
   }
 
   public String getTextContent ()
@@ -590,8 +599,8 @@ public abstract sealed class AbstractXdmDomNode implements Node permits XdmDomDo
   }
 
   /**
-   * Compares the trees iteratively, also against nodes of other DOM implementations. The children of attributes are
-   * not compared (their values are).
+   * Compares the trees iteratively, also against nodes of other DOM implementations. The children
+   * of attributes are not compared (their values are).
    */
   public boolean isEqualNode (final Node aOther)
   {
