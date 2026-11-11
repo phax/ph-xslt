@@ -31,15 +31,13 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.base.enforce.ValueEnforcer;
 import com.helger.base.wrapper.Wrapper;
-import com.helger.phoxtrot.xpath.XPathException;
 
 /**
- * Runs compilations, transformations and XPath evaluations on a thread with a
- * large stack: template and function recursion follows the input, and the
- * depth limits (10,000 nested templates or functions) must be reachable
- * without overflowing the Java stack. A stack overflow that still happens
- * becomes XPDY0130. Which thread is used is chosen by {@link EThreading}. A
- * plain XPath caller wraps its evaluation, e.g.
+ * Runs compilations, transformations and XPath evaluations on a thread with a large stack: template
+ * and function recursion follows the input, and the depth limits (10,000 nested templates or
+ * functions) must be reachable without overflowing the Java stack. A stack overflow that still
+ * happens becomes XPDY0130. Which thread is used is chosen by {@link EThreading}. A plain XPath
+ * caller wraps its evaluation, e.g.
  * <code>LargeStackRunner.run (() -&gt; aXPath.evaluate (aCtx), "my-xpath", EThreading.THREAD_POOL)</code>.
  *
  * @author Philip Helger
@@ -69,10 +67,9 @@ public final class LargeStackRunner
   }
 
   /**
-   * The pool of {@link EThreading#THREAD_POOL}, created on first use: daemon
-   * worker threads, as many as there are concurrent calls (no queue, so a call
-   * never waits for another one), each kept for
-   * {@link #POOL_KEEP_ALIVE_SECONDS} after its last call.
+   * The pool of {@link EThreading#THREAD_POOL}, created on first use: daemon worker threads, as
+   * many as there are concurrent calls (no queue, so a call never waits for another one), each kept
+   * for {@link #POOL_KEEP_ALIVE_SECONDS} after its last call.
    */
   private static final class PoolHolder
   {
@@ -92,8 +89,7 @@ public final class LargeStackRunner
   }
 
   /**
-   * Run an action on the current thread, a {@link StackOverflowError} turned
-   * into XPDY0130.
+   * Run an action on the current thread, a {@link StackOverflowError} turned into XPDY0130.
    */
   private static <T> T _runHere (@NonNull final Supplier <T> aAction)
   {
@@ -108,9 +104,9 @@ public final class LargeStackRunner
   }
 
   /**
-   * Rethrow what an action ended with on another thread: a runtime exception
-   * or error unchanged, anything else wrapped in an
-   * {@link IllegalStateException}. Nothing happens for <code>null</code>.
+   * Rethrow what an action ended with on another thread: a runtime exception or error unchanged,
+   * anything else wrapped in an {@link IllegalStateException}. Nothing happens for
+   * <code>null</code>.
    */
   private static void _rethrow (final Throwable aThrowable)
   {
@@ -123,10 +119,9 @@ public final class LargeStackRunner
   }
 
   /**
-   * A caller that is already interrupted does not start a run on another
-   * thread: waiting for it would only notice the interrupt if the action had
-   * not finished yet (<code>Thread.join</code> and <code>Future.get</code>
-   * return a finished result without checking the flag), so the outcome
+   * A caller that is already interrupted does not start a run on another thread: waiting for it
+   * would only notice the interrupt if the action had not finished yet (<code>Thread.join</code>
+   * and <code>Future.get</code> return a finished result without checking the flag), so the outcome
    * would depend on timing. The flag stays set.
    *
    * @throws XPathException
@@ -145,7 +140,7 @@ public final class LargeStackRunner
   {
     final Wrapper <T> aResult = new Wrapper <> ();
     final Wrapper <Throwable> aError = new Wrapper <> ();
-    final Thread aThread = new WorkerThread ( () -> {
+    final Thread aThread = new WorkerThread (() -> {
       try
       {
         aResult.set (_runHere (aAction));
@@ -175,7 +170,7 @@ public final class LargeStackRunner
    */
   private static <T> T _runOnPool (@NonNull final Supplier <T> aAction)
   {
-    final Future <T> aFuture = PoolHolder.POOL.submit ( () -> _runHere (aAction));
+    final Future <T> aFuture = PoolHolder.POOL.submit (() -> _runHere (aAction));
     try
     {
       return aFuture.get ();
@@ -194,8 +189,8 @@ public final class LargeStackRunner
   }
 
   /**
-   * Run an action on a new daemon worker thread with a stack of
-   * {@link #STACK_SIZE} and wait for it ({@link EThreading#NEW_THREAD}).
+   * Run an action on a new daemon worker thread with a stack of {@link #STACK_SIZE} and wait for it
+   * ({@link EThreading#NEW_THREAD}).
    *
    * @param aAction
    *        The action.
@@ -205,9 +200,8 @@ public final class LargeStackRunner
    *        Result type.
    * @return The result of the action.
    * @throws XPathException
-   *         XPDY0130 when the action overflows the stack, FOER0000 when the
-   *         calling thread is interrupted while waiting (its interrupt flag
-   *         is set again)
+   *         XPDY0130 when the action overflows the stack, FOER0000 when the calling thread is
+   *         interrupted while waiting (its interrupt flag is set again)
    * @see #run(Supplier, String, EThreading)
    */
   public static <T> T run (@NonNull final Supplier <T> aAction, @NonNull final String sThreadName)
@@ -216,11 +210,10 @@ public final class LargeStackRunner
   }
 
   /**
-   * Run an action on the thread the mode selects and return its result. On a
-   * worker thread already (a nested run started by <code>fn:transform</code>)
-   * the action runs in place, whatever the mode. A {@link StackOverflowError}
-   * of the action becomes XPDY0130; any other runtime exception or error is
-   * rethrown unchanged on the calling thread.
+   * Run an action on the thread the mode selects and return its result. On a worker thread already
+   * (a nested run started by <code>fn:transform</code>) the action runs in place, whatever the
+   * mode. A {@link StackOverflowError} of the action becomes XPDY0130; any other runtime exception
+   * or error is rethrown unchanged on the calling thread.
    *
    * @param aAction
    *        The action.
@@ -232,10 +225,9 @@ public final class LargeStackRunner
    *        Result type.
    * @return The result of the action.
    * @throws XPathException
-   *         XPDY0130 when the action overflows the stack, FOER0000 when the
-   *         calling thread is interrupted before a run on another thread
-   *         starts (the action is not started) or while waiting for it (the
-   *         action goes on); its interrupt flag is set in both cases
+   *         XPDY0130 when the action overflows the stack, FOER0000 when the calling thread is
+   *         interrupted before a run on another thread starts (the action is not started) or while
+   *         waiting for it (the action goes on); its interrupt flag is set in both cases
    */
   public static <T> T run (@NonNull final Supplier <T> aAction,
                            @NonNull final String sThreadName,
