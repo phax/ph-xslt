@@ -1145,3 +1145,47 @@ sixth and seventh `FREE_RANGING` with the reasons `parent::`/`//`/root/`precedin
 function `FREE_RANGING`; `ancestor::cac:X/@id` motionless; `let $p := .. return $p/cbc:X` free-ranging; a variable
 declared with `addExternalNodeVariable`: `$v = @id` burst, `$v/cbc:X` free-ranging. For item 2: compiling `key('k',
 @id)`, `current()/@id` and `document('x.xml')` with the new library, and calling one raises the dynamic error.
+
+### S45 - Burst mode: external node variables in streamed-motionless expressions, burst patterns, the document element
+
+Found 2026-11-12 while building `ph-schematron-streamability` against phoxtrot `8297590` (S44).
+
+1. **Navigating from an external node variable is motionless if the expression is motionless when streamed.** The
+   Javadoc of `addExternalNodeVariable` says "navigating from its nodes is free-ranging", and
+   `testBurstVariablesAndFunctions` checks `$ext/cbc:X = cbc:ID` (free-ranging). But burst mode first takes the
+   streamed verdict, where the variable is grounded, so an expression that reads nothing of the subtree stays
+   motionless:
+
+   | Expression (`BURST`, `$ext` declared with `addExternalNodeVariable`) | Verdict | Expected |
+   |---|---|---|
+   | `$ext/cbc:X = cbc:ID` | FREE_RANGING | FREE_RANGING |
+   | `$ext/cbc:X = 'a'` | MOTIONLESS | FREE_RANGING (`$ext`) |
+   | `$ext/cbc:X` | MOTIONLESS | FREE_RANGING (`$ext`) |
+   | `$ext = @id` | MOTIONLESS | MOTIONLESS or BURST (comparing is fine) |
+
+   Proposal: in `BURST` mode, check the external node variables (navigation from them) before taking the motionless
+   verdict of the streamed analysis, or run the burst walk whenever an external node variable is referenced.
+
+2. **Patterns ignore the burst mode.** `analyzePattern` gives `cac:InvoiceLine[cbc:Quantity < 0]` free-ranging in
+   every mode. A burst validator can match the name on the streamed node, buffer the subtree of every candidate and
+   evaluate the predicate on it, so a pattern whose predicates need only the subtree of the matched node (and the
+   ancestors as in streaming) is burst. Proposal: in `BURST` mode `analyzePattern` gives `BURST` for such a pattern
+   (non-positional predicates analysed with the burst rules and the matched node as context), and stays
+   `FREE_RANGING` for positional predicates, rooted paths through predicates that leave the subtree
+   (`cac:Line[../cbc:X]`), `key ()` and the like. Patterns without such predicates stay motionless as today.
+
+3. **The document element is an ancestor.** In `BURST` mode every path from the root is free-ranging (reason
+   `root /`), also `/ex:Document/@classification` and `name (/*)`. The document element is an ancestor-or-self of
+   every node but the document node, so its name and attributes are available as for `ancestor::*` (motionless), and
+   from a context that is the document node it is a child (burst). Seen in ph-schematron's
+   `check-classifications.sch` (xfront): three rules with `ex:Para[...]` contexts that only read
+   `/ex:Document/@classification`. Proposal: in `BURST` (and `STREAMED`) mode, treat `/` followed by a child step to
+   an element and then only attribute steps, `name ()`/`local-name ()`/`node-name ()` or nothing, like the same steps
+   on the ancestor axis (`ancestor-or-self::ex:Document[not (parent::*)]/@classification`). A child step from the
+   document element (`/ubl:Invoice/cbc:ID`) stays free-ranging.
+
+Tests: the rows of the table for item 1; for item 2 `cac:InvoiceLine[cbc:Quantity < 0]` and
+`cac:A[count (cac:B) > 1]` burst, `cac:Line[1]`, `cac:Line[../cbc:X]` and `cac:Line[key ('k', @id)]` free-ranging,
+`cac:Line` and `cac:Line[@id]` motionless, all in `BURST` mode, the `STREAMED` results unchanged; for item 3
+`/ex:Document/@classification = 'x'`, `/*/@version` and `name (/*)` motionless with a streamed or burst element
+context, `/ex:Document/ex:Title` and `//ex:Para` free-ranging.
