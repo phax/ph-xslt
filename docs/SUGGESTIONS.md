@@ -1053,3 +1053,95 @@ execution 23.6 ms (Saxon 14.4 ms), result tree to DOM 5.2 ms (Saxon 8.8 ms), JAX
    `CompiledPattern.matches`, `PatternMatcher._canAxisSelect`, `DirectPath.match`, `Mode.getNamedRuleIndexes` and the
    step counting of `checkInterrupt`, without a single hotspot (no method above 7 samples). Only an observation; S41
    item 2 did not change it measurably (63 of 404 samples before, 76 of 385 now).
+
+### S44 - Burst context mode for the streamability facade, and XSLT function signatures for analysis hosts
+
+Status: done (2026-11-12), items 1 and 2. `EStreamContextMode` (`STREAMED`, `BURST`, `GROUNDED`) via
+`XPathStreamabilityAnalyzer.setContextMode`, verdict `EStreamabilityVerdict.BURST` (new constant; `isStreamable ()`
+now means motionless or consuming, `isBurstStreamable ()` is anything but free-ranging), `addExternalNodeVariable`;
+the walk is `com.helger.phoxtrot.xpath.stream.XPathBurstAnalysis` (regions per value: context node, below it,
+ancestors, attributes of ancestors, external nodes; fails closed). A burst verdict carries the reason of the streamed
+analysis, a free-ranging one the construct that leaves the subtree. Deviations from the proposal: the result of the
+expression must not contain ancestors (the host may atomise it); `fn:current-group`, `fn:current-merge-group` and
+the accumulator functions are free-ranging (fail closed); function items and map or array entries must not hold nodes
+of the document. Item 2: `FunctionLibrary.createDefaultWithXsltSignatures ()`, the signatures of `phoxtrot-xslt`,
+calls raise XPST0017 (as the XSLT functions outside a transformation do).
+
+ph-schematron wants a report that sorts each Schematron rule into one of three classes (decided 2026-11-12: report only,
+in a new module `ph-schematron-streamability` that depends on `phoxtrot-xpath` only):
+
+| Class | Meaning | Example test |
+|---|---|---|
+| Motionless | everything is known at the start tag of the context element; constant memory | `@currencyID = 'EUR'` |
+| Burst | only the subtree of the context element is needed; it is buffered, checked and dropped | `cbc:A = 'x' or cbc:B = 'y'` |
+| Non-local | data outside the subtree is needed: the whole tree or a second pass | `//cbc:ID`, `../cbc:X`, `key('k', @id)` |
+
+The line between burst and non-local is the one that matters: most rules of the Peppol and EN 16931 rule sets look
+at one line or party and its children, and a rule set that is all burst can be validated element by element on any
+document size.
+
+`XPathStreamabilityAnalyzer` (S34, phoxtrot `cc8329b`) cannot draw that line. Measured 2026-11-12 with a probe
+(`analyze` with the expression text; `cbc`, `cac`, `u` declared; `key`, `current`, `document` registered as stand-ins):
+
+| Expression | Streamed context (default) | `setContextStreamed (false)` |
+|---|---|---|
+| `@id = 'x'` | MOTIONLESS | MOTIONLESS |
+| `cbc:ID`, `count(cac:Line) > 0` | CONSUMING | MOTIONLESS |
+| `cbc:A = 'x' or cbc:B = 'y'`, `exists(cbc:A) and exists(cbc:B)` | FREE_RANGING | MOTIONLESS |
+| `sum(cac:L/cbc:A) = cbc:Total` | FREE_RANGING | MOTIONLESS |
+| `let $x := @id return $x = 'a'`, `every $l in cac:Line satisfies $l/cbc:Q > 0` | FREE_RANGING | MOTIONLESS |
+| `../cbc:ID`, `//cbc:ID`, `/Invoice/cbc:ID`, `preceding-sibling::cac:Line` | FREE_RANGING | MOTIONLESS |
+| `key('k', @id)` | FREE_RANGING | MOTIONLESS |
+| `u:check(@id)` (undeclared extension function) | FREE_RANGING | FREE_RANGING |
+
+Both answers are correct for what they ask, but neither is the burst question:
+
+- A streamed context applies the XSLT 3.0 rules for one forward pass without buffering, so two downward reads or a
+  variable bound to streamed nodes is free-ranging, the same class as `//` and `key ()`.
+- A grounded context is a node with the whole tree in memory, so every axis is available and `//cbc:ID` or
+  `../cbc:ID` is motionless. This was the "streamable after buffering the context subtree" question of S34; it
+  cannot tell the subtree from the rest of the tree.
+
+**Proposal:**
+
+1. **A burst context mode.** For example `XPathStreamabilityAnalyzer.setContextMode (EStreamContextMode)` with
+   `STREAMED` (today's default), `BURST` and `GROUNDED` (today's `setContextStreamed (false)`; the boolean setter can
+   stay as a shortcut). In `BURST` the context node is the root of a buffered subtree, as after `copy-of (.)`, but
+   keeps its place in the document:
+   - The context node, its attributes and every node below it are grounded: any number of reads, any downward
+     axis, predicates, variables and higher-order use are fine.
+   - The ancestors of the context node and their attributes are available as in streaming (name, attributes,
+     `ancestor::x/@id` motionless); their other children and anything reached from them are not.
+   - Not available (free-ranging): the root (`/`, `//` from the root, `root ()`), `parent::` and `ancestor::` followed
+     by a downward or sideways step, the `preceding`/`following` and sibling axes from the context node,
+     `fn:key`, `fn:id`, `fn:idref`, `fn:element-with-id` over the instance (also with an explicit third argument
+     that is not a node of the subtree), and positional patterns that need the siblings.
+   - `fn:doc`, `fn:document`, `fn:collection` and literal values stay as today (other documents are not the streamed
+     one).
+   - The verdict: `MOTIONLESS` if the expression is motionless with a streamed context (as today), else `BURST`
+     (new constant, or a separate `isBurstStreamable ()` on the result, whichever keeps the result simpler) if it is
+     streamable in `BURST` mode, else `FREE_RANGING`. The reason then names the construct that leaves the subtree
+     (`../`, `//`, `preceding-sibling::`, `key#2`), which is what the report shows the user.
+   - Variables: a variable declared with `addStreamedVariable` is treated as a node of the subtree in `BURST` mode; a
+     new `addExternalNodeVariable (XdmQName)` declares one bound to nodes outside the subtree (a schema-level
+     `sch:let` computed from the whole document), so navigating from it is free-ranging while comparing its atomised
+     value stays fine. Undeclared variables stay grounded values as today.
+   - Patterns: `analyzePattern` is unchanged (a rule context is matched on the streamed node; a pattern predicate
+     that needs the subtree stays free-ranging, as `cac:InvoiceLine[cbc:Quantity < 0]` today).
+2. **XSLT function signatures without `phoxtrot-xslt`.** A host that analyses XPath from an XSLT-based language
+   (Schematron with `queryBinding="xslt2"`/`"xslt3"`) needs `fn:key`, `fn:current`, `fn:document`,
+   `fn:system-property`, `fn:unparsed-entity-uri`, `fn:unparsed-entity-public-id`, `fn:element-available`,
+   `fn:function-available`, `fn:type-available`, `fn:regex-group`, `fn:current-group`, `fn:current-grouping-key`,
+   `fn:copy-of`, `fn:snapshot`, `fn:accumulator-before`, `fn:accumulator-after` and `fn:available-system-properties`
+   in the static context, which `FunctionLibrary.createDefault ()` does not have. Today the host registers stand-ins
+   with hand-written signatures (as `XPathStreamabilityTest._createStaticContext` does). Proposal: a public factory in
+   `phoxtrot-xpath`, e.g. `FunctionLibrary.createDefaultWithXsltSignatures ()` (or a method on the analyser that
+   returns a suitable `StaticContext`), with the signatures of XSLT 3.0 section 5.4.2 and implementations that raise
+   a dynamic error if called, for analysis only. The table of section 19.8.9 in `XPathStreamability` already knows
+   these names.
+
+Tests: the rows of the table above in `BURST` mode: the first five rows `BURST` (or `MOTIONLESS` for `@id = 'x'`), the
+sixth and seventh `FREE_RANGING` with the reasons `parent::`/`//`/root/`preceding-sibling::` and `key#2`, the extension
+function `FREE_RANGING`; `ancestor::cac:X/@id` motionless; `let $p := .. return $p/cbc:X` free-ranging; a variable
+declared with `addExternalNodeVariable`: `$v = @id` burst, `$v/cbc:X` free-ranging. For item 2: compiling `key('k',
+@id)`, `current()/@id` and `document('x.xml')` with the new library, and calling one raises the dynamic error.
