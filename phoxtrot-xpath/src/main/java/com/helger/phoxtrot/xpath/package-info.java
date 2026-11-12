@@ -25,8 +25,8 @@
  * <ul>
  * <li>this package: <code>XPathCompiler</code>, <code>CompiledXPath</code>, <code>XPathException</code>,
  * <code>EThreading</code>, <code>LargeStackRunner</code>, <code>XPathStreamabilityAnalyzer</code>,
- * <code>XPathStreamabilityResult</code>, <code>XPathStreamabilityReason</code>, <code>EStreamabilityVerdict</code>,
- * <code>EStreamabilityConstruct</code>, <code>EStreamContextMode</code></li>
+ * <code>XPathStreamabilityResult</code>, <code>XPathStreamabilityReason</code>, <code>XPathStreamabilityBinding</code>,
+ * <code>EStreamabilityVerdict</code>, <code>EStreamabilityConstruct</code>, <code>EStreamContextMode</code></li>
  * <li><code>context</code>: <code>StaticContext</code>, <code>DynamicContext</code>,
  * <code>IResourceResolver</code>, <code>ResourceUri</code></li>
  * <li><code>fn</code>: <code>FunctionLibrary</code>, <code>IXPathFunction</code></li>

@@ -487,4 +487,49 @@ public final class XPathStreamabilityAnalyzerTest
     assertEquals (EStreamabilityVerdict.MOTIONLESS,
                   aAnalyzer.analyze ("$ext/cbc:X = 'a'", _createXsltStaticContext ()).getVerdict ());
   }
+
+  @Test
+  public void testBoundVariables ()
+  {
+    final StaticContext aSC = _createXsltStaticContext ();
+    final XdmQName aA = new XdmQName ("a");
+    final XdmQName aB = new XdmQName ("b");
+    aSC.declareVariable (aA);
+    aSC.declareVariable (aB);
+    // Motionless, consuming, burst, free-ranging; the second may use the first
+    final String [] aBindings = { "@id", "cbc:ID", ".//cbc:Q", "parent::cac:X", "//cac:Y", "$a/cbc:Z", "'unused'" };
+    final String [] aExprs = { "@id = 'x'", "cbc:ID = $a", "$a/cbc:X", "count($b) > 0", "$a = $b", "$a", "../cbc:ID" };
+    for (final EStreamContextMode eMode : EStreamContextMode.values ())
+      for (final String sX : aBindings)
+        for (final String sY : aBindings)
+          for (final String sExpr : aExprs)
+          {
+            final XPathStreamabilityAnalyzer aWrapped = new XPathStreamabilityAnalyzer ().setContextMode (eMode);
+            final XPathStreamabilityResult aExpected = aWrapped.analyze ("let $a := (" +
+                                                                         sX +
+                                                                         "), $b := (" +
+                                                                         sY +
+                                                                         ") return " +
+                                                                         sExpr,
+                                                                         aSC);
+            final XPathStreamabilityAnalyzer aBound = new XPathStreamabilityAnalyzer ().setContextMode (eMode);
+            final XPathStreamabilityBinding aBindingA = aBound.analyzeBinding (sX, aSC);
+            aBound.addBoundVariable (aA, aBindingA);
+            aBound.addBoundVariable (aB, aBound.analyzeBinding (sY, aSC));
+            final XPathStreamabilityResult aActual = aBound.analyze (sExpr, aSC);
+            final String sCase = eMode + " $a := " + sX + ", $b := " + sY + ": " + sExpr;
+            assertEquals (sCase, aExpected.getVerdict (), aActual.getVerdict ());
+            assertEquals (sCase, aExpected.getPostureSweep (), aActual.getPostureSweep ());
+            assertEquals (sCase, aExpected.getReason (), aActual.getReason ());
+            // The binding on its own
+            assertEquals (sCase,
+                          new XPathStreamabilityAnalyzer ().setContextMode (eMode).analyze (sX, aSC).getVerdict (),
+                          aBindingA.getResult ().getVerdict ());
+          }
+
+    // A free-ranging binding makes every expression free-ranging, used or not
+    final XPathStreamabilityAnalyzer aAnalyzer = new XPathStreamabilityAnalyzer ().setContextMode (EStreamContextMode.BURST);
+    aAnalyzer.addBoundVariable (aA, aAnalyzer.analyzeBinding ("//cac:Y", aSC));
+    _assert (aAnalyzer.analyze ("@id = 'x'", aSC), EStreamabilityVerdict.FREE_RANGING, EStreamabilityConstruct.AXIS_STEP, "//");
+  }
 }

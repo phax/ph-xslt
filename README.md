@@ -112,8 +112,8 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
 
 * Source compatible within 0.x (changes only with a note in "News and noteworthy"): in `com.helger.phoxtrot.xpath`
   `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`, `LargeStackRunner`,
-  `XPathStreamabilityAnalyzer`, `XPathStreamabilityResult`, `XPathStreamabilityReason`, `EStreamabilityVerdict`,
-  `EStreamabilityConstruct` and `EStreamContextMode`; `StaticContext`, `DynamicContext`, `IResourceResolver` and `ResourceUri` (`context`);
+  `XPathStreamabilityAnalyzer`, `XPathStreamabilityResult`, `XPathStreamabilityReason`, `XPathStreamabilityBinding`,
+  `EStreamabilityVerdict`, `EStreamabilityConstruct` and `EStreamContextMode`; `StaticContext`, `DynamicContext`, `IResourceResolver` and `ResourceUri` (`context`);
   `FunctionLibrary` and `IXPathFunction` (`fn`); `SeqType`, `ItemType` and `EOccurrence` (`ast`); `EPosture`, `ESweep`,
   `PostureSweep` and `EStreamFunctionCategory` (`stream`); the value types of `value`, `XPathOperators` (`eval`) and the node model
   of `phoxtrot-xdm`. Everything else in `ast` (expression nodes), `eval`, `parser`, `ops`, `pattern` and `stream` is
@@ -134,7 +134,9 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
   with its whole tree, or in burst mode (`EStreamContextMode.BURST`: only its subtree is buffered, verdict `BURST` for
   an expression or pattern predicate that needs nothing outside it, e.g. one Schematron rule per element; the
   document element counts as an ancestor of a streamed context node, so `/x/@a` is motionless), variables bound to
-  streamed nodes or (burst mode) to nodes outside the subtree, the streamability category of extension functions
+  streamed nodes or (burst mode) to nodes outside the subtree or with a binding expression compiled once
+  (`analyzeBinding`, `addBoundVariable`: analysed as a `let` around each expression), the streamability category of
+  extension functions
   (undeclared ones are not streamable). `FunctionLibrary.createDefaultWithXsltSignatures ()` adds the signatures of
   the XSLT functions (`fn:key`, `fn:current`, `fn:document`, ...) for compiling expressions of an XSLT-based language
   without `phoxtrot-xslt`.
@@ -239,6 +241,9 @@ v0.2.0 - work in progress
   node variable is free-ranging also in an otherwise motionless expression. In streamed and burst mode the context node
   is taken to be no document node: `/x` is the document element, an ancestor-or-self (`/x/@a`, `name (/*)`
   motionless, `/x/y` still free-ranging)
+* XPath: `XPathStreamabilityAnalyzer.analyzeBinding` and `addBoundVariable` declare a variable with a binding
+  expression compiled once (e.g. a `sch:let` shared by the assertions of a rule); every analysed expression gets the
+  result of the same expression in `let $a := (...) return`
 * XPath: added `FunctionLibrary.createDefaultWithXsltSignatures ()`, the built-in functions plus the signatures of the
   XSLT functions (`fn:key`, `fn:current`, `fn:document`, ...) for hosts that only compile and analyse expressions
 * API change: every `IResourceResolver` method now takes a `ResourceUri` (the resolved URI, the reference as written

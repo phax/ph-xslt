@@ -78,10 +78,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Public API of `phoxtrot-xpath` (source compatible within 0.x, listed in README "XPath API" and in
   `com.helger.phoxtrot.xpath/package-info.java`): `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`,
   `LargeStackRunner`, `XPathStreamabilityAnalyzer` (with `XPathStreamabilityResult`, `XPathStreamabilityReason`,
-  `EStreamabilityVerdict`, `EStreamabilityConstruct`, `EStreamContextMode`), `StaticContext`, `DynamicContext`, `IResourceResolver`,
-  `ResourceUri`, `FunctionLibrary`, `IXPathFunction`, `SeqType`, `ItemType`, `EOccurrence`, `EPosture`, `ESweep`,
-  `PostureSweep`, `EStreamFunctionCategory`, the `value` types and `XPathOperators`. A change to one of them goes into the
-  release notes; keep both lists in sync when the set changes.
+  `XPathStreamabilityBinding`, `EStreamabilityVerdict`, `EStreamabilityConstruct`, `EStreamContextMode`),
+  `StaticContext`, `DynamicContext`, `IResourceResolver`, `ResourceUri`, `FunctionLibrary`, `IXPathFunction`,
+  `SeqType`, `ItemType`, `EOccurrence`, `EPosture`, `ESweep`, `PostureSweep`, `EStreamFunctionCategory`, the `value`
+  types and `XPathOperators`. A change to one of them goes into the release notes; keep both lists in sync when the set
+  changes.
 - Error positions: the parser and lexer set `XPathException.setExpressionPosition` (offset, line, column in the
   expression) on every static error they raise through `_error`/`_syntax`/the lexer's error helper; a new static
   error must go through them. `UserFunction._invoke` attaches the innermost `xsl:function` to errors of its body
@@ -293,7 +294,9 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   goes through it when it references an external node variable, and a pattern is burst when only the predicates of
   its last steps need the subtree. The facade (streamed and burst) sets `StreamContext.setDocumentElementAncestor`
   (`/x` analysed as `ancestor-or-self::x`, assuming the context node is no document node); the XSLT layer never sets
-  it, so its section 19 analysis is unchanged.
+  it, so its section 19 analysis is unchanged. Bound variables (`addBoundVariable`) are not modelled in the analyses:
+  `analyze` wraps the expression in a `LetExpr` with their stored bindings, so the result equals the written `let`
+  form by construction; patterns are not wrapped.
 - When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
   does not catch it); it happened with the XPath 1.0 compatibility conversions.
 

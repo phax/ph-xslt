@@ -77,7 +77,10 @@ import com.helger.phoxtrot.xpath.stream.XPathStreamability;
  * <li>Variables are grounded (atomic values, or values computed in an earlier pass) unless declared as streamed nodes
  * with {@link #addStreamedVariable(XdmQName)}. A reference to a streamed variable is striding and motionless, and is
  * not streamable inside a construct that is evaluated repeatedly (a predicate, a loop body). In burst mode variables
- * declared with {@link #addExternalNodeVariable(XdmQName)} hold nodes outside the subtree.</li>
+ * declared with {@link #addExternalNodeVariable(XdmQName)} hold nodes outside the subtree. A variable declared with
+ * {@link #addBoundVariable(XdmQName, XPathStreamabilityBinding)} has a binding expression: every analysed expression
+ * is analysed as if it were wrapped in <code>let $a := (...), $b := (...) return</code> with all such bindings in the
+ * order of declaration, whether it references them or not (patterns are not wrapped).</li>
  * <li>Built-in functions are classified as the specification says. Any other function (an extension function, a
  * stylesheet function) is not streamable unless declared with
  * {@link #addFunction(XdmQName, EStreamFunctionCategory, List)}.</li>
@@ -100,6 +103,7 @@ public final class XPathStreamabilityAnalyzer
   private final ICommonsOrderedSet <XdmQName> m_aStreamedVariables = new CommonsLinkedHashSet <> ();
   private final ICommonsOrderedSet <XdmQName> m_aExternalNodeVariables = new CommonsLinkedHashSet <> ();
   private final ICommonsMap <String, StreamFunctionSignature> m_aFunctions = new CommonsHashMap <> ();
+  private final ICommonsList <IExpr.Binding> m_aBoundVariables = new CommonsArrayList <> ();
 
   public XPathStreamabilityAnalyzer ()
   {}
@@ -551,6 +555,18 @@ public final class XPathStreamabilityAnalyzer
   }
 
   /**
+   * @return The expression wrapped in a <code>let</code> clause with the bound variables, or the expression itself if
+   *         none is declared.
+   */
+  @NonNull
+  private IExpr _getWithBindings (@NonNull final IExpr aExpr)
+  {
+    if (m_aBoundVariables.isEmpty ())
+      return aExpr;
+    return new IExpr.LetExpr (m_aBoundVariables.getClone (), aExpr);
+  }
+
+  /**
    * @return What the analysis assumes about the context item. {@link EStreamContextMode#STREAMED} by default.
    */
   @NonNull
@@ -629,6 +645,29 @@ public final class XPathStreamabilityAnalyzer
   }
 
   /**
+   * Declare a variable with a binding expression, as a <code>let</code> clause around every expression analysed
+   * afterwards (see {@link #analyze(CompiledXPath)}). Bindings are applied in the order of declaration, so a binding
+   * may reference variables bound before it; declaring a name again shadows the earlier binding, as in a
+   * <code>let</code> clause. The variable must still be declared in the static context the expressions are compiled
+   * with.
+   *
+   * @param aName
+   *        The variable name. May not be <code>null</code>.
+   * @param aBinding
+   *        The binding, from {@link #analyzeBinding(String, StaticContext)}. May not be <code>null</code>.
+   * @return this for chaining
+   */
+  @NonNull
+  public XPathStreamabilityAnalyzer addBoundVariable (@NonNull final XdmQName aName,
+                                                      @NonNull final XPathStreamabilityBinding aBinding)
+  {
+    ValueEnforcer.notNull (aName, "Name");
+    ValueEnforcer.notNull (aBinding, "Binding");
+    m_aBoundVariables.add (new IExpr.Binding (aName, null, aBinding.getExpression ()));
+    return this;
+  }
+
+  /**
    * Declare how a function outside the <code>fn</code> namespace (an extension function or a function compiled from a
    * stylesheet) treats its arguments, as the <code>streamability</code> attribute of <code>xsl:function</code> does
    * (XSLT 3.0 section 19.8.5). A function that is not declared is not streamable. The declaration does not make the
@@ -659,7 +698,10 @@ public final class XPathStreamabilityAnalyzer
   }
 
   /**
-   * Analyse a compiled expression.
+   * Analyse a compiled expression. With bound variables declared
+   * ({@link #addBoundVariable(XdmQName, XPathStreamabilityBinding)}) the expression is analysed inside a
+   * <code>let</code> clause with their bindings, so the result is that of
+   * <code>let $a := (...), ... return expr</code>.
    *
    * @param aXPath
    *        The expression. May not be <code>null</code>.
@@ -669,7 +711,7 @@ public final class XPathStreamabilityAnalyzer
   public XPathStreamabilityResult analyze (@NonNull final CompiledXPath aXPath)
   {
     ValueEnforcer.notNull (aXPath, "XPath");
-    final IExpr aExpr = aXPath.getExpression ();
+    final IExpr aExpr = _getWithBindings (aXPath.getExpression ());
     final EPosture eContextPosture = _getContextPosture ();
     final PostureSweep aPS = XPathStreamability.getStreamability (aExpr, _createContext (eContextPosture));
     final EStreamabilityVerdict eVerdict = EStreamabilityVerdict.getFromPostureSweep (aPS);
@@ -699,6 +741,40 @@ public final class XPathStreamabilityAnalyzer
   public XPathStreamabilityResult analyze (@NonNull final String sExpr, @NonNull final StaticContext aStaticCtx)
   {
     return analyze (XPathCompiler.compile (sExpr, aStaticCtx));
+  }
+
+  /**
+   * Analyse the binding expression of a variable once, for
+   * {@link #addBoundVariable(XdmQName, XPathStreamabilityBinding)}.
+   *
+   * @param aXPath
+   *        The binding expression. May not be <code>null</code>.
+   * @return The binding with the result of {@link #analyze(CompiledXPath)} for it (within the variables bound
+   *         before). Never <code>null</code>.
+   */
+  @NonNull
+  public XPathStreamabilityBinding analyzeBinding (@NonNull final CompiledXPath aXPath)
+  {
+    ValueEnforcer.notNull (aXPath, "XPath");
+    return new XPathStreamabilityBinding (aXPath.getExpression (), analyze (aXPath));
+  }
+
+  /**
+   * Compile and analyse the binding expression of a variable once, for
+   * {@link #addBoundVariable(XdmQName, XPathStreamabilityBinding)}.
+   *
+   * @param sExpr
+   *        The binding expression text. May not be <code>null</code>.
+   * @param aStaticCtx
+   *        The static context to compile it with. May not be <code>null</code>.
+   * @return The binding. Never <code>null</code>.
+   * @throws XPathException
+   *         for static errors of the expression
+   */
+  @NonNull
+  public XPathStreamabilityBinding analyzeBinding (@NonNull final String sExpr, @NonNull final StaticContext aStaticCtx)
+  {
+    return analyzeBinding (XPathCompiler.compile (sExpr, aStaticCtx));
   }
 
   /**

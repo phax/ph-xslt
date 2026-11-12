@@ -1205,6 +1205,15 @@ context, `/ex:Document/ex:Title` and `//ex:Para` free-ranging.
 
 ### S46 - Streamability: declare a variable with an already analysed binding
 
+Status: done (2026-11-12). `XPathStreamabilityAnalyzer.analyzeBinding (String|CompiledXPath)` returns an immutable
+`XPathStreamabilityBinding` (the compiled binding and `getResult ()`, the binding analysed on its own) and
+`addBoundVariable (XdmQName, XPathStreamabilityBinding)` declares it. Deviation from the proposal: the binding object
+does not hold a precomputed posture, sweep or burst region; `analyze` wraps the expression in a `let` clause with the
+stored bindings (in declaration order, all of them, used or not, as the written form), so the binding is not parsed
+again but is analysed again for each expression. That makes verdict, posture, sweep and reason equal to the written
+`let` form by construction, in all three modes, which a precomputed value would have to reproduce in both analyses and
+the reason search. Patterns are not wrapped (a bound variable is grounded there, like an undeclared one).
+
 Found 2026-11-12 in `ph-schematron-streamability` (phoxtrot `17a53fb`).
 
 A host that analyses many expressions sharing the same `let` bindings (the `sch:let`s of a Schematron rule are used by
