@@ -32,7 +32,9 @@ import com.helger.collection.commons.CommonsHashSet;
 import com.helger.collection.commons.ICommonsList;
 import com.helger.collection.commons.ICommonsMap;
 import com.helger.collection.commons.ICommonsSet;
+import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XdmQName;
+import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.ast.SeqType;
 import com.helger.phoxtrot.xpath.context.StaticContext;
 import com.helger.phoxtrot.xpath.eval.SequenceTypeMatcher;
@@ -917,5 +919,56 @@ public final class FunctionLibrary
       }
       return aLib;
     });
+  }
+  /**
+   * Build a new library with the built-in functions of F&amp;O 3.1 (a child of {@link #getDefault()}) and the
+   * signatures of the functions XSLT 3.0 adds to the <code>fn</code> namespace (<code>fn:current</code>,
+   * <code>fn:key</code>, <code>fn:document</code>, <code>fn:system-property</code>, <code>fn:copy-of</code>,
+   * <code>fn:accumulator-before</code>, ...), for hosts that only compile and analyse expressions of an XSLT-based
+   * language (e.g. Schematron with <code>queryBinding="xslt2"</code> or <code>"xslt3"</code> and the streamability
+   * analysis). The XSLT functions have no implementation: a call raises XPST0017, as they are only available during a
+   * transformation (<code>phoxtrot-xslt</code> registers the real ones).
+   *
+   * @return A new writable library.
+   */
+  @NonNull
+  public static FunctionLibrary createDefaultWithXsltSignatures ()
+  {
+    final FunctionLibrary ret = getDefault ().createChild ();
+    final String sNS = XdmConstants.NS_FN;
+    final IXPathFunction aNone = (aCtx, aArgs) -> {
+      throw new XPathException ("XPST0017", "The XSLT functions are only available during a transformation");
+    };
+    // The signatures of phoxtrot-xslt (XsltFunctions and the grouping, merge and accumulator extensions)
+    ret.register (sNS, "current", "() as item()", aNone, true);
+    ret.register (sNS, "key", "(xs:string, xs:anyAtomicType*) as node()*", aNone, true);
+    ret.register (sNS, "key", "(xs:string, xs:anyAtomicType*, node()) as node()*", aNone);
+    ret.register (sNS, "document", "(item()*) as node()*", aNone);
+    ret.register (sNS, "document", "(item()*, node()) as node()*", aNone);
+    ret.register (sNS, "system-property", "(xs:string) as xs:string", aNone);
+    ret.register (sNS, "function-available", "(xs:string) as xs:boolean", aNone);
+    ret.register (sNS, "function-available", "(xs:string, xs:integer) as xs:boolean", aNone);
+    ret.register (sNS, "element-available", "(xs:string) as xs:boolean", aNone);
+    ret.register (sNS, "type-available", "(xs:string) as xs:boolean", aNone);
+    ret.register (sNS, "available-system-properties", "() as xs:QName*", aNone);
+    ret.register (sNS, "regex-group", "(xs:integer) as xs:string", aNone);
+    ret.register (sNS, "current-output-uri", "() as xs:anyURI?", aNone, true);
+    ret.register (sNS, "unparsed-entity-uri", "(xs:string) as xs:anyURI", aNone, true);
+    ret.register (sNS, "unparsed-entity-uri", "(xs:string, node()) as xs:anyURI", aNone);
+    ret.register (sNS, "unparsed-entity-public-id", "(xs:string) as xs:string", aNone, true);
+    ret.register (sNS, "unparsed-entity-public-id", "(xs:string, node()) as xs:string", aNone);
+    ret.register (sNS, "copy-of", "() as item()*", aNone, true);
+    ret.register (sNS, "copy-of", "(item()*) as item()*", aNone);
+    ret.register (sNS, "snapshot", "() as item()*", aNone, true);
+    ret.register (sNS, "snapshot", "(item()*) as item()*", aNone);
+    ret.register (sNS, "stream-available", "(xs:string?) as xs:boolean", aNone);
+    ret.register (sNS, "current-group", "() as item()*", aNone);
+    ret.register (sNS, "current-grouping-key", "() as xs:anyAtomicType*", aNone);
+    ret.register (sNS, "current-merge-group", "() as item()*", aNone);
+    ret.register (sNS, "current-merge-group", "(xs:string) as item()*", aNone);
+    ret.register (sNS, "current-merge-key", "() as xs:anyAtomicType*", aNone);
+    ret.register (sNS, "accumulator-before", "(xs:string) as item()*", aNone, true);
+    ret.register (sNS, "accumulator-after", "(xs:string) as item()*", aNone, true);
+    return ret;
   }
 }

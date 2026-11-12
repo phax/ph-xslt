@@ -112,8 +112,8 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
 
 * Source compatible within 0.x (changes only with a note in "News and noteworthy"): in `com.helger.phoxtrot.xpath`
   `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`, `LargeStackRunner`,
-  `XPathStreamabilityAnalyzer`, `XPathStreamabilityResult`, `XPathStreamabilityReason`, `EStreamabilityVerdict` and
-  `EStreamabilityConstruct`; `StaticContext`, `DynamicContext`, `IResourceResolver` and `ResourceUri` (`context`);
+  `XPathStreamabilityAnalyzer`, `XPathStreamabilityResult`, `XPathStreamabilityReason`, `EStreamabilityVerdict`,
+  `EStreamabilityConstruct` and `EStreamContextMode`; `StaticContext`, `DynamicContext`, `IResourceResolver` and `ResourceUri` (`context`);
   `FunctionLibrary` and `IXPathFunction` (`fn`); `SeqType`, `ItemType` and `EOccurrence` (`ast`); `EPosture`, `ESweep`,
   `PostureSweep` and `EStreamFunctionCategory` (`stream`); the value types of `value`, `XPathOperators` (`eval`) and the node model
   of `phoxtrot-xdm`. Everything else in `ast` (expression nodes), `eval`, `parser`, `ops`, `pattern` and `stream` is
@@ -130,9 +130,13 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
 * Streamability: `XPathStreamabilityAnalyzer` tells whether an expression (`analyze`) or a match pattern
   (`analyzePattern`) can be evaluated while streaming, with the analysis of XSLT 3.0 section 19: posture and sweep, a
   verdict (motionless, consuming, free-ranging) and for a verdict other than motionless the construct that causes it
-  (an axis step, a function, a variable, without position in the text). Options: the context node streamed or
-  buffered, variables bound to streamed nodes, the streamability category of extension functions (undeclared ones
-  are not streamable).
+  (an axis step, a function, a variable, without position in the text). Options: the context node streamed, buffered
+  with its whole tree, or in burst mode (`EStreamContextMode.BURST`: only its subtree is buffered, verdict `BURST` for
+  an expression that needs nothing outside it, e.g. one Schematron rule per element), variables bound to streamed
+  nodes or (burst mode) to nodes outside the subtree, the streamability category of extension functions (undeclared
+  ones are not streamable). `FunctionLibrary.createDefaultWithXsltSignatures ()` adds the signatures of the XSLT
+  functions (`fn:key`, `fn:current`, `fn:document`, ...) for compiling expressions of an XSLT-based language without
+  `phoxtrot-xslt`.
 * Stylesheet functions without Java code: compile a module with the `xsl:function`s (and the keys and global variables
   they use) and compile the expressions against `XsltExecutable.createStaticContext ()`, evaluated with the dynamic
   context of `XsltExecutable.createEvaluation (request).createDynamicContext ()`.
@@ -225,6 +229,12 @@ basis of this project. See [NOTICE](NOTICE).
 # News and noteworthy
 
 v0.2.0 - work in progress
+* XPath: `XPathStreamabilityAnalyzer` has a burst context mode (`setContextMode (EStreamContextMode.BURST)`, verdict
+  `EStreamabilityVerdict.BURST`): is an expression evaluable on the buffered subtree of the context node, and if not,
+  which construct leaves it; added `addExternalNodeVariable`. Behaviour change: `XPathStreamabilityResult.isStreamable ()`
+  is `true` for motionless and consuming only; `isBurstStreamable ()` includes burst
+* XPath: added `FunctionLibrary.createDefaultWithXsltSignatures ()`, the built-in functions plus the signatures of the
+  XSLT functions (`fn:key`, `fn:current`, `fn:document`, ...) for hosts that only compile and analyse expressions
 * API change: every `IResourceResolver` method now takes a `ResourceUri` (the resolved URI, the reference as written
   and its base URI) instead of the absolute URI as string; implementations use `ResourceUri.absoluteUri ()`
 * JAXP: the `URIResolver` is now called as JAXP specifies, with the `href` as written and the base URI (the empty

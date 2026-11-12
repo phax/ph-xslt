@@ -222,4 +222,42 @@ public final class FunctionLibraryTest
     aGrandChild.register ("urn:test", "g", "() as item()*", aImpl);
     assertNotNull (aGrandChild.getFunction (new XdmQName ("urn:test", "g"), 0));
   }
+  @Test
+  public void testXsltSignatures ()
+  {
+    final FunctionLibrary aLib = FunctionLibrary.createDefaultWithXsltSignatures ();
+    assertFalse (aLib.isFrozen ());
+    assertNotNull (aLib.getFunction (new XdmQName (XdmConstants.NS_FN, "key"), 3));
+    assertNotNull (aLib.getFunction (new XdmQName (XdmConstants.NS_FN, "accumulator-after"), 1));
+    // The F&O functions are still there
+    assertNotNull (aLib.getFunction (new XdmQName (XdmConstants.NS_FN, "count"), 1));
+    // The default library itself is unchanged
+    assertNull (FunctionLibrary.getDefault ().getFunction (new XdmQName (XdmConstants.NS_FN, "key"), 2));
+
+    final StaticContext aSC = new StaticContext ();
+    aSC.setFunctionLibrary (aLib);
+    for (final String sExpr : new String [] { "key('k', 'a')", "current()", "document('x.xml')" })
+    {
+      try
+      {
+        XPathCompiler.compile (sExpr, aSC).evaluate (new DynamicContext (aSC));
+        fail (sExpr);
+      }
+      catch (final XPathException ex)
+      {
+        assertEquals (sExpr, "XPST0017", ex.getCode ());
+      }
+    }
+    // Without the XSLT signatures, the call does not compile
+    final StaticContext aPlain = new StaticContext ();
+    try
+    {
+      XPathCompiler.compile ("key('k', @id)", aPlain);
+      fail ();
+    }
+    catch (final XPathException ex)
+    {
+      assertEquals ("XPST0017", ex.getCode ());
+    }
+  }
 }

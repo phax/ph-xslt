@@ -615,6 +615,78 @@ public final class XPathStreamability
   }
 
   /**
+   * @param aName
+   *        The function name.
+   * @return The name of a built-in function in the form of the tables, or
+   *         <code>null</code> for any other namespace. For
+   *         {@link XPathBurstAnalysis}.
+   */
+  @Nullable
+  static String getBuiltinName (@NonNull final XdmQName aName)
+  {
+    return _getBuiltinName (aName);
+  }
+
+  /**
+   * @param sName
+   *        The name as {@link #getBuiltinName(XdmQName)} returns it.
+   * @param nArity
+   *        The number of arguments, after {@link #getArgumentsWithDefault(String, List)}.
+   * @return The per-argument usages of section 19.8.9, or <code>null</code>
+   *         outside the catalogue. For {@link XPathBurstAnalysis}.
+   */
+  static EStreamUsage @Nullable [] getFunctionUsages (@NonNull final String sName, final int nArity)
+  {
+    return _getFunctionUsages (sName, nArity);
+  }
+
+  /**
+   * @param aName
+   *        The function name.
+   * @param nArity
+   *        The arity.
+   * @return <code>true</code> if a call of this name and arity reads the
+   *         context item implicitly. For {@link XPathBurstAnalysis}.
+   */
+  static boolean isFocusDependent (@NonNull final XdmQName aName, final int nArity)
+  {
+    return _isFocusDependent (aName, nArity);
+  }
+
+  /**
+   * @param sName
+   *        The name as {@link #getBuiltinName(XdmQName)} returns it.
+   * @param aArgs
+   *        The arguments as written.
+   * @return The arguments of the expanded call if the short form defaults an
+   *         argument to "." or to "/", else the arguments as written. For
+   *         {@link XPathBurstAnalysis}.
+   */
+  @NonNull
+  static List <IExpr> getArgumentsWithDefault (@NonNull final String sName, @NonNull final List <IExpr> aArgs)
+  {
+    final ContextDefault aDefault = CONTEXT_DEFAULTS.get (sName);
+    if (aDefault == null || aArgs.size () != aDefault.arity ())
+      return aArgs;
+    final ICommonsList <IExpr> ret = new CommonsArrayList <> (aArgs);
+    ret.add (aDefault.root () ? new IExpr.PathExpr (null, true, new CommonsArrayList <> ())
+                              : new IExpr.ContextItemExpr ());
+    return ret;
+  }
+
+  /**
+   * @param aType
+   *        The type.
+   * @return <code>true</code> for <code>document-node(element(...))</code>,
+   *         which cannot be tested without reading the document node. For
+   *         {@link XPathBurstAnalysis}.
+   */
+  static boolean isDocElementTest (@NonNull final SeqType aType)
+  {
+    return _isDocElementTest (aType);
+  }
+
+  /**
    * Push the direct operand expressions of a node onto the work stack of
    * {@link #_containsMatch(IExpr, Predicate, boolean)}: the arguments of a
    * call, the body of an inline function, the binding expressions and the

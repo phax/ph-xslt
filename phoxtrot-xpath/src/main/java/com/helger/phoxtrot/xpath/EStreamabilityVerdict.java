@@ -40,6 +40,11 @@ public enum EStreamabilityVerdict
    */
   CONSUMING,
   /**
+   * Not streamable in one pass, but needs only the subtree of the context node, buffered, and its ancestors and their
+   * attributes. Only given in {@link EStreamContextMode#BURST}.
+   */
+  BURST,
+  /**
    * Not streamable (roaming or free-ranging): needs more than one pass or the whole tree.
    */
   FREE_RANGING;
@@ -47,7 +52,7 @@ public enum EStreamabilityVerdict
   /**
    * @param aPostureSweep
    *        The posture and sweep. May not be <code>null</code>.
-   * @return The verdict for them. Never <code>null</code>.
+   * @return The verdict for them, never {@link #BURST}. Never <code>null</code>.
    */
   @NonNull
   public static EStreamabilityVerdict getFromPostureSweep (@NonNull final PostureSweep aPostureSweep)

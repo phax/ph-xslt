@@ -78,7 +78,7 @@ for the architecture). Roadmap: `docs/PLAN.md`.
 - Public API of `phoxtrot-xpath` (source compatible within 0.x, listed in README "XPath API" and in
   `com.helger.phoxtrot.xpath/package-info.java`): `XPathCompiler`, `CompiledXPath`, `XPathException`, `EThreading`,
   `LargeStackRunner`, `XPathStreamabilityAnalyzer` (with `XPathStreamabilityResult`, `XPathStreamabilityReason`,
-  `EStreamabilityVerdict`, `EStreamabilityConstruct`), `StaticContext`, `DynamicContext`, `IResourceResolver`,
+  `EStreamabilityVerdict`, `EStreamabilityConstruct`, `EStreamContextMode`), `StaticContext`, `DynamicContext`, `IResourceResolver`,
   `ResourceUri`, `FunctionLibrary`, `IXPathFunction`, `SeqType`, `ItemType`, `EOccurrence`, `EPosture`, `ESweep`,
   `PostureSweep`, `EStreamFunctionCategory`, the `value` types and `XPathOperators`. A change to one of them goes into the
   release notes; keep both lists in sync when the set changes.
@@ -286,7 +286,10 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   roaming/free-ranging, never "streamable". `XPathStreamabilityAnalyzer` is its public facade (no AST in its API); its
   reasons come from re-analysing sub-expressions (`ExprWalker.getAllChildren`, path prefixes), not from the analysis
   itself, and have no text position (the AST keeps none). The call-site signature of a function is built in one place,
-  `StreamFunctionSignature.createForParameterTypes` (used by `XsltStreamability` and the facade).
+  `StreamFunctionSignature.createForParameterTypes` (used by `XsltStreamability` and the facade). The burst mode of the
+  facade (`EStreamContextMode.BURST`) is no rule of the specification: `XPathBurstAnalysis` tracks which region of the
+  document (context node, below it, ancestors, their attributes, external nodes) each value can hold nodes from, uses
+  the function usages of `XPathStreamability`, and fails closed like it.
 - When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
   does not catch it); it happened with the XPath 1.0 compatibility conversions.
 

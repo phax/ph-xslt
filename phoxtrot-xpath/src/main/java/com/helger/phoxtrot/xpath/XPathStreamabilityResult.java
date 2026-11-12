@@ -26,7 +26,8 @@ import com.helger.phoxtrot.xpath.stream.PostureSweep;
 
 /**
  * The result of {@link XPathStreamabilityAnalyzer}: posture and sweep (XSLT 3.0 section 19), the simplified verdict
- * and, if the verdict is not motionless, the reason.
+ * and, if the verdict is not motionless, the reason. In {@link EStreamContextMode#BURST} the posture and sweep are
+ * those with a streamed context item, and the verdict may be {@link EStreamabilityVerdict#BURST}.
  *
  * @author Philip Helger
  */
@@ -39,8 +40,15 @@ public final class XPathStreamabilityResult
 
   XPathStreamabilityResult (@NonNull final PostureSweep aPostureSweep, @Nullable final XPathStreamabilityReason aReason)
   {
+    this (aPostureSweep, EStreamabilityVerdict.getFromPostureSweep (aPostureSweep), aReason);
+  }
+
+  XPathStreamabilityResult (@NonNull final PostureSweep aPostureSweep,
+                            @NonNull final EStreamabilityVerdict eVerdict,
+                            @Nullable final XPathStreamabilityReason aReason)
+  {
     m_aPostureSweep = aPostureSweep;
-    m_eVerdict = EStreamabilityVerdict.getFromPostureSweep (aPostureSweep);
+    m_eVerdict = eVerdict;
     m_aReason = aReason;
   }
 
@@ -81,9 +89,18 @@ public final class XPathStreamabilityResult
   }
 
   /**
-   * @return <code>true</code> if the verdict is motionless or consuming.
+   * @return <code>true</code> if the verdict is motionless or consuming (one pass without buffering).
    */
   public boolean isStreamable ()
+  {
+    return m_eVerdict == EStreamabilityVerdict.MOTIONLESS || m_eVerdict == EStreamabilityVerdict.CONSUMING;
+  }
+
+  /**
+   * @return <code>true</code> if the verdict is not free-ranging: motionless, consuming or burst (one pass with the
+   *         subtree of the context node buffered).
+   */
+  public boolean isBurstStreamable ()
   {
     return m_eVerdict != EStreamabilityVerdict.FREE_RANGING;
   }
