@@ -1202,3 +1202,27 @@ Tests: the rows of the table for item 1; for item 2 `cac:InvoiceLine[cbc:Quantit
 `cac:Line` and `cac:Line[@id]` motionless, all in `BURST` mode, the `STREAMED` results unchanged; for item 3
 `/ex:Document/@classification = 'x'`, `/*/@version` and `name (/*)` motionless with a streamed or burst element
 context, `/ex:Document/ex:Title` and `//ex:Para` free-ranging.
+
+### S46 - Streamability: declare a variable with an already analysed binding
+
+Found 2026-11-12 in `ph-schematron-streamability` (phoxtrot `17a53fb`).
+
+A host that analyses many expressions sharing the same `let` bindings (the `sch:let`s of a Schematron rule are used by
+all its assertions and messages) must put them in front of every expression as `let $a := (...), $b := (...) return`,
+so that their values are analysed where they are used. The binding expressions are then parsed and analysed again for
+every expression. `XPathStreamabilityAnalyzer` can declare a variable only as streamed (`addStreamedVariable`) or as an
+external node variable (`addExternalNodeVariable`), not as a variable whose binding has a known streamability.
+
+Where: `XPathStreamabilityAnalyzer` (`_createContext`, `analyze`, the burst walk), the `LetExpr` branch of
+`stream/XPathStreamability` (binding as navigation operand) and of `stream/XPathBurstAnalysis` (`_bind`/`_unbind` with
+the region of the binding); `stream/StreamContext` has one posture and sweep for all streaming parameters.
+
+Proposal: `XPathStreamabilityBinding analyzeBinding (String sExpr, StaticContext aSC)` returns an immutable object with
+the posture and sweep of the binding (streamed analysis) and its burst region or failure, and
+`addBoundVariable (XdmQName aName, XPathStreamabilityBinding aBinding)` declares a variable with it. A binding may
+reference variables bound before. `analyze` treats a reference to such a variable exactly as if the expression were
+wrapped in the `let` clause, including the reason (`expression let`, or a new reason naming the variable).
+
+Tests: for expressions E and bindings X, Y, `analyze ("let $a := (X), $b := (Y) return E")` and `analyze ("E")` after
+`addBoundVariable` for `$a` and `$b` give the same verdict, posture, sweep and reason in all three context modes; with
+bindings that are motionless, consuming, burst (descendants), free-ranging (`parent::x`, `//x`) and unused.
