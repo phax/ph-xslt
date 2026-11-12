@@ -49,6 +49,7 @@ public final class StreamContext implements ICloneable <StreamContext>
 {
   private EPosture m_eContextPosture;
   private boolean m_bContextDocument;
+  private boolean m_bDocumentElementAncestor;
   private boolean m_bContextChildless;
   private EPosture m_eCurrentPosture;
   private boolean m_bCurrentChildless;
@@ -91,6 +92,7 @@ public final class StreamContext implements ICloneable <StreamContext>
   {
     m_eContextPosture = aOther.m_eContextPosture;
     m_bContextDocument = aOther.m_bContextDocument;
+    m_bDocumentElementAncestor = aOther.m_bDocumentElementAncestor;
     m_bContextChildless = aOther.m_bContextChildless;
     m_eCurrentPosture = aOther.m_eCurrentPosture;
     m_bCurrentChildless = aOther.m_bCurrentChildless;
@@ -148,6 +150,36 @@ public final class StreamContext implements ICloneable <StreamContext>
   public StreamContext setContextDocument (final boolean bContextDocument)
   {
     m_bContextDocument = bContextDocument;
+    return this;
+  }
+
+  /**
+   * @return <code>true</code> if a leading <code>/</code> followed by a child
+   *         step that selects elements is taken as the document element on the
+   *         ancestor-or-self axis.
+   */
+  public boolean isDocumentElementAncestor ()
+  {
+    return m_bDocumentElementAncestor;
+  }
+
+  /**
+   * No rule of the specification, for hosts outside XSLT that know a streamed
+   * context node is never a document node: the document element is then an
+   * ancestor-or-self of every streamed node, so <code>/x</code> is analysed
+   * as <code>ancestor-or-self::x</code> (climbing) instead of a child step
+   * from a climbing root (roaming). Its name and attributes are motionless,
+   * anything below it stays free-ranging. Off by default; the XSLT layer never
+   * sets it.
+   *
+   * @param bDocumentElementAncestor
+   *        <code>true</code> to analyse the document element as an ancestor.
+   * @return this for chaining
+   */
+  @NonNull
+  public StreamContext setDocumentElementAncestor (final boolean bDocumentElementAncestor)
+  {
+    m_bDocumentElementAncestor = bDocumentElementAncestor;
     return this;
   }
 

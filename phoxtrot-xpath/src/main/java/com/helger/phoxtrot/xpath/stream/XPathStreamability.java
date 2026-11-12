@@ -1685,6 +1685,31 @@ public final class XPathStreamability
     return new PostureSweep (ePosture, aBase.sweep ());
   }
 
+  /**
+   * @return <code>true</code> if the step is the first step of
+   *         <code>/x</code>, a child step selecting elements from the climbing
+   *         root, and the context asks for the document element as an ancestor
+   *         ({@link StreamContext#isDocumentElementAncestor()}).
+   */
+  private static boolean _isDocumentElementStep (final IExpr.@NonNull PathExpr aPath,
+                                                 final IExpr.@NonNull StepExpr aStep,
+                                                 @NonNull final EPosture ePosture,
+                                                 @NonNull final StreamContext aEnv)
+  {
+    if (!aEnv.isDocumentElementAncestor () ||
+        !aPath.absolute () ||
+        aPath.start () != null ||
+        ePosture != EPosture.CLIMBING ||
+        aStep.axis () != EAxis.CHILD ||
+        aStep.fused () != null ||
+        aStep.test () == null)
+      return false;
+    // Only the document element: a comment or processing instruction after
+    // it has not been read yet
+    final ENodeTestKind eKind = aStep.test ().kind ();
+    return eKind == ENodeTestKind.NAME || eKind == ENodeTestKind.ELEMENT;
+  }
+
   /** Path expressions (section 19.8.8.7) and axis steps (section 19.8.8.8). */
   @NonNull
   private static PostureSweep _path (final IExpr.@NonNull PathExpr aPath,
@@ -1751,7 +1776,21 @@ public final class XPathStreamability
                                                                      _focusOn (aStep.postfix (), aStepEnv));
       }
       else
-        aStepPS = _axisStep (ePosture, aStep, aEnv);
+        if (i == 0 && _isDocumentElementStep (aPath, aStep, ePosture, aEnv))
+        {
+          // Not a rule of the specification: the document element of a
+          // streamed node that is no document node is one of its ancestors
+          // or itself
+          aStepPS = _axisStep (ePosture,
+                               new IExpr.StepExpr (EAxis.ANCESTOR_OR_SELF,
+                                                   true,
+                                                   aStep.test (),
+                                                   aStep.predicates (),
+                                                   null),
+                               aEnv);
+        }
+        else
+          aStepPS = _axisStep (ePosture, aStep, aEnv);
       ePosture = aStepPS.posture ();
       eSweep = eSweep.getWider (aStepPS.sweep ());
 

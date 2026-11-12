@@ -34,6 +34,7 @@ import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.ast.EAxis;
 import com.helger.phoxtrot.xpath.ast.EBinaryOp;
+import com.helger.phoxtrot.xpath.ast.ENodeTestKind;
 import com.helger.phoxtrot.xpath.ast.IExpr;
 
 /**
@@ -45,11 +46,13 @@ import com.helger.phoxtrot.xpath.ast.IExpr;
  * <li>The context node, its attributes and every node below it can be read in any way: any number of reads, any
  * downward axis, the sibling axes below the context node, predicates, variables.</li>
  * <li>The ancestors of the context node and their attributes are available as in streaming: name, attributes and
- * further ancestors, but neither their string value nor their other children.</li>
- * <li>Everything else of the document is not available: the root (<code>/</code>, <code>fn:root</code>), downward or
- * sideways steps from an ancestor, the sibling, <code>preceding</code> and <code>following</code> axes from the
- * context node, <code>preceding</code>/<code>following</code> from anywhere, <code>fn:id</code>, <code>fn:idref</code>,
- * <code>fn:element-with-id</code> and <code>fn:key</code> without a third argument within the subtree.</li>
+ * further ancestors, but neither their string value nor their other children. The root (<code>/</code>) is one of
+ * them, and its child element, the document element, too (the context node is assumed to be no document node).</li>
+ * <li>Everything else of the document is not available: <code>fn:root</code>, other children of the root and any
+ * descendant step from it (<code>//</code>), downward or sideways steps from an ancestor, the sibling,
+ * <code>preceding</code> and <code>following</code> axes from the context node, <code>preceding</code>/
+ * <code>following</code> from anywhere, <code>fn:id</code>, <code>fn:idref</code>, <code>fn:element-with-id</code> and
+ * <code>fn:key</code> without a third argument within the subtree.</li>
  * <li>Variables declared as subtree variables hold nodes of the subtree; variables declared as external node variables
  * hold nodes outside it, which may be compared and atomised but not navigated from; any other variable is a grounded
  * value (atomic values or nodes of other documents), as are the results of <code>fn:doc</code>,
@@ -92,9 +95,11 @@ public final class XPathBurstAnalysis
   private static final int ANCESTOR_ATTR = 8;
   /** Nodes outside the subtree from an external node variable. */
   private static final int EXTERNAL = 16;
+  /** The root of the document (<code>/</code>), an ancestor whose child element is one too. */
+  private static final int ROOT = 32;
   private static final int SUBTREE = SELF | BELOW;
   /** The regions whose introduction is no failure itself, so a later failure names where they came from. */
-  private static final int SOURCED = ANCESTOR | ANCESTOR_ATTR | EXTERNAL;
+  private static final int SOURCED = ANCESTOR | ANCESTOR_ATTR | EXTERNAL | ROOT;
 
   /**
    * The regions the nodes of a value can come from (0 for values without nodes of the document) and the construct
@@ -186,7 +191,7 @@ public final class XPathBurstAnalysis
     {
       case INSPECTION, TRANSMISSION -> 0;
       // The string value of an ancestor needs its whole subtree
-      case ABSORPTION -> aRegion.flags () & ANCESTOR;
+      case ABSORPTION -> aRegion.flags () & (ANCESTOR | ROOT);
       // A node of the document may be navigated from in any direction
       case NAVIGATION -> aRegion.flags ();
     };
@@ -258,6 +263,24 @@ public final class XPathBurstAnalysis
         return -1;
       ret |= n;
     }
+    if ((nFrom & ROOT) != 0)
+    {
+      final int n = switch (aStep.axis ())
+      {
+        case SELF, ANCESTOR_OR_SELF -> ROOT;
+        // The document element, an ancestor-or-self of the context node; a comment or processing instruction after it
+        // has not been read
+        case CHILD -> aStep.test () != null &&
+                      (aStep.test ().kind () == ENodeTestKind.NAME ||
+                       aStep.test ().kind () == ENodeTestKind.ELEMENT) ? ANCESTOR : -1;
+        // A document node has no parent, attributes or siblings
+        case PARENT, ANCESTOR, ATTRIBUTE, NAMESPACE, FOLLOWING_SIBLING, PRECEDING_SIBLING -> 0;
+        case DESCENDANT, DESCENDANT_OR_SELF, FOLLOWING, PRECEDING -> -1;
+      };
+      if (n < 0)
+        return -1;
+      ret |= n;
+    }
     if ((nFrom & EXTERNAL) != 0)
     {
       // An external node may be compared, but not navigated from
@@ -298,12 +321,13 @@ public final class XPathBurstAnalysis
     if (aPath.start () != null)
       aCur = _expr (aPath.start (), aContext);
     else
-    {
-      // The root of the document of the context node
       if (aPath.absolute ())
-        throw _fail (aPath);
-      aCur = aContext;
-    }
+      {
+        // The root of the document of the context node
+        aCur = new Region (ROOT, new BurstFailure (aPath, null));
+      }
+      else
+        aCur = aContext;
     for (final IExpr.StepExpr aStep : aPath.steps ())
     {
       if (aStep.postfix () != null)
@@ -390,7 +414,7 @@ public final class XPathBurstAnalysis
         case FILTER -> ret = aArg;
         case SHALLOW_DESCENT, DEEP_DESCENT ->
         {
-          final int nBad = aArg.flags () & (ANCESTOR | EXTERNAL);
+          final int nBad = aArg.flags () & (ANCESTOR | EXTERNAL | ROOT);
           if (nBad != 0)
             throw _failFrom (aArg, nBad, new BurstFailure (aCall, null));
           // The descendants of an attribute are none
@@ -404,7 +428,7 @@ public final class XPathBurstAnalysis
           int nFlags = 0;
           if ((aArg.flags () & BELOW) != 0)
             nFlags |= SUBTREE | ANCESTOR;
-          if ((aArg.flags () & (SELF | ANCESTOR | ANCESTOR_ATTR)) != 0)
+          if ((aArg.flags () & (SELF | ANCESTOR | ANCESTOR_ATTR | ROOT)) != 0)
             nFlags |= ANCESTOR;
           if (nFlags != 0)
             ret = new Region (nFlags, aArg.source () != null ? aArg.source () : new BurstFailure (aCall, null));
@@ -749,6 +773,35 @@ public final class XPathBurstAnalysis
     }
   }
 
+  @Nullable
+  private static BurstFailure _getBurstFailure (@NonNull final IExpr aExpr,
+                                                @NonNull final Set <XdmQName> aSubtreeVariables,
+                                                @NonNull final Set <XdmQName> aExternalVariables,
+                                                @Nullable final IStreamFunctionResolver aResolver,
+                                                @NonNull final EStreamUsage eResultUsage)
+  {
+    ValueEnforcer.notNull (aExpr, "Expr");
+    ValueEnforcer.notNull (aSubtreeVariables, "SubtreeVariables");
+    ValueEnforcer.notNull (aExternalVariables, "ExternalVariables");
+    final ICommonsSet <XdmQName> aSubtree = new CommonsHashSet <> (aSubtreeVariables);
+    final ICommonsSet <XdmQName> aExternal = new CommonsHashSet <> (aExternalVariables);
+    try
+    {
+      final XPathBurstAnalysis aAnalysis = new XPathBurstAnalysis (aSubtree, aExternal, aResolver);
+      _use (aAnalysis._expr (aExpr, new Region (SELF, null)), eResultUsage, aExpr);
+      return null;
+    }
+    catch (final BurstFailureException ex)
+    {
+      return ex.m_aFailure;
+    }
+    catch (final StackOverflowError ex)
+    {
+      // Nested deeper than the stack of this thread allows: fail closed
+      return new BurstFailure (null, null);
+    }
+  }
+
   /**
    * Find the first construct of an expression that leaves the buffered subtree of the context node.
    *
@@ -769,26 +822,32 @@ public final class XPathBurstAnalysis
                                               @NonNull final Set <XdmQName> aExternalVariables,
                                               @Nullable final IStreamFunctionResolver aResolver)
   {
-    ValueEnforcer.notNull (aExpr, "Expr");
-    ValueEnforcer.notNull (aSubtreeVariables, "SubtreeVariables");
-    ValueEnforcer.notNull (aExternalVariables, "ExternalVariables");
-    final ICommonsSet <XdmQName> aSubtree = new CommonsHashSet <> (aSubtreeVariables);
-    final ICommonsSet <XdmQName> aExternal = new CommonsHashSet <> (aExternalVariables);
-    try
-    {
-      final XPathBurstAnalysis aAnalysis = new XPathBurstAnalysis (aSubtree, aExternal, aResolver);
-      // The host may atomise the result
-      _use (aAnalysis._expr (aExpr, new Region (SELF, null)), EStreamUsage.ABSORPTION, aExpr);
-      return null;
-    }
-    catch (final BurstFailureException ex)
-    {
-      return ex.m_aFailure;
-    }
-    catch (final StackOverflowError ex)
-    {
-      // Nested deeper than the stack of this thread allows: fail closed
-      return new BurstFailure (null, null);
-    }
+    // The host may atomise the result
+    return _getBurstFailure (aExpr, aSubtreeVariables, aExternalVariables, aResolver, EStreamUsage.ABSORPTION);
+  }
+
+  /**
+   * Find the first construct of a non-positional pattern predicate that leaves the buffered subtree of the node it is
+   * evaluated for (the context node). Its value is only used as effective boolean value, so it may return ancestors.
+   * Whether the predicate is positional is for the caller to check.
+   *
+   * @param aPredicate
+   *        The predicate. May not be <code>null</code>.
+   * @param aSubtreeVariables
+   *        The variables bound to nodes of the subtree. May not be <code>null</code>.
+   * @param aExternalVariables
+   *        The variables bound to nodes outside the subtree. May not be <code>null</code>.
+   * @param aResolver
+   *        The streamability categories of the functions outside the <code>fn</code> namespace. May be
+   *        <code>null</code>.
+   * @return <code>null</code> if the predicate is burst, else the construct that is not.
+   */
+  @Nullable
+  public static BurstFailure getPredicateBurstFailure (@NonNull final IExpr aPredicate,
+                                                       @NonNull final Set <XdmQName> aSubtreeVariables,
+                                                       @NonNull final Set <XdmQName> aExternalVariables,
+                                                       @Nullable final IStreamFunctionResolver aResolver)
+  {
+    return _getBurstFailure (aPredicate, aSubtreeVariables, aExternalVariables, aResolver, EStreamUsage.INSPECTION);
   }
 }

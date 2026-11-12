@@ -132,11 +132,12 @@ Boolean aValid = LargeStackRunner.run (() -> Boolean.valueOf (aXPath.evaluateEff
   verdict (motionless, consuming, free-ranging) and for a verdict other than motionless the construct that causes it
   (an axis step, a function, a variable, without position in the text). Options: the context node streamed, buffered
   with its whole tree, or in burst mode (`EStreamContextMode.BURST`: only its subtree is buffered, verdict `BURST` for
-  an expression that needs nothing outside it, e.g. one Schematron rule per element), variables bound to streamed
-  nodes or (burst mode) to nodes outside the subtree, the streamability category of extension functions (undeclared
-  ones are not streamable). `FunctionLibrary.createDefaultWithXsltSignatures ()` adds the signatures of the XSLT
-  functions (`fn:key`, `fn:current`, `fn:document`, ...) for compiling expressions of an XSLT-based language without
-  `phoxtrot-xslt`.
+  an expression or pattern predicate that needs nothing outside it, e.g. one Schematron rule per element; the
+  document element counts as an ancestor of a streamed context node, so `/x/@a` is motionless), variables bound to
+  streamed nodes or (burst mode) to nodes outside the subtree, the streamability category of extension functions
+  (undeclared ones are not streamable). `FunctionLibrary.createDefaultWithXsltSignatures ()` adds the signatures of
+  the XSLT functions (`fn:key`, `fn:current`, `fn:document`, ...) for compiling expressions of an XSLT-based language
+  without `phoxtrot-xslt`.
 * Stylesheet functions without Java code: compile a module with the `xsl:function`s (and the keys and global variables
   they use) and compile the expressions against `XsltExecutable.createStaticContext ()`, evaluated with the dynamic
   context of `XsltExecutable.createEvaluation (request).createDynamicContext ()`.
@@ -233,6 +234,11 @@ v0.2.0 - work in progress
   `EStreamabilityVerdict.BURST`): is an expression evaluable on the buffered subtree of the context node, and if not,
   which construct leaves it; added `addExternalNodeVariable`. Behaviour change: `XPathStreamabilityResult.isStreamable ()`
   is `true` for motionless and consuming only; `isBurstStreamable ()` includes burst
+* XPath: in burst mode `XPathStreamabilityAnalyzer.analyzePattern` gives `BURST` for a pattern whose last-step
+  predicates need only the subtree of the matched node (`cac:Line[cbc:Quantity < 0]`), and navigating from an external
+  node variable is free-ranging also in an otherwise motionless expression. In streamed and burst mode the context node
+  is taken to be no document node: `/x` is the document element, an ancestor-or-self (`/x/@a`, `name (/*)`
+  motionless, `/x/y` still free-ranging)
 * XPath: added `FunctionLibrary.createDefaultWithXsltSignatures ()`, the built-in functions plus the signatures of the
   XSLT functions (`fn:key`, `fn:current`, `fn:document`, ...) for hosts that only compile and analyse expressions
 * API change: every `IResourceResolver` method now takes a `ResourceUri` (the resolved URI, the reference as written

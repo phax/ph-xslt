@@ -285,6 +285,27 @@ public final class XPathStreamabilityTest
     assertTrue (XPathStreamability.getStreamability (_parse ("//a"), aDoc).isStreamable ());
   }
 
+  /** Not a rule of the specification: the document element as an ancestor, only when asked for. */
+  @Test
+  public void testDocumentElementAncestor ()
+  {
+    _run (_striding (), "/a/@b", RF, "name(/*)", RF);
+    // As ancestor-or-self::a/@b
+    _run (_striding ().setDocumentElementAncestor (true),
+          "/a/@b",
+          SM,
+          "name(/*)",
+          GM,
+          "/a",
+          LM,
+          "/a/b",
+          RF,
+          "/comment()",
+          RF,
+          "//a",
+          RF);
+  }
+
   /** The safety direction: constructs with no rule, or none provable, are not streamable. */
   @Test
   public void testFailsClosed ()

@@ -347,6 +347,16 @@ public final class XPathStreamabilityAnalyzerTest
              EStreamabilityVerdict.FREE_RANGING,
              EStreamabilityConstruct.VARIABLE,
              "$ext");
+    // Also where the expression is motionless otherwise
+    _assert (aAnalyzer.analyze ("$ext/cbc:X = 'a'", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.VARIABLE,
+             "$ext");
+    _assert (aAnalyzer.analyze ("$ext/cbc:X", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.VARIABLE,
+             "$ext");
+    _assert (aAnalyzer.analyze ("$ext = @id", aSC), EStreamabilityVerdict.MOTIONLESS, null, null);
     // A local variable shadows the external one
     assertEquals (EStreamabilityVerdict.BURST,
                   aAnalyzer.analyze ("for $ext in cac:Line return $ext/cbc:X = cbc:ID", aSC).getVerdict ());
@@ -364,13 +374,103 @@ public final class XPathStreamabilityAnalyzerTest
              EStreamabilityVerdict.FREE_RANGING,
              EStreamabilityConstruct.FUNCTION,
              "f:check#1");
+  }
 
-    // Patterns are not changed by the burst mode
+  @Test
+  public void testBurstPatterns ()
+  {
+    final StaticContext aSC = _createXsltStaticContext ();
+    final XPathStreamabilityAnalyzer aAnalyzer = new XPathStreamabilityAnalyzer ().setContextMode (EStreamContextMode.BURST)
+                                                                                  .addExternalNodeVariable (new XdmQName ("ext"));
+    // Predicates of the last step that need only the subtree of the matched node
     _assert (aAnalyzer.analyzePattern ("cac:InvoiceLine[cbc:Quantity < 0]", aSC),
+             EStreamabilityVerdict.BURST,
+             EStreamabilityConstruct.AXIS_STEP,
+             "child::cbc:Quantity");
+    for (final String sPattern : new String [] { "cac:A[count(cac:B) > 1]",
+                                                 "cac:X/cac:A[cbc:B]",
+                                                 "cac:A[cbc:B] | cac:C[@id]",
+                                                 "//cac:A[cbc:B]",
+                                                 "/cac:X/cac:A[cbc:B][@id = 'a']",
+                                                 ".[cbc:B]",
+                                                 "cac:A[ancestor::cac:X/@id = cbc:B]" })
+    {
+      final XPathStreamabilityResult aResult = aAnalyzer.analyzePattern (sPattern, aSC);
+      assertEquals (sPattern + ": " + aResult, EStreamabilityVerdict.BURST, aResult.getVerdict ());
+      assertTrue (sPattern, aResult.getReason () != null);
+    }
+    _assert (aAnalyzer.analyzePattern ("cac:Line", aSC), EStreamabilityVerdict.MOTIONLESS, null, null);
+    _assert (aAnalyzer.analyzePattern ("cac:Line[@id]", aSC), EStreamabilityVerdict.MOTIONLESS, null, null);
+    _assert (aAnalyzer.analyzePattern ("cac:Line[@id = $ext]", aSC), EStreamabilityVerdict.MOTIONLESS, null, null);
+
+    // Positional predicates, predicates that leave the subtree, predicates of other steps
+    _assert (aAnalyzer.analyzePattern ("cac:Line[1]", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.POSITIONAL_PREDICATE,
+             "predicate");
+    _assert (aAnalyzer.analyzePattern ("cac:Line[../cbc:X]", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.AXIS_STEP,
+             "parent::node()");
+    _assert (aAnalyzer.analyzePattern ("cac:Line[key('k', @id)]", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.FUNCTION,
+             "key#2");
+    _assert (aAnalyzer.analyzePattern ("cac:X[cbc:Y]/cac:Line", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.AXIS_STEP,
+             "child::cbc:Y");
+    _assert (aAnalyzer.analyzePattern ("cac:Line[$ext/cbc:X = 'a']", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.VARIABLE,
+             "$ext");
+    _assert (aAnalyzer.analyzePattern ("$v/cac:A[cbc:B]", aSC),
+             EStreamabilityVerdict.FREE_RANGING,
+             EStreamabilityConstruct.VARIABLE,
+             "$v");
+
+    // The streamed mode is unchanged
+    _assert (new XPathStreamabilityAnalyzer ().analyzePattern ("cac:InvoiceLine[cbc:Quantity < 0]", aSC),
              EStreamabilityVerdict.FREE_RANGING,
              EStreamabilityConstruct.AXIS_STEP,
              "child::cbc:Quantity");
-    _assert (aAnalyzer.analyzePattern ("cac:InvoiceLine[@id]", aSC), EStreamabilityVerdict.MOTIONLESS, null, null);
+  }
+
+  @Test
+  public void testDocumentElement ()
+  {
+    final StaticContext aSC = _createXsltStaticContext ();
+    for (final EStreamContextMode eMode : new EStreamContextMode [] { EStreamContextMode.STREAMED,
+                                                                      EStreamContextMode.BURST })
+    {
+      final XPathStreamabilityAnalyzer aAnalyzer = new XPathStreamabilityAnalyzer ().setContextMode (eMode);
+      // The document element is an ancestor-or-self of the context node
+      for (final String sExpr : new String [] { "/cac:Doc/@classification = 'x'",
+                                                "/*/@version",
+                                                "name(/*)",
+                                                "exists(/cac:Doc[@a = 'b'])" })
+      {
+        final XPathStreamabilityResult aResult = aAnalyzer.analyze (sExpr, aSC);
+        assertEquals (eMode + " " + sExpr + ": " + aResult, EStreamabilityVerdict.MOTIONLESS, aResult.getVerdict ());
+      }
+      // But not what is below it, or another child of the root
+      for (final String sExpr : new String [] { "/cac:Doc/cac:Title", "//cac:Para", "string(/*)", "/comment()" })
+      {
+        final XPathStreamabilityResult aResult = aAnalyzer.analyze (sExpr, aSC);
+        assertEquals (eMode + " " + sExpr + ": " + aResult, EStreamabilityVerdict.FREE_RANGING, aResult.getVerdict ());
+      }
+    }
+    final XPathStreamabilityAnalyzer aAnalyzer = new XPathStreamabilityAnalyzer ().setContextMode (EStreamContextMode.BURST);
+    _assert (aAnalyzer.analyze ("/cac:Doc/@classification = cbc:ID", aSC),
+             EStreamabilityVerdict.BURST,
+             EStreamabilityConstruct.AXIS_STEP,
+             "child::cbc:ID");
+    _assert (aAnalyzer.analyze ("/cac:Doc/cac:Title", aSC), EStreamabilityVerdict.FREE_RANGING, EStreamabilityConstruct.ROOT, "/");
+    _assert (aAnalyzer.analyze ("//cac:Para", aSC), EStreamabilityVerdict.FREE_RANGING, EStreamabilityConstruct.AXIS_STEP, "//");
+    _assert (aAnalyzer.analyzePattern ("cac:Para[/cac:Doc/@classification = 'x']", aSC),
+             EStreamabilityVerdict.MOTIONLESS,
+             null,
+             null);
   }
 
   @Test

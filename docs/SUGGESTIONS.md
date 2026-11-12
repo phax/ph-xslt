@@ -1148,6 +1148,19 @@ declared with `addExternalNodeVariable`: `$v = @id` burst, `$v/cbc:X` free-rangi
 
 ### S45 - Burst mode: external node variables in streamed-motionless expressions, burst patterns, the document element
 
+Status: done (2026-11-12), items 1 to 3. Item 1: in `BURST` mode an expression that references an external node
+variable goes through the burst walk even if it is motionless when streamed (`$ext/cbc:X = 'a'` free-ranging with
+reason `$ext`, `$ext = @id` motionless). Item 2: in `BURST` mode `analyzePattern` checks each alternative without the
+predicates of its last step with the pattern rules, and those predicates as non-positional and burst
+(`XPathBurstAnalysis.getPredicateBurstFailure`, effective boolean value, so they may return ancestors); predicates of
+other steps stay under the streamed rules, and every predicate goes through the burst walk when the pattern references
+an external node variable. Item 3 (decided 2026-11-12: the context node is assumed to be no document node, in
+`STREAMED` and `BURST`): new opt-in `StreamContext.setDocumentElementAncestor`, set by the facade, never by the XSLT
+layer, analyses the first step of `/x` (child axis, element test) as `ancestor-or-self::x`; the burst walk has a root
+region whose element child is an ancestor. `/cac:Doc/@a = 'x'`, `/*/@version`, `name (/*)` motionless,
+`/cac:Doc/cac:Title`, `//x`, `/comment()` and `string (/*)` free-ranging. For a rule context `/` the host evaluates
+such a test after the start tag of the document element.
+
 Found 2026-11-12 while building `ph-schematron-streamability` against phoxtrot `8297590` (S44).
 
 1. **Navigating from an external node variable is motionless if the expression is motionless when streamed.** The

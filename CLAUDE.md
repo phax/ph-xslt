@@ -289,7 +289,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `StreamFunctionSignature.createForParameterTypes` (used by `XsltStreamability` and the facade). The burst mode of the
   facade (`EStreamContextMode.BURST`) is no rule of the specification: `XPathBurstAnalysis` tracks which region of the
   document (context node, below it, ancestors, their attributes, external nodes) each value can hold nodes from, uses
-  the function usages of `XPathStreamability`, and fails closed like it.
+  the function usages of `XPathStreamability`, and fails closed like it. In burst mode a motionless expression still
+  goes through it when it references an external node variable, and a pattern is burst when only the predicates of
+  its last steps need the subtree. The facade (streamed and burst) sets `StreamContext.setDocumentElementAncestor`
+  (`/x` analysed as `ancestor-or-self::x`, assuming the context node is no document node); the XSLT layer never sets
+  it, so its section 19 analysis is unchanged.
 - When merging parallel work, check for the same mechanism implemented twice in different places (a clean git merge
   does not catch it); it happened with the XPath 1.0 compatibility conversions.
 

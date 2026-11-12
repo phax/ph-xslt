@@ -63,10 +63,17 @@ import com.helger.phoxtrot.xpath.stream.XPathStreamability;
  * <li>The context item is a streamed node by default (striding, {@link EStreamContextMode#STREAMED}). In
  * {@link EStreamContextMode#GROUNDED} it is a buffered node with its whole tree (every axis available). In
  * {@link EStreamContextMode#BURST} it is the root of a buffered copy of its subtree that keeps its place in the
- * document: an expression that is motionless when streamed stays motionless, one that needs only the subtree (and the
- * ancestors as in streaming) is {@link EStreamabilityVerdict#BURST}, anything else free-ranging, with the construct
- * that leaves the subtree as reason (<code>parent::x</code>, <code>//</code>, <code>/</code>,
- * <code>preceding-sibling::x</code>, <code>key#2</code>).</li>
+ * document: an expression that is motionless when streamed stays motionless (unless it navigates from an external
+ * node variable), one that needs only the subtree (and the ancestors as in streaming) is
+ * {@link EStreamabilityVerdict#BURST}, anything else free-ranging, with the construct that leaves the subtree as reason
+ * (<code>parent::x</code>, <code>//</code>, <code>/</code>, <code>preceding-sibling::x</code>, <code>key#2</code>). A
+ * pattern is burst if the predicates of its last steps need only the subtree of the matched node.</li>
+ * <li>Unlike section 19, a streamed context node is assumed to be no document node (in
+ * {@link EStreamContextMode#STREAMED} and {@link EStreamContextMode#BURST}): the document element is then one of its
+ * ancestors or itself, so <code>/x</code> is analysed like <code>ancestor-or-self::x</code> and
+ * <code>/x/@a</code> or <code>name (/*)</code> are motionless, while <code>/x/y</code> stays free-ranging. A host
+ * whose context node can be the document node (a rule context <code>/</code>) evaluates such a test once the start
+ * tag of the document element has been read.</li>
  * <li>Variables are grounded (atomic values, or values computed in an earlier pass) unless declared as streamed nodes
  * with {@link #addStreamedVariable(XdmQName)}. A reference to a streamed variable is striding and motionless, and is
  * not streamable inside a construct that is evaluated repeatedly (a predicate, a loop body). In burst mode variables
@@ -220,6 +227,8 @@ public final class XPathStreamabilityAnalyzer
   private StreamContext _createContext (@NonNull final EPosture eContextPosture)
   {
     final StreamContext ret = new StreamContext (eContextPosture);
+    // A streamed context node is assumed to be no document node
+    ret.setDocumentElementAncestor (m_eContextMode != EStreamContextMode.GROUNDED);
     if (m_aStreamedVariables.isNotEmpty ())
       ret.setStreamingParams (m_aStreamedVariables).setStreamingParamPosture (EPosture.STRIDING);
     final IStreamFunctionResolver aResolver = _createFunctionResolver ();
@@ -377,9 +386,23 @@ public final class XPathStreamabilityAnalyzer
   }
 
   /**
-   * @return The burst verdict of an expression that is not motionless with a streamed context item: burst if the
-   *         burst analysis accepts it (with the reason of the streamed analysis), else free-ranging with the construct
-   *         that leaves the subtree.
+   * @return <code>true</code> if the expression references a variable declared with
+   *         {@link #addExternalNodeVariable(XdmQName)}, or a local variable of the same name.
+   */
+  private boolean _referencesExternalNodeVariable (@NonNull final IExpr aExpr)
+  {
+    if (m_aExternalNodeVariables.isEmpty ())
+      return false;
+    for (final XdmQName aName : ExprWalker.getAllVariableReferences (aExpr))
+      if (m_aExternalNodeVariables.contains (aName))
+        return true;
+    return false;
+  }
+
+  /**
+   * @return The burst verdict of an expression that is not motionless with a streamed context item, or that references
+   *         an external node variable: if the burst analysis accepts it motionless or burst (with the reason of the
+   *         streamed analysis), else free-ranging with the construct that leaves the subtree.
    */
   @NonNull
   private XPathStreamabilityResult _analyzeBurst (@NonNull final IExpr aExpr, @NonNull final PostureSweep aStreamedPS)
@@ -391,12 +414,140 @@ public final class XPathStreamabilityAnalyzer
                                                                                          m_aExternalNodeVariables,
                                                                                          _createFunctionResolver ());
     if (aFailure == null)
+    {
+      final EStreamabilityVerdict eStreamed = EStreamabilityVerdict.getFromPostureSweep (aStreamedPS);
+      if (eStreamed == EStreamabilityVerdict.MOTIONLESS)
+        return new XPathStreamabilityResult (aStreamedPS, null);
       return new XPathStreamabilityResult (aStreamedPS,
                                            EStreamabilityVerdict.BURST,
-                                           _findReason (aExpr,
-                                                        EStreamabilityVerdict.getFromPostureSweep (aStreamedPS),
-                                                        EPosture.STRIDING));
+                                           _findReason (aExpr, eStreamed, EPosture.STRIDING));
+    }
     return new XPathStreamabilityResult (aStreamedPS, EStreamabilityVerdict.FREE_RANGING, _describeBurstFailure (aFailure));
+  }
+
+  /**
+   * @return The path without the predicates of its last step, which go to the first list; the predicates of the other
+   *         steps go to the second. A path whose last step is not an axis step is returned as it is, with all its
+   *         predicates in the second list.
+   */
+  @NonNull
+  private static IExpr _getWithoutLastPredicates (final IExpr.@NonNull PathExpr aPath,
+                                                  @NonNull final ICommonsList <IExpr> aLastPredicates,
+                                                  @NonNull final ICommonsList <IExpr> aOtherPredicates)
+  {
+    final List <IExpr.StepExpr> aSteps = aPath.steps ();
+    final int nLast = aSteps.size () - 1;
+    if (nLast < 0 || aSteps.get (nLast).postfix () != null)
+    {
+      for (final IExpr.StepExpr aStep : aSteps)
+        aOtherPredicates.addAll (aStep.predicates ());
+      return aPath;
+    }
+    final ICommonsList <IExpr.StepExpr> aNewSteps = new CommonsArrayList <> ();
+    for (int i = 0; i < nLast; ++i)
+    {
+      final IExpr.StepExpr aStep = aSteps.get (i);
+      aOtherPredicates.addAll (aStep.predicates ());
+      // The step of a "//" carries a fused copy of the last step with its predicates
+      aNewSteps.add (i == nLast - 1 ? _withoutFused (aStep) : aStep);
+    }
+    final IExpr.StepExpr aLast = aSteps.get (nLast);
+    aLastPredicates.addAll (aLast.predicates ());
+    aNewSteps.add (new IExpr.StepExpr (aLast.axis (),
+                                       aLast.axisExplicit (),
+                                       aLast.test (),
+                                       new CommonsArrayList <> (),
+                                       null));
+    return new IExpr.PathExpr (aPath.start (), aPath.absolute (), aNewSteps);
+  }
+
+  /**
+   * @return The burst verdict of a pattern: motionless if it is motionless when streamed, burst if it is motionless
+   *         without the predicates of the last step of each alternative and these are non-positional and burst (the
+   *         host matches the name on the streamed node and evaluates them on the buffered subtree of the candidate),
+   *         else free-ranging. Navigation from external node variables is free-ranging in every predicate.
+   */
+  @NonNull
+  private XPathStreamabilityResult _analyzeBurstPattern (@NonNull final IExpr aPattern, @NonNull final PostureSweep aPS)
+  {
+    final ICommonsList <IExpr> aAlternatives = new CommonsArrayList <> ();
+    final ICommonsList <IExpr> aLastPredicates = new CommonsArrayList <> ();
+    final ICommonsList <IExpr> aOtherPredicates = new CommonsArrayList <> ();
+    final ArrayDeque <IExpr> aStack = new ArrayDeque <> ();
+    aStack.push (aPattern);
+    while (!aStack.isEmpty ())
+    {
+      final IExpr aCur = aStack.pop ();
+      switch (aCur)
+      {
+        case final IExpr.SetExpr e ->
+        {
+          aStack.push (e.right ());
+          aStack.push (e.left ());
+        }
+        case final IExpr.PathExpr e when e.start () == null &&
+                                         !e.absolute () &&
+                                         e.steps ().size () == 1 &&
+                                         e.steps ().get (0).postfix () != null &&
+                                         e.steps ().get (0).predicates ().isEmpty () ->
+          // Outer parentheses of a union alternative
+          aStack.push (e.steps ().get (0).postfix ());
+        case final IExpr.PathExpr e -> aAlternatives.add (_getWithoutLastPredicates (e,
+                                                                                    aLastPredicates,
+                                                                                    aOtherPredicates));
+        case final IExpr.FilterExpr e when e.primary () instanceof IExpr.ContextItemExpr ->
+        {
+          // The predicate pattern ".[p]"
+          aLastPredicates.addAll (e.predicates ());
+          aAlternatives.add (e.primary ());
+        }
+        default -> aAlternatives.add (aCur);
+      }
+    }
+
+    final boolean bMotionless = EStreamabilityVerdict.getFromPostureSweep (aPS) == EStreamabilityVerdict.MOTIONLESS;
+    final ICommonsList <IExpr> aBurstChecked = new CommonsArrayList <> ();
+    if (!bMotionless)
+    {
+      // Union, intersect and except are transparent to the pattern rules, so each alternative is checked on its own
+      for (final IExpr aAlternative : aAlternatives)
+      {
+        final PostureSweep aAltPS = XPathStreamability.getPatternStreamability (aAlternative,
+                                                                                _createContext (EPosture.STRIDING));
+        if (EStreamabilityVerdict.getFromPostureSweep (aAltPS) != EStreamabilityVerdict.MOTIONLESS)
+          return new XPathStreamabilityResult (aPS, _findPatternReason (aAlternative, EPosture.STRIDING));
+      }
+      for (final IExpr aPredicate : aLastPredicates)
+        if (!XPathStreamability.isNonPositionalPredicate (aPredicate))
+        {
+          final XPathStreamabilityReason aReason = new XPathStreamabilityReason (EStreamabilityConstruct.POSITIONAL_PREDICATE,
+                                                                                 "predicate");
+          return new XPathStreamabilityResult (aPS, aReason);
+        }
+      aBurstChecked.addAll (aLastPredicates);
+    }
+    // The streamed analysis takes external node variables as grounded values, which may be navigated from
+    if (_referencesExternalNodeVariable (aPattern))
+    {
+      aBurstChecked.clear ();
+      aBurstChecked.addAll (aLastPredicates);
+      aBurstChecked.addAll (aOtherPredicates);
+    }
+    for (final IExpr aPredicate : aBurstChecked)
+    {
+      final XPathBurstAnalysis.BurstFailure aFailure;
+      aFailure = XPathBurstAnalysis.getPredicateBurstFailure (aPredicate,
+                                                              m_aStreamedVariables,
+                                                              m_aExternalNodeVariables,
+                                                              _createFunctionResolver ());
+      if (aFailure != null)
+        return new XPathStreamabilityResult (aPS, EStreamabilityVerdict.FREE_RANGING, _describeBurstFailure (aFailure));
+    }
+    if (bMotionless)
+      return new XPathStreamabilityResult (aPS, null);
+    return new XPathStreamabilityResult (aPS,
+                                         EStreamabilityVerdict.BURST,
+                                         _findPatternReason (aPattern, EPosture.STRIDING));
   }
 
   /**
@@ -462,7 +613,8 @@ public final class XPathStreamabilityAnalyzer
   /**
    * Declare a variable as bound to nodes outside the subtree of the context node, e.g. a value computed from the whole
    * document in an earlier pass. Only {@link EStreamContextMode#BURST} looks at it: comparing or atomising its value is
-   * burst, navigating from its nodes is free-ranging. In the other modes it is grounded like any undeclared variable.
+   * burst, navigating from its nodes is free-ranging (also where the expression is motionless otherwise). In the other
+   * modes it is grounded like any undeclared variable.
    *
    * @param aName
    *        The variable name. May not be <code>null</code>.
@@ -521,10 +673,14 @@ public final class XPathStreamabilityAnalyzer
     final EPosture eContextPosture = _getContextPosture ();
     final PostureSweep aPS = XPathStreamability.getStreamability (aExpr, _createContext (eContextPosture));
     final EStreamabilityVerdict eVerdict = EStreamabilityVerdict.getFromPostureSweep (aPS);
+    if (m_eContextMode == EStreamContextMode.BURST &&
+        (eVerdict != EStreamabilityVerdict.MOTIONLESS || _referencesExternalNodeVariable (aExpr)))
+    {
+      // The streamed analysis takes external node variables as grounded values, which may be navigated from
+      return _analyzeBurst (aExpr, aPS);
+    }
     if (eVerdict == EStreamabilityVerdict.MOTIONLESS)
       return new XPathStreamabilityResult (aPS, null);
-    if (m_eContextMode == EStreamContextMode.BURST)
-      return _analyzeBurst (aExpr, aPS);
     return new XPathStreamabilityResult (aPS, _findReason (aExpr, eVerdict, eContextPosture));
   }
 
@@ -548,8 +704,11 @@ public final class XPathStreamabilityAnalyzer
   /**
    * Parse and analyse an XSLT match pattern (XSLT 3.0 section 19.8.10), e.g. the context of a Schematron rule. A
    * pattern is either motionless or free-ranging. Its predicates are analysed with the matched node as streamed
-   * context, in {@link EStreamContextMode#GROUNDED} as grounded; {@link EStreamContextMode#BURST} is the same as
-   * {@link EStreamContextMode#STREAMED} here, as a rule context is matched on the streamed node.
+   * context, in {@link EStreamContextMode#GROUNDED} as grounded. In {@link EStreamContextMode#BURST} a pattern that is
+   * not motionless is {@link EStreamabilityVerdict#BURST} if it is motionless without the predicates of the last step
+   * of each alternative and these are non-positional and need only the subtree of the matched node (the host matches
+   * the name on the streamed node, buffers the subtree of each candidate and evaluates the predicates on it);
+   * navigation from an external node variable is free-ranging in any predicate.
    *
    * @param sPattern
    *        The pattern text. May not be <code>null</code>.
@@ -566,6 +725,8 @@ public final class XPathStreamabilityAnalyzer
     final XsltPattern aPattern = XsltPatternParser.parse (sPattern, aStaticCtx);
     final EPosture eContextPosture = _getContextPosture ();
     final PostureSweep aPS = XPathStreamability.getPatternStreamability (aPattern, _createContext (eContextPosture));
+    if (m_eContextMode == EStreamContextMode.BURST && aPattern instanceof final CompiledXsltPattern aCompiled)
+      return _analyzeBurstPattern (aCompiled.getPatternExpr (), aPS);
     XPathStreamabilityReason aReason = null;
     if (EStreamabilityVerdict.getFromPostureSweep (aPS) != EStreamabilityVerdict.MOTIONLESS &&
         aPattern instanceof final CompiledXsltPattern aCompiled)
