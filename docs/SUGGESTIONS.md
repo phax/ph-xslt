@@ -1015,3 +1015,41 @@ Proposal:
 
 Saxon is the reference for the result, which must not change: the same nodes in document order without duplicates.
 
+
+### S43 - Remaining hotspots after S41 and S42: namespace fixup pass and name index
+
+Measured 2026-11-11 with phoxtrot `c09e6c0` (S36, S41, S42), Saxon-HE 13.1, JDK 21. Effect of S41 and S42 on
+ph-schematron's `BenchmarkProcessorSize` (ISO Schematron, compiled once; JMH, `-prof gc`):
+
+| Input | Items | Saxon [ms] | phoxtrot `a996fee` [ms] | phoxtrot `c09e6c0` [ms] | Alloc Saxon / `c09e6c0` [MB] |
+| ----- | ----: | ---------: | ----------------------: | ----------------------: | ---------------------------: |
+| DOM | 1,000 | 2.00 | 2.18 | 1.83 | 3.8 / 4.0 |
+| DOM | 20,000 | 42.52 | 46.46 | 38.48 | 71.5 / 79.1 |
+| stream | 20,000 | 47.12 | 52.15 | 44.69 | 85.9 / 94.2 |
+
+The S42 measurement again (same stylesheet and input): `*|comment()|processing-instruction()` 9.1 → 6.3 ms (Saxon
+5.9 ms), `@*|*|comment()|processing-instruction()` 14.0 → 8.1 ms (Saxon 19.0 ms).
+
+JFR profile of the DOM validation with 20,000 items (37.6 ms on phoxtrot, 42.4 ms on Saxon; share of the CPU samples
+converted to ms per validation): input conversion 5.9 ms (Saxon navigates the DOM through its wrapper: 16.7 ms),
+execution 23.6 ms (Saxon 14.4 ms), result tree to DOM 5.2 ms (Saxon 8.8 ms), JAXB 3.0 ms (Saxon 2.4 ms). The execution
+(385 samples) has these hotspots:
+
+1. **`NamespaceFixup.finish` is now the largest single item:** 56 samples (15 % of the execution, about 3.4 ms). It
+   walks the finished result tree twice: `fixNamespaces` (43 samples; `_fixElement` → `_isBound` →
+   `AbstractXdmNode.lookupNamespaceUri`, one `LinkedHashMap.get` per element, 27 samples) and `assignDocumentOrder`
+   (13 samples). Both run after the whole tree is built, so the nodes are no longer in the cache. Proposals: (a) mark
+   the elements that can need a fixup (`xsl:element`, `xsl:copy`, namespaced attributes added later) and skip the
+   others: a literal result element whose shared namespace map binds its own prefix and those of its attributes is
+   correct by construction; (b) or fix an element when it is attached to its parent, when the parent's bindings are at
+   hand; (c) number the nodes while the tree is built (in document order, as the builder appends), instead of a
+   second pass.
+2. **Name index built for an empty check:** `XPathEvaluator._isEmptyByNameIndex` (from a path in a function argument,
+   `_evalFunctionCallDirect` → `_evalPath`) calls `XdmDocumentNode.getElementsByName`, which builds the index of all
+   elements of the input document: 16 samples (about 1 ms; 0.6 ms and 1.8 MB measured alone for 40,001 elements). In
+   a single validation pass the name occurs (`value` in `number(value)`), so the shortcut never pays off. Proposal: use
+   the shortcut only if the index already exists, or build it only for descendant searches.
+3. **Template rule search** (`Engine._findRule`): 76 samples (20 %, about 4.6 ms), spread over `_isRuleMatch`,
+   `CompiledPattern.matches`, `PatternMatcher._canAxisSelect`, `DirectPath.match`, `Mode.getNamedRuleIndexes` and the
+   step counting of `checkInterrupt`, without a single hotspot (no method above 7 samples). Only an observation; S41
+   item 2 did not change it measurably (63 of 404 samples before, 76 of 385 now).
