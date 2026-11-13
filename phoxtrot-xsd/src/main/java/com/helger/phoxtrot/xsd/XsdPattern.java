@@ -37,12 +37,12 @@ import com.helger.phoxtrot.xpath.regex.XPathRegex;
 final class XsdPattern
 {
   private final String m_sSource;
-  private final Pattern m_aPattern;
+  private final XPathRegex m_aRegex;
 
-  private XsdPattern (@NonNull final String sSource, @NonNull final Pattern aPattern)
+  private XsdPattern (@NonNull final String sSource, @NonNull final XPathRegex aRegex)
   {
     m_sSource = sSource;
-    m_aPattern = aPattern;
+    m_aRegex = aRegex;
   }
 
   /**
@@ -176,7 +176,7 @@ final class XsdPattern
     final String sAdjusted = _escapeAnchors (bXsd11 ? _rewriteUnknownBlocks (sPattern) : sPattern);
     try
     {
-      return new XsdPattern (sPattern, XPathRegex.compile (sAdjusted, "", bXsd11).getPattern ());
+      return new XsdPattern (sPattern, XPathRegex.compile (sAdjusted, "", bXsd11));
     }
     catch (final XPathException ex)
     {
@@ -196,7 +196,8 @@ final class XsdPattern
   {
     try
     {
-      return XPathRegex.withStackFallback ( () -> Boolean.valueOf (m_aPattern.matcher (sValue).matches ())).booleanValue ();
+      final Pattern aPattern = m_aRegex.getPattern (sValue);
+      return XPathRegex.withStackFallback ( () -> Boolean.valueOf (aPattern.matcher (sValue).matches ())).booleanValue ();
     }
     catch (final XPathException ex)
     {

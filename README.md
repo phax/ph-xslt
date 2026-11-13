@@ -232,6 +232,9 @@ basis of this project. See [NOTICE](NOTICE).
 # News and noteworthy
 
 v0.2.0 - work in progress
+* XPath/XSD: regular expressions with category escapes (`\w`, `\W`, `\d`, `\p{..}`) are fast again on JDK 24 and
+  later: an input without a code point whose category changed after Unicode 15.0 is matched with the built-in classes
+  of the JDK instead of the corrected ones (same result); new `XPathRegex.getPattern (String)`
 * XPath: `XPathStreamabilityAnalyzer` has a burst context mode (`setContextMode (EStreamContextMode.BURST)`, verdict
   `EStreamabilityVerdict.BURST`): is an expression evaluable on the buffered subtree of the context node, and if not,
   which construct leaves it; added `addExternalNodeVariable`. Behaviour change: `XPathStreamabilityResult.isStreamable ()`

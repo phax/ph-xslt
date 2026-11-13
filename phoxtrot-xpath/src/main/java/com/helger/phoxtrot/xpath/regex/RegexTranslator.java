@@ -21,6 +21,7 @@ import java.util.BitSet;
 import java.util.Locale;
 
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.helger.annotation.concurrent.NotThreadSafe;
 import com.helger.base.string.StringHelper;
@@ -61,6 +62,13 @@ final class RegexTranslator
    *
    * @param javaPattern
    *        The Java regular expression.
+   * @param builtInJavaPattern
+   *        The same Java regular expression with the uncorrected built-in
+   *        category classes of the running JDK (see
+   *        {@link UnicodeCategories#getBuiltInExpression(String, boolean)}),
+   *        or <code>null</code> if no category class needed a correction. It
+   *        matches like <code>javaPattern</code> on every input without a code
+   *        point of {@link UnicodeCategories#containsDifference(String)}.
    * @param groupCount
    *        The number of capturing groups of the XPath expression.
    * @param groupParents
@@ -69,6 +77,7 @@ final class RegexTranslator
    *        Per XPath group (index 1..groupCount) the Java group number.
    */
   record Result (@NonNull String javaPattern,
+                 @Nullable String builtInJavaPattern,
                  int groupCount,
                  @NonNull int [] groupParents,
                  @NonNull int [] javaGroups)
@@ -91,6 +100,9 @@ final class RegexTranslator
   private final boolean m_bDotAll;
   private final boolean m_bMultiLine;
   private final boolean m_bXsd11Classes;
+  private final boolean m_bBuiltInCategories;
+  // Whether a category class with a correction was emitted
+  private boolean m_bCorrected;
   private final StringBuilder m_aSB = new StringBuilder ();
   private int m_nPos;
   private final int m_nTotalGroups;
@@ -124,13 +136,17 @@ final class RegexTranslator
    * @param aWithMarker
    *        The XPath groups that get an empty marker group after them; empty
    *        in the first pass.
+   * @param bBuiltInCategories
+   *        <code>true</code> to emit the uncorrected built-in category classes
+   *        of the running JDK instead of the Unicode 15.0 ones.
    */
   private RegexTranslator (@NonNull final String sPattern,
                            final boolean bCaseInsensitive,
                            final boolean bDotAll,
                            final boolean bMultiLine,
                            final boolean bXsd11Classes,
-                           @NonNull final BitSet aWithMarker)
+                           @NonNull final BitSet aWithMarker,
+                           final boolean bBuiltInCategories)
   {
     m_sPattern = sPattern;
     m_aCP = StringHelper.getCodePoints (sPattern);
@@ -140,6 +156,7 @@ final class RegexTranslator
     m_bXsd11Classes = bXsd11Classes;
     m_nTotalGroups = _countGroups (m_aCP);
     m_aWithMarker = aWithMarker;
+    m_bBuiltInCategories = bBuiltInCategories;
     m_aParents.add (0);
     m_aJavaGroups.add (0);
     m_aMarkerGroups.add (0);
@@ -280,6 +297,20 @@ final class RegexTranslator
     return ret;
   }
 
+  /**
+   * Append the Java class syntax of a general category: the Unicode 15.0 one,
+   * or the uncorrected built-in one if <code>m_bBuiltInCategories</code> is
+   * set. Records in <code>m_bCorrected</code> if the two differ.
+   */
+  private void _appendCategory (@NonNull final StringBuilder aSB, @NonNull final String sName, final boolean bNegated)
+  {
+    final String sBuiltIn = UnicodeCategories.getBuiltInExpression (sName, bNegated);
+    final String sPinned = UnicodeCategories.getClassExpression (sName, bNegated);
+    if (!sPinned.equals (sBuiltIn))
+      m_bCorrected = true;
+    aSB.append (m_bBuiltInCategories ? sBuiltIn : sPinned);
+  }
+
   /** Emit a character class as a complete bracketed Java class. */
   private void _emitClass (@NonNull final StringBuilder aSB, @NonNull final CharClass aClass)
   {
@@ -350,7 +381,7 @@ final class RegexTranslator
     }
     if (!UnicodeCategories.isCategory (sName))
       throw _error ("\\p{" + sName + "}: unknown category");
-    aSB.append (UnicodeCategories.getClassExpression (sName, bNegated));
+    _appendCategory (aSB, sName, bNegated);
   }
 
   /**
@@ -394,7 +425,7 @@ final class RegexTranslator
    *
    * @return <code>false</code> if the character is no multi-character escape
    */
-  private static boolean _appendMultiCharEscape (@NonNull final StringBuilder aSB, final int c)
+  private boolean _appendMultiCharEscape (@NonNull final StringBuilder aSB, final int c)
   {
     switch (c)
     {
@@ -405,22 +436,22 @@ final class RegexTranslator
         aSB.append ("[^" + XML_SPACE + "]");
         return true;
       case 'd':
-        aSB.append (UnicodeCategories.getClassExpression ("Nd", false));
+        _appendCategory (aSB, "Nd", false);
         return true;
       case 'D':
-        aSB.append (UnicodeCategories.getClassExpression ("Nd", true));
+        _appendCategory (aSB, "Nd", true);
         return true;
       case 'w':
-        aSB.append ("[^")
-           .append (UnicodeCategories.getClassExpression ("P", false))
-           .append (UnicodeCategories.getClassExpression ("Z", false))
-           .append (UnicodeCategories.getClassExpression ("C", false))
-           .append (']');
+        aSB.append ("[^");
+        _appendCategory (aSB, "P", false);
+        _appendCategory (aSB, "Z", false);
+        _appendCategory (aSB, "C", false);
+        aSB.append (']');
         return true;
       case 'W':
-        aSB.append (UnicodeCategories.getClassExpression ("P", false))
-           .append (UnicodeCategories.getClassExpression ("Z", false))
-           .append (UnicodeCategories.getClassExpression ("C", false));
+        _appendCategory (aSB, "P", false);
+        _appendCategory (aSB, "Z", false);
+        _appendCategory (aSB, "C", false);
         return true;
       case 'i':
         _appendRanges (aSB, NAME_START);
@@ -951,7 +982,7 @@ final class RegexTranslator
     }
     if (aOpen.isNotEmpty ())
       throw _error ("unterminated group");
-    return new Result (m_aSB.toString (), m_nGroups, m_aParents.toArray (), m_aJavaGroups.toArray ());
+    return new Result (m_aSB.toString (), null, m_nGroups, m_aParents.toArray (), m_aJavaGroups.toArray ());
   }
 
   /**
@@ -1005,7 +1036,9 @@ final class RegexTranslator
    * contains back-references, it is translated a second time with an empty
    * marker group after each referenced group, so that a back-reference to a
    * group that did not take part in the match matches the empty string
-   * (F&amp;O 3.1 section 5.6.1) instead of failing as in Java.
+   * (F&amp;O 3.1 section 5.6.1) instead of failing as in Java. If a category
+   * class needed a correction to Unicode 15.0, the last pass is repeated with
+   * the built-in classes for {@link Result#builtInJavaPattern()}.
    *
    * @param sPattern
    *        The XPath regular expression (after 'x' processing).
@@ -1029,22 +1062,37 @@ final class RegexTranslator
                            final boolean bMultiLine,
                            final boolean bXsd11Classes)
   {
-    final RegexTranslator aFirst = new RegexTranslator (sPattern,
-                                                        bCaseInsensitive,
-                                                        bDotAll,
-                                                        bMultiLine,
-                                                        bXsd11Classes,
-                                                        new BitSet ());
-    final Result ret = aFirst._translate ();
-    if (aFirst.m_aReferenced.isEmpty ())
+    RegexTranslator aLast = new RegexTranslator (sPattern,
+                                                 bCaseInsensitive,
+                                                 bDotAll,
+                                                 bMultiLine,
+                                                 bXsd11Classes,
+                                                 new BitSet (),
+                                                 false);
+    Result ret = aLast._translate ();
+    if (!aLast.m_aReferenced.isEmpty ())
+    {
+      // Again, with marker groups after the groups that are referenced
+      aLast = new RegexTranslator (sPattern,
+                                   bCaseInsensitive,
+                                   bDotAll,
+                                   bMultiLine,
+                                   bXsd11Classes,
+                                   aLast.m_aReferenced,
+                                   false);
+      ret = aLast._translate ();
+    }
+    if (!aLast.m_bCorrected)
       return ret;
-    // Again, with marker groups after the groups that are referenced
-    return new RegexTranslator (sPattern,
-                                bCaseInsensitive,
-                                bDotAll,
-                                bMultiLine,
-                                bXsd11Classes,
-                                aFirst.m_aReferenced)._translate ();
+    // Again, with the built-in category classes; the groups are the same
+    final String sBuiltIn = new RegexTranslator (sPattern,
+                                                 bCaseInsensitive,
+                                                 bDotAll,
+                                                 bMultiLine,
+                                                 bXsd11Classes,
+                                                 aLast.m_aWithMarker,
+                                                 true)._translate ().javaPattern ();
+    return new Result (ret.javaPattern (), sBuiltIn, ret.groupCount (), ret.groupParents (), ret.javaGroups ());
   }
 
   /**
@@ -1059,8 +1107,14 @@ final class RegexTranslator
   @NonNull
   static Result translateLiteral (@NonNull final String sLiteral, final boolean bCaseInsensitive)
   {
-    final RegexTranslator aTranslator = new RegexTranslator ("", bCaseInsensitive, false, false, false, new BitSet ());
+    final RegexTranslator aTranslator = new RegexTranslator ("",
+                                                             bCaseInsensitive,
+                                                             false,
+                                                             false,
+                                                             false,
+                                                             new BitSet (),
+                                                             false);
     StringHelper.iterateCodePoints (sLiteral, aTranslator::_emitLiteral);
-    return new Result (aTranslator.m_aSB.toString (), 0, new int [] { 0 }, new int [] { 0 });
+    return new Result (aTranslator.m_aSB.toString (), null, 0, new int [] { 0 }, new int [] { 0 });
   }
 }

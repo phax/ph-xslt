@@ -34,6 +34,14 @@ import com.helger.phoxtrot.xpath.context.DynamicContext;
  * A compiled XPath 3.1 regular expression (F&amp;O 3.1 section 5.6) with its
  * flags. Instances are immutable and may be shared between threads; compiled
  * expressions are kept in a bounded cache.
+ * <p>
+ * The general categories are those of Unicode 15.0 on every JDK. Where the
+ * running JDK has a newer Unicode version, a category class is corrected by
+ * the code points whose category changed, and a corrected class is far slower
+ * to match (each of its ranges is one more nested predicate in Java). Such an
+ * expression is therefore also compiled with the uncorrected built-in classes,
+ * which {@link #getPattern(String)} and {@link #matcher(DynamicContext, String)}
+ * use for every input without a changed code point.
  *
  * @author Philip Helger
  */
@@ -49,6 +57,8 @@ public final class XPathRegex
   private static final ConcurrentBoundedCache <String, XPathRegex> CACHE = new ConcurrentBoundedCache <> (CACHE_SIZE);
 
   private final Pattern m_aPattern;
+  // Null if no category class needed a correction
+  private final Pattern m_aBuiltInPattern;
   private final boolean m_bMatchesEmptyString;
   private final int m_nGroupCount;
   private final int [] m_aGroupParents;
@@ -107,6 +117,9 @@ public final class XPathRegex
    *
    * @param aPattern
    *        The translated Java pattern.
+   * @param aBuiltInPattern
+   *        The translated Java pattern with the uncorrected built-in category
+   *        classes, or <code>null</code> if it equals <code>aPattern</code>.
    * @param nGroupCount
    *        The number of capturing groups of the XPath expression.
    * @param aGroupParents
@@ -117,12 +130,14 @@ public final class XPathRegex
    *        <code>true</code> if the 'q' flag was given.
    */
   private XPathRegex (@NonNull final Pattern aPattern,
+                      @Nullable final Pattern aBuiltInPattern,
                       final int nGroupCount,
                       @NonNull final int [] aGroupParents,
                       @NonNull final int [] aJavaGroups,
                       final boolean bLiteral)
   {
     m_aPattern = aPattern;
+    m_aBuiltInPattern = aBuiltInPattern;
     m_nGroupCount = nGroupCount;
     m_aGroupParents = aGroupParents;
     m_aJavaGroups = aJavaGroups;
@@ -135,7 +150,8 @@ public final class XPathRegex
    * Compile without the cache: parse the flags (F&amp;O 3.1 section 5.6.2),
    * translate the expression with {@link RegexTranslator} (with 'q' as a
    * literal string, where the flags 's', 'm' and 'x' have no effect; with 'x'
-   * after removing the whitespace) and compile the Java pattern. Repeated
+   * after removing the whitespace) and compile the Java pattern, and the one
+   * with the built-in category classes if the translation has it. Repeated
    * flags are allowed.
    *
    * @param sPattern
@@ -195,9 +211,12 @@ public final class XPathRegex
                                            bMultiLine,
                                            bXsd11Classes);
     final Pattern aPattern;
+    final Pattern aBuiltInPattern;
     try
     {
       aPattern = Pattern.compile (aResult.javaPattern ());
+      final String sBuiltIn = aResult.builtInJavaPattern ();
+      aBuiltInPattern = sBuiltIn == null ? null : Pattern.compile (sBuiltIn);
     }
     catch (final PatternSyntaxException ex)
     {
@@ -208,7 +227,12 @@ public final class XPathRegex
     {
       throw XPathException.of ("XPDY0130", "The regular expression '" + sPattern + "' is too complex");
     }
-    return new XPathRegex (aPattern, aResult.groupCount (), aResult.groupParents (), aResult.javaGroups (), bLiteral);
+    return new XPathRegex (aPattern,
+                           aBuiltInPattern,
+                           aResult.groupCount (),
+                           aResult.groupParents (),
+                           aResult.javaGroups (),
+                           bLiteral);
   }
 
   /**
@@ -256,10 +280,33 @@ public final class XPathRegex
     return CACHE.getOrCompute (sKey, k -> _compile (sPattern, sRealFlags, bXsd11Classes));
   }
 
-  /** @return The Java pattern this expression was translated into. */
+  /**
+   * @return The Java pattern this expression was translated into, with the
+   *         Unicode 15.0 categories. It is correct for every input;
+   *         {@link #getPattern(String)} may be faster.
+   */
   @NonNull
   public Pattern getPattern ()
   {
+    return m_aPattern;
+  }
+
+  /**
+   * Get the Java pattern to match one input with: the one with the uncorrected
+   * built-in category classes if there is one and the input contains no code
+   * point whose category in the running JDK differs from Unicode 15.0 (which
+   * costs one scan of the input), otherwise {@link #getPattern()}. Both match
+   * the input the same way.
+   *
+   * @param sInput
+   *        The string that will be matched.
+   * @return The pattern. Never <code>null</code>.
+   */
+  @NonNull
+  public Pattern getPattern (@NonNull final String sInput)
+  {
+    if (m_aBuiltInPattern != null && !UnicodeCategories.containsDifference (sInput))
+      return m_aBuiltInPattern;
     return m_aPattern;
   }
 
@@ -305,12 +352,12 @@ public final class XPathRegex
    *        Dynamic context, for interruption.
    * @param sInput
    *        The string to match against.
-   * @return A new matcher.
+   * @return A new matcher of {@link #getPattern(String)}.
    */
   @NonNull
   public Matcher matcher (@NonNull final DynamicContext aCtx, @NonNull final String sInput)
   {
-    return m_aPattern.matcher (new InterruptibleCharSequence (sInput, aCtx));
+    return getPattern (sInput).matcher (new InterruptibleCharSequence (sInput, aCtx));
   }
 
   /**

@@ -1270,3 +1270,14 @@ Tests: `matches`, `replace`, `tokenize` and `analyze-string` with `\w`, `\W`, `\
 results with both patterns on ASCII input and on input with a code point that is unassigned in Unicode 15.0 and
 assigned in the running JDK (e.g. U+0897 on JDK 24 and later); a benchmark of `replace ($s, '(\W*)\$name(\W*)', ...)`
 on a 1 KB ASCII string is on JDK 25 within 20 % of JDK 21.
+
+Status: implemented as proposed. `RegexTranslator` records whether a category class needed a correction and then
+repeats its last pass with the built-in classes (`Result.builtInJavaPattern`); `XPathRegex` compiles both, and
+`getPattern (String)` (used by `matcher`, so by `fn:matches`, `replace`, `tokenize`, `analyze-string` and
+`xsl:analyze-string`, and by `XsdPattern`) picks the built-in one when `UnicodeCategories.containsDifference` finds no
+changed code point (sorted array, binary search only for code points from the first difference on; about 120 ns per KB
+of ASCII on JDK 25). The partial measure (built-in class in front) was not done. Measured with the replacement of the
+proposal on 1 KB of ASCII: JDK 21 14.5 µs, JDK 25 12.4 µs (corrected pattern alone on JDK 25: 264 µs). A benchmark that
+runs the corrected pattern in the same JVM slows every pattern down (the predicate call sites in `java.util.regex`
+become megamorphic), so it must not be measured after it. Tests: `XPathRegexTest.testBuiltInCategoryPattern`,
+`UnicodeCategoriesTest.testContainsDifference`, `FnRegexTest.testUnicode15Categories` (also run on JDK 25).

@@ -22,6 +22,9 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.junit.Test;
 
 import com.helger.phoxtrot.xpath.XPathException;
@@ -33,6 +36,19 @@ import com.helger.phoxtrot.xpath.XPathException;
  */
 public final class XPathRegexTest
 {
+  /** @return All matches of the pattern with the spans of all groups. */
+  private static String _getAllMatches (final Pattern aPattern, final String sInput)
+  {
+    final StringBuilder aSB = new StringBuilder ();
+    final Matcher aMatcher = aPattern.matcher (sInput);
+    while (aMatcher.find ())
+    {
+      for (int i = 0; i <= aMatcher.groupCount (); ++i)
+        aSB.append (aMatcher.start (i)).append ('-').append (aMatcher.end (i)).append (' ');
+      aSB.append ('|');
+    }
+    return aSB.toString ();
+  }
   @Test
   public void testCache ()
   {
@@ -109,5 +125,48 @@ public final class XPathRegexTest
     assertEquals (0, UnicodeBlocks.getBlockRanges ("HighSurrogates").length);
     assertEquals (6, UnicodeBlocks.getBlockRanges ("PrivateUse").length);
     assertEquals (null, UnicodeBlocks.getBlockRanges ("Klingon"));
+  }
+
+  @Test
+  public void testBuiltInCategoryPattern ()
+  {
+    final StringBuilder aASCII = new StringBuilder ();
+    while (aASCII.length () < 1024)
+      aASCII.append ("Hello, World! 42 $name (x) _a-b\t\n");
+    // U+0897 is unassigned in Unicode 15.0 and a mark since Unicode 16.0 (JDK 24)
+    final String [] aInputs = { aASCII.toString (),
+                                "a\u0897b 1",
+                                "\u0897",
+                                "x\uD83D\uDE00y",
+                                "Gr\u00FC\u00DFe \u0663",
+                                "" };
+    final String [] aPatterns = { "\\w",
+                                  "\\W*",
+                                  "\\d+",
+                                  "\\D",
+                                  "\\p{L}+",
+                                  "\\P{C}",
+                                  "\\p{Cn}",
+                                  "[\\p{Nd}a-c]",
+                                  "[^\\w]",
+                                  "(\\W*)\\$name(\\W*)",
+                                  "(\\w)\\1" };
+    final boolean bDifferences = UnicodeCategories.getDifferenceCount () > 0;
+    for (final String sPattern : aPatterns)
+    {
+      final XPathRegex aRegex = XPathRegex.compile (sPattern, null);
+      for (final String sInput : aInputs)
+      {
+        final Pattern aChosen = aRegex.getPattern (sInput);
+        // The built-in classes only for an input without a changed category
+        assertEquals (sPattern,
+                      bDifferences && !UnicodeCategories.containsDifference (sInput),
+                      aChosen != aRegex.getPattern ());
+        assertEquals (sPattern, _getAllMatches (aRegex.getPattern (), sInput), _getAllMatches (aChosen, sInput));
+      }
+    }
+    // Without a category class there is one pattern only
+    final XPathRegex aRegex = XPathRegex.compile ("a+b", null);
+    assertSame (aRegex.getPattern (), aRegex.getPattern (aASCII.toString ()));
   }
 }

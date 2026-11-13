@@ -42,7 +42,9 @@ import com.helger.collection.commons.ICommonsSet;
  * every code point comes from <code>unicode-15-categories.txt</code> (generated from
  * UnicodeData.txt 15.0). The translation still uses the fast built-in <code>\p{..}</code> classes
  * of {@link java.util.regex.Pattern}, corrected by the code points whose category in the running
- * JDK differs from Unicode 15.0 (none on JDK 21).
+ * JDK differs from Unicode 15.0 (none on JDK 21). As a corrected class is much slower to match,
+ * the uncorrected built-in classes are used for every input without such a code point (see
+ * {@link XPathRegex}).
  *
  * @author Philip Helger
  */
@@ -237,6 +239,8 @@ final class UnicodeCategories
     static final String [] RUN_CATEGORIES;
     // Category name to its Java class syntax
     static final ICommonsMap <String, String> EXPRESSIONS = new CommonsHashMap <> ();
+    // The code points whose category in the running JDK differs from Unicode 15.0, ascending
+    static final int [] DIFFERENCES;
 
     static
     {
@@ -283,6 +287,9 @@ final class UnicodeCategories
       }
       for (final String sName : NAMES)
         EXPRESSIONS.put (sName, _buildExpression (sName, aDifferences));
+      DIFFERENCES = new int [aDifferences.size ()];
+      for (int i = 0; i < DIFFERENCES.length; ++i)
+        DIFFERENCES[i] = aDifferences.get (i).codePoint ();
     }
   }
 
@@ -306,6 +313,65 @@ final class UnicodeCategories
     if (sExpr.charAt (0) == '\\')
       return "\\P{" + sName + "}";
     return "[^" + sExpr + "]";
+  }
+
+  /**
+   * @param sName
+   *        A general category name valid in XSD regular expressions.
+   * @param bNegated
+   *        <code>true</code> for the complement (<code>\P{..}</code>).
+   * @return The built-in class of the running JDK for the category, without the corrections of
+   *         {@link #getClassExpression(String, boolean)}. It matches the same characters as that
+   *         one for every code point except those of {@link #containsDifference(String)}.
+   */
+  @NonNull
+  static String getBuiltInExpression (@NonNull final String sName, final boolean bNegated)
+  {
+    return (bNegated ? "\\P{" : "\\p{") + sName + "}";
+  }
+
+  /**
+   * @return The number of code points whose category in the running JDK differs from Unicode 15.0
+   *         (0 on JDK 21).
+   */
+  static int getDifferenceCount ()
+  {
+    return Holder.DIFFERENCES.length;
+  }
+
+  /**
+   * Check whether the built-in classes of {@link #getBuiltInExpression(String, boolean)} could
+   * match a string differently from the Unicode 15.0 classes: that is only possible for a code
+   * point whose category differs.
+   *
+   * @param sInput
+   *        The string to scan.
+   * @return <code>true</code> if the string contains a code point whose category in the running
+   *         JDK differs from Unicode 15.0.
+   */
+  static boolean containsDifference (@NonNull final String sInput)
+  {
+    final int [] aDifferences = Holder.DIFFERENCES;
+    if (aDifferences.length == 0)
+      return false;
+    final int nFirst = aDifferences[0];
+    final int nLength = sInput.length ();
+    int i = 0;
+    while (i < nLength)
+    {
+      final char c = sInput.charAt (i);
+      // Fast path: a char below the first difference that starts no surrogate pair (all of ASCII)
+      if (c < nFirst && !Character.isHighSurrogate (c))
+      {
+        i++;
+        continue;
+      }
+      final int nCP = sInput.codePointAt (i);
+      if (nCP >= nFirst && Arrays.binarySearch (aDifferences, nCP) >= 0)
+        return true;
+      i += Character.charCount (nCP);
+    }
+    return false;
   }
 
   /**

@@ -112,4 +112,31 @@ public final class UnicodeCategoriesTest
     assertFalse (aPattern.matcher (new String (Character.toChars (0x10D70))).matches ());
     assertTrue (XPathRegex.compile ("a", "i").getPattern ().matcher ("A").matches ());
   }
+
+  @Test
+  public void testContainsDifference ()
+  {
+    int nDifferences = 0;
+    for (int c = 0; c <= Character.MAX_CODE_POINT; ++c)
+    {
+      final String sChar = new String (Character.toChars (c));
+      if (UnicodeCategories.containsDifference (sChar))
+      {
+        nDifferences++;
+        assertTrue (Integer.toHexString (c), UnicodeCategories.containsDifference ("ab" + sChar + "c"));
+      }
+      else
+      {
+        // Without a difference the built-in class of the Unicode 15.0 category matches
+        final String sCategory = UnicodeCategories.getCategory (c);
+        assertTrue (Integer.toHexString (c) + " " + sCategory,
+                    Pattern.compile (UnicodeCategories.getBuiltInExpression (sCategory, false))
+                           .matcher (sChar)
+                           .matches ());
+      }
+    }
+    assertEquals (UnicodeCategories.getDifferenceCount (), nDifferences);
+    assertFalse (UnicodeCategories.containsDifference (""));
+    assertFalse (UnicodeCategories.containsDifference ("abc 123"));
+  }
 }

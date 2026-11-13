@@ -246,6 +246,11 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   the whole document, single/multiple for parents with more than 32 children (`getChildElementsByName`). Unnumbered,
   streamed and parentless trees and other patterns walk the tree. `NumberInstruction.getNameIndexCountCount ()` tells
   tests which path ran.
+- Regular expressions: the general categories are pinned to Unicode 15.0 (`regex/UnicodeCategories`, corrected
+  built-in classes on a JDK with a newer Unicode). A corrected class is very slow in `java.util.regex` (every range one
+  more nested predicate), so `XPathRegex` also keeps the translation with the uncorrected built-in classes and
+  `getPattern (String)`/`matcher` use it for an input without a changed code point (`containsDifference`). Match
+  through those, not `getPattern ()`. On JDK 21 there is no difference and only one pattern.
 - Node test names hold interned strings (`NodeTest` constructor, `XdmQName.getInterned`), like the names the JDK
   parsers report and the tree builders keep, so a matching name test is decided by identity.
 - `XPathOperators` (`phoxtrot-xpath`, package `eval`) is the one place for the semantics of comparisons, arithmetic,

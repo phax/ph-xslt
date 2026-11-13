@@ -256,4 +256,20 @@ public final class FnRegexTest
     assertEquals ("true", eval (sLet + "data($r) instance of xs:untypedAtomic"));
     assertEquals ("anana", eval (sLet + "string($r//*:group[@nr = 2])"));
   }
+
+  @Test
+  public void testUnicode15Categories ()
+  {
+    // U+0897 (2199) is unassigned in Unicode 15.0 and a mark since Unicode 16.0 (JDK 24): an input
+    // with it is matched with the corrected classes, an input without it with the built-in ones
+    final String sNew = "codepoints-to-string(2199)";
+    assertEquals ("true", eval ("matches(" + sNew + ", '^\\p{Cn}$')"));
+    assertEquals ("false", eval ("matches(" + sNew + ", '\\w')"));
+    assertEquals ("true", eval ("replace('a' || " + sNew + " || 'b', '\\w', 'x') eq 'x' || " + sNew + " || 'x'"));
+    assertEquals ("2", eval ("count(tokenize('a' || " + sNew + " || 'b', '\\W'))"));
+    assertEquals ("x x", eval ("replace('a b', '\\w', 'x')"));
+    assertEquals ("$a = 1", eval ("replace('$name = 1', '(\\W*)\\$name(\\W*)', '$1\\$a$2')"));
+    assertEquals ("<non-match>a</non-match><match>1</match><non-match>\u0897</non-match>",
+                  _analyze ("analyze-string('a1' || " + sNew + ", '\\d')"));
+  }
 }
