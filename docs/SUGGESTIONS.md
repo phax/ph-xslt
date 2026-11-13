@@ -1235,3 +1235,38 @@ wrapped in the `let` clause, including the reason (`expression let`, or a new re
 Tests: for expressions E and bindings X, Y, `analyze ("let $a := (X), $b := (Y) return E")` and `analyze ("E")` after
 `addBoundVariable` for `$a` and `$b` give the same verdict, posture, sweep and reason in all three context modes; with
 bindings that are motionless, consuming, burst (descendants), free-ranging (`parent::x`, `//x`) and unused.
+
+### S47 - Regular expressions with category escapes are slow on JDK 24 and later
+
+Found 2026-11-13 in `ph-schematron-benchmarks` (`BenchmarkProcessorCompile`, phoxtrot `422534e`; the same with
+`a996fee`).
+
+The SchXslt 1 and SchXslt 2 conversions of a Schematron with abstract patterns take 18 ms on JDK 25 against 7.2 ms on
+JDK 21, with the same jars (ISO Schematron: 7.3 ms on both). The stack profile on JDK 25 has about 30 % of the run time
+in `java.util.regex.Pattern.lambda$union$0/$1`, which does not show on JDK 21. The trigger is SchXslt's replacement of
+abstract pattern parameters, `replace ($src, concat ('(\W*)\$', $name, '(\W*)'), ...)`, applied to every expression once
+per parameter: `\W` is translated with `UnicodeCategories.getClassExpression` for `P`, `Z` and `C`.
+
+Cause: `UnicodeCategories` pins the categories to Unicode 15.0 and corrects the built-in `\p{..}` classes by the code
+points whose category in the running JDK differs. JDK 21 has Unicode 15.0, so there is no difference and `\p{C}` stays
+5 characters long. JDK 25 has Unicode 16.0: 5,813 code points differ (5,812 of them unassigned in 15.0 and assigned in
+16.0, the first is U+0897), and the class expressions grow to `C` 759, `L` 356, `N` 147, `Nd` 148 and `P` 123
+characters. `java.util.regex.Pattern` turns every range of a bracketed class into one more nested union predicate, so
+each character tested by `\W*` walks a chain of hundreds of predicates.
+
+Where: `regex/UnicodeCategories` (`_buildExpression`, `getClassExpression`), `regex/RegexTranslator` (`\w`, `\W`, `\d`,
+`\D`, `\p{..}`, `\P{..}`), and the place where the translated `Pattern` is compiled and matched (`fn/FnRegex`).
+
+Proposal: keep the Unicode 15.0 semantics, but match with the fast built-in classes whenever the input cannot tell the
+difference. When the translation of a regular expression used a corrected category expression, also compile the
+uncorrected translation (built-in `\p{..}` only). Before matching, scan the input once for a code point from the
+difference set (a `BitSet` or a sorted array of the differing code points, built in `UnicodeCategories.Holder`); if
+there is none, which is the case for any input below U+0897, use the uncorrected pattern, otherwise the corrected one.
+Both patterns can be cached with the translated expression. A cheaper partial measure: put the built-in class in front
+of the added runs (`[\p{P}...runs]` instead of `[runs...\p{P}]`), so that members of the built-in class do not walk the
+runs; this does not help for characters outside the class.
+
+Tests: `matches`, `replace`, `tokenize` and `analyze-string` with `\w`, `\W`, `\d`, `\p{L}`, `\P{C}` give the same
+results with both patterns on ASCII input and on input with a code point that is unassigned in Unicode 15.0 and
+assigned in the running JDK (e.g. U+0897 on JDK 24 and later); a benchmark of `replace ($s, '(\W*)\$name(\W*)', ...)`
+on a 1 KB ASCII string is on JDK 25 within 20 % of JDK 21.
