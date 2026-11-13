@@ -1281,3 +1281,52 @@ proposal on 1 KB of ASCII: JDK 21 14.5 µs, JDK 25 12.4 µs (corrected pattern a
 runs the corrected pattern in the same JVM slows every pattern down (the predicate call sites in `java.util.regex`
 become megamorphic), so it must not be measured after it. Tests: `XPathRegexTest.testBuiltInCategoryPattern`,
 `UnicodeCategoriesTest.testContainsDifference`, `FnRegexTest.testUnicode15Categories` (also run on JDK 25).
+
+### S48 - Sibling positions are counted again for every node (`fn:path`, `count(preceding-sibling::*[...])`)
+
+Found 2026-11-13 with a failure heavy document in ph-schematron (phoxtrot `509ca49`, JDK 25): `N` sibling `item`
+elements, every second one failing an assert on `item`, so that the SVRL `location` of `N / 2` nodes is computed. Time
+per validation in ms:
+
+| Pipeline / processor | N = 2,500 | 5,000 | 10,000 |
+|---|---|---|---|
+| ISO / Saxon | 69 | 257 | 1,027 |
+| ISO / phoxtrot | 189 | 739 | 2,915 |
+| SchXslt 1 / Saxon | 61 | 224 | 881 |
+| SchXslt 1 / phoxtrot | 17 | 26 | 51 |
+| SchXslt 2 / Saxon | 58 | 212 | 826 |
+| SchXslt 2 / phoxtrot | 16 | 40 | 112 |
+
+Saxon is quadratic in all three (its `fn:path` counts the preceding siblings for every node), so this is not a
+difference in results, only in speed. Two separate causes in phoxtrot:
+
+1. ISO Schematron computes the location with `1 + count(preceding-sibling::*[name()=name(current())])` (and the
+   `local-name()` / `namespace-uri()` variant), which is quadratic by construction, but phoxtrot is about 3 times slower
+   than Saxon per sibling. The JFR profile has the time in the predicate evaluation through the generic function call
+   path, for every sibling: `XPathEvaluator._tryExistenceCall` 12 %, `XPathOperators.invokeBuiltIn` 11 %,
+   `_evalFunctionCallDirect` 9 %, `AtomicComparator._compareAtomics` 8 %, `FnAccessor._getNode` 7 %,
+   `SequenceTypeMatcher.matches` 7 %, `XdmSequence.get` / `Objects.checkIndex` 14 %.
+2. `fn:path` (`FnAccessor.getPath`) calls `_getSiblingPosition` for every element step, which walks the children of the
+   parent from the first one up to the node, so a path of each of `N` siblings is quadratic as well
+   (`_getStepLabel` 19 %, `_isSameStep` 14 % for SchXslt 2 at N = 10,000). It is cheap per sibling, which is why
+   SchXslt 1 and 2 are still much faster than Saxon.
+
+Where: `fn/FnAccessor` (`getPath`, `_getSiblingPosition`); `eval/XPathEvaluator` (predicate evaluation, `_tryExistenceCall`,
+`_evalFunctionCallDirect`), `eval/XPathOperators.invokeBuiltIn`, `ops/AtomicComparator`.
+
+Proposal:
+
+1. `fn:path`: remember the positions per run, like `generate-id` does with `RUN_CACHE_GENERATE_ID`: on the first request
+   for a child of a parent, walk the children of that parent once and store the position of every child (per kind and
+   name, as `_isSameStep` defines it); later requests are a map lookup. This makes the location of all `N` siblings
+   linear.
+2. Predicates of the form `[name() = name(current())]`, `[local-name() = local-name(current())]` and
+   `[namespace-uri() = namespace-uri(current())]`: evaluate the operand that does not depend on the focus of the
+   predicate (`name(current())`) once per predicate application instead of once per candidate node, and give the
+   context item forms of `name()`, `local-name()` and `namespace-uri()` a direct path that skips the argument matching and
+   `SequenceTypeMatcher`. The goal is Saxon's speed per sibling; the expression itself stays quadratic.
+
+Tests: `fn:path` gives the same results as before for elements with same named siblings in different namespaces,
+attributes, text, comment, processing instruction and namespace nodes, and in a tree without document node;
+`count(preceding-sibling::*[name()=name(current())])` gives the same results; the SchXslt 2 row of the table is linear
+(N = 10,000 at most twice N = 5,000), the ISO row within 20 % of Saxon.
