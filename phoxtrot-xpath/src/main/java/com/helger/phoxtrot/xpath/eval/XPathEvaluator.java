@@ -37,6 +37,7 @@ import com.helger.collection.commons.ICommonsList;
 import com.helger.phoxtrot.xdm.ENodeKind;
 import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
+import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xdm.XdmDocumentNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.XPathException;
@@ -49,7 +50,9 @@ import com.helger.phoxtrot.xpath.ast.IExpr;
 import com.helger.phoxtrot.xpath.ast.NodeTest;
 import com.helger.phoxtrot.xpath.ast.SeqType;
 import com.helger.phoxtrot.xpath.context.DynamicContext;
+import com.helger.phoxtrot.xpath.fn.FnAccessor;
 import com.helger.phoxtrot.xpath.fn.FnBoolean;
+import com.helger.phoxtrot.xpath.fn.FnContext;
 import com.helger.phoxtrot.xpath.fn.FnSequence;
 import com.helger.phoxtrot.xpath.fn.FunctionCallSite;
 import com.helger.phoxtrot.xpath.fn.FunctionLibrary;
@@ -84,6 +87,10 @@ public final class XPathEvaluator
   // Results of _evalFocusIndependentPredicate besides a 1-based position
   private static final int SELECT_ALL = 0;
   private static final int SELECT_NONE = -1;
+  /** The name accessors of a name predicate (see _getNameComparisons) */
+  private static final Set <String> NAME_ACCESSORS = Set.of ("name", "local-name", "namespace-uri");
+  /** The maximum nesting of <code>and</code> in a name predicate */
+  private static final int MAX_NAME_COMPARISONS = 8;
 
   @PresentForCodeCoverage
   private static final XPathEvaluator INSTANCE = new XPathEvaluator ();
@@ -203,17 +210,233 @@ public final class XPathEvaluator
         aPredicate instanceof IExpr.PathExpr ||
         aPredicate instanceof IExpr.ContextItemExpr)
       return false;
-    return ExprWalker.isFocusIndependent (aPredicate, aCall -> {
-      final int nArity = aCall.args ().size ();
-      final FunctionDef aDef = aCall.site ()
-                                    .getFunction (aCtx.getStaticContext ().getFunctionLibrary (),
-                                                  aCall.name (),
-                                                  nArity);
-      if (aDef == null)
+    return ExprWalker.isFocusIndependent (aPredicate, aCall -> _isDefaultImplementation (aCall, aCtx));
+  }
+
+  /**
+   * @return The implementation a static call resolves to in the function library of the static
+   *         context, or <code>null</code> if it does not resolve.
+   */
+  @Nullable
+  private static IXPathFunction _getImplementation (final IExpr.@NonNull FunctionCallExpr aCall,
+                                                    @NonNull final DynamicContext aCtx)
+  {
+    final FunctionDef aDef = aCall.site ()
+                                  .getFunction (aCtx.getStaticContext ().getFunctionLibrary (),
+                                                aCall.name (),
+                                                aCall.args ().size ());
+    return aDef == null ? null : aDef.getImpl ();
+  }
+
+  /**
+   * @return <code>true</code> if a static call resolves, in the function library of the static
+   *         context, to the implementation of the shared default library, so that a host function
+   *         registered under a built-in name is never taken for the built-in one.
+   */
+  private static boolean _isDefaultImplementation (final IExpr.@NonNull FunctionCallExpr aCall,
+                                                   @NonNull final DynamicContext aCtx)
+  {
+    final IXPathFunction aImpl = _getImplementation (aCall, aCtx);
+    if (aImpl == null)
+      return false;
+    final FunctionDef aDefault = FunctionLibrary.getDefault ().getFunction (aCall.name (), aCall.args ().size ());
+    return aDefault != null && aDefault.getImpl () == aImpl;
+  }
+
+  /**
+   * One comparison of a name predicate (see
+   * {@link #_getNameComparisons(IExpr, DynamicContext)}): a name accessor of the candidate
+   * compared for equality with an expression that has the same value for every candidate. The
+   * strings of that value are computed on first use, so within one predicate application.
+   */
+  private static final class NameComparison
+  {
+    private final IExpr m_aComparison;
+    // Local name of fn:name, fn:local-name or fn:namespace-uri
+    private final String m_sAccessor;
+    private final IExpr m_aValue;
+    private final boolean m_bValueComparison;
+    private boolean m_bEvaluated;
+    // Null if the value needs the generic comparison
+    private String [] m_aStrings;
+
+    NameComparison (final IExpr.@NonNull ComparisonExpr aComparison,
+                    @NonNull final String sAccessor,
+                    @NonNull final IExpr aValue)
+    {
+      m_aComparison = aComparison;
+      m_sAccessor = sAccessor;
+      m_aValue = aValue;
+      m_bValueComparison = aComparison.op () == EComparisonOp.VALUE_EQ;
+    }
+  }
+
+  /**
+   * @return The local name of the accessor if the expression is a static call of
+   *         <code>fn:name()</code>, <code>fn:local-name()</code> or <code>fn:namespace-uri()</code>
+   *         without argument (the context node) that resolves to the built-in implementation,
+   *         otherwise <code>null</code>.
+   */
+  @Nullable
+  private static String _getNameAccessor (@NonNull final IExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    if (!(aExpr instanceof final IExpr.FunctionCallExpr aCall) ||
+        !aCall.args ().isEmpty () ||
+        !XdmConstants.NS_FN.equals (aCall.name ().namespaceUri ()))
+      return null;
+    final String sLocalName = aCall.name ().localName ();
+    if (!NAME_ACCESSORS.contains (sLocalName) || !_isDefaultImplementation (aCall, aCtx))
+      return null;
+    return sLocalName;
+  }
+
+  /**
+   * Has an expression the same value for every candidate of a predicate? True for
+   * <code>current()</code> (the XSLT implementation {@link FnContext#XSLT_CURRENT}, whose item
+   * the focus of the predicate does not change), for a built-in name accessor applied to it
+   * (<code>name(current())</code>) and for whatever {@link ExprWalker#isFocusIndependent} accepts
+   * with built-in functions only (<code>'x'</code>, <code>$name</code>).
+   */
+  private static boolean _isCandidateInvariant (@NonNull final IExpr aExpr, @NonNull final DynamicContext aCtx)
+  {
+    IExpr aInner = aExpr;
+    if (aExpr instanceof final IExpr.FunctionCallExpr aCall &&
+        aCall.args ().size () == 1 &&
+        XdmConstants.NS_FN.equals (aCall.name ().namespaceUri ()) &&
+        NAME_ACCESSORS.contains (aCall.name ().localName ()) &&
+        _isDefaultImplementation (aCall, aCtx))
+      aInner = aCall.args ().get (0);
+    if (aInner instanceof final IExpr.FunctionCallExpr aCall &&
+        aCall.args ().isEmpty () &&
+        _getImplementation (aCall, aCtx) == FnContext.XSLT_CURRENT)
+      return true;
+    return ExprWalker.isFocusIndependent (aExpr, aCall -> _isDefaultImplementation (aCall, aCtx));
+  }
+
+  /**
+   * Collect the comparisons of a name predicate, an <code>and</code> of comparisons (depth-limited).
+   *
+   * @return <code>false</code> if the expression has another shape.
+   */
+  private static boolean _collectNameComparisons (@NonNull final IExpr aExpr,
+                                                  @NonNull final DynamicContext aCtx,
+                                                  final int nDepth,
+                                                  @NonNull final ICommonsList <NameComparison> aTarget)
+  {
+    if (aExpr instanceof final IExpr.BinaryExpr aAnd && aAnd.op () == EBinaryOp.AND)
+      return nDepth < MAX_NAME_COMPARISONS &&
+             _collectNameComparisons (aAnd.left (), aCtx, nDepth + 1, aTarget) &&
+             _collectNameComparisons (aAnd.right (), aCtx, nDepth + 1, aTarget);
+    if (!(aExpr instanceof final IExpr.ComparisonExpr aComp) ||
+        (aComp.op () != EComparisonOp.GENERAL_EQ && aComp.op () != EComparisonOp.VALUE_EQ))
+      return false;
+    String sAccessor = _getNameAccessor (aComp.left (), aCtx);
+    IExpr aValue = aComp.right ();
+    if (sAccessor == null)
+    {
+      sAccessor = _getNameAccessor (aComp.right (), aCtx);
+      aValue = aComp.left ();
+    }
+    if (sAccessor == null || !_isCandidateInvariant (aValue, aCtx))
+      return false;
+    aTarget.add (new NameComparison (aComp, sAccessor, aValue));
+    return true;
+  }
+
+  /**
+   * Recognise a name predicate: <code>name() = name(current())</code>,
+   * <code>local-name() = local-name(current()) and namespace-uri() = namespace-uri(current())</code>,
+   * <code>local-name() eq 'x'</code> and the like, i.e. an <code>and</code> of <code>=</code> or
+   * <code>eq</code> comparisons, each of a name accessor of the context node with an expression of
+   * the same value for every candidate (see {@link #_isCandidateInvariant(IExpr, DynamicContext)}),
+   * under the codepoint collation. Such a predicate is tested per candidate by
+   * {@link #_isNamePredicateTrue(ICommonsList, IXdmItem, int, int, DynamicContext)}.
+   *
+   * @return The comparisons in the order of the expression, or <code>null</code> for any other
+   *         predicate.
+   */
+  @Nullable
+  private static ICommonsList <NameComparison> _getNameComparisons (@NonNull final IExpr aPredicate,
+                                                                   @NonNull final DynamicContext aCtx)
+  {
+    if (!(aPredicate instanceof IExpr.ComparisonExpr) && !(aPredicate instanceof IExpr.BinaryExpr))
+      return null;
+    if (XPathOperators.getDefaultCollation (aCtx) != null)
+      return null;
+    final ICommonsList <NameComparison> ret = new CommonsArrayList <> ();
+    return _collectNameComparisons (aPredicate, aCtx, 0, ret) ? ret : null;
+  }
+
+  /**
+   * @return The strings an equality with the value matches, or <code>null</code> if the
+   *         comparison must be evaluated generically: an atom that is not string-like, an
+   *         untypedAtomic compared with <code>namespace-uri()</code> (cast to xs:anyURI) or more
+   *         than one atom for <code>eq</code> (an error).
+   */
+  @Nullable
+  private static String [] _getComparedStrings (@NonNull final NameComparison aComp, @NonNull final XdmSequence aValue)
+  {
+    final XdmSequence aAtoms = XPathOperators.atomize (aValue);
+    if (aComp.m_bValueComparison && aAtoms.size () > 1)
+      return null;
+    final String [] ret = new String [aAtoms.size ()];
+    for (int i = 0; i < ret.length; ++i)
+    {
+      if (!(aAtoms.get (i) instanceof final XdmAtomic aAtomic) || !aAtomic.isStringLike ())
+        return null;
+      if (aAtomic.getType () == EAtomicType.UNTYPED_ATOMIC && aComp.m_sAccessor.equals ("namespace-uri"))
+        return null;
+      ret[i] = aAtomic.getString ();
+    }
+    return ret;
+  }
+
+  /**
+   * Test a name predicate (see {@link #_getNameComparisons(IExpr, DynamicContext)}) for one
+   * candidate, as the generic evaluation would: the comparisons left to right, each stopping the
+   * test when false. The compared value of a comparison is evaluated once, when the first
+   * candidate reaches it; the name of the candidate is then compared directly. A candidate that is
+   * no node and a value that is no string go through the generic evaluation of the comparison.
+   */
+  private static boolean _isNamePredicateTrue (@NonNull final ICommonsList <NameComparison> aComparisons,
+                                               @NonNull final IXdmItem aItem,
+                                               final int nPosition,
+                                               final int nSize,
+                                               @NonNull final DynamicContext aCtx)
+  {
+    for (final NameComparison aComp : aComparisons)
+    {
+      if (!aComp.m_bEvaluated)
+      {
+        aComp.m_aStrings = _getComparedStrings (aComp,
+                                                evaluateInternal (aComp.m_aValue,
+                                                                  aCtx.withFocus (aItem, nPosition, nSize)));
+        aComp.m_bEvaluated = true;
+      }
+      final boolean bTrue;
+      if (aComp.m_aStrings == null || !(aItem instanceof final IXdmNode aNode))
+        bTrue = _getEbv (aComp.m_aComparison, aCtx.withFocus (aItem, nPosition, nSize));
+      else
+      {
+        final String sName = switch (aComp.m_sAccessor)
+        {
+          case "name" -> FnAccessor.getName (aNode);
+          case "local-name" -> FnAccessor.getLocalName (aNode);
+          default -> FnAccessor.getNamespaceUri (aNode);
+        };
+        boolean bFound = false;
+        for (final String sValue : aComp.m_aStrings)
+          if (sValue.equals (sName))
+          {
+            bFound = true;
+            break;
+          }
+        bTrue = bFound;
+      }
+      if (!bTrue)
         return false;
-      final FunctionDef aDefault = FunctionLibrary.getDefault ().getFunction (aCall.name (), nArity);
-      return aDefault != null && aDefault.getImpl () == aDef.getImpl ();
-    });
+    }
+    return true;
   }
 
   /**
@@ -273,6 +496,18 @@ public final class XPathEvaluator
         return nFrom;
       return nSelected > nFrom && nSelected <= nSize ? nSelected - 1 : -1;
     }
+    final ICommonsList <NameComparison> aNameComparisons = _getNameComparisons (aPredicate, aCtx);
+    if (aNameComparisons != null)
+    {
+      // Optimisation: a name predicate evaluates its compared values once
+      for (int i = nFrom; i < nSize; ++i)
+      {
+        aCtx.checkInterrupt ();
+        if (_isNamePredicateTrue (aNameComparisons, aSeq.get (i), i + 1, nSize, aCtx))
+          return i;
+      }
+      return -1;
+    }
     for (int i = nFrom; i < nSize; ++i)
     {
       aCtx.checkInterrupt ();
@@ -309,6 +544,19 @@ public final class XPathEvaluator
       return nSelected >= 1 && nSelected <= nSize ? XdmSequence.of (aSeq.get (nSelected - 1)) : XdmSequence.EMPTY;
     }
     final XdmSequence.Builder aBuilder = new XdmSequence.Builder ();
+    final ICommonsList <NameComparison> aNameComparisons = _getNameComparisons (aPredicate, aCtx);
+    if (aNameComparisons != null)
+    {
+      // Optimisation: a name predicate evaluates its compared values once
+      for (int i = 0; i < nSize; ++i)
+      {
+        aCtx.checkInterrupt ();
+        final IXdmItem aItem = aSeq.get (i);
+        if (_isNamePredicateTrue (aNameComparisons, aItem, i + 1, nSize, aCtx))
+          aBuilder.add (aItem);
+      }
+      return aBuilder.build ();
+    }
     for (int i = 0; i < nSize; ++i)
     {
       aCtx.checkInterrupt ();

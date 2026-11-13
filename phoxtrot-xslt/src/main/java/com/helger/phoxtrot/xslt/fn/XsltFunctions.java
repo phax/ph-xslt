@@ -37,6 +37,7 @@ import com.helger.phoxtrot.xpath.context.ResourceUri;
 import com.helger.phoxtrot.xpath.context.StaticContext;
 import com.helger.phoxtrot.xpath.eval.NodeSorter;
 import com.helger.phoxtrot.xpath.fn.FnAccessor;
+import com.helger.phoxtrot.xpath.fn.FnContext;
 import com.helger.phoxtrot.xpath.fn.FnUri;
 import com.helger.phoxtrot.xpath.fn.FunctionLibrary;
 import com.helger.phoxtrot.xpath.ops.Atomizer;
@@ -399,28 +400,6 @@ public final class XsltFunctions
     if (ret == null)
       throw new XPathException ("XPST0017", "The function " + sFunction + "() is only available during a transformation");
     return ret;
-  }
-
-  /**
-   * fn:current (XSLT 3.0 section 20.4.1): the item that was the context item
-   * when the outermost XPath expression of the instruction or pattern
-   * started.
-   *
-   * @param aCtx
-   *        Dynamic context of the call.
-   * @param aArgs
-   *        No arguments.
-   * @return The current item.
-   * @throws XPathException
-   *         XTDE1360 if the current item is absent.
-   */
-  @NonNull
-  private static XdmSequence _current (@NonNull final DynamicContext aCtx, @NonNull final List <XdmSequence> aArgs)
-  {
-    final IXdmItem aItem = aCtx.getCurrentItem ();
-    if (aItem == null)
-      throw new XPathException ("XTDE1360", "current() is called while the current item is absent");
-    return XdmSequence.of (aItem);
   }
 
   /**
@@ -943,7 +922,7 @@ public final class XsltFunctions
   public static void registerRuntime (@NonNull final FunctionLibrary aLib)
   {
     registerStatic (aLib);
-    aLib.register (NS, "current", "() as item()", XsltFunctions::_current, true);
+    aLib.register (NS, "current", "() as item()", FnContext.XSLT_CURRENT, true);
     aLib.register (NS, "key", "(xs:string, xs:anyAtomicType*) as node()*", XsltFunctions::_key, true);
     aLib.register (NS, "key", "(xs:string, xs:anyAtomicType*, node()) as node()*", XsltFunctions::_key);
     aLib.register (NS, "document", "(item()*) as node()*", XsltFunctions::_document);

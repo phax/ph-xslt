@@ -107,4 +107,19 @@ public final class XsltFunctionsTest
                                        null));
     assertEquals (StaticContext.DEFAULT_XSD_VERSION.getID (), XsltFunctions.getSystemProperty ("xsd-version"));
   }
+
+  @Test
+  public void testCurrentInNamePredicate ()
+  {
+    // The location steps of ISO Schematron; p:a and q:a have the same expanded name
+    final String sSource = "<r xmlns:p='urn:p' xmlns:q='urn:p'><p:a/><a/><q:a/><b/><a/><q:a/><a/></r>";
+    final String sSelect = "count(preceding-sibling::*[name()=name(current())]), " +
+                           "count(preceding-sibling::*[local-name()=local-name(current()) and " +
+                           "namespace-uri()=namespace-uri(current())])";
+    assertEquals ("0 0;0 0;0 1;0 0;1 1;1 2;2 2;",
+                  XsltTestHelper.text ("<xsl:template match='/'><xsl:for-each select='r/*'><xsl:value-of select=\"" +
+                                       sSelect +
+                                       "\"/><xsl:text>;</xsl:text></xsl:for-each></xsl:template>",
+                                       sSource));
+  }
 }

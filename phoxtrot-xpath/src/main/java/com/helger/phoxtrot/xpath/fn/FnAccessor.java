@@ -16,6 +16,7 @@
  */
 package com.helger.phoxtrot.xpath.fn;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -27,6 +28,7 @@ import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
 import com.helger.collection.commons.CommonsArrayList;
 import com.helger.collection.commons.ICommonsList;
+import com.helger.phoxtrot.xdm.ENodeKind;
 import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmConstants;
@@ -48,6 +50,9 @@ import com.helger.phoxtrot.xpath.value.XdmSequence;
 public final class FnAccessor
 {
   private static final String RUN_CACHE_GENERATE_ID = "fn:generate-id";
+  private static final String RUN_CACHE_PATH = "fn:path";
+  /** Parents with fewer children are walked on every fn:path call instead of cached */
+  private static final int MIN_CACHED_CHILDREN = 16;
   private static final String ROOT_CALL = "Q{" + XdmConstants.NS_FN + "}root()";
 
   @PresentForCodeCoverage
@@ -200,7 +205,7 @@ public final class FnAccessor
    *         node without name.
    */
   @NonNull
-  private static String _getName (@Nullable final IXdmNode aNode)
+  public static String getName (@Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
@@ -216,7 +221,7 @@ public final class FnAccessor
    *         node without name.
    */
   @NonNull
-  private static String _getLocalName (@Nullable final IXdmNode aNode)
+  public static String getLocalName (@Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
@@ -233,7 +238,7 @@ public final class FnAccessor
    *         namespace.
    */
   @NonNull
-  private static String _getNamespaceUri (@Nullable final IXdmNode aNode)
+  public static String getNamespaceUri (@Nullable final IXdmNode aNode)
   {
     if (aNode == null)
       return "";
@@ -320,18 +325,80 @@ public final class FnAccessor
   }
 
   /**
+   * The position of a child among the children of its parent that match the
+   * same <code>fn:path</code> step, with the number of children the parent had
+   * when it was counted.
+   */
+  private record SiblingPosition (int position, int parentChildCount)
+  {}
+
+  /**
+   * What makes two children count for the same <code>fn:path</code> step (see
+   * {@link #_isSameStep(IXdmNode, IXdmNode)}): the kind, and the name of an
+   * element or processing instruction.
+   */
+  private record StepKey (@NonNull ENodeKind kind, @Nullable XdmQName name)
+  {}
+
+  /**
+   * The sibling positions fn:path counted in one run. On the first request for
+   * a child of a parent, all children of that parent are counted in one walk;
+   * an entry is only used while the parent has the same number of children.
+   * The keys are the child nodes by identity (weakly, as in
+   * {@link GeneratedIDs}), and the values reference no node.
+   */
+  private static final class SiblingPositions
+  {
+    private final Map <IXdmNode, SiblingPosition> m_aPositions = new WeakHashMap <> ();
+  }
+
+  /**
+   * Count the positions of all children of a parent per step (see
+   * {@link StepKey}) in one walk and remember them.
+   */
+  private static void _fillSiblingPositions (@NonNull final SiblingPositions aPositions,
+                                             @NonNull final IXdmNode aParent)
+  {
+    final int nCount = aParent.getChildCount ();
+    final Map <StepKey, int []> aCounters = new HashMap <> ();
+    for (int i = 0; i < nCount; ++i)
+    {
+      final IXdmNode aChild = aParent.getChildAtIndex (i);
+      final ENodeKind eKind = aChild.getKind ();
+      final XdmQName aName = eKind == ENodeKind.ELEMENT || eKind == ENodeKind.PROCESSING_INSTRUCTION ? aChild.getName ()
+                                                                                                    : null;
+      final int [] aCounter = aCounters.computeIfAbsent (new StepKey (eKind, aName), k -> new int [1]);
+      aPositions.m_aPositions.put (aChild, new SiblingPosition (++aCounter[0], nCount));
+    }
+  }
+
+  /**
    * @param aNode
    *        A child node.
+   * @param aPositions
+   *        The positions counted in this run, <code>null</code> to count
+   *        without remembering.
    * @return The 1-based position of the node among the children of its parent
    *         that match the same step (see
    *         {@link #_isSameStep(IXdmNode, IXdmNode)}); 1 for a node without
    *         parent.
    */
-  private static int _getSiblingPosition (@NonNull final IXdmNode aNode)
+  private static int _getSiblingPosition (@NonNull final IXdmNode aNode, @Nullable final SiblingPositions aPositions)
   {
     final IXdmNode aParent = aNode.getParent ();
     if (aParent == null)
       return 1;
+    // Optimisation: the paths of many children of one parent count the children once
+    if (aPositions != null && aParent.getChildCount () >= MIN_CACHED_CHILDREN)
+    {
+      SiblingPosition aPos = aPositions.m_aPositions.get (aNode);
+      if (aPos == null || aPos.parentChildCount () != aParent.getChildCount ())
+      {
+        _fillSiblingPositions (aPositions, aParent);
+        aPos = aPositions.m_aPositions.get (aNode);
+      }
+      return aPos.position ();
+    }
     int nPos = 0;
     for (int i = 0; i < aParent.getChildCount (); ++i)
     {
@@ -354,23 +421,26 @@ public final class FnAccessor
    *
    * @param aNode
    *        A node that is not a document node.
+   * @param aPositions
+   *        The sibling positions counted in this run, <code>null</code> for
+   *        none.
    * @return The step, the empty string for any other kind.
    */
   @NonNull
-  private static String _getStepLabel (@NonNull final IXdmNode aNode)
+  private static String _getStepLabel (@NonNull final IXdmNode aNode, @Nullable final SiblingPositions aPositions)
   {
     final XdmQName aName = aNode.getName ();
     return switch (aNode.getKind ())
     {
-      case ELEMENT -> "Q{" + aName.namespaceUri () + "}" + aName.localName () + "[" + _getSiblingPosition (aNode) + "]";
+      case ELEMENT -> "Q{" + aName.namespaceUri () + "}" + aName.localName () + "[" + _getSiblingPosition (aNode, aPositions) + "]";
       case ATTRIBUTE -> aName.hasNamespace () ? "@Q{" + aName.namespaceUri () + "}" + aName.localName ()
                                               : "@" + aName.localName ();
-      case TEXT -> "text()[" + _getSiblingPosition (aNode) + "]";
-      case COMMENT -> "comment()[" + _getSiblingPosition (aNode) + "]";
+      case TEXT -> "text()[" + _getSiblingPosition (aNode, aPositions) + "]";
+      case COMMENT -> "comment()[" + _getSiblingPosition (aNode, aPositions) + "]";
       case PROCESSING_INSTRUCTION -> "processing-instruction(" +
                                      aName.localName () +
                                      ")[" +
-                                     _getSiblingPosition (aNode) +
+                                     _getSiblingPosition (aNode, aPositions) +
                                      "]";
       case NAMESPACE -> aName == null ? "namespace::*[Q{" + XdmConstants.NS_FN + "}local-name()=\"\"]"
                                       : "namespace::" + aName.localName ();
@@ -381,10 +451,13 @@ public final class FnAccessor
   /**
    * @param aNode
    *        A node.
+   * @param aPositions
+   *        The sibling positions counted in this run, <code>null</code> to
+   *        count without remembering.
    * @return The result of <code>fn:path</code> for that node.
    */
   @NonNull
-  public static String getPath (@NonNull final IXdmNode aNode)
+  private static String _getPath (@NonNull final IXdmNode aNode, @Nullable final SiblingPositions aPositions)
   {
     if (aNode.isDocument ())
       return "/";
@@ -395,13 +468,24 @@ public final class FnAccessor
     {
       if (!bRooted && aCur == aRoot)
         break;
-      aSteps.add (_getStepLabel (aCur));
+      aSteps.add (_getStepLabel (aCur, aPositions));
     }
     aSteps.reverse ();
     final String sSteps = String.join ("/", aSteps);
     if (bRooted)
       return "/" + sSteps;
     return aSteps.isEmpty () ? ROOT_CALL : ROOT_CALL + "/" + sSteps;
+  }
+
+  /**
+   * @param aNode
+   *        A node.
+   * @return The result of <code>fn:path</code> for that node.
+   */
+  @NonNull
+  public static String getPath (@NonNull final IXdmNode aNode)
+  {
+    return _getPath (aNode, null);
   }
 
   @NonNull
@@ -495,17 +579,17 @@ public final class FnAccessor
       final IXdmNode aNode = _getNode (aCtx, aArgs);
       return aNode == null || !aNode.isDocument () ? XdmSequence.EMPTY : _anyUriOrEmpty (aNode.getDocumentUri ());
     });
-    _register01 (aLib, "name", "node()?", "xs:string", (aCtx, aArgs) -> _string (_getName (_getNode (aCtx, aArgs))));
+    _register01 (aLib, "name", "node()?", "xs:string", (aCtx, aArgs) -> _string (getName (_getNode (aCtx, aArgs))));
     _register01 (aLib,
                  "local-name",
                  "node()?",
                  "xs:string",
-                 (aCtx, aArgs) -> _string (_getLocalName (_getNode (aCtx, aArgs))));
+                 (aCtx, aArgs) -> _string (getLocalName (_getNode (aCtx, aArgs))));
     _register01 (aLib,
                  "namespace-uri",
                  "node()?",
                  "xs:anyURI",
-                 (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.anyUri (_getNamespaceUri (_getNode (aCtx, aArgs)))));
+                 (aCtx, aArgs) -> XdmSequence.of (XdmAtomic.anyUri (getNamespaceUri (_getNode (aCtx, aArgs)))));
     final IXPathFunction aRoot = (aCtx, aArgs) -> {
       final IXdmNode aNode = _getNode (aCtx, aArgs);
       return aNode == null ? XdmSequence.EMPTY : XdmSequence.of (aNode.getRoot ());
@@ -519,7 +603,12 @@ public final class FnAccessor
     });
     _register01 (aLib, "path", "node()?", "xs:string?", (aCtx, aArgs) -> {
       final IXdmNode aNode = _getNode (aCtx, aArgs);
-      return aNode == null ? XdmSequence.EMPTY : _string (getPath (aNode));
+      if (aNode == null)
+        return XdmSequence.EMPTY;
+      final SiblingPositions aPositions = (SiblingPositions) aCtx.getRunCache ()
+                                                                 .computeIfAbsent (RUN_CACHE_PATH,
+                                                                                   k -> new SiblingPositions ());
+      return _string (_getPath (aNode, aPositions));
     });
     _register01 (aLib,
                  "generate-id",

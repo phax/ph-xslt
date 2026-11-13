@@ -1330,3 +1330,30 @@ Tests: `fn:path` gives the same results as before for elements with same named s
 attributes, text, comment, processing instruction and namespace nodes, and in a tree without document node;
 `count(preceding-sibling::*[name()=name(current())])` gives the same results; the SchXslt 2 row of the table is linear
 (N = 10,000 at most twice N = 5,000), the ISO row within 20 % of Saxon.
+
+Status: implemented as proposed, measured on JDK 21 with an XSLT stylesheet that computes the expression for every
+second of `N` sibling `item` elements (best of 8, ms; before = `509ca49`):
+
+| Expression | N = 2,500 | 5,000 | 10,000 |
+|---|---|---|---|
+| `path()` before / now | 4 / 2 | 10 / 3 | 33 / 3 |
+| `1+count(preceding-sibling::*[name()=name(current())])` before / now | 91 / 23 | 362 / 84 | 1,450 / 325 |
+| the `local-name()` and `namespace-uri()` variant before / now | 171 / 25 | 689 / 96 | 2,724 / 391 |
+
+1. `fn:path`: `FnAccessor.SiblingPositions` in the run cache (`fn:path`) maps every child of a counted parent weakly to
+   its position per kind and name, counted in one walk on the first request; parents with fewer than 16 children are
+   still walked, and an entry is recounted when the parent's child count changed.
+2. Name predicates: `XPathEvaluator._getNameComparisons` recognises an `and` of `=`/`eq` comparisons of a built-in
+   `name()`, `local-name()` or `namespace-uri()` of the context node with an expression that has the same value for
+   every candidate (`ExprWalker.isFocusIndependent` with built-in functions, `current()`, or a name accessor of
+   `current()`), under the codepoint collation; `_applyPredicate` and `_findPassing` then test each candidate with
+   `_isNamePredicateTrue`: the comparisons left to right, the value of each evaluated once when the first candidate
+   reaches it, the name of the candidate compared as a string. To recognise `current()`, its XSLT implementation moved
+   to `FnContext.XSLT_CURRENT` (registered by `XsltFunctions`). Instead of a direct path for the context item forms of
+   the name functions in general, only the predicate shape is covered. Whether ISO is now within 20 % of Saxon must be
+   measured in ph-schematron (the expression alone is 4.5 and 7 times faster).
+
+Tests: `NamePredicateTest` (17 predicates in 7 contexts against a form that takes the generic path, including errors,
+non-string values and non-node candidates), `FnAccessorTest.testPathOfManySiblings` (all node kinds, same local names
+in two namespaces, a tree without document node, against the uncached `getPath`),
+`XsltFunctionsTest.testCurrentInNamePredicate`.

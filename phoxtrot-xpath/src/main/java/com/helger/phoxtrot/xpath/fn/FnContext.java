@@ -23,6 +23,7 @@ import org.jspecify.annotations.NonNull;
 
 import com.helger.annotation.concurrent.Immutable;
 import com.helger.annotation.style.PresentForCodeCoverage;
+import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.XdmConstants;
 import com.helger.phoxtrot.xpath.XPathException;
 import com.helger.phoxtrot.xpath.collation.CollationRegistry;
@@ -43,6 +44,20 @@ public final class FnContext
 {
   /** The value of <code>fn:default-language()</code>. */
   public static final String DEFAULT_LANGUAGE = DynamicContext.DEFAULT_LANGUAGE;
+
+  /**
+   * The implementation of the XSLT function <code>fn:current</code> (XSLT 3.0 section 20.4.1),
+   * registered by <code>phoxtrot-xslt</code>: the item that was the context item when the outermost
+   * XPath expression of the instruction or pattern started ({@link DynamicContext#getCurrentItem()}),
+   * XTDE1360 if it is absent. It is here so that the evaluator can recognise it by identity: its
+   * value does not change with the focus inside the expression.
+   */
+  public static final IXPathFunction XSLT_CURRENT = (aCtx, aArgs) -> {
+    final IXdmItem aItem = aCtx.getCurrentItem ();
+    if (aItem == null)
+      throw new XPathException ("XTDE1360", "current() is called while the current item is absent");
+    return XdmSequence.of (aItem);
+  };
 
   @PresentForCodeCoverage
   private static final FnContext INSTANCE = new FnContext ();

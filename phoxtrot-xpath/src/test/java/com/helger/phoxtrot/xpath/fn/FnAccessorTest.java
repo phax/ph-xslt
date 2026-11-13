@@ -26,6 +26,7 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import com.helger.phoxtrot.xdm.IXdmItem;
 import com.helger.phoxtrot.xdm.IXdmNode;
 import com.helger.phoxtrot.xdm.XdmQName;
 import com.helger.phoxtrot.xpath.value.EAtomicType;
@@ -119,6 +120,39 @@ public final class FnAccessorTest
     aElement.appendChild (aChild);
     assertEquals ("Q{http://www.w3.org/2005/xpath-functions}root()", FnAccessor.getPath (aElement));
     assertEquals ("Q{http://www.w3.org/2005/xpath-functions}root()/Q{}b[1]", FnAccessor.getPath (aChild));
+  }
+
+  @Test
+  public void testPathOfManySiblings ()
+  {
+    // More children than the cache threshold, of every kind and with same local names in two namespaces
+    final StringBuilder aSB = new StringBuilder ("<r xmlns:p='urn:p' xmlns:q='urn:p' xmlns='urn:d' a='1'>");
+    for (int i = 0; i < 12; ++i)
+      aSB.append ("<e/><p:e b='2'/>t<q:e/><x:e xmlns:x='urn:x'/><!--c--><?e pi?><f/>");
+    aSB.append ("</r>");
+    final IXdmNode aDoc = parse (aSB.toString ());
+    final String sNodes = "(//node() | //@*), //namespace::*";
+    final XdmSequence aNodes = eval (sNodes, aDoc);
+    final StringBuilder aExpected = new StringBuilder ();
+    for (final IXdmItem aNode : aNodes)
+    {
+      if (!aExpected.isEmpty ())
+        aExpected.append (' ');
+      aExpected.append (FnAccessor.getPath ((IXdmNode) aNode));
+    }
+    // One run: the positions are counted once per parent
+    assertEquals (aExpected.toString (), str ("for $n in (" + sNodes + ") return path($n)", aDoc));
+    assertEquals ("/Q{urn:d}r[1]/Q{urn:d}e[12]", str ("path(/*/*[last() - 4])", aDoc));
+    // p:e and q:e are the same step
+    assertEquals ("/Q{urn:d}r[1]/Q{urn:p}e[24]", str ("path(/*/*[last() - 2])", aDoc));
+
+    // A tree that is not rooted in a document node
+    final IXdmNode aElement = IXdmNode.createElement (new XdmQName ("a"));
+    for (int i = 0; i < 20; ++i)
+      aElement.appendChild (IXdmNode.createElement (new XdmQName (i % 2 == 0 ? "b" : "c")));
+    assertEquals ("Q{http://www.w3.org/2005/xpath-functions}root()/Q{}b[10] " +
+                  "Q{http://www.w3.org/2005/xpath-functions}root()/Q{}c[10]",
+                  str ("*[position() ge 19]!path()", aElement));
   }
 
   @Test

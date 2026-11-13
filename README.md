@@ -232,6 +232,11 @@ basis of this project. See [NOTICE](NOTICE).
 # News and noteworthy
 
 v0.2.0 - work in progress
+* XPath: `fn:path` counts the sibling positions of the children of a parent once per run, so the paths of many
+  siblings are linear; a predicate comparing `name()`, `local-name()` or `namespace-uri()` with a value that is the same
+  for every candidate (`[name() = name(current())]`, also joined with `and`) evaluates that value once and compares the
+  names directly (ISO Schematron locations about 4 to 7 times faster). `FnAccessor.getName`, `getLocalName` and
+  `getNamespaceUri` are public; the XSLT `current()` is `FnContext.XSLT_CURRENT`
 * XPath/XSD: regular expressions with category escapes (`\w`, `\W`, `\d`, `\p{..}`) are fast again on JDK 24 and
   later: an input without a code point whose category changed after Unicode 15.0 is matched with the built-in classes
   of the JDK instead of the corrected ones (same result); new `XPathRegex.getPattern (String)`

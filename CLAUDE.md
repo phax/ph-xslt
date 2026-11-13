@@ -237,6 +237,14 @@ for the architecture). Roadmap: `docs/PLAN.md`.
   `for`/`some`/`every` (`DynamicContext.get/setLoopFocus`, set by `_evalForExpr`/`_evalQuantifiedExpr`). Errors are
   not kept. The plan is kept in the `FunctionCallSite` (`getMemoPlan`) like the resolution. Add a function to the
   lists of `ExprWalker` only if it reads nothing that changes within a run.
+- Name predicates: an `and` of `=`/`eq` comparisons of `name()`, `local-name()` or `namespace-uri()` (built-in, context
+  node) with an expression of the same value for every candidate (focus-independent, `current()` or a name accessor of
+  it; the XSLT `current()` is recognised by identity, `FnContext.XSLT_CURRENT`, so register no other) is tested by
+  `XPathEvaluator._isNamePredicateTrue` under the codepoint collation: the value is evaluated when the first candidate
+  reaches it, then names are compared as strings; anything else (no node, no string, untypedAtomic against
+  `namespace-uri()`, several atoms for `eq`) goes through the generic comparison. `fn:path` keeps the sibling positions
+  of parents with at least 16 children in the run cache (`FnAccessor.SiblingPositions`, weak by child, used only while
+  the parent has the same child count).
 - A single-node named child or descendant step whose result is a complete list of the name index
   (`AxisNavigator.getNamedIndexList`) takes the sequence of that list from the run memo
   (`XPathEvaluator._getIndexListSequence`) instead of copying it.
