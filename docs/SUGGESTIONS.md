@@ -1357,3 +1357,38 @@ Tests: `NamePredicateTest` (17 predicates in 7 contexts against a form that take
 non-string values and non-node candidates), `FnAccessorTest.testPathOfManySiblings` (all node kinds, same local names
 in two namespaces, a tree without document node, against the uncached `getPath`),
 `XsltFunctionsTest.testCurrentInNamePredicate`.
+
+### S49 - `use-when` does not see functions registered through `XsltExtensionRegistry.registerFunctions`
+
+Found 2026-11-13 in ph-schematron (phoxtrot `a653b31`, JDK 25). ph-schematron registers an extension function
+`Q{urn:com:helger:schematron:pure-xslt-functions:v1.0}index-by-ns-name#1` with
+`XsltExtensionRegistry.getInstance ().registerFunctions (...)`, so that a stylesheet can compute the SVRL `location` in
+linear time (the portable `count(preceding-sibling::*[...])` stays quadratic, see S48). To stay portable, such a
+stylesheet picks the function at compile time (this was tried for the ISO Schematron skeleton, which ph-schematron
+did not change in the end for an unrelated reason):
+
+```xml
+<xsl:variable name="preceding" use-when="function-available('phsch:index-by-ns-name', 1)"
+              select="phsch:index-by-ns-name(.) - 1"/>
+<xsl:variable name="preceding" use-when="not(function-available('phsch:index-by-ns-name', 1))"
+              select="count(preceding-sibling::*[local-name()=local-name(current()) and namespace-uri()=namespace-uri(current())])"/>
+```
+
+A call of the function at run time works, and so does `function-available` outside of `use-when`. Inside `use-when`,
+`function-available('phsch:index-by-ns-name', 1)` is `false`, so the stylesheet always takes the `count()` variant.
+Saxon (functions registered via `Configuration.registerExtensionFunction`) answers `true` in `use-when` as well.
+
+Cause: `StylesheetLoader` evaluates `use-when`, static variables and shadow attributes against `m_aStaticFunctions`
+(`FunctionLibrary.getDefault ().createChild ()` plus `XsltFunctions.registerStatic` and `registerClaims`), but only
+`StylesheetCompiler` calls `XsltExtensionRegistry.contributeFunctions` (for the library of the compiled stylesheet).
+
+Where: `compile/StylesheetLoader` (constructor, `_createStaticContext`), `compile/StylesheetCompiler` (the library of the
+stylesheet).
+
+Proposal: let `StylesheetLoader` call `XsltExtensionRegistry.contributeFunctions` on `m_aStaticFunctions` as well, so that
+`function-available` in a static expression gives the same answer as at run time. Whether a call of a contributed
+function inside `use-when` should also be allowed is up to you; ph-schematron only needs `function-available`.
+
+Tests: an extension function contributed through `registerFunctions` is available in `use-when`
+(`function-available('p:f', 1)` true, the element is kept) and in a static variable; an unknown function stays
+unavailable. ph-schematron: `PhoxtrotLocationFunctionsTest.testAvailableViaUseWhen` expects `3 3` once this is fixed.
